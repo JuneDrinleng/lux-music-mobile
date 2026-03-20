@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 import { pop } from '@/navigation'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -16,7 +16,8 @@ const TONEARM_OUT_ANGLE = '18deg'
 const TONEARM_IN_ANGLE = '-2deg'
 const TONEARM_PIVOT_X = 111
 const TONEARM_PIVOT_Y = 9
-const RECORD_SPIN_DURATION = 9000
+const RECORD_SPIN_DURATION = 30000
+const COVER_TRANSITION_DURATION = 280
 
 const toPercent = (now: number, total: number): `${number}%` => {
   if (!total) return '0%'
@@ -31,6 +32,10 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   const tonearmProgress = useRef(new Animated.Value(isPlay ? 1 : 0)).current
   const recordSpinProgress = useRef(new Animated.Value(0)).current
   const recordSpinAnim = useRef<Animated.CompositeAnimation | null>(null)
+  const coverTransition = useRef(new Animated.Value(1)).current
+  const hasMountedRef = useRef(false)
+  const [currentCover, setCurrentCover] = useState(musicInfo.pic)
+  const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const winSize = useWindowSize()
   const discSize = Math.min(winSize.width * 0.9, 450)
   const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
@@ -125,41 +130,57 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
     inputRange: [0, 1],
     outputRange: [TONEARM_OUT_ANGLE, TONEARM_IN_ANGLE],
   })
+  const currentCoverOpacity = coverTransition
+  const currentCoverScale = coverTransition.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.94, 1],
+  })
+  const prevCoverOpacity = coverTransition.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  })
+  const prevCoverScale = coverTransition.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.05],
+  })
 
-  const runRecordSpinLoop = useCallback((from: number) => {
-    const firstDuration = Math.max(32, Math.floor(RECORD_SPIN_DURATION * (1 - from)))
-    const spinLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(recordSpinProgress, {
-          toValue: 1,
-          duration: firstDuration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(recordSpinProgress, {
-          toValue: 0,
-          duration: 0,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
+  const startRecordSpin = useCallback(() => {
+    const startLinearLoop = () => {
+      const loop = Animated.loop(
         Animated.timing(recordSpinProgress, {
           toValue: 1,
           duration: RECORD_SPIN_DURATION,
           easing: Easing.linear,
           useNativeDriver: true,
         }),
-      ]),
-    )
-    recordSpinAnim.current = spinLoop
-    spinLoop.start()
-  }, [recordSpinProgress])
+      )
+      recordSpinAnim.current = loop
+      loop.start()
+    }
 
-  const startRecordSpin = useCallback(() => {
     recordSpinAnim.current?.stop()
     recordSpinProgress.stopAnimation(current => {
-      runRecordSpinLoop(current % 1)
+      const from = ((current % 1) + 1) % 1
+      const remainingDuration = Math.max(32, Math.round(RECORD_SPIN_DURATION * (1 - from)))
+      if (from <= 0.0001) {
+        recordSpinProgress.setValue(0)
+        startLinearLoop()
+        return
+      }
+      const continueCurrentTurn = Animated.timing(recordSpinProgress, {
+        toValue: 1,
+        duration: remainingDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+      recordSpinAnim.current = continueCurrentTurn
+      continueCurrentTurn.start(({ finished }) => {
+        if (!finished) return
+        recordSpinProgress.setValue(0)
+        startLinearLoop()
+      })
     })
-  }, [recordSpinProgress, runRecordSpinLoop])
+  }, [recordSpinProgress])
 
   const stopRecordSpin = useCallback(() => {
     recordSpinAnim.current?.stop()
@@ -180,6 +201,27 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
       stopRecordSpin()
     }
   }, [active, isPlay, startRecordSpin, stopRecordSpin])
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      setCurrentCover(musicInfo.pic)
+      return
+    }
+    if (musicInfo.pic === currentCover) return
+
+    setPrevCover(currentCover)
+    setCurrentCover(musicInfo.pic)
+    coverTransition.setValue(0)
+    Animated.timing(coverTransition, {
+      toValue: 1,
+      duration: COVER_TRANSITION_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setPrevCover(null)
+    })
+  }, [coverTransition, currentCover, musicInfo.id, musicInfo.pic])
 
   const handleTogglePlay = () => {
     animateTonearm(!isPlay)
@@ -284,7 +326,20 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
               ))}
               <View pointerEvents="none" style={[styles.vinylSheen, vinylSheenStyle]} />
               <View style={styles.recordInner}>
-                <Image style={styles.recordImage} url={musicInfo.pic} />
+                {prevCover ? (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.coverLayer,
+                      { opacity: prevCoverOpacity, transform: [{ scale: prevCoverScale }] },
+                    ]}
+                  >
+                    <Image style={styles.recordImage} url={prevCover} />
+                  </Animated.View>
+                ) : null}
+                <Animated.View style={[styles.coverLayer, { opacity: currentCoverOpacity, transform: [{ scale: currentCoverScale }] }]}>
+                  <Image style={styles.recordImage} url={currentCover} />
+                </Animated.View>
               </View>
             </View>
           </Animated.View>
@@ -507,6 +562,13 @@ const styles = createStyle({
     borderColor: 'rgba(15,23,42,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  coverLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   recordImage: {
     width: '100%',
