@@ -6,6 +6,24 @@ const { createThemeColors } = require('./utils')
 
 const defaultThemes = [
   {
+    id: 'shadcn_light',
+    name: '现代浅色',
+    isDark: false,
+    config: {
+      primary: 'rgb(24, 24, 27)',
+      font: 'rgb(9, 9, 11)',
+      'c-app-background': 'rgb(248, 250, 252)',
+      'c-main-background': 'rgb(255, 255, 255)',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': 'rgb(15, 23, 42)',
+      'c-badge-secondary': 'rgb(100, 116, 139)',
+      'c-badge-tertiary': 'rgb(226, 232, 240)',
+    },
+  },
+  {
     id: 'green',
     name: '绿意盎然',
     isDark: false,

@@ -1,70 +1,121 @@
-import { useEffect, useRef } from 'react'
-import settingState from '@/store/setting/state'
+import { useEffect, useMemo, useState } from 'react'
+import { TouchableOpacity, View } from 'react-native'
 import MusicList from './MusicList'
 import MyList from './MyList'
+import { createStyle } from '@/utils/tools'
+import Download from '../Download'
+import RecentList from './RecentList'
+import { setActiveList } from '@/core/list'
+import { LIST_IDS } from '@/config/constant'
+import SectionHeader from '@/components/modern/SectionHeader'
+import { useI18n } from '@/lang'
+import Surface from '@/components/modern/Surface'
+import { Icon } from '@/components/common/Icon'
 import { useTheme } from '@/store/theme/hook'
-import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
-import { COMPONENT_IDS } from '@/config/constant'
-import { scaleSizeW } from '@/utils/pixelRatio'
-import type { InitState as CommonState } from '@/store/common/state'
-
-const MAX_WIDTH = scaleSizeW(400)
+import Text from '@/components/common/Text'
 
 export default () => {
-  const drawer = useRef<DrawerLayoutFixedType>(null)
+  const [activeTab, setActiveTab] = useState<'playlists' | 'favorites' | 'downloads' | 'recent'>('playlists')
+  const t = useI18n()
   const theme = useTheme()
-  // const [width, setWidth] = useState(0)
 
   useEffect(() => {
-    const handleFixDrawer = (id: CommonState['navActiveId']) => {
-      if (id == 'nav_love') drawer.current?.fixWidth()
-    }
-    const changeVisible = (visible: boolean) => {
-      if (visible) {
-        requestAnimationFrame(() => {
-          drawer.current?.openDrawer()
-        })
-      } else {
-        drawer.current?.closeDrawer()
-      }
-    }
+    if (activeTab === 'favorites') setActiveList(LIST_IDS.LOVE)
+  }, [activeTab])
 
-    // setWidth(getWindowSise().width * 0.82)
-
-    global.state_event.on('navActiveIdUpdated', handleFixDrawer)
-    global.app_event.on('changeLoveListVisible', changeVisible)
-
-    // 就放旋转屏幕后的宽度没有更新的问题
-    // const changeEvent = onDimensionChange(({ window }) => {
-    //   setWidth(window.width * 0.82)
-    //   drawer.current?.setNativeProps({
-    //     width: window.width,
-    //   })
-    // })
-
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleFixDrawer)
-      global.app_event.off('changeLoveListVisible', changeVisible)
-    // changeEvent.remove()
-    }
-  }, [])
-
-  const navigationView = () => <MyList />
-  // console.log('render drawer content')
+  const quickItems = useMemo(() => ([
+    { id: 'favorites', label: t('library_tab_favorites'), icon: 'love' },
+    { id: 'recent', label: t('library_tab_recent'), icon: 'play' },
+    { id: 'downloads', label: t('library_tab_downloads'), icon: 'download-2' },
+  ] as const), [t])
 
   return (
-    <DrawerLayoutFixed
-      ref={drawer}
-      visibleNavNames={[COMPONENT_IDS.home]}
-      // drawerWidth={width}
-      widthPercentage={0.82}
-      widthPercentageMax={MAX_WIDTH}
-      drawerPosition={settingState.setting['common.drawerLayoutPosition']}
-      renderNavigationView={navigationView}
-      drawerBackgroundColor={theme['c-content-background']}
-      style={{ elevation: 1 }}
-    >
-      <MusicList />
-    </DrawerLayoutFixed>
+    <View style={styles.container}>
+      <SectionHeader title={t('nav_love')} />
+      <View style={styles.quickRow}>
+        {quickItems.map(item => {
+          const active = activeTab === item.id
+          return (
+            <TouchableOpacity
+              key={item.id}
+              activeOpacity={0.8}
+              style={styles.quickItemWrap}
+              onPress={() => { setActiveTab(item.id) }}
+            >
+              <Surface
+                style={{
+                  ...styles.quickItem,
+                  borderColor: active ? theme['c-primary-light-700'] : theme['c-border-background'],
+                }}
+                padding={10}
+              >
+                <Icon name={item.icon} size={18} color={active ? theme['c-primary-font-active'] : theme['c-font']} />
+                <Text size={12} color={active ? theme['c-primary-font-active'] : theme['c-font']} style={styles.quickLabel}>
+                  {item.label}
+                </Text>
+              </Surface>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+      <View style={styles.content}>
+        {
+          activeTab === 'playlists'
+            ? (
+              <View style={styles.playlists}>
+                <SectionHeader title={t('library_tab_playlists')} />
+                <Surface style={styles.playlistCard} padding={8}>
+                  <MyList alwaysVisible />
+                </Surface>
+                <View style={styles.playlistSongs}>
+                  <MusicList />
+                </View>
+              </View>
+            )
+            : null
+        }
+        { activeTab === 'favorites' ? <MusicList /> : null }
+        { activeTab === 'downloads' ? <Download /> : null }
+        { activeTab === 'recent' ? <RecentList /> : null }
+      </View>
+    </View>
   )
 }
+
+const styles = createStyle({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingTop: 6,
+  },
+  quickRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  quickItemWrap: {
+    flex: 1,
+    marginRight: 10,
+  },
+  quickItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    marginTop: 6,
+  },
+  playlists: {
+    flex: 1,
+  },
+  playlistCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    maxHeight: 260,
+  },
+  playlistSongs: {
+    flex: 1,
+  },
+})

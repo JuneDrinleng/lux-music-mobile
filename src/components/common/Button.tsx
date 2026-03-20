@@ -21,7 +21,7 @@ export default forwardRef<BtnType, BtnProps>(({ ripple: propsRipple = {}, disabl
   const theme = useTheme()
   const btnRef = useRef<View>(null)
   const ripple = useMemo(() => ({
-    color: theme['c-primary-light-200-alpha-700'],
+    color: theme['c-border-background'],
     ...propsRipple,
   }), [theme, propsRipple])
 

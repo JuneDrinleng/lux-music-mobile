@@ -9,8 +9,8 @@ import ListMusicSort, { type ListMusicSortType } from './ListMusicSort'
 import DuplicateMusic, { type DuplicateMusicType } from './DuplicateMusic'
 
 
-export default () => {
-  const [visible, setVisible] = useState(false)
+export default ({ alwaysVisible = false }: { alwaysVisible?: boolean }) => {
+  const [visible, setVisible] = useState(alwaysVisible)
   const listMenuRef = useRef<ListMenuType>(null)
   const listNameEditRef = useRef<ListNameEditType>(null)
   const listMusicSortRef = useRef<ListMusicSortType>(null)
@@ -18,6 +18,7 @@ export default () => {
   const listImportExportRef = useRef<ListImportExportType>(null)
 
   useEffect(() => {
+    if (alwaysVisible) return
     let isInited = false
     const changeVisible = (visibleList: boolean) => {
       if (visibleList && !isInited) {
@@ -32,7 +33,7 @@ export default () => {
     return () => {
       global.app_event.off('changeLoveListVisible', changeVisible)
     }
-  }, [])
+  }, [alwaysVisible])
 
   return (
     visible

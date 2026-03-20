@@ -84,3 +84,16 @@ export const useProgress = (autoUpdate = true) => {
 
   return value
 }
+
+export const usePlayedList = () => {
+  const [value, update] = useState(state.playedList)
+
+  useEffect(() => {
+    global.state_event.on('playPlayedListChanged', update)
+    return () => {
+      global.state_event.off('playPlayedListChanged', update)
+    }
+  }, [])
+
+  return value
+}

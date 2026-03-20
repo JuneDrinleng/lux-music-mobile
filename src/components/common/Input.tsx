@@ -16,14 +16,12 @@ const styles = createStyle({
     // paddingRight: 5,
   },
   input: {
-    // backgroundColor: 'rgba(0,0,0,0.1)',
-    // backgroundColor: 'white',
-    borderRadius: 2,
+    borderRadius: 10,
     paddingTop: 0,
     paddingBottom: 0,
-    height: 32,
-    paddingLeft: 5,
-    paddingRight: 0,
+    height: 36,
+    paddingLeft: 10,
+    paddingRight: 10,
     flexGrow: 1,
     flexShrink: 1,
     // height: '100%',
@@ -115,9 +113,16 @@ export default forwardRef<InputType, InputProps>(({ onChangeText, onClearText, c
         autoCapitalize="none"
         onChangeText={changeText}
         autoComplete="off"
-        style={StyleSheet.compose({ ...styles.input, color: theme['c-font'], fontSize: setSpText(size) }, style)}
-        placeholderTextColor={theme['c-primary-dark-100-alpha-600']}
-        selectionColor={theme['c-primary-light-100-alpha-300']}
+        style={StyleSheet.compose({
+          ...styles.input,
+          color: theme['c-font'],
+          fontSize: setSpText(size),
+          backgroundColor: theme['c-main-background'],
+          borderColor: theme['c-border-background'],
+          borderWidth: 1,
+        }, style)}
+        placeholderTextColor={theme['c-500']}
+        selectionColor={theme['c-primary-dark-100-alpha-200']}
         ref={inputRef} {...props} />
       {/* <View style={styles.clearBtnContent}>
       <Animated.View style={{ ...styles.clearBtnContent, transform: [{ scale: scaleClearBtn }] }}> */}

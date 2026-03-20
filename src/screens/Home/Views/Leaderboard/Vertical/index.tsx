@@ -1,161 +1,226 @@
-import { useEffect, useRef } from 'react'
-import { View } from 'react-native'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FlatList, TouchableOpacity, View } from 'react-native'
 import { createStyle } from '@/utils/tools'
-
-import MusicList, { type MusicListType } from '../MusicList'
-import { getLeaderboardSetting, saveLeaderboardSetting } from '@/utils/data'
-import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
-import HeaderBar, { type HeaderBarType, type HeaderBarProps } from './HeaderBar'
-import { scaleSizeW } from '@/utils/pixelRatio'
 import { useTheme } from '@/store/theme/hook'
-// import { BorderWidths } from '@/theme'
-// import { useTheme } from '@/store/theme/hook'
-import BoardsList, { type BoardsListType, type BoardsListProps } from '../BoardsList'
-import type { InitState as CommonState } from '@/store/common/state'
-import settingState from '@/store/setting/state'
-import { getBoardsList } from '@/core/leaderboard'
-import { COMPONENT_IDS } from '@/config/constant'
-import { handleCollect, handlePlay } from '../listAction'
-import boardState from '@/store/leaderboard/state'
+import { useI18n } from '@/lang'
+import { scaleSizeW } from '@/utils/pixelRatio'
+import Text from '@/components/common/Text'
+import SourceSelector, { type SourceSelectorType } from './HeaderBar/SourceSelector'
+import { getLeaderboardSetting, saveLeaderboardSetting } from '@/utils/data'
+import { getBoardsList, getListDetail } from '@/core/leaderboard'
+import type { BoardItem } from '@/store/leaderboard/state'
+import leaderboardState from '@/store/leaderboard/state'
+import Image from '@/components/common/Image'
+import Surface from '@/components/modern/Surface'
+import SectionHeader from '@/components/modern/SectionHeader'
+import { navigations } from '@/navigation'
+import commonState from '@/store/common/state'
 
+const PREVIEW_COUNT = 3
+const COVER_SIZE = scaleSizeW(40)
 
-const MAX_WIDTH = scaleSizeW(200)
-
-export default () => {
-  const drawer = useRef<DrawerLayoutFixedType>(null)
+const BoardCard = memo(({
+  item,
+  preview,
+  onLoadPreview,
+  onOpenDetail,
+}: {
+  item: BoardItem
+  preview?: LX.Music.MusicInfoOnline[]
+  onLoadPreview: (id: string) => void
+  onOpenDetail: (item: BoardItem) => void
+}) => {
   const theme = useTheme()
-  const musicListRef = useRef<MusicListType>(null)
-  const isUnmountedRef = useRef(false)
-  const boardsListRef = useRef<BoardsListType>(null)
-  const headerBarRef = useRef<HeaderBarType>(null)
-  const boundInfo = useRef<{ source: LX.OnlineSource, id: string | null }>({ source: 'kw', id: null })
-  // const [width, setWidth] = useState(0)
-
-  const handleBoundChange = (source: LX.OnlineSource, id: string) => {
-    musicListRef.current?.loadList(source, id)
-    void saveLeaderboardSetting({
-      source,
-      boardId: id,
-    })
-  }
-  const onBoundChange: BoardsListProps['onBoundChange'] = (id) => {
-    boundInfo.current.id = id
-    void getBoardsList(boundInfo.current.source).then(list => {
-      requestAnimationFrame(() => {
-        const bound = list.find(l => l.id == id)
-        headerBarRef.current?.setBound(boundInfo.current.source, id, bound?.name ?? 'Unknown')
-      })
-    })
-    handleBoundChange(boundInfo.current.source, id)
-    requestAnimationFrame(() => {
-      drawer.current?.closeDrawer()
-    })
-  }
-  const onPlay: BoardsListProps['onPlay'] = (id) => {
-    boundInfo.current.id = id
-    void handlePlay(id, boardState.listDetailInfo.list)
-  }
-  const onCollect: BoardsListProps['onCollect'] = (id, name) => {
-    boundInfo.current.id = id
-    void handleCollect(id, name, boundInfo.current.source)
-  }
-  const onShowBound = () => {
-    requestAnimationFrame(() => {
-      drawer.current?.openDrawer()
-    })
-  }
-  const onSourceChange: HeaderBarProps['onSourceChange'] = (source) => {
-    boundInfo.current.source = source
-    void getBoardsList(source).then(list => {
-      const id = list[0].id
-      const name = list[0].name
-      requestAnimationFrame(() => {
-        boardsListRef.current?.setList(list, id)
-        headerBarRef.current?.setBound(source, id, name ?? 'Unknown')
-        requestAnimationFrame(() => {
-          handleBoundChange(source, id)
-        })
-      })
-    })
-  }
-
-  const navigationView = () => {
-    return (
-      <BoardsList
-        ref={boardsListRef}
-        onBoundChange={onBoundChange}
-        onCollect={onCollect}
-        onPlay={onPlay}
-      />
-    )
-  }
-
-  // const theme = useTheme()
-
 
   useEffect(() => {
-    const handleFixDrawer = (id: CommonState['navActiveId']) => {
-      if (id == 'nav_top') drawer.current?.fixWidth()
-    }
-    global.state_event.on('navActiveIdUpdated', handleFixDrawer)
+    if (!preview) onLoadPreview(item.id)
+  }, [item.id, onLoadPreview, preview])
 
+  return (
+    <Surface style={styles.card} padding={12}>
+      <View style={styles.cardHeader}>
+        <TouchableOpacity onPress={() => { onOpenDetail(item) }} style={styles.cardTitleWrap} activeOpacity={0.7}>
+          <Text style={styles.cardTitle} size={16} numberOfLines={1}>{item.name}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.cardContent}>
+        {preview?.length
+          ? preview.slice(0, PREVIEW_COUNT).map((song, index) => (
+              <View key={`${item.id}_${song.id}_${index}`} style={styles.songRow}>
+                <Image style={styles.songCover} url={song.meta.picUrl} />
+                <View style={styles.songText}>
+                  <Text numberOfLines={1} size={13}>{song.name}</Text>
+                  <View style={styles.songMetaRow}>
+                    <Text numberOfLines={1} size={11} color={theme['c-500']}>{song.singer}</Text>
+                    <Text size={11} color={theme['c-400']} style={styles.metaDivider}>·</Text>
+                    <Text numberOfLines={1} size={11} color={theme['c-500']}>{song.source}</Text>
+                  </View>
+                </View>
+              </View>
+            ))
+          : <Text size={12} color={theme['c-500']}>Loading...</Text>}
+      </View>
+    </Surface>
+  )
+})
 
-    isUnmountedRef.current = false
-    void getLeaderboardSetting().then(({ source, boardId }) => {
-      boundInfo.current.source = source
-      boundInfo.current.id = boardId
-      void getBoardsList(source).then(list => {
-        const bound = list.find(l => l.id == boardId)
-        boardsListRef.current?.setList(list, boardId)
-        headerBarRef.current?.setBound(source, boardId, bound?.name ?? 'Unknown')
-      })
-      musicListRef.current?.loadList(source, boardId)
-    })
+export default () => {
+  const theme = useTheme()
+  const t = useI18n()
+  const [boards, setBoards] = useState<BoardItem[]>([])
+  const [previewMap, setPreviewMap] = useState<Record<string, LX.Music.MusicInfoOnline[]>>({})
+  const [currentSource, setCurrentSource] = useState<LX.OnlineSource>('kw')
+  const loadingRef = useRef<Set<string>>(new Set())
+  const sourceSelectorRef = useRef<SourceSelectorType>(null)
+  const [loading, setLoading] = useState(true)
 
-    return () => {
-      global.state_event.off('navActiveIdUpdated', handleFixDrawer)
-      isUnmountedRef.current = true
+  const loadBoards = useCallback(async(src: LX.OnlineSource) => {
+    setLoading(true)
+    try {
+      const list = await getBoardsList(src)
+      setBoards(list)
+      if (list.length) {
+        void saveLeaderboardSetting({
+          source: src,
+          boardId: list[0].id,
+        })
+      }
+    } catch {
+      setBoards([])
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  useEffect(() => {
+    void getLeaderboardSetting().then(({ source: savedSource }) => {
+      const validSource = leaderboardState.sources.includes(savedSource)
+        ? savedSource
+        : (leaderboardState.sources[0] ?? 'kw')
+      sourceSelectorRef.current?.setSource(validSource)
+      setCurrentSource(validSource)
+      void loadBoards(validSource)
+    })
+  }, [loadBoards])
+
+  const handleSourceChange = useCallback((src: LX.OnlineSource) => {
+    setBoards([])
+    setPreviewMap({})
+    setCurrentSource(src)
+    void loadBoards(src)
+  }, [loadBoards])
+
+  const handleLoadPreview = useCallback((id: string) => {
+    if (previewMap[id] || loadingRef.current.has(id)) return
+    loadingRef.current.add(id)
+    void getListDetail(id, 1).then((detail) => {
+      setPreviewMap(prev => ({
+        ...prev,
+        [id]: detail.list.slice(0, PREVIEW_COUNT),
+      }))
+    }).finally(() => {
+      loadingRef.current.delete(id)
+    })
+  }, [previewMap])
+
+  const handleOpenDetail = useCallback((item: BoardItem) => {
+    const componentId = commonState.componentIds.home
+    if (!componentId) return
+    navigations.pushLeaderboardDetailScreen(componentId, {
+      source: currentSource,
+      boardId: item.id,
+      boardName: item.name,
+    })
+  }, [currentSource])
+
+  const renderItem = useCallback(({ item }: { item: BoardItem }) => (
+    <BoardCard
+      item={item}
+      preview={previewMap[item.id]}
+      onLoadPreview={handleLoadPreview}
+      onOpenDetail={handleOpenDetail}
+    />
+  ), [handleLoadPreview, handleOpenDetail, previewMap])
+
+  const data = useMemo(() => boards, [boards])
 
   return (
-    <DrawerLayoutFixed
-      ref={drawer}
-      visibleNavNames={[COMPONENT_IDS.home]}
-      // drawerWidth={width}
-      widthPercentage={0.82}
-      widthPercentageMax={MAX_WIDTH}
-      drawerPosition={settingState.setting['common.drawerLayoutPosition']}
-      renderNavigationView={navigationView}
-      drawerBackgroundColor={theme['c-content-background']}
-      style={{ elevation: 1 }}
-    >
-      <View style={styles.container}>
-        <HeaderBar ref={headerBarRef} onShowBound={onShowBound} onSourceChange={onSourceChange} />
-        <MusicList ref={musicListRef} />
-      </View>
-    </DrawerLayoutFixed>
-    // <View style={styles.container}>
-    //   <LeftBar
-    //     ref={leftBarRef}
-    //     onChangeList={handleChangeBound}
-    //   />
-    //   <MusicList
-    //     ref={musicListRef}
-    //   />
-    // </View>
+    <View style={styles.container}>
+      <SectionHeader
+        title={t('nav_top')}
+        right={<SourceSelector ref={sourceSelectorRef} onSourceChange={handleSourceChange} />}
+      />
+      <FlatList
+        data={data}
+        showsVerticalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListEmptyComponent={(
+          <View style={styles.emptyWrap}>
+            <Text size={13} color={theme['c-500']}>
+              {loading ? '加载中...' : '暂无榜单'}
+            </Text>
+          </View>
+        )}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={4}
+        windowSize={5}
+        removeClippedSubviews
+        style={{ backgroundColor: theme['c-content-background'] }}
+      />
+    </View>
   )
 }
 
 const styles = createStyle({
   container: {
-    width: '100%',
     flex: 1,
-    flexDirection: 'column',
-    // borderTopWidth: BorderWidths.normal,
   },
-  // content: {
-  //   flex: 1,
-  // },
+  listContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  card: {
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardTitleWrap: {
+    flex: 1,
+  },
+  cardTitle: {
+    flex: 1,
+  },
+  cardContent: {
+  },
+  songRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  songCover: {
+    width: COVER_SIZE,
+    height: COVER_SIZE,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  songText: {
+    flex: 1,
+  },
+  songMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  metaDivider: {
+    marginHorizontal: 6,
+  },
 })

@@ -13,17 +13,21 @@ import Version from '../settings/Version'
 import About from '../settings/About'
 import { createStyle } from '@/utils/tools'
 import { SETTING_SCREENS, type SettingScreenIds } from '../Main'
+import Surface from '@/components/modern/Surface'
 
 type FlatListType = FlatListProps<SettingScreenIds>
 
 
 const styles = createStyle({
   content: {
-    paddingLeft: 15,
-    paddingRight: 15,
-    paddingTop: 15,
-    paddingBottom: 15,
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
     flex: 0,
+  },
+  card: {
+    marginBottom: 12,
   },
 })
 
@@ -45,7 +49,11 @@ const ListItem = memo(({
 }, () => true)
 
 export default () => {
-  const renderItem: FlatListType['renderItem'] = ({ item }) => <ListItem id={item} />
+  const renderItem: FlatListType['renderItem'] = ({ item }) => (
+    <Surface style={styles.card} padding={12}>
+      <ListItem id={item} />
+    </Surface>
+  )
   const getkey: FlatListType['keyExtractor'] = item => item
 
   return (
