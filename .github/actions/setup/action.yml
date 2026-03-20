@@ -12,8 +12,9 @@ runs:
     - name: Setup Java Env
       uses: actions/setup-java@v4
       with:
-        distribution: 'microsoft'
+        distribution: 'temurin'
         java-version: '17'
+        check-latest: true
         cache: gradle
 
     - name: Get npm cache directory

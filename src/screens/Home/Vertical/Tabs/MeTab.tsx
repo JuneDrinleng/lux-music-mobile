@@ -374,18 +374,10 @@ export default () => {
     if (!isSearchMode || !searchKeyword) return
     void runSearch(searchKeyword, searchSource)
   }, [isSearchMode, searchKeyword, searchSource, runSearch])
-  useEffect(() => {
-    if (!isSearchMode || !isSearchInputEditing) return
-    const timer = setTimeout(() => {
-      searchInputRef.current?.focus()
-    }, 0)
-    return () => { clearTimeout(timer) }
-  }, [isSearchInputEditing, isSearchMode])
   const handleBeginSearchInputEdit = useCallback(() => {
-    searchInputRef.current?.focus()
+    setSearchInputEditing(true)
     setSourceMenuVisible(false)
   }, [])
-
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     return (
@@ -429,20 +421,26 @@ export default () => {
           <View style={styles.searchResultSearchWrap}>
             <View style={styles.searchWrap}>
               <Icon name="search-2" rawSize={18} color="#9ca3af" />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                value={searchText}
-                onChangeText={setSearchText}
-                disableFullscreenUI
-                blurOnSubmit
-                onFocus={() => { setSearchInputEditing(true) }}
-                onBlur={() => { setSearchInputEditing(false) }}
-                onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
-                returnKeyType="search"
-                placeholder="Search songs, artists, playlists..."
-                placeholderTextColor="#9ca3af"
-              />
+              {isSearchInputEditing
+                ? <TextInput
+                    ref={searchInputRef}
+                    style={styles.searchInput}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    disableFullscreenUI
+                    blurOnSubmit
+                    autoFocus
+                    onBlur={() => { setSearchInputEditing(false) }}
+                    onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
+                    returnKeyType="search"
+                    placeholder="Search songs, artists, playlists..."
+                    placeholderTextColor="#9ca3af"
+                  />
+                : <TouchableOpacity style={styles.searchInputDisplay} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
+                    <Text size={13} color={searchText ? '#111827' : '#9ca3af'} numberOfLines={1}>
+                      {searchText || 'Search songs, artists, playlists...'}
+                    </Text>
+                  </TouchableOpacity>}
               <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
                 <View style={styles.sourceCapsule}>
                   <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
@@ -470,7 +468,7 @@ export default () => {
           : null}
       </View>
     )
-  }, [handleExitSearch, handleSelectSource, handleSubmitSearch, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, toggleSourceMenu])
+  }, [handleBeginSearchInputEdit, handleExitSearch, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, toggleSourceMenu])
 
   if (isSearchMode) {
     return (

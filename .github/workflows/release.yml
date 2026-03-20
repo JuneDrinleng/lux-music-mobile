@@ -21,9 +21,17 @@ jobs:
           DISABLE_SVG: 1
         shell: bash
         run: |
+          set -euo pipefail
           cd android
           echo ${{ secrets.KEYSTORE_STORE_FILE_BASE64 }} | base64 --decode > app/${{ secrets.KEYSTORE_STORE_FILE }}
-          ./gradlew assembleRelease -PMYAPP_UPLOAD_STORE_FILE='${{ secrets.KEYSTORE_STORE_FILE }}' -PMYAPP_UPLOAD_KEY_ALIAS='${{ secrets.KEYSTORE_KEY_ALIAS }}' -PMYAPP_UPLOAD_STORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' -PMYAPP_UPLOAD_KEY_PASSWORD='${{ secrets.KEYSTORE_KEY_PASSWORD }}'
+          ./gradlew --no-daemon --stacktrace --max-workers=2 assembleRelease -PMYAPP_UPLOAD_STORE_FILE='${{ secrets.KEYSTORE_STORE_FILE }}' -PMYAPP_UPLOAD_KEY_ALIAS='${{ secrets.KEYSTORE_KEY_ALIAS }}' -PMYAPP_UPLOAD_STORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' -PMYAPP_UPLOAD_KEY_PASSWORD='${{ secrets.KEYSTORE_KEY_PASSWORD }}' || {
+            echo "Gradle failed, dumping crash logs..."
+            find . -maxdepth 2 -name "hs_err_pid*.log" -print -exec cat {} \;
+            if [ -d "${HOME}/.gradle/daemon" ]; then
+              find "${HOME}/.gradle/daemon" -name "daemon-*.out.log" -print -exec tail -n 200 {} \;
+            fi
+            exit 1
+          }
           rm -f app/${{ secrets.KEYSTORE_STORE_FILE }}
 
       # Push tag to GitHub if package.json version's tag is not tagged
