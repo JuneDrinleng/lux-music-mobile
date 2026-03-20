@@ -67,3 +67,4 @@ buck-out/
 # testing
 /coverage
 /.claude
+keystore.base64.txt

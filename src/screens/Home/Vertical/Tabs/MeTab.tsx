@@ -59,6 +59,8 @@ export default () => {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
   const [lovedSongMap, setLovedSongMap] = useState<Record<string, true>>({})
+  const [isSearchInputEditing, setSearchInputEditing] = useState(false)
+  const [searchInputVersion, setSearchInputVersion] = useState(0)
   const detailRequestIdRef = useRef(0)
   const searchRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
@@ -297,6 +299,17 @@ export default () => {
     const target = sourceMenus.find(item => item.action === searchSource)
     return target?.label ?? 'kw'
   }, [searchSource])
+  const forceDismissSearchInput = useCallback(() => {
+    searchInputRef.current?.blur()
+    Keyboard.dismiss()
+    setTimeout(() => {
+      searchInputRef.current?.blur()
+      Keyboard.dismiss()
+    }, 0)
+    setTimeout(() => {
+      Keyboard.dismiss()
+    }, 120)
+  }, [])
 
   const runSearch = useCallback(async(keyword: string, source: SourceMenu['action']) => {
     const requestId = ++searchRequestIdRef.current
@@ -320,16 +333,18 @@ export default () => {
   }, [])
 
   const handleSubmitSearch = useCallback((text: string) => {
+    forceDismissSearchInput()
     const input = (text || searchText).trim()
     setSearchText(text || searchText)
+    setSearchInputEditing(false)
 
     if (!input) {
       setSearchMode(false)
       setSearchKeyword('')
       setSearchResults([])
       setSourceMenuVisible(false)
-      searchInputRef.current?.blur()
-      Keyboard.dismiss()
+      setSearchInputVersion((v) => v + 1)
+      forceDismissSearchInput()
       return
     }
 
@@ -338,29 +353,42 @@ export default () => {
     setSearchResults([])
     setSourceMenuVisible(false)
     void runSearch(input, searchSource)
-    searchInputRef.current?.blur()
-    Keyboard.dismiss()
-  }, [runSearch, searchSource, searchText])
+    setSearchInputVersion((v) => v + 1)
+    forceDismissSearchInput()
+  }, [forceDismissSearchInput, runSearch, searchSource, searchText])
 
   const handleEnterSearchMode = useCallback(() => {
     setSearchMode(true)
     setSourceMenuVisible(false)
     setKeepPlayBarVisible(false)
+    setSearchInputEditing(true)
   }, [])
 
   const handleExitSearch = useCallback(() => {
     setSearchMode(false)
+    setSearchInputEditing(false)
     setSearchKeyword('')
     setSearchResults([])
     setSourceMenuVisible(false)
-    searchInputRef.current?.blur()
-    Keyboard.dismiss()
-  }, [])
+    setSearchInputVersion((v) => v + 1)
+    forceDismissSearchInput()
+  }, [forceDismissSearchInput])
 
   useEffect(() => {
     if (!isSearchMode || !searchKeyword) return
     void runSearch(searchKeyword, searchSource)
   }, [isSearchMode, searchKeyword, searchSource, runSearch])
+  useEffect(() => {
+    if (!isSearchMode || !isSearchInputEditing) return
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus()
+    }, 0)
+    return () => { clearTimeout(timer) }
+  }, [isSearchInputEditing, isSearchMode])
+  const handleBeginSearchInputEdit = useCallback(() => {
+    setSearchInputEditing(true)
+    setSourceMenuVisible(false)
+  }, [])
 
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
@@ -405,17 +433,26 @@ export default () => {
           <View style={styles.searchResultSearchWrap}>
             <View style={styles.searchWrap}>
               <Icon name="search-2" rawSize={18} color="#9ca3af" />
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                value={searchText}
-                onChangeText={setSearchText}
-                disableFullscreenUI
-                onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
-                returnKeyType="search"
-                placeholder="Search songs, artists, playlists..."
-                placeholderTextColor="#9ca3af"
-              />
+              {isSearchInputEditing
+                ? <TextInput
+                    key={`search-input-${searchInputVersion}`}
+                    ref={searchInputRef}
+                    style={styles.searchInput}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    disableFullscreenUI
+                    blurOnSubmit
+                    onBlur={() => { setSearchInputEditing(false) }}
+                    onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
+                    returnKeyType="search"
+                    placeholder="Search songs, artists, playlists..."
+                    placeholderTextColor="#9ca3af"
+                  />
+                : <TouchableOpacity style={styles.searchInputDisplay} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
+                    <Text size={13} color={searchText ? '#111827' : '#9ca3af'} numberOfLines={1}>
+                      {searchText || 'Search songs, artists, playlists...'}
+                    </Text>
+                  </TouchableOpacity>}
               <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
                 <View style={styles.sourceCapsule}>
                   <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
@@ -443,38 +480,40 @@ export default () => {
           : null}
       </View>
     )
-  }, [handleExitSearch, handleSelectSource, handleSubmitSearch, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, toggleSourceMenu])
+  }, [handleBeginSearchInputEdit, handleExitSearch, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchInputVersion, searchSource, searchSourceLabel, searchText, statusBarHeight, toggleSourceMenu])
 
   if (isSearchMode) {
     return (
       <>
-        <FlatList
-          style={[styles.container, styles.searchResultList]}
-          contentContainerStyle={[styles.detailContent, styles.searchResultContent]}
-          data={searchResults}
-          renderItem={renderSearchResultItem}
-          keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-          ListHeaderComponent={searchHeader}
-          ListEmptyComponent={(
-            <View style={styles.emptyCard}>
-              <Text size={13} color="#6b7280">
-                {searchLoading
-                  ? 'Searching...'
-                  : searchKeyword
-                    ? 'No matched results'
-                    : 'Enter keyword and press search'}
-              </Text>
-            </View>
-          )}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          windowSize={8}
-          maxToRenderPerBatch={12}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-        />
+        <View style={styles.searchModeRoot}>
+          <FlatList
+            style={styles.searchResultList}
+            contentContainerStyle={[styles.detailContent, styles.searchResultContent]}
+            data={searchResults}
+            renderItem={renderSearchResultItem}
+            keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
+            ListHeaderComponent={searchHeader}
+            ListEmptyComponent={(
+              <View style={styles.emptyCard}>
+                <Text size={13} color="#6b7280">
+                  {searchLoading
+                    ? 'Searching...'
+                    : searchKeyword
+                      ? 'No matched results'
+                      : 'Enter keyword and press search'}
+                </Text>
+              </View>
+            )}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={12}
+            windowSize={8}
+            maxToRenderPerBatch={12}
+            bounces={false}
+            alwaysBounceVertical={false}
+            overScrollMode="never"
+          />
+        </View>
         <MusicAddModal ref={musicAddModalRef} />
       </>
     )
@@ -669,7 +708,13 @@ const styles = createStyle({
     alignItems: 'flex-end',
   },
   searchResultList: {
+    flex: 1,
     backgroundColor: '#ffffff',
+  },
+  searchModeRoot: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    opacity: 1,
   },
   searchResultContent: {
     paddingBottom: 16,
@@ -713,6 +758,12 @@ const styles = createStyle({
     color: '#111827',
     fontSize: 13,
     paddingVertical: 0,
+  },
+  searchInputDisplay: {
+    flex: 1,
+    marginLeft: 8,
+    justifyContent: 'center',
+    height: '100%',
   },
   searchInputTrigger: {
     flex: 1,
