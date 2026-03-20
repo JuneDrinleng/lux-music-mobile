@@ -9,7 +9,7 @@ import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useWindowSize } from '@/utils/hooks'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
+import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
 
@@ -37,12 +37,14 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   const coverTransition = useRef(new Animated.Value(1)).current
   const loveCheckId = useRef(0)
   const hasMountedRef = useRef(false)
+  const accentRequestId = useRef(0)
   const [currentCover, setCurrentCover] = useState(musicInfo.pic)
   const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const [isLoved, setIsLoved] = useState(false)
   const winSize = useWindowSize()
   const discSize = Math.min(winSize.width * 0.9, 450)
   const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
+  const [accentColor, setAccentColor] = useState(coverTheme.accent)
   const backgroundCover = currentCover ?? musicInfo?.pic
   const hasBackgroundCover = Boolean(backgroundCover)
   const gradientColors = useMemo(() => {
@@ -245,6 +247,19 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   }, [coverTransition, currentCover, musicInfo.id, musicInfo.pic])
 
   useEffect(() => {
+    const requestId = ++accentRequestId.current
+    const fallbackAccent = coverTheme.accent
+    setAccentColor(fallbackAccent)
+    if (!musicInfo?.pic) return
+
+    void getCoverAccentColor(musicInfo.pic).then(color => {
+      if (requestId !== accentRequestId.current) return
+      if (!color) return
+      setAccentColor(color)
+    })
+  }, [coverTheme.accent, musicInfo?.id, musicInfo?.pic])
+
+  useEffect(() => {
     void refreshLovedState(musicInfo.id)
   }, [musicInfo.id, refreshLovedState])
 
@@ -286,12 +301,7 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={goBack}>
           <Icon name="chevron-left" rawSize={24} color="#111827" />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text size={10} color="#6b7280" style={styles.headerUpper}>Now Playing</Text>
-          <Text size={13} color="#111827" numberOfLines={1} style={styles.headerTitle}>
-            {(musicInfo.name || 'Unknown Song') + (musicInfo.singer ? ` - ${musicInfo.singer}` : '')}
-          </Text>
-        </View>
+        <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
           <Icon name="menu" rawSize={22} color="#111827" />
         </TouchableOpacity>
@@ -428,12 +438,12 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
                 : <Icon name="love" rawSize={20} color="#9ca3af" />}
             </TouchableOpacity>
           </View>
-          <Text size={18} color={coverTheme.accent} numberOfLines={1} style={styles.singer}>
+          <Text size={18} color={accentColor} numberOfLines={1} style={styles.singer}>
             {musicInfo.singer || 'Neon Dreamer'}
           </Text>
           <View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: toPercent(progress, maxPlayTime), backgroundColor: coverTheme.accent }]} />
+              <View style={[styles.progressFill, { width: toPercent(progress, maxPlayTime), backgroundColor: accentColor }]} />
             </View>
             <View style={styles.timeRow}>
               <Text size={11} color="#9ca3af" style={styles.timeText}>{nowPlayTimeStr}</Text>

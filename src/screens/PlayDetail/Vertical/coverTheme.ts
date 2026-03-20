@@ -1,3 +1,5 @@
+import { getColors, type AndroidImageColors, type IOSImageColors } from 'react-native-image-colors'
+
 const clamp = (num: number, min: number, max: number) => {
   if (num < min) return min
   if (num > max) return max
@@ -51,6 +53,56 @@ const hexToRgb = (hex: string) => {
 const rgbToHex = (r: number, g: number, b: number) => {
   const toHex = (num: number) => clamp(Math.round(num), 0, 255).toString(16).padStart(2, '0')
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+const rgbToHsl = (r: number, g: number, b: number) => {
+  const rn = clamp(r, 0, 255) / 255
+  const gn = clamp(g, 0, 255) / 255
+  const bn = clamp(b, 0, 255) / 255
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const d = max - min
+  let h = 0
+  if (d !== 0) {
+    switch (max) {
+      case rn:
+        h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60
+        break
+      case gn:
+        h = ((bn - rn) / d + 2) * 60
+        break
+      default:
+        h = ((rn - gn) / d + 4) * 60
+        break
+    }
+  }
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  return { h, s: s * 100, l: l * 100 }
+}
+
+const parseColorString = (input?: string | null) => {
+  if (!input) return null
+  const text = input.trim().toLowerCase()
+  if (/^#[0-9a-f]{3}$/i.test(text) || /^#[0-9a-f]{6}$/i.test(text)) {
+    return hexToRgb(text)
+  }
+  const match = text.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+  if (!match) return null
+  return {
+    r: parseInt(match[1], 10),
+    g: parseInt(match[2], 10),
+    b: parseInt(match[3], 10),
+  }
+}
+
+const toReadableAccent = (input?: string | null) => {
+  const rgb = parseColorString(input)
+  if (!rgb) return null
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b)
+  const sat = clamp(Math.max(hsl.s, 52), 46, 78)
+  const light = clamp(hsl.l, 34, 50)
+  return hslToHex(hsl.h, sat, light)
 }
 
 const mixHex = (from: string, to: string, t: number) => {
@@ -129,4 +181,55 @@ export const createWhiteFadeMaskColors = (steps = 72, topAlpha = 0.14, bottomAlp
     const alpha = start + (end - start) * easeInOut(t)
     return `rgba(255,255,255,${alpha.toFixed(4)})`
   })
+}
+
+const accentCache = new Map<string, string>()
+const accentPendingMap = new Map<string, Promise<string | null>>()
+
+const pickPaletteAccent = (result: AndroidImageColors | IOSImageColors) => {
+  const colors = result.platform === 'ios'
+    ? [result.primary, result.secondary, result.detail, result.background]
+    : [result.vibrant, result.lightVibrant, result.dominant, result.muted, result.average, result.darkVibrant, result.lightMuted, result.darkMuted]
+
+  for (const color of colors) {
+    const accent = toReadableAccent(color)
+    if (accent) return accent
+  }
+  return null
+}
+
+export const getCoverAccentColor = async(pic?: string | null) => {
+  if (!pic) return null
+  if (accentCache.has(pic)) return accentCache.get(pic)!
+
+  const running = accentPendingMap.get(pic)
+  if (running) return running
+
+  const task = (async() => {
+    try {
+      const result = await getColors(pic, {
+        defaultColor: fallbackTheme.accent,
+        dominant: true,
+        average: true,
+        vibrant: true,
+        darkVibrant: true,
+        lightVibrant: true,
+        darkMuted: true,
+        lightMuted: true,
+        muted: true,
+        pixelSpacing: 6,
+      })
+      const accent = pickPaletteAccent(result)
+      if (accent) {
+        accentCache.set(pic, accent)
+        return accent
+      }
+    } catch {}
+    return null
+  })()
+
+  accentPendingMap.set(pic, task)
+  const result = await task
+  accentPendingMap.delete(pic)
+  return result
 }

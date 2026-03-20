@@ -65,6 +65,9 @@ export default () => {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
       >
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -110,7 +113,7 @@ const styles = createStyle({
     backgroundColor: '#f9f9f9',
   },
   content: {
-    paddingBottom: 176,
+    paddingBottom: 0,
   },
   scroll: {
     flex: 1,

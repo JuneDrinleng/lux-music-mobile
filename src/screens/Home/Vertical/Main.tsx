@@ -5,22 +5,22 @@ import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
 import type { NAV_ID_Type } from '@/config/constant'
-import HomeTab from './Tabs/HomeTab'
-import RankingsTab from './Tabs/RankingsTab'
 import MeTab from './Tabs/MeTab'
 import SettingsTab from './Tabs/SettingsTab'
+
+const normalizeNavId = (id: NAV_ID_Type): 'nav_love' | 'nav_setting' => {
+  return id === 'nav_setting' ? 'nav_setting' : 'nav_love'
+}
 
 const viewMap: Record<NAV_ID_Type, number> = {
   nav_search: 0,
   nav_songlist: 0,
-  nav_top: 1,
-  nav_love: 2,
-  nav_setting: 3,
+  nav_top: 0,
+  nav_love: 0,
+  nav_setting: 1,
 }
 
 const indexMap = [
-  'nav_search',
-  'nav_top',
   'nav_love',
   'nav_setting',
 ] as const
@@ -31,8 +31,14 @@ const Main = () => {
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
-    const navId = indexMap[nativeEvent.position] ?? 'nav_search'
+    const navId = indexMap[nativeEvent.position] ?? 'nav_love'
     if (navId !== commonState.navActiveId) setNavActiveId(navId)
+  }, [])
+
+  useEffect(() => {
+    const normalized = normalizeNavId(commonState.navActiveId)
+    if (normalized === commonState.navActiveId) return
+    setNavActiveId(normalized)
   }, [])
 
   useEffect(() => {
@@ -41,6 +47,8 @@ const Main = () => {
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
       pagerViewRef.current?.setPageWithoutAnimation(index)
+      const normalized = normalizeNavId(id)
+      if (normalized !== id) setNavActiveId(normalized)
     }
 
     global.state_event.on('navActiveIdUpdated', handleNavUpdate)
@@ -56,12 +64,6 @@ const Main = () => {
       onPageSelected={onPageSelected}
       style={styles.pagerView}
     >
-      <View collapsable={false} key="nav_search" style={styles.pageStyle}>
-        <HomeTab />
-      </View>
-      <View collapsable={false} key="nav_top" style={styles.pageStyle}>
-        <RankingsTab />
-      </View>
       <View collapsable={false} key="nav_love" style={styles.pageStyle}>
         <MeTab />
       </View>

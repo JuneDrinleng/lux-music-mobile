@@ -107,6 +107,7 @@ export default memo(() => {
   // console.log('render drawer nav')
   const showBackBtn = useSettingValue('common.showBackBtn')
   const showExitBtn = useSettingValue('common.showExitBtn')
+  const visibleMenus = NAV_MENUS.filter(menu => menu.id === 'nav_love' || menu.id === 'nav_setting')
 
   const handlePress = (id: IdType) => {
     switch (id) {
@@ -133,7 +134,7 @@ export default memo(() => {
       <Header />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>
-          {NAV_MENUS.map(menu => <MenuItem key={menu.id} id={menu.id} icon={menu.icon} onPress={handlePress} />)}
+          {visibleMenus.map(menu => <MenuItem key={menu.id} id={menu.id} icon={menu.icon} onPress={handlePress} />)}
         </View>
       </ScrollView>
       {

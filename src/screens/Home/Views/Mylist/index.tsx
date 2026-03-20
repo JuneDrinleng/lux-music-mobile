@@ -15,6 +15,8 @@ import { useTheme } from '@/store/theme/hook'
 import Text from '@/components/common/Text'
 import { useMyList } from '@/store/list/hook'
 
+const SHOW_LISTENING_STATISTICS = false
+
 export default () => {
   const [activeTab, setActiveTab] = useState<'playlists' | 'favorites' | 'downloads' | 'recent'>('playlists')
   const t = useI18n()
@@ -71,16 +73,20 @@ export default () => {
           )
         })}
       </View>
-      <SectionHeader title="Listening Statistics" subtitle="Last 7 Days" />
-      <Surface style={styles.statsCard} padding={12}>
-        <View style={styles.statsRow}>
-          {stats.map((h, index) => (
-            <View key={`${h}_${index}`} style={styles.statsCol}>
-              <View style={[styles.statsBar, { height: `${h}%`, backgroundColor: theme['c-primary-light-700-alpha-300'] }]} />
-            </View>
-          ))}
-        </View>
-      </Surface>
+      {SHOW_LISTENING_STATISTICS
+        ? <>
+            <SectionHeader title="Listening Statistics" subtitle="Last 7 Days" />
+            <Surface style={styles.statsCard} padding={12}>
+              <View style={styles.statsRow}>
+                {stats.map((h, index) => (
+                  <View key={`${h}_${index}`} style={styles.statsCol}>
+                    <View style={[styles.statsBar, { height: `${h}%`, backgroundColor: theme['c-primary-light-700-alpha-300'] }]} />
+                  </View>
+                ))}
+              </View>
+            </Surface>
+          </>
+        : null}
       <View style={styles.content}>
         {
           activeTab === 'playlists'
@@ -94,7 +100,7 @@ export default () => {
                   <MusicList />
                 </View>
               </View>
-            )
+              )
             : null
         }
         { activeTab === 'favorites' ? <MusicList /> : null }

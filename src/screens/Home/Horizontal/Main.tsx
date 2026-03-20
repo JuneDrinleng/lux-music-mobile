@@ -1,20 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
-import Search from '../Views/Search'
-import SongList from '../Views/SongList'
 import Mylist from '../Views/Mylist'
-import Leaderboard from '../Views/Leaderboard'
 import Setting from '../Views/Setting'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
+import { setNavActiveId } from '@/core/common'
 
+const normalizeNavId = (id: CommonState['navActiveId']): 'nav_love' | 'nav_setting' => {
+  return id === 'nav_setting' ? 'nav_setting' : 'nav_love'
+}
 
 const Main = () => {
-  const [id, setId] = useState(commonState.navActiveId)
+  const [id, setId] = useState<CommonState['navActiveId']>(normalizeNavId(commonState.navActiveId))
+
+  useEffect(() => {
+    const normalized = normalizeNavId(commonState.navActiveId)
+    if (normalized === commonState.navActiveId) return
+    setNavActiveId(normalized)
+  }, [])
 
   useEffect(() => {
     const handleUpdate = (id: CommonState['navActiveId']) => {
+      const normalized = normalizeNavId(id)
       requestAnimationFrame(() => {
-        setId(id)
+        setId(normalized)
       })
+      if (normalized !== id) setNavActiveId(normalized)
     }
     global.state_event.on('navActiveIdUpdated', handleUpdate)
     return () => {
@@ -24,12 +33,9 @@ const Main = () => {
 
   const component = useMemo(() => {
     switch (id) {
-      case 'nav_songlist': return <SongList />
-      case 'nav_top': return <Leaderboard />
       case 'nav_love': return <Mylist />
       case 'nav_setting': return <Setting />
-      case 'nav_search':
-      default: return <Search />
+      default: return <Mylist />
     }
   }, [id])
 

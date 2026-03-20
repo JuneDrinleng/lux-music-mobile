@@ -67,6 +67,9 @@ export default () => {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
       >
         <View style={styles.titleRow}>
           <Text size={30} color="#111827" style={styles.pageTitle}>Rankings</Text>
@@ -115,7 +118,7 @@ const styles = createStyle({
     backgroundColor: '#f8f9fa',
   },
   content: {
-    paddingBottom: 176,
+    paddingBottom: 0,
   },
   scroll: {
     flex: 1,

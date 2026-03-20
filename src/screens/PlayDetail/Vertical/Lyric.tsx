@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, TouchableOpacity, View, type FlatListProps } from 'react-native'
 import { pop } from '@/navigation'
 import commonState from '@/store/common/state'
@@ -10,7 +10,7 @@ import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
 import { playNext, playPrev, togglePlay } from '@/core/player/player'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
+import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
 
 const PLAY_BUTTON_COLOR = '#111827'
 
@@ -38,7 +38,9 @@ export default ({ active }: { active: boolean }) => {
   const { progress, maxPlayTime } = useProgress(active)
   const lyricLines = useLrcSet()
   const listRef = useRef<FlatList<string>>(null)
+  const accentRequestId = useRef(0)
   const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
+  const [accentColor, setAccentColor] = useState(coverTheme.accent)
   const hasBackgroundCover = Boolean(musicInfo?.pic)
   const gradientColors = useMemo(() => {
     return hasBackgroundCover
@@ -59,6 +61,19 @@ export default ({ active }: { active: boolean }) => {
     } catch {}
   }, [active, line, lines.length])
 
+  useEffect(() => {
+    const requestId = ++accentRequestId.current
+    const fallbackAccent = coverTheme.accent
+    setAccentColor(fallbackAccent)
+    if (!musicInfo?.pic) return
+
+    void getCoverAccentColor(musicInfo.pic).then(color => {
+      if (requestId !== accentRequestId.current) return
+      if (!color) return
+      setAccentColor(color)
+    })
+  }, [coverTheme.accent, musicInfo?.id, musicInfo?.pic])
+
   const handleGoBack = () => {
     void pop(commonState.componentIds.playDetail!)
   }
@@ -69,7 +84,7 @@ export default ({ active }: { active: boolean }) => {
       <View style={styles.lineWrap}>
         <Text
           size={activeLine ? 34 : 28}
-          color={activeLine ? coverTheme.accent : 'rgba(15,23,42,0.35)'}
+          color={activeLine ? accentColor : 'rgba(15,23,42,0.35)'}
           style={activeLine ? styles.activeLineText : styles.lineText}
         >
           {item}
@@ -92,12 +107,7 @@ export default ({ active }: { active: boolean }) => {
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleGoBack}>
           <Icon name="chevron-left" rawSize={24} color="#0f172a" />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text size={10} color="#6b7280" style={styles.headerUpper}>Now Playing</Text>
-          <Text size={14} color="#111827" numberOfLines={1} style={styles.headerTitle}>
-            {(musicInfo.name || 'Midnight City') + ' - ' + (musicInfo.singer || 'M83')}
-          </Text>
-        </View>
+        <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8}>
           <Icon name="menu" rawSize={22} color="#0f172a" />
         </TouchableOpacity>
@@ -116,7 +126,7 @@ export default ({ active }: { active: boolean }) => {
 
       <View style={styles.bottomPanel}>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: toPercent(progress, maxPlayTime), backgroundColor: coverTheme.accent }]} />
+          <View style={[styles.progressFill, { width: toPercent(progress, maxPlayTime), backgroundColor: accentColor }]} />
         </View>
 
         <View style={styles.playerRow}>

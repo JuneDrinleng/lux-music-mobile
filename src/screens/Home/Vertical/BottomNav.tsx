@@ -11,8 +11,6 @@ const activeColor = '#7f0df2'
 const inactiveColor = '#9ca3af'
 
 const tabs = [
-  { id: 'nav_search', icon: 'home', label: 'Home' },
-  { id: 'nav_top', icon: 'leaderboard', label: 'Rankings' },
   { id: 'nav_love', icon: 'album', label: 'Me' },
   { id: 'nav_setting', icon: 'setting', label: 'Settings' },
 ] as const

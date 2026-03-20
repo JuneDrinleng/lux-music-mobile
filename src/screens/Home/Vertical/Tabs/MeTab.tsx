@@ -10,6 +10,8 @@ import { getListMusics, setActiveList } from '@/core/list'
 import { playList } from '@/core/player/player'
 import { LIST_IDS } from '@/config/constant'
 
+const SHOW_LISTENING_STATISTICS = false
+
 const stats: Array<{ day: string, height: `${number}%`, active?: boolean }> = [
   { day: 'Mon', height: '40%' },
   { day: 'Tue', height: '65%' },
@@ -175,6 +177,9 @@ export default () => {
         initialNumToRender={12}
         windowSize={8}
         maxToRenderPerBatch={12}
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
       />
     )
   }
@@ -196,6 +201,9 @@ export default () => {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
       >
         <View style={styles.profileSection}>
           <View style={styles.avatarWrap}>
@@ -258,24 +266,26 @@ export default () => {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text size={18} color="#111827" style={styles.sectionTitle}>Listening Statistics</Text>
-            <Text size={11} color="#7f0df2" style={styles.sectionTag}>Last 7 Days</Text>
-          </View>
-          <View style={styles.statsCard}>
-            {stats.map(item => (
-              <View key={item.day} style={styles.statsCol}>
-                <View style={styles.statsBarBg}>
-                  <View style={[styles.statsBar, { height: item.height, opacity: item.active ? 1 : 0.45 }]} />
-                </View>
-                <Text size={10} color={item.active ? '#111827' : '#9ca3af'} style={item.active ? styles.dayActive : styles.day}>
-                  {item.day}
-                </Text>
+        {SHOW_LISTENING_STATISTICS
+          ? <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text size={18} color="#111827" style={styles.sectionTitle}>Listening Statistics</Text>
+                <Text size={11} color="#7f0df2" style={styles.sectionTag}>Last 7 Days</Text>
               </View>
-            ))}
-          </View>
-        </View>
+              <View style={styles.statsCard}>
+                {stats.map(item => (
+                  <View key={item.day} style={styles.statsCol}>
+                    <View style={styles.statsBarBg}>
+                      <View style={[styles.statsBar, { height: item.height, opacity: item.active ? 1 : 0.45 }]} />
+                    </View>
+                    <Text size={10} color={item.active ? '#111827' : '#9ca3af'} style={item.active ? styles.dayActive : styles.day}>
+                      {item.day}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          : null}
       </ScrollView>
     </View>
   )
@@ -287,13 +297,13 @@ const styles = createStyle({
     backgroundColor: '#f8f9fa',
   },
   content: {
-    paddingBottom: 176,
+    paddingBottom: 0,
   },
   scroll: {
     flex: 1,
   },
   detailContent: {
-    paddingBottom: 176,
+    paddingBottom: 0,
     paddingHorizontal: 16,
   },
   header: {

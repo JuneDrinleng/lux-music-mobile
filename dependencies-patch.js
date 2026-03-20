@@ -5,7 +5,58 @@ const path = require('node:path')
 
 const rootPath = path.join(__dirname, './')
 
+const imageColorsGradlePath = path.join(rootPath, 'node_modules/react-native-image-colors/android/build.gradle')
+const imageColorsGradlePatched = `def DEFAULT_COMPILE_SDK_VERSION = 34
+def DEFAULT_MIN_SDK_VERSION = 16
+def DEFAULT_TARGET_SDK_VERSION = 34
+
+def safeExtGet(prop, fallback) {
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.osamaq"
+    compileSdkVersion safeExtGet('compileSdkVersion', DEFAULT_COMPILE_SDK_VERSION)
+    defaultConfig {
+        minSdkVersion safeExtGet('minSdkVersion', DEFAULT_MIN_SDK_VERSION)
+        targetSdkVersion safeExtGet('targetSdkVersion', DEFAULT_TARGET_SDK_VERSION)
+        versionCode 1
+        versionName "1.0"
+    }
+    lintOptions {
+        abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+repositories {
+    maven {
+        url "$rootDir/../node_modules/react-native/android"
+    }
+    maven {
+        url "$rootDir/../node_modules/jsc-android/dist"
+    }
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.facebook.react:react-native:+'
+    implementation 'androidx.palette:palette:1.0.0'
+}
+`
+
 const patchs = [
+  [
+    imageColorsGradlePath,
+    /[\s\S]*/,
+    imageColorsGradlePatched,
+  ],
 ]
 
 ;(async() => {
