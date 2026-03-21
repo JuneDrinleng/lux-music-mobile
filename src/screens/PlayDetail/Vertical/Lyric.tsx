@@ -25,9 +25,8 @@ const defaultLines = [
   'It wraps me in its sparkling light',
 ]
 
-const toPercent = (now: number, total: number): `${number}%` => {
-  if (!total) return '0%'
-  return `${Math.min(100, Math.max(0, Math.floor((now / total) * 100)))}%`
+const toPercent = (progress: number): `${number}%` => {
+  return `${Math.min(100, Math.max(0, progress * 100))}%`
 }
 
 export default ({ active }: { active: boolean }) => {
@@ -35,7 +34,7 @@ export default ({ active }: { active: boolean }) => {
   const musicInfo = usePlayerMusicInfo()
   const isPlay = useIsPlay()
   const { line } = useLrcPlay(active)
-  const { progress, maxPlayTime } = useProgress(active)
+  const { progress } = useProgress(active)
   const lyricLines = useLrcSet()
   const listRef = useRef<FlatList<string>>(null)
   const accentRequestId = useRef(0)
@@ -126,7 +125,7 @@ export default ({ active }: { active: boolean }) => {
 
       <View style={styles.bottomPanel}>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: toPercent(progress, maxPlayTime), backgroundColor: accentColor }]} />
+          <View style={[styles.progressFill, { width: toPercent(progress), backgroundColor: accentColor }]} />
         </View>
 
         <View style={styles.playerRow}>

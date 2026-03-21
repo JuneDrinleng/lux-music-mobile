@@ -102,14 +102,16 @@ const Component = <T extends ItemT<T>>({ onPressBg = noop, ...props }: SearchTip
 
   const component = useMemo(() => (
     <Animated.View
-      style={{
-        ...styles.anima,
-        transform: [
-          { translateY },
-          { scaleY },
-        ],
-      }}>
-      <View style={{ ...styles.container, backgroundColor: theme['c-content-background'] }}>
+      style={[
+        styles.anima,
+        {
+          transform: [
+            { translateY },
+            { scaleY },
+          ],
+        },
+      ]}>
+      <View style={[styles.container, { backgroundColor: theme['c-content-background'] }]}>
         <List ref={listRef} {...props} />
       </View>
       <View style={styles.blank} onTouchStart={onPressBg}></View>

@@ -1,8 +1,6 @@
-import { useImperativeHandle, forwardRef, useMemo, useRef, useState, type Ref } from 'react'
-import { View, Animated, TouchableHighlight } from 'react-native'
+import { useImperativeHandle, forwardRef, useMemo, useState, useCallback, type Ref } from 'react'
+import { View, Animated, TouchableHighlight, Modal as RNModal, TouchableWithoutFeedback } from 'react-native'
 import { useWindowSize } from '@/utils/hooks'
-
-import Modal, { type ModalType } from './Modal'
 
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
@@ -20,11 +18,20 @@ const styles = createStyle({
   mask: {
     position: 'absolute',
     top: 0,
+    right: 0,
     bottom: 0,
     left: 0,
+    backgroundColor: 'rgba(0,0,0,0)',
+  },
+  modalRoot: {
+    flex: 1,
+  },
+  modalLayer: {
+    position: 'absolute',
+    top: 0,
     right: 0,
-    opacity: 0,
-    backgroundColor: 'black',
+    bottom: 0,
+    left: 0,
   },
   menu: {
     position: 'absolute',
@@ -127,7 +134,14 @@ const Menu = ({
   // console.log(menuStyle)
   // console.log(menuItemStyle)
   return (
-    <View style={{ ...styles.menu, ...menuStyle, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
+    <View
+      style={[
+        styles.menu,
+        menuStyle,
+        { backgroundColor: theme['c-content-background'] },
+      ]}
+      onStartShouldSetResponder={() => true}
+    >
       <Animated.ScrollView keyboardShouldPersistTaps={'always'}>
         {
           menus.map((menu, index) => (
@@ -135,7 +149,10 @@ const Menu = ({
               ? (
                   <View
                     key={menu.action}
-                    style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height, opacity: 0.4 }}
+                    style={[
+                      styles.menuItem,
+                      { width: menuItemStyle.width, height: menuItemStyle.height, opacity: 0.4 },
+                    ]}
                   >
                     <Text style={{ textAlign: center ? 'center' : 'left' }} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                   </View>
@@ -144,7 +161,10 @@ const Menu = ({
                 ? (
                     <View
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
+                      style={[
+                        styles.menuItem,
+                        { width: menuItemStyle.width, height: menuItemStyle.height },
+                      ]}
                     >
                       <Text style={{ textAlign: center ? 'center' : 'left' }} color={theme['c-primary-font-active']} size={fontSize} numberOfLines={1}>{menu.label}</Text>
                     </View>
@@ -152,7 +172,10 @@ const Menu = ({
                 : (
                     <TouchableHighlight
                       key={menu.action}
-                      style={{ ...styles.menuItem, width: menuItemStyle.width, height: menuItemStyle.height }}
+                      style={[
+                        styles.menuItem,
+                        { width: menuItemStyle.width, height: menuItemStyle.height },
+                      ]}
                       underlayColor={theme['c-primary-background-active']}
                       onPress={() => { menuPress(menu) }}
                     >
@@ -184,28 +207,46 @@ export interface MenuType {
 }
 
 const Component = <M extends Menus>({ menus, width, height, activeId, onHide, onPress, fontSize, center }: MenuProps<M>, ref: Ref<MenuType>) => {
-  // console.log(visible)
-  const modalRef = useRef<ModalType>(null)
   const [position, setPosition] = useState<Position>({ w: 0, h: 0, x: 0, y: 0 })
   const [menuSize, setMenuSize] = useState<MenuSize>({ })
-  const hide = () => {
-    modalRef.current?.setVisible(false)
-  }
+  const [visible, setVisible] = useState(false)
+  const hide = useCallback(() => {
+    setVisible(prev => {
+      if (!prev) return prev
+      onHide?.()
+      return false
+    })
+  }, [onHide])
+
   useImperativeHandle(ref, () => ({
     show(newPosition, menuSize) {
       setPosition(newPosition)
       if (menuSize) setMenuSize(menuSize)
-      modalRef.current?.setVisible(true)
+      setVisible(true)
     },
     hide() {
       hide()
     },
-  }))
+  }), [hide])
 
   return (
-    <Modal onHide={onHide} ref={modalRef}>
-      <Menu menus={menus} width={width} height={height} activeId={activeId} buttonPosition={position} menuSize={menuSize} onPress={onPress} onHide={hide} fontSize={fontSize} center={center} />
-    </Modal>
+    <RNModal
+      animationType="fade"
+      transparent
+      hardwareAccelerated
+      statusBarTranslucent
+      visible={visible}
+      onRequestClose={hide}
+    >
+      <View style={styles.modalRoot}>
+        <TouchableWithoutFeedback onPress={hide}>
+          <View style={styles.mask} />
+        </TouchableWithoutFeedback>
+        <View style={styles.modalLayer} pointerEvents="box-none">
+          <Menu menus={menus} width={width} height={height} activeId={activeId} buttonPosition={position} menuSize={menuSize} onPress={onPress} onHide={hide} fontSize={fontSize} center={center} />
+        </View>
+      </View>
+    </RNModal>
   )
 }
 

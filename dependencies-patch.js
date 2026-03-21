@@ -6,6 +6,7 @@ const path = require('node:path')
 const rootPath = path.join(__dirname, './')
 
 const imageColorsGradlePath = path.join(rootPath, 'node_modules/react-native-image-colors/android/build.gradle')
+const imageColorsManifestPath = path.join(rootPath, 'node_modules/react-native-image-colors/android/src/main/AndroidManifest.xml')
 const imageColorsGradlePatched = `def DEFAULT_COMPILE_SDK_VERSION = 34
 def DEFAULT_MIN_SDK_VERSION = 16
 def DEFAULT_TARGET_SDK_VERSION = 34
@@ -17,7 +18,7 @@ def safeExtGet(prop, fallback) {
 apply plugin: 'com.android.library'
 
 android {
-    namespace "com.osamaq"
+    namespace "com.reactnativeimagecolors"
     compileSdkVersion safeExtGet('compileSdkVersion', DEFAULT_COMPILE_SDK_VERSION)
     defaultConfig {
         minSdkVersion safeExtGet('minSdkVersion', DEFAULT_MIN_SDK_VERSION)
@@ -56,6 +57,11 @@ const patchs = [
     imageColorsGradlePath,
     /[\s\S]*/,
     imageColorsGradlePatched,
+  ],
+  [
+    imageColorsManifestPath,
+    /\s+package="com\.reactnativeimagecolors"/,
+    '',
   ],
 ]
 

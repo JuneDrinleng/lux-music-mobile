@@ -3,11 +3,12 @@ import { FlatList, Keyboard, ScrollView, TextInput, TouchableOpacity, View, type
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
+import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { createStyle } from '@/utils/tools'
+import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import { addListMusics, getListMusics, removeListMusics, setActiveList } from '@/core/list'
+import { addListMusics, createList, getListMusics, removeListMusics, setActiveList } from '@/core/list'
 import { playList } from '@/core/player/player'
 import { LIST_IDS } from '@/config/constant'
 import { getUserAvatar, getUserName } from '@/utils/data'
@@ -15,6 +16,7 @@ import { search as searchOnlineMusic } from '@/core/search/music'
 import settingState from '@/store/setting/state'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useI18n } from '@/lang'
+import listState from '@/store/list/state'
 
 const SHOW_LISTENING_STATISTICS = false
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
@@ -66,6 +68,7 @@ export default () => {
   const searchRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
+  const createListDialogRef = useRef<PromptDialogType>(null)
   const setKeepPlayBarVisible = (visible: boolean) => {
     Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
   }
@@ -240,6 +243,21 @@ export default () => {
       isMove: false,
     })
   }, [])
+  const handleShowCreateListModal = useCallback(() => {
+    createListDialogRef.current?.show('')
+  }, [])
+  const handleCreateList = useCallback(async(name: string) => {
+    if (!name) return false
+    const isDuplicated = listState.userList.some(list => list.name == name)
+    if (isDuplicated) {
+      const shouldContinue = await confirmDialog({
+        message: t('list_duplicate_tip'),
+      })
+      if (!shouldContinue) return false
+    }
+    await createList({ name })
+    return true
+  }, [t])
   const selectedListInfo = selectedListId ? playlists.find(list => list.id === selectedListId) ?? null : null
   const selectedListMeta = selectedListInfo ? playlistMetaMap[selectedListInfo.id] : null
   const renderSongItem: ListRenderItem<LX.Music.MusicInfo> = useCallback(({ item, index }) => {
@@ -436,31 +454,33 @@ export default () => {
                       {searchText || t('me_search_placeholder')}
                     </Text>
                   </TouchableOpacity>}
-              <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
-                <View style={styles.sourceCapsule}>
-                  <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
-                  <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
-                </View>
-              </TouchableOpacity>
+              <View style={styles.sourceMenuAnchor}>
+                <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
+                  <View style={styles.sourceCapsule}>
+                    <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
+                    <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
+                  </View>
+                </TouchableOpacity>
+                {isSourceMenuVisible
+                  ? <View style={[styles.sourceMenuPanelFloat, styles.searchResultSourceMenuPanelFloat]}>
+                      <View style={styles.sourcePanel}>
+                        {sourceMenus.map(menu => (
+                          <TouchableOpacity
+                            key={menu.action}
+                            activeOpacity={0.85}
+                            style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
+                            onPress={() => { handleSelectSource(menu.action) }}
+                          >
+                            <Text size={12} color={menu.action === searchSource ? '#7f0df2' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  : null}
+              </View>
             </View>
           </View>
         </View>
-        {isSourceMenuVisible
-          ? <View style={styles.searchResultSourcePanelWrap}>
-              <View style={styles.sourcePanel}>
-                {sourceMenus.map(menu => (
-                  <TouchableOpacity
-                    key={menu.action}
-                    activeOpacity={0.85}
-                    style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
-                    onPress={() => { handleSelectSource(menu.action) }}
-                  >
-                    <Text size={12} color={menu.action === searchSource ? '#7f0df2' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          : null}
       </View>
     )
   }, [handleBeginSearchInputEdit, handleExitSearch, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, t, toggleSourceMenu])
@@ -476,6 +496,7 @@ export default () => {
             renderItem={renderSearchResultItem}
             keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
             ListHeaderComponent={searchHeader}
+            ListHeaderComponentStyle={styles.searchResultHeaderStack}
             ListEmptyComponent={(
               <View style={styles.emptyCard}>
                 <Text size={13} color="#6b7280">
@@ -489,6 +510,7 @@ export default () => {
             )}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={false}
             initialNumToRender={12}
             windowSize={8}
             maxToRenderPerBatch={12}
@@ -537,27 +559,31 @@ export default () => {
               {searchText || t('me_search_placeholder')}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
-            <View style={styles.sourceCapsule}>
-              <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
-              <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
-            </View>
-          </TouchableOpacity>
+          <View style={styles.sourceMenuAnchor}>
+            <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
+              <View style={styles.sourceCapsule}>
+                <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
+                <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
+              </View>
+            </TouchableOpacity>
+            {isSourceMenuVisible
+              ? <View style={styles.sourceMenuPanelFloat}>
+                  <View style={styles.sourcePanel}>
+                    {sourceMenus.map(menu => (
+                      <TouchableOpacity
+                        key={menu.action}
+                        activeOpacity={0.85}
+                        style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
+                        onPress={() => { handleSelectSource(menu.action) }}
+                      >
+                        <Text size={12} color={menu.action === searchSource ? '#7f0df2' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              : null}
+          </View>
         </View>
-        {isSourceMenuVisible
-          ? <View style={styles.sourcePanel}>
-              {sourceMenus.map(menu => (
-                <TouchableOpacity
-                  key={menu.action}
-                  activeOpacity={0.85}
-                  style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
-                  onPress={() => { handleSelectSource(menu.action) }}
-                >
-                  <Text size={12} color={menu.action === searchSource ? '#7f0df2' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          : null}
       </View>
 
       <ScrollView
@@ -611,7 +637,7 @@ export default () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_my_playlists')}</Text>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => { global.app_event.changeLoveListVisible(true) }}>
+            <TouchableOpacity activeOpacity={0.8} onPress={handleShowCreateListModal}>
               <Text size={13} color="#7f0df2" style={styles.sectionTag}>{`+ ${t('me_create_new')}`}</Text>
             </TouchableOpacity>
           </View>
@@ -650,6 +676,15 @@ export default () => {
             </View>
           : null}
       </ScrollView>
+      <PromptDialog
+        ref={createListDialogRef}
+        title={t('me_create_new')}
+        placeholder={t('list_create_input_placeholder')}
+        confirmText={t('metadata_edit_modal_confirm')}
+        cancelText={t('cancel')}
+        bgHide={false}
+        onConfirm={async(value) => handleCreateList(value)}
+      />
       </View>
   )
 }
@@ -670,11 +705,19 @@ const styles = createStyle({
     paddingHorizontal: 16,
   },
   header: {
+    position: 'relative',
+    overflow: 'visible',
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
   searchResultHeader: {
+    position: 'relative',
+    overflow: 'visible',
     paddingBottom: 8,
+  },
+  searchResultHeaderStack: {
+    zIndex: 60,
+    elevation: 20,
   },
   searchResultRow: {
     paddingHorizontal: 16,
@@ -685,10 +728,6 @@ const styles = createStyle({
   searchResultSearchWrap: {
     flex: 1,
     marginLeft: 10,
-  },
-  searchResultSourcePanelWrap: {
-    paddingHorizontal: 16,
-    alignItems: 'flex-end',
   },
   searchResultList: {
     flex: 1,
@@ -729,6 +768,7 @@ const styles = createStyle({
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'visible',
     shadowColor: '#000000',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -753,8 +793,12 @@ const styles = createStyle({
     height: '100%',
     justifyContent: 'center',
   },
-  sourceMenuBtn: {
+  sourceMenuAnchor: {
+    position: 'relative',
     marginLeft: 8,
+    zIndex: 40,
+  },
+  sourceMenuBtn: {
     borderRadius: 14,
     overflow: 'hidden',
   },
@@ -778,7 +822,6 @@ const styles = createStyle({
     transform: [{ rotate: '90deg' }],
   },
   sourcePanel: {
-    marginTop: 8,
     alignSelf: 'flex-end',
     width: 110,
     borderRadius: 10,
@@ -790,6 +833,17 @@ const styles = createStyle({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
+  },
+  sourceMenuPanelFloat: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 8,
+    zIndex: 80,
+    elevation: 24,
+  },
+  searchResultSourceMenuPanelFloat: {
+    marginTop: 2,
   },
   sourcePanelItem: {
     height: 36,

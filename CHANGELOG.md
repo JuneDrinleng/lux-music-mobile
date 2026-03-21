@@ -1,8 +1,25 @@
 # lux-music-mobile 更新日志
 
-本文件用于记录本仓库（fork 分支）的版本变更历史。
+本文档用于记录本仓库（fork 分支）的版本变更历史。
 
 说明：本分支从 `0.0.x` 开始独立维护日志。
+
+## [0.0.3] - 2026-03-21
+
+### 变更
+
+- 版本号统一更新为 `0.0.3`（`package.json`、`package-lock.json`、iOS 工程版本）。
+- iOS 版本字段统一为 `0.0.3`（`MARKETING_VERSION`、`CURRENT_PROJECT_VERSION`、测试 Target 的 `CFBundleShortVersionString` 与 `CFBundleVersion`）。
+- 升级 `react-native-image-colors` 到 `^1.5.2`，并更新安装后补丁以修正 Android `namespace` 与 `AndroidManifest` 包声明兼容问题。
+- Android Gradle 仓库新增阿里云镜像源，提升依赖拉取稳定性。
+- `SearchTipList` 组件样式写法调整为数组合并形式，减少对象展开写法。
+- `Menu` 组件样式写法改为 style 数组合并形式，统一列表项渲染样式结构。
+- `Modal` 组件背景层与内容层结构调整，优化背景点击关闭的覆盖区域处理。
+- 新增/更新 Android `appicon` 相关资源与背景资源文件。
+
+### 构建
+
+- Android `versionCode` 保持 `74`。
 
 ## [0.0.2] - 2026-03-21
 
