@@ -4,7 +4,8 @@ import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import FileSelect, { type FileSelectType } from '@/components/common/FileSelect'
 import Input from '@/components/common/Input'
-import { createStyle } from '@/utils/tools'
+import { createStyle, openUrl } from '@/utils/tools'
+import { sizeFormate } from '@/utils'
 import { useStatusbarHeight } from '@/store/common/hook'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
@@ -13,9 +14,11 @@ import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage } from '@/core/common'
+import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 
 const SHOW_ADVANCED_SWITCHES = false
 const DEFAULT_USER_NAME = 'Alex Rivera'
+const currentVer = process.versions.app
 const languageOptions = [
   { locale: 'zh_cn', label: '\u7b80\u4f53\u4e2d\u6587' },
   { locale: 'zh_tw', label: '\u7e41\u9ad4\u4e2d\u6587' },
@@ -47,10 +50,19 @@ export default () => {
   const [isLanguagePanelVisible, setLanguagePanelVisible] = useState(false)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
+  const versionInfo = useVersionInfo()
+  const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
     const activeLocale = activeLangId ?? 'en_us'
     return languageOptions.find(item => item.locale === activeLocale)?.label ?? 'English'
   }, [activeLangId])
+  const aboutStatusText = versionInfo.status == 'downloading'
+    ? t('version_btn_downloading', {
+      total: sizeFormate(versionProgress.total),
+      current: sizeFormate(versionProgress.current),
+      progress: versionProgress.total ? (versionProgress.current / versionProgress.total * 100).toFixed(2) : '0',
+    })
+    : t('version_tip_latest')
 
   useEffect(() => {
     let isUnmounted = false
@@ -156,6 +168,9 @@ export default () => {
   const handleSelectLanguage = (locale: typeof languageOptions[number]['locale']) => {
     setLanguage(locale)
     setLanguagePanelVisible(false)
+  }
+  const handleOpenReleasePage = () => {
+    void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
   }
 
   return (
@@ -267,6 +282,23 @@ export default () => {
               </TouchableOpacity>
             </View>
             <Sync ref={syncRef} embedded />
+          </View>
+
+          <View style={styles.sectionCard}>
+            <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_about')}</Text>
+            <View style={styles.aboutInfoWrap}>
+              <Text size={13} color="#111827">{`${t('version_label_current_ver')}${currentVer}`}</Text>
+              <Text size={12} color="#6b7280">{aboutStatusText}</Text>
+            </View>
+            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleOpenReleasePage}>
+              <View style={styles.profileLeft}>
+                <View style={styles.profileIconWrap}>
+                  <Icon name="download-2" rawSize={16} color="#5b6474" />
+                </View>
+                <Text size={14} color="#111827" style={styles.profileLabel}>GitHub Releases</Text>
+              </View>
+              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -506,6 +538,16 @@ const styles = createStyle({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#111827',
+  },
+  aboutInfoWrap: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#eef0f3',
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+    gap: 4,
   },
   item: {
     borderRadius: 12,

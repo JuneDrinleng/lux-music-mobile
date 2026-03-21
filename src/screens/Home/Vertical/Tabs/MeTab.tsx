@@ -18,6 +18,8 @@ import settingState from '@/store/setting/state'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useI18n } from '@/lang'
 import listState from '@/store/list/state'
+import commonState from '@/store/common/state'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
 
 const SHOW_LISTENING_STATISTICS = false
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
@@ -580,6 +582,39 @@ export default () => {
     setSourceMenuVisible(false)
     forceDismissSearchInput()
   }, [forceDismissSearchInput])
+
+  useBackHandler(useCallback(() => {
+    if (Object.keys(commonState.componentIds).length != 1) return false
+    if (commonState.navActiveId != 'nav_love') return false
+    if (isImportDrawerVisible && !importSubmitting) {
+      setImportDrawerVisible(false)
+      return true
+    }
+    if (selectedListId) {
+      setSelectedListId(null)
+      setDetailSongs([])
+      return true
+    }
+    if (isSearchMode || isSearchInputEditing) {
+      handleExitSearch()
+      return true
+    }
+    if (isSourceMenuVisible) {
+      setSourceMenuVisible(false)
+      forceDismissSearchInput()
+      return true
+    }
+    return false
+  }, [
+    forceDismissSearchInput,
+    handleExitSearch,
+    importSubmitting,
+    isImportDrawerVisible,
+    isSearchInputEditing,
+    isSearchMode,
+    isSourceMenuVisible,
+    selectedListId,
+  ]))
 
   useEffect(() => {
     if (!isSearchMode || !searchKeyword) return

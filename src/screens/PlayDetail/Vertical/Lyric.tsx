@@ -11,6 +11,7 @@ import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
 import { playNext, playPrev, togglePlay } from '@/core/player/player'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
+import SeekBar from './components/SeekBar'
 
 const PLAY_BUTTON_COLOR = '#111827'
 
@@ -25,16 +26,12 @@ const defaultLines = [
   'It wraps me in its sparkling light',
 ]
 
-const toPercent = (progress: number): `${number}%` => {
-  return `${Math.min(100, Math.max(0, progress * 100))}%`
-}
-
 export default ({ active }: { active: boolean }) => {
   const statusBarHeight = useStatusbarHeight()
   const musicInfo = usePlayerMusicInfo()
   const isPlay = useIsPlay()
   const { line } = useLrcPlay(active)
-  const { progress } = useProgress(active)
+  const { progress, maxPlayTime } = useProgress(active)
   const lyricLines = useLrcSet()
   const listRef = useRef<FlatList<string>>(null)
   const accentRequestId = useRef(0)
@@ -124,8 +121,14 @@ export default ({ active }: { active: boolean }) => {
       />
 
       <View style={styles.bottomPanel}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: toPercent(progress), backgroundColor: accentColor }]} />
+        <View style={styles.progressWrap}>
+          <SeekBar
+            progress={progress}
+            duration={maxPlayTime}
+            accentColor={accentColor}
+            trackColor="rgba(15,23,42,0.1)"
+            barHeight={6}
+          />
         </View>
 
         <View style={styles.playerRow}>
@@ -250,15 +253,8 @@ const styles = createStyle({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: -2 },
   },
-  progressTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(15,23,42,0.1)',
-    overflow: 'hidden',
+  progressWrap: {
     marginBottom: 12,
-  },
-  progressFill: {
-    height: '100%',
   },
   playerRow: {
     flexDirection: 'row',

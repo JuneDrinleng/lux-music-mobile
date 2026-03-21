@@ -5,20 +5,32 @@ import Section from '../components/Section'
 // import Button from './components/Button'
 
 import { createStyle, openUrl } from '@/utils/tools'
+import { sizeFormate } from '@/utils'
 // import { showPactModal } from '@/navigation'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { showPactModal } from '@/core/common'
+import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 
 // const qqGroupUrl = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3Du1zyxek8roQAwic44nOkBXtG9CfbAxFw'
 // const qqGroupUrl2 = 'mqqopensdkapi://bizAgent/qm/qr?url=http%3A%2F%2Fqm.qq.com%2Fcgi-bin%2Fqm%2Fqr%3Ffrom%3Dapp%26p%3Dandroid%26jump_from%3Dwebapi%26k%3D-l4kNZ2bPQAuvfCQFFhl1UoibvF5wcrQ'
 // const qqGroupWebUrl = 'https://qm.qq.com/cgi-bin/qm/qr?k=jRZkyFSZ4FmUuTHA3P_RAXbbUO_Rrn5e&jump_from=webapi'
 // const qqGroupWebUrl2 = 'https://qm.qq.com/cgi-bin/qm/qr?k=HPNJEfrZpBZ9T8szYWbe2d5JrAAeOt_l&jump_from=webapi'
+const currentVer = process.versions.app
 
 export default memo(() => {
   const theme = useTheme()
   const t = useI18n()
+  const versionInfo = useVersionInfo()
+  const progress = useVersionDownloadProgressUpdated()
+  const downloadProgressText = versionInfo.status == 'downloading'
+    ? t('version_btn_downloading', {
+      total: sizeFormate(progress.total),
+      current: sizeFormate(progress.current),
+      progress: progress.total ? (progress.current / progress.total * 100).toFixed(2) : '0',
+    })
+    : ''
   const openHomePage = () => {
     void openUrl('https://github.com/lyswhut/lx-music-mobile#readme')
   }
@@ -74,6 +86,18 @@ export default memo(() => {
           <Text style={textLinkStyle}>GitHub Releases</Text>
         </TouchableOpacity>
       </View>
+      {downloadProgressText
+        ? <View style={styles.part}>
+            <Text style={styles.text}>{downloadProgressText}</Text>
+          </View>
+        : <>
+            <View style={styles.part}>
+              <Text style={styles.text}>{t('version_label_current_ver')}{currentVer}</Text>
+            </View>
+            <View style={styles.part}>
+              <Text style={styles.text}>{t('version_tip_latest')}</Text>
+            </View>
+          </>}
       <View style={styles.part}>
         <Text style={styles.text} >软件的常见问题可转至：</Text>
         <TouchableOpacity onPress={openFAQPage}>

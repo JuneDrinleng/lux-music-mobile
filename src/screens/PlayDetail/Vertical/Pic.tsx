@@ -12,6 +12,7 @@ import { useWindowSize } from '@/utils/hooks'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
+import SeekBar from './components/SeekBar'
 
 const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
@@ -21,14 +22,10 @@ const TONEARM_PIVOT_Y = 9
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
 
-const toPercent = (progress: number): `${number}%` => {
-  return `${Math.min(100, Math.max(0, progress * 100))}%`
-}
-
 export default ({ componentId, active }: { componentId: string, active: boolean }) => {
   const statusBarHeight = useStatusbarHeight()
   const musicInfo = usePlayerMusicInfo()
-  const { nowPlayTimeStr, maxPlayTimeStr, progress } = useProgress(active)
+  const { nowPlayTimeStr, maxPlayTimeStr, progress, maxPlayTime } = useProgress(active)
   const isPlay = useIsPlay()
   const tonearmProgress = useRef(new Animated.Value(isPlay ? 1 : 0)).current
   const recordSpinProgress = useRef(new Animated.Value(0)).current
@@ -441,8 +438,14 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
             {musicInfo.singer || 'Neon Dreamer'}
           </Text>
           <View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: toPercent(progress), backgroundColor: accentColor }]} />
+            <View style={styles.progressWrap}>
+              <SeekBar
+                progress={progress}
+                duration={maxPlayTime}
+                accentColor={accentColor}
+                trackColor="#e5e7eb"
+                barHeight={4}
+              />
             </View>
             <View style={styles.timeRow}>
               <Text size={11} color="#9ca3af" style={styles.timeText}>{nowPlayTimeStr}</Text>
@@ -684,15 +687,8 @@ const styles = createStyle({
     fontWeight: '400',
     marginBottom: 12,
   },
-  progressTrack: {
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    overflow: 'hidden',
+  progressWrap: {
     marginTop: 4,
-  },
-  progressFill: {
-    height: '100%',
   },
   timeRow: {
     marginTop: 8,
