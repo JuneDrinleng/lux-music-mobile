@@ -2,24 +2,23 @@
 
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 
-## [0.1.7] - 2026-03-22
+## [0.1.8] - 2026-03-22
 
 ### 调整
 
-- 播放队列抽屉新增 `enabled` 开关，用于按页面控制抽屉启用状态。
-- 首页在播放详情页打开时自动禁用队列抽屉，避免跨页面重复响应事件。
-- 播放详情页接入独立 `PlayQueueSheet`，并按当前详情页实例进行启用控制。
+- 播放详情页封面页与歌词页新增播放模式快捷切换按钮，支持在 `listLoop / random / list / singleLoop / single` 之间循环切换。
+- 播放模式按钮图标改为根据当前 `player.togglePlayMethod` 动态显示（`list-loop`、`list-random`、`list-order`、`single-loop`、`single`）。
+- 播放模式切换后立即写入设置项 `player.togglePlayMethod`，并通过多语言 `toast` 提示当前模式。
 
 ### 修复
 
-- 修复首页与播放详情页同时挂载队列抽屉时的 `toggle/show/hide` 事件冲突问题。
-- 修复队列抽屉禁用后仍可能保持显示的问题，禁用时会立即关闭并重置动画状态。
-- 修复播放详情页内队列抽屉显示时系统栏沉浸式状态同步问题。
+- 修复播放详情页底部播放模式图标固定不变、与实际模式不同步的问题。
+- 修复封面页与歌词页播放模式控制体验不一致的问题，两页现在采用一致的切换逻辑与反馈。
 
 ### 构建
 
-- 版本号统一更新到 `0.1.7`（`package.json`、`package-lock.json`、iOS 工程）。
-- Android `versionCode` 升级到 `88`。
+- 版本号统一更新到 `0.1.8`（`package.json`、`package-lock.json`、iOS 工程）。
+- Android `versionCode` 升级到 `89`。
 
 ## [0.1.2] - 2026-03-22
 

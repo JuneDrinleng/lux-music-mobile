@@ -3,17 +3,19 @@ import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 import { pop } from '@/navigation'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
-import { createStyle, shareMusic } from '@/utils/tools'
+import { createStyle, shareMusic, toast } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useWindowSize } from '@/utils/hooks'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
-import { LIST_IDS } from '@/config/constant'
+import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import { getListMusics } from '@/core/list'
 import SeekBar from './components/SeekBar'
 import { useSettingValue } from '@/store/setting/hook'
+import { updateSetting } from '@/core/common'
+import { useI18n } from '@/lang'
 
 const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
@@ -53,6 +55,8 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   const { nowPlayTimeStr, maxPlayTimeStr, progress, maxPlayTime } = useProgress(active)
   const shareType = useSettingValue('common.shareType')
   const downloadFileName = useSettingValue('download.fileName')
+  const togglePlayMethod = useSettingValue('player.togglePlayMethod')
+  const t = useI18n()
   const isPlay = useIsPlay()
   const tonearmProgress = useRef(new Animated.Value(isPlay ? 1 : 0)).current
   const recordSpinProgress = useRef(new Animated.Value(0)).current
@@ -306,6 +310,45 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   const handleToggleQueuePanel = () => {
     global.app_event.togglePlayQueuePanel()
   }
+  const handleTogglePlayMode = () => {
+    let index = MUSIC_TOGGLE_MODE_LIST.indexOf(togglePlayMethod)
+    if (++index >= MUSIC_TOGGLE_MODE_LIST.length) index = 0
+    const mode = MUSIC_TOGGLE_MODE_LIST[index]
+    updateSetting({ 'player.togglePlayMethod': mode })
+    let modeName: 'play_list_loop' | 'play_list_random' | 'play_list_order' | 'play_single_loop' | 'play_single'
+    switch (mode) {
+      case MUSIC_TOGGLE_MODE.listLoop:
+        modeName = 'play_list_loop'
+        break
+      case MUSIC_TOGGLE_MODE.random:
+        modeName = 'play_list_random'
+        break
+      case MUSIC_TOGGLE_MODE.list:
+        modeName = 'play_list_order'
+        break
+      case MUSIC_TOGGLE_MODE.singleLoop:
+        modeName = 'play_single_loop'
+        break
+      default:
+        modeName = 'play_single'
+        break
+    }
+    toast(t(modeName))
+  }
+  const playModeIcon = useMemo(() => {
+    switch (togglePlayMethod) {
+      case MUSIC_TOGGLE_MODE.listLoop:
+        return 'list-loop'
+      case MUSIC_TOGGLE_MODE.random:
+        return 'list-random'
+      case MUSIC_TOGGLE_MODE.list:
+        return 'list-order'
+      case MUSIC_TOGGLE_MODE.singleLoop:
+        return 'single-loop'
+      default:
+        return 'single'
+    }
+  }, [togglePlayMethod])
 
   return (
     <View style={styles.container}>
@@ -479,8 +522,8 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8}>
-            <Icon name="list-loop" rawSize={22} color="#9ca3af" />
+          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
+            <Icon name={playModeIcon} rawSize={22} color="#9ca3af" />
           </TouchableOpacity>
           <View style={styles.controlRow}>
             <TouchableOpacity style={styles.mediumBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
