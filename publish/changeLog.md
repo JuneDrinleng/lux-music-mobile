@@ -1,4 +1,4 @@
-## v0.1.4
+## v0.1.5
 
 本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。
 
@@ -17,5 +17,5 @@
 - 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。
 
 ### 构建
-- 版本号更新到 `0.1.4`（`package.json`、`package-lock.json`、iOS 工程）。
-- Android `versionCode` 升级到 `85`。
+- 版本号更新到 `0.1.5`（`package.json`、`package-lock.json`、iOS 工程）。
+- Android `versionCode` 升级到 `86`。
