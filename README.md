@@ -1,5 +1,5 @@
 ﻿<p align="center">
-  <img width="180" src="./doc/images/icon.png" alt="Lux Music logo" />
+  <img width="180" src="./assets/img/whitebg.png" alt="Lux Music logo" />
 </p>
 
 <h1 align="center">Lux Music</h1>
