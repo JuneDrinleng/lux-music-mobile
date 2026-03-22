@@ -1,9 +1,6 @@
-import { LIST_IDS } from '@/config/constant'
-import { addListMusics } from '@/core/list'
-import { playList, playNext } from '@/core/player/player'
+import { addMusicToQueueAndPlay, playNext } from '@/core/player/player'
 import { addTempPlayList } from '@/core/player/tempPlayList'
 import settingState from '@/store/setting/state'
-import { getListMusicSync } from '@/utils/listManage'
 import { confirmDialog, openUrl, shareMusic, toast } from '@/utils/tools'
 import { addDislikeInfo, hasDislike } from '@/core/dislikeList'
 import playerState from '@/store/player/state'
@@ -11,11 +8,7 @@ import musicSdk from '@/utils/musicSdk'
 import { toOldMusicInfo } from '@/utils'
 
 export const handlePlay = (musicInfo: LX.Music.MusicInfoOnline) => {
-  void addListMusics(LIST_IDS.DEFAULT, [musicInfo], settingState.setting['list.addMusicLocationType']).then(() => {
-    const index = getListMusicSync(LIST_IDS.DEFAULT).findIndex(m => m.id == musicInfo.id)
-    if (index < 0) return
-    void playList(LIST_IDS.DEFAULT, index)
-  })
+  void addMusicToQueueAndPlay(musicInfo)
 }
 export const handlePlayLater = (musicInfo: LX.Music.MusicInfoOnline, selectedList: LX.Music.MusicInfoOnline[], onCancelSelect: () => void) => {
   if (selectedList.length) {

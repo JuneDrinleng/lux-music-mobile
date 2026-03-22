@@ -27,7 +27,7 @@ import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, updateListMusicPosition, updateUserList } from '@/core/list'
-import { playList } from '@/core/player/player'
+import { addMusicToQueueAndPlay, playListAsQueue } from '@/core/player/player'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
 import { search as searchOnlineMusic } from '@/core/search/music'
@@ -44,6 +44,7 @@ import { debounce } from '@/utils'
 const SHOW_LISTENING_STATISTICS = false
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
 const DEFAULT_USER_NAME = 'Alex Rivera'
+const BOTTOM_DOCK_BASE_HEIGHT = 112
 const sourceMenus = [
   { action: 'all', label: 'all' },
   { action: 'kg', label: 'kg' },
@@ -143,6 +144,7 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
 export default () => {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
+  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
   const headerTopPadding = statusBarHeight + 8
   const headerHeight = headerTopPadding + 46 + 8
   const modalBottomInset = useMemo(() => {
@@ -696,16 +698,10 @@ export default () => {
     if (targetIndex < 0) targetIndex = latestList.findIndex(item => item.id === song.id)
     if (targetIndex < 0) targetIndex = fallbackIndex
     if (targetIndex < 0) return
-    await playList(listId, targetIndex)
+    await playListAsQueue(listId, targetIndex)
   }, [])
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
-    await addListMusics(LIST_IDS.DEFAULT, [song], settingState.setting['list.addMusicLocationType'])
-    const latestList = await getListMusics(LIST_IDS.DEFAULT)
-    let targetIndex = latestList.findIndex(item => item.id === song.id && item.source === song.source)
-    if (targetIndex < 0) targetIndex = latestList.findIndex(item => item.id === song.id)
-    if (targetIndex < 0) return
-    setActiveList(LIST_IDS.DEFAULT)
-    await playList(LIST_IDS.DEFAULT, targetIndex)
+    await addMusicToQueueAndPlay(song)
   }, [])
   const handleToggleSearchLoved = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     const songId = String(song.id)
@@ -1370,7 +1366,11 @@ export default () => {
             : null}
           <FlatList
             style={styles.searchResultList}
-            contentContainerStyle={[styles.detailContent, styles.searchResultContent, { paddingTop: searchHeaderHeight }]}
+            contentContainerStyle={[
+              styles.detailContent,
+              styles.searchResultContent,
+              { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomDockHeight },
+            ]}
             data={searchResults}
             renderItem={renderSearchResultItem}
             keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
@@ -1415,7 +1415,7 @@ export default () => {
           <FlatList
             ref={detailListRef}
             style={styles.container}
-            contentContainerStyle={styles.detailContent}
+            contentContainerStyle={[styles.detailContent, { paddingBottom: bottomDockHeight }]}
             data={detailSongs}
             renderItem={renderSongItem}
             keyExtractor={(item, index) => getSongRowKey(item, index)}
@@ -1594,7 +1594,7 @@ export default () => {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2 }]}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: bottomDockHeight }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}

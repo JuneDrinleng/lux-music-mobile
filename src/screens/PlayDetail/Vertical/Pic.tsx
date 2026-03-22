@@ -454,7 +454,7 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
             </Text>
             <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
               {isLoved
-                ? <Text size={20} color="#ef4444" style={styles.loveFilled}>♥</Text>
+                ? <Text size={20} color="#ef4444" style={styles.loveFilled}>{'\u2665'}</Text>
                 : <Icon name="love" rawSize={20} color="#9ca3af" />}
             </TouchableOpacity>
           </View>
@@ -701,7 +701,7 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   loveFilled: {
-    lineHeight: 21,
+    lineHeight: 24,
     fontWeight: '700',
   },
   songTitle: {
@@ -762,3 +762,4 @@ const styles = createStyle({
     shadowOffset: { width: 0, height: 3 },
   },
 })
+

@@ -385,6 +385,6 @@ const styles = createStyle({
   },
   loveFilled: {
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 24,
   },
 })

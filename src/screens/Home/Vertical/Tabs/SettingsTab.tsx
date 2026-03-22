@@ -19,6 +19,7 @@ import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/versi
 
 const SHOW_ADVANCED_SWITCHES = false
 const DEFAULT_USER_NAME = 'Alex Rivera'
+const BOTTOM_DOCK_BASE_HEIGHT = 112
 const currentVer = process.versions.app
 const languageOptions = [
   { locale: 'zh_cn', label: '\u7b80\u4f53\u4e2d\u6587' },
@@ -37,6 +38,7 @@ export default () => {
   const t = useI18n()
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
+  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
   const headerTopPadding = statusBarHeight + 8
   const headerHeight = headerTopPadding + 46 + 8
   const sourceRef = useRef<SourceType>(null)
@@ -189,7 +191,7 @@ export default () => {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2 }]}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: 18 + bottomDockHeight }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}

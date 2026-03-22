@@ -26,8 +26,9 @@ import { filterList } from './utils'
 import BackgroundTimer from 'react-native-background-timer'
 import { checkIgnoringBatteryOptimization, checkNotificationPermission, debounceBackgroundTimer } from '@/utils/tools'
 import { LIST_IDS } from '@/config/constant'
-import { addListMusics, removeListMusics } from '@/core/list'
+import { addListMusics, getListMusics, removeListMusics, setTempList } from '@/core/list'
 import { addDislikeInfo } from '@/core/dislikeList'
+import listState from '@/store/list/state'
 
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -85,6 +86,36 @@ const normalizePlayRate = (value: number) => {
   if (playRate < 0.25) return 0.25
   if (playRate > 4) return 4
   return playRate
+}
+
+const PLAY_QUEUE_META_PREFIX = 'play_queue__'
+const PLAY_QUEUE_SINGLE_SOURCE_ID = 'single'
+const createPlayQueueMetaId = (sourceListId: string) => `${PLAY_QUEUE_META_PREFIX}${sourceListId}_${Date.now()}`
+const normalizeIndex = (index: number, listLength: number) => {
+  if (!listLength) return 0
+  if (index < 0) return 0
+  if (index >= listLength) return listLength - 1
+  return index
+}
+const findMusicIndex = (list: LX.Music.MusicInfo[], targetSong: LX.Music.MusicInfo, fallbackIndex: number) => {
+  let targetIndex = list.findIndex(item => item.id === targetSong.id && item.source === targetSong.source)
+  if (targetIndex < 0) targetIndex = list.findIndex(item => item.id === targetSong.id)
+  if (targetIndex < 0) targetIndex = normalizeIndex(fallbackIndex, list.length)
+  return targetIndex
+}
+export const isPlayQueueMetaId = (id: string | null | undefined) => {
+  return typeof id == 'string' && id.startsWith(PLAY_QUEUE_META_PREFIX)
+}
+const ensureQueueList = async() => {
+  const currentListId = playerState.playInfo.playerListId
+  const isUsingQueue = currentListId == LIST_IDS.TEMP && isPlayQueueMetaId(listState.tempListMeta.id)
+  if (isUsingQueue) return getListMusics(LIST_IDS.TEMP)
+
+  if (!currentListId) return []
+  const currentList = await getListMusics(currentListId)
+  if (!currentList.length) return []
+  await setTempList(createPlayQueueMetaId(currentListId), [...currentList])
+  return getListMusics(LIST_IDS.TEMP)
 }
 
 const syncPlayerOutputSetting = async() => {
@@ -327,6 +358,40 @@ export const playList = async(listId: string, index: number) => {
   if (settingState.setting['player.isAutoCleanPlayedList'] || prevListId != listId) clearPlayedList()
   clearTempPlayeList()
   await handlePlay()
+}
+
+/**
+ * 将某个歌单完整复制到独立播放队列，再从目标索引播放
+ */
+export const playListAsQueue = async(sourceListId: string, index: number) => {
+  const sourceList = await getListMusics(sourceListId)
+  if (!sourceList.length) return
+  const sourceIndex = normalizeIndex(index, sourceList.length)
+  const targetSong = sourceList[sourceIndex]
+  if (!targetSong) return
+
+  const queueList = [...sourceList]
+  await setTempList(createPlayQueueMetaId(sourceListId), queueList)
+  const queueIndex = findMusicIndex(queueList, targetSong, sourceIndex)
+  await playList(LIST_IDS.TEMP, queueIndex)
+}
+
+/**
+ * 将单曲加入独立播放队列并立即播放，不改动任何歌单内容
+ */
+export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
+  const queueList = await ensureQueueList()
+  if (!queueList.length) {
+    await setTempList(createPlayQueueMetaId(PLAY_QUEUE_SINGLE_SOURCE_ID), [musicInfo])
+    await playList(LIST_IDS.TEMP, 0)
+    return
+  }
+
+  await addListMusics(LIST_IDS.TEMP, [musicInfo], settingState.setting['list.addMusicLocationType'])
+  const latestQueue = await getListMusics(LIST_IDS.TEMP)
+  if (!latestQueue.length) return
+  const targetIndex = findMusicIndex(latestQueue, musicInfo, latestQueue.length - 1)
+  await playList(LIST_IDS.TEMP, targetIndex)
 }
 
 const handleToggleStop = async() => {

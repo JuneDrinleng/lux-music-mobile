@@ -6,18 +6,21 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.util.Log;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
 import androidx.core.app.LocaleManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.os.LocaleListCompat;
+import androidx.core.view.WindowCompat;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
@@ -380,6 +383,31 @@ public class UtilsModule extends ReactContextBaseJavaModule {
         promise.reject("ERROR", e);
       }
     }).start();
+  }
+
+  @ReactMethod
+  public void setSystemBarsTransparent() {
+    final Activity activity = getCurrentActivity();
+    if (activity == null) return;
+    activity.runOnUiThread(() -> {
+      Window window = activity.getWindow();
+      if (window == null) return;
+
+      WindowCompat.setDecorFitsSystemWindows(window, false);
+      View decorView = window.getDecorView();
+      int systemUiFlags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+      decorView.setSystemUiVisibility(systemUiFlags);
+
+      window.setStatusBarColor(Color.TRANSPARENT);
+      window.setNavigationBarColor(Color.TRANSPARENT);
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.setStatusBarContrastEnforced(false);
+        window.setNavigationBarContrastEnforced(false);
+      }
+    });
   }
 }
 

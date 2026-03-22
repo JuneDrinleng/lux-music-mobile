@@ -5,7 +5,18 @@ import type { DislikeEventTypes } from '@/event/dislikeEvent'
 import type { StateEventTypes } from '@/event/stateEvent'
 import type { I18n } from '@/lang/i18n'
 import type { Buffer as _Buffer } from 'buffer'
-import type { SettingScreenIds } from '@/screens/Home/Views/Setting'
+
+type SettingScreenIds =
+  | 'basic'
+  | 'player'
+  | 'lyric_desktop'
+  | 'search'
+  | 'list'
+  | 'sync'
+  | 'backup'
+  | 'other'
+  | 'version'
+  | 'about'
 
 // interface Process {
 //   env: {

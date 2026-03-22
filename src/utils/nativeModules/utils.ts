@@ -99,3 +99,8 @@ export const requestIgnoreBatteryOptimization = async() => new Promise<boolean>(
     resolve(false)
   })
 })
+
+export const setSystemBarsTransparent = () => {
+  if (!UtilsModule?.setSystemBarsTransparent) return
+  UtilsModule.setSystemBarsTransparent()
+}

@@ -7,6 +7,8 @@
   "back_home": "返回桌布",
   "cancel": "取消",
   "cancel_button_text_2": "不不不，點錯了",
+  "play_queue_clear_current_btn": "清空目前播放清單",
+  "play_queue_clear_current_confirm": "確定清空目前播放清單嗎？",
   "change_position": "調整位置",
   "change_position_list_title": "調整清單位置",
   "change_position_music_multi_title": "將已選的 {num} 首歌曲的位置調整到",

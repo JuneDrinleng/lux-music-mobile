@@ -1,11 +1,9 @@
 import { memo } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 import { Icon } from '@/components/common/Icon'
-import Text from '@/components/common/Text'
 import { useNavActiveId } from '@/store/common/hook'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
-import { useI18n } from '@/lang'
 import type { InitState } from '@/store/common/state'
 
 const activeColor = '#111827'
@@ -18,25 +16,21 @@ const tabs = [
 
 type TabId = InitState['navActiveId']
 
-const TabItem = ({ id, icon, label, active, onPress }: {
+const TabItem = ({ id, icon, active, compact = false, onPress }: {
   id: TabId
   icon: string
-  label: string
   active: boolean
+  compact?: boolean
   onPress: (id: TabId) => void
 }) => {
   return (
-    <TouchableOpacity style={styles.item} activeOpacity={0.8} onPress={() => { onPress(id) }}>
-      <Icon name={icon} rawSize={22} color={active ? activeColor : inactiveColor} />
-      <Text size={10} color={active ? activeColor : inactiveColor} style={active ? styles.activeLabel : styles.label}>
-        {label}
-      </Text>
+    <TouchableOpacity style={[styles.item, compact ? styles.itemCompact : null]} activeOpacity={0.8} onPress={() => { onPress(id) }}>
+      <Icon name={icon} rawSize={compact ? 19 : 22} color={active ? activeColor : inactiveColor} />
     </TouchableOpacity>
   )
 }
 
-export default memo(({ bottomInset = 0 }: { bottomInset?: number }) => {
-  const t = useI18n()
+export default memo(({ bottomInset = 0, inCard = false }: { bottomInset?: number, inCard?: boolean }) => {
   const activeId = useNavActiveId()
 
   const handlePress = (id: TabId) => {
@@ -44,15 +38,17 @@ export default memo(({ bottomInset = 0 }: { bottomInset?: number }) => {
     setNavActiveId(id)
   }
 
+  const bottomPadding = inCard ? 4 : 10 + bottomInset
+
   return (
-    <View style={[styles.container, bottomInset ? { paddingBottom: 10 + bottomInset } : null]}>
+    <View style={[styles.container, inCard ? styles.containerInCard : null, { paddingBottom: bottomPadding }]}>
       {tabs.map(tab => (
         <TabItem
           key={tab.id}
           id={tab.id}
           icon={tab.icon}
-          label={tab.id === 'nav_love' ? t('bottom_nav_me') : t('bottom_nav_settings')}
           active={activeId === tab.id}
+          compact={inCard}
           onPress={handlePress}
         />
       ))}
@@ -73,19 +69,20 @@ const styles = createStyle({
     paddingBottom: 10,
     paddingHorizontal: 6,
   },
+  containerInCard: {
+    borderTopWidth: 0,
+    borderTopColor: 'transparent',
+    paddingTop: 2,
+    paddingHorizontal: 8,
+  },
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
-  label: {
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  activeLabel: {
-    marginTop: 2,
-    fontWeight: '700',
+  itemCompact: {
+    paddingVertical: 1,
   },
 })
