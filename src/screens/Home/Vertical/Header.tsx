@@ -7,9 +7,8 @@ import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
-import StatusBar from '@/components/common/StatusBar'
 import { scaleSizeH } from '@/utils/pixelRatio'
-import { HEADER_HEIGHT } from '@/config/constant'
+import { APP_LAYER_INDEX, HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
 
@@ -53,7 +52,8 @@ const styles = createStyle({
     justifyContent: 'center',
     alignItems: 'center',
     borderBottomWidth: 1,
-    zIndex: 10,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: APP_LAYER_INDEX.controls,
   },
   left: {
     flex: 1,

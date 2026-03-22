@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 import { pop } from '@/navigation'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { useIsPlay, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
-import { createStyle } from '@/utils/tools'
+import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { createStyle, shareMusic } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useWindowSize } from '@/utils/hooks'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
+import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
 import SeekBar from './components/SeekBar'
+import { useSettingValue } from '@/store/setting/hook'
 
 const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
@@ -22,10 +23,36 @@ const TONEARM_PIVOT_Y = 9
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
 
+const sourceAccentColorMap: Record<string, string> = {
+  tx: '#31c27c',
+  wy: '#d81e06',
+  kg: '#2f88ff',
+  kw: '#f59e0b',
+  mg: '#e11d8d',
+  local: '#475569',
+  bd: '#111827',
+}
+const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
+  if (!musicInfo) return null
+  if ('progress' in musicInfo) return musicInfo.metadata.musicInfo.source
+  return musicInfo.source
+}
+const getSourceAccentColor = (source: string | null | undefined) => {
+  if (!source) return '#111827'
+  return sourceAccentColorMap[source.toLowerCase()] ?? '#111827'
+}
+const getSourceTrackColor = (color: string) => {
+  if (/^#[0-9a-f]{6}$/i.test(color)) return `${color}33`
+  return '#e5e7eb'
+}
+
 export default ({ componentId, active }: { componentId: string, active: boolean }) => {
   const statusBarHeight = useStatusbarHeight()
   const musicInfo = usePlayerMusicInfo()
+  const playMusicInfo = usePlayMusicInfo()
   const { nowPlayTimeStr, maxPlayTimeStr, progress, maxPlayTime } = useProgress(active)
+  const shareType = useSettingValue('common.shareType')
+  const downloadFileName = useSettingValue('download.fileName')
   const isPlay = useIsPlay()
   const tonearmProgress = useRef(new Animated.Value(isPlay ? 1 : 0)).current
   const recordSpinProgress = useRef(new Animated.Value(0)).current
@@ -33,16 +60,17 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   const coverTransition = useRef(new Animated.Value(1)).current
   const loveCheckId = useRef(0)
   const hasMountedRef = useRef(false)
-  const accentRequestId = useRef(0)
   const [currentCover, setCurrentCover] = useState(musicInfo.pic)
   const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const [isLoved, setIsLoved] = useState(false)
   const winSize = useWindowSize()
   const discSize = Math.min(winSize.width * 0.9, 450)
   const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
-  const [accentColor, setAccentColor] = useState(coverTheme.accent)
-  const backgroundCover = currentCover ?? musicInfo?.pic
-  const hasBackgroundCover = Boolean(backgroundCover)
+  const sourceAccentColor = useMemo(() => {
+    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo))
+  }, [playMusicInfo.musicInfo])
+  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor), [sourceAccentColor])
+  const hasBackgroundCover = Boolean(musicInfo?.pic)
   const gradientColors = useMemo(() => {
     return hasBackgroundCover
       ? createWhiteFadeMaskColors(84, 0.12, 1)
@@ -243,19 +271,6 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
   }, [coverTransition, currentCover, musicInfo.id, musicInfo.pic])
 
   useEffect(() => {
-    const requestId = ++accentRequestId.current
-    const fallbackAccent = coverTheme.accent
-    setAccentColor(fallbackAccent)
-    if (!musicInfo?.pic) return
-
-    void getCoverAccentColor(musicInfo.pic).then(color => {
-      if (requestId !== accentRequestId.current) return
-      if (!color) return
-      setAccentColor(color)
-    })
-  }, [coverTheme.accent, musicInfo?.id, musicInfo?.pic])
-
-  useEffect(() => {
     void refreshLovedState(musicInfo.id)
   }, [musicInfo.id, refreshLovedState])
 
@@ -282,12 +297,21 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
     animateTonearm(!isPlay)
     togglePlay()
   }
+  const handleShare = () => {
+    const currentMusicInfo = playMusicInfo.musicInfo
+    if (!currentMusicInfo) return
+    const targetMusicInfo = 'progress' in currentMusicInfo ? currentMusicInfo.metadata.musicInfo : currentMusicInfo
+    shareMusic(shareType, downloadFileName, targetMusicInfo)
+  }
+  const handleToggleQueuePanel = () => {
+    global.app_event.togglePlayQueuePanel()
+  }
 
   return (
     <View style={styles.container}>
       <View pointerEvents="none" style={styles.gradientLinearWrap}>
         {hasBackgroundCover
-          ? <Image url={backgroundCover} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
+          ? <Image url={musicInfo.pic} cache={false} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
           : null}
         {gradientColors.map((color, index) => (
           <View key={`pic_gradient_${index}`} style={[styles.gradientLinearRow, { backgroundColor: color }]} />
@@ -295,11 +319,11 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
       </View>
       <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={goBack}>
-          <Icon name="chevron-left" rawSize={24} color="#111827" />
+          <Icon name="chevron-left" rawSize={24} color="#111827" style={styles.backIcon} />
         </TouchableOpacity>
         <View style={styles.headerCenter} />
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
-          <Icon name="menu" rawSize={22} color="#111827" />
+        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={handleShare}>
+          <Icon name="share" rawSize={20} color="#111827" />
         </TouchableOpacity>
       </View>
 
@@ -422,19 +446,19 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
       <View style={styles.bottomPanel}>
         <View style={styles.songInfo}>
           <View style={styles.titleRow}>
-            <TouchableOpacity activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7}>
               <Icon name="comment" rawSize={20} color="#9ca3af" />
             </TouchableOpacity>
             <Text size={24} color="#111827" numberOfLines={1} style={styles.songTitle}>
               {musicInfo.name || 'Midnight City Echoes'}
             </Text>
-            <TouchableOpacity style={styles.loveBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
+            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
               {isLoved
                 ? <Text size={20} color="#ef4444" style={styles.loveFilled}>♥</Text>
                 : <Icon name="love" rawSize={20} color="#9ca3af" />}
             </TouchableOpacity>
           </View>
-          <Text size={18} color={accentColor} numberOfLines={1} style={styles.singer}>
+          <Text size={18} color={sourceAccentColor} numberOfLines={1} style={styles.singer}>
             {musicInfo.singer || 'Neon Dreamer'}
           </Text>
           <View>
@@ -442,8 +466,8 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
               <SeekBar
                 progress={progress}
                 duration={maxPlayTime}
-                accentColor={accentColor}
-                trackColor="#e5e7eb"
+                accentColor={sourceAccentColor}
+                trackColor={sourceTrackColor}
                 barHeight={4}
               />
             </View>
@@ -469,7 +493,7 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
               <Icon name="nextMusic" rawSize={28} color="#374151" />
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
             <Icon name="menu" rawSize={22} color="#9ca3af" />
           </TouchableOpacity>
         </View>
@@ -518,6 +542,9 @@ const styles = createStyle({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backIcon: {
+    transform: [{ rotate: '-90deg' }],
   },
   headerCenter: {
     flex: 1,
@@ -664,11 +691,12 @@ const styles = createStyle({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 42,
     marginBottom: 4,
   },
-  loveBtn: {
-    width: 24,
-    height: 24,
+  sideActionBtn: {
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -680,7 +708,7 @@ const styles = createStyle({
     flex: 1,
     textAlign: 'center',
     fontWeight: '700',
-    marginHorizontal: 10,
+    marginHorizontal: 4,
   },
   singer: {
     textAlign: 'center',

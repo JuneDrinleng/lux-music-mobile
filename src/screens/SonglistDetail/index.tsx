@@ -8,11 +8,14 @@ import { COMPONENT_IDS } from '@/config/constant'
 import { type ListInfoItem } from '@/store/songlist/state'
 import PlayerBar from '@/components/player/PlayerBar'
 import { ListInfoContext } from './state'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
+import { View } from 'react-native'
 
 
 export default ({ componentId, info }: { componentId: string, info: ListInfoItem }) => {
   const musicListRef = useRef<MusicListType>(null)
   const isUnmountedRef = useRef(false)
+  const bottomInset = useSystemGestureInsetBottom()
 
   useEffect(() => {
     setComponentId(COMPONENT_IDS.songlistDetail, componentId)
@@ -35,7 +38,9 @@ export default ({ componentId, info }: { componentId: string, info: ListInfoItem
       <ListInfoContext.Provider value={info}>
         <MusicList ref={musicListRef} componentId={componentId} />
       </ListInfoContext.Provider>
-      <PlayerBar />
+      <View style={bottomInset ? { paddingBottom: bottomInset } : null}>
+        <PlayerBar systemGestureInsetBottom={bottomInset} />
+      </View>
     </PageContent>
   )
 }

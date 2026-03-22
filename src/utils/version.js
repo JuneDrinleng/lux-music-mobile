@@ -85,18 +85,22 @@ const getTargetAbi = async() => {
 let downloadJobId = null
 const noop = (total, download) => {}
 let apkSavePath
+export const isVersionDownloadActive = () => downloadJobId != null
 
 export const downloadNewVersion = async(version, onDownload = noop) => {
   const abi = await getTargetAbi()
   const url = `https://github.com/${updateRepo.owner}/${updateRepo.name}/releases/download/v${version}/${releaseAssetNamePrefix}-v${version}-${abi}.apk`
-  let savePath = temporaryDirectoryPath + '/lux-music-mobile.apk'
+  const savePath = temporaryDirectoryPath + '/lux-music-mobile.apk'
 
-  if (downloadJobId) stopDownload(downloadJobId)
+  if (downloadJobId != null) {
+    stopDownload(downloadJobId)
+    downloadJobId = null
+  }
 
   const { jobId, promise } = downloadFile(url, savePath, {
     progressInterval: 500,
-    connectionTimeout: 20000,
-    readTimeout: 30000,
+    connectionTimeout: 30000,
+    readTimeout: 120000,
     begin({ statusCode, contentLength }) {
       onDownload(contentLength, 0)
       // switch (statusCode) {
@@ -116,6 +120,8 @@ export const downloadNewVersion = async(version, onDownload = noop) => {
   return promise.then(() => {
     apkSavePath = savePath
     return updateApp()
+  }).finally(() => {
+    if (downloadJobId == jobId) downloadJobId = null
   })
 }
 

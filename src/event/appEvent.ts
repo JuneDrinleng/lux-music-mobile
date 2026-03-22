@@ -4,6 +4,7 @@ import commonState from '@/store/common/state'
 import { type Source as SonglistSource } from '@/store/songlist/state'
 import { type SearchType } from '@/store/search/state'
 import { type PermissionPromptAction, type PermissionPromptPayload } from '@/types/permissionPrompt'
+import { type AppDialogAction, type AppDialogPayload } from '@/types/appDialog'
 
 
 // {
@@ -187,6 +188,18 @@ export class AppEvent extends Event {
     this.emit('changeLoveListVisible', visible)
   }
 
+  togglePlayQueuePanel() {
+    this.emit('togglePlayQueuePanel')
+  }
+
+  showPlayQueuePanel() {
+    this.emit('showPlayQueuePanel')
+  }
+
+  hidePlayQueuePanel() {
+    this.emit('hidePlayQueuePanel')
+  }
+
   showSonglistTagList(source: SonglistSource, activeId: string) {
     this.emit('showSonglistTagList', source, activeId)
   }
@@ -221,6 +234,14 @@ export class AppEvent extends Event {
 
   permissionPromptResult(requestId: string, action: PermissionPromptAction) {
     this.emit('permissionPromptResult', requestId, action)
+  }
+
+  showAppDialog(payload: AppDialogPayload) {
+    this.emit('showAppDialog', payload)
+  }
+
+  appDialogResult(requestId: string, action: AppDialogAction) {
+    this.emit('appDialogResult', requestId, action)
   }
 }
 

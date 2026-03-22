@@ -9,35 +9,18 @@ import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 
 export default memo(({
   componentId,
-  onPageIndexChange,
-  backToPicSignal = 0,
 }: {
   componentId: string
-  onPageIndexChange?: (index: number) => void
-  backToPicSignal?: number
 }) => {
   const [pageIndex, setPageIndex] = useState(0)
   const showLyricRef = useRef(false)
-  const pagerViewRef = useRef<PagerView>(null)
 
   const onPageSelected = ({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     setPageIndex(nativeEvent.position)
     showLyricRef.current = nativeEvent.position === 1
-    onPageIndexChange?.(nativeEvent.position)
     if (showLyricRef.current) screenkeepAwake()
     else screenUnkeepAwake()
   }
-
-  useEffect(() => {
-    onPageIndexChange?.(0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (!backToPicSignal) return
-    if (pageIndex !== 1) return
-    pagerViewRef.current?.setPage(0)
-  }, [backToPicSignal, pageIndex])
 
   useEffect(() => {
     const appstateListener = AppState.addEventListener('change', state => {
@@ -64,7 +47,7 @@ export default memo(({
 
   return (
     <View style={styles.container}>
-      <PagerView ref={pagerViewRef} onPageSelected={onPageSelected} style={styles.pagerView}>
+      <PagerView onPageSelected={onPageSelected} style={styles.pagerView}>
         <View collapsable={false}>
           <Pic componentId={componentId} active={pageIndex === 0} />
         </View>

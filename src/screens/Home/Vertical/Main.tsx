@@ -62,7 +62,7 @@ const Main = () => {
       ref={pagerViewRef}
       initialPage={activeIndexRef.current}
       onPageSelected={onPageSelected}
-      scrollEnabled={false}
+      scrollEnabled
       style={styles.pagerView}
     >
       <View collapsable={false} key="nav_love" style={styles.pageStyle}>

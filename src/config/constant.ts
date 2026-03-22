@@ -2,6 +2,14 @@ export const HEADER_HEIGHT = 42
 export const LIST_ITEM_HEIGHT = 54
 export const LIST_SCROLL_POSITION_KEY = '__LIST_SCROLL_POSITION_KEY__'
 
+export const APP_LAYER_INDEX = {
+  content: 10,
+  controls: 20,
+  playDetail: 30,
+  playQueue: 40,
+  systemGesture: 50,
+} as const
+
 export const SPLIT_CHAR = {
   DISLIKE_NAME: '@',
   DISLIKE_NAME_ALIAS: '#',

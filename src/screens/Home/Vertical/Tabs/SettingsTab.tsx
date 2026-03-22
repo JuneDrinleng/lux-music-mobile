@@ -7,6 +7,7 @@ import Input from '@/components/common/Input'
 import { createStyle, openUrl } from '@/utils/tools'
 import { sizeFormate } from '@/utils'
 import { useStatusbarHeight } from '@/store/common/hook'
+import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
 import { getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
@@ -188,16 +189,12 @@ export default () => {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2 }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <View style={styles.titleArea}>
-          <Text size={28} color="#111827" style={styles.pageTitle}>{t('nav_setting')}</Text>
-        </View>
-
         <View style={styles.list}>
           <View style={styles.sectionCard}>
             <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_profile')}</Text>
@@ -329,6 +326,7 @@ export default () => {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={handleCloseNameModal}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -360,6 +358,7 @@ export default () => {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={handleCloseSignatureModal}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -410,8 +409,8 @@ const styles = createStyle({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 20,
-    elevation: 6,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: 0,
     backgroundColor: '#f8f9fa',
   },
   searchWrap: {
@@ -423,10 +422,6 @@ const styles = createStyle({
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
   },
   searchInput: {
     flex: 1,
@@ -434,15 +429,6 @@ const styles = createStyle({
     color: '#111827',
     fontSize: 13,
     paddingVertical: 0,
-  },
-  titleArea: {
-    paddingHorizontal: 16,
-    marginBottom: 14,
-    alignItems: 'center',
-  },
-  pageTitle: {
-    fontWeight: '700',
-    textAlign: 'center',
   },
   list: {
     paddingHorizontal: 16,
@@ -452,6 +438,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     paddingTop: 12,
     paddingBottom: 10,
     paddingHorizontal: 12,
@@ -554,6 +545,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     paddingVertical: 12,
     paddingHorizontal: 12,
     marginBottom: 10,
@@ -597,6 +593,11 @@ const styles = createStyle({
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#eef0f3',
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
     paddingTop: 18,
     paddingHorizontal: 16,
     paddingBottom: 14,

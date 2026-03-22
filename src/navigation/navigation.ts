@@ -73,8 +73,8 @@ export async function pushHomeScreen() {
                 backgroundColor: 'transparent',
               },
               navigationBar: {
-                // visible: false,
-                backgroundColor: theme['c-content-background'],
+                drawBehind: true,
+                backgroundColor: 'transparent',
               },
               layout: {
                 componentBackgroundColor: theme['c-content-background'],
@@ -138,58 +138,38 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
-            backgroundColor: theme['c-content-background'],
+            drawBehind: true,
+            backgroundColor: 'transparent',
           },
           layout: {
             componentBackgroundColor: theme['c-content-background'],
           },
           animations: {
             push: skipAnimation ? {} : {
-              sharedElementTransitions: [
-                {
-                  fromId: NAV_SHEAR_NATIVE_IDS.playDetail_pic,
-                  toId: NAV_SHEAR_NATIVE_IDS.playDetail_pic,
+              content: {
+                translationY: {
+                  from: windowSizeTools.getSize().height,
+                  to: 0,
+                  duration: 420,
                   interpolation: { type: 'spring' },
                 },
-              ],
-              elementTransitions: [
-                {
-                  id: NAV_SHEAR_NATIVE_IDS.playDetail_header,
-                  alpha: {
-                    from: 0, // We don't declare 'to' value as that is the element's current alpha value, here we're essentially animating from 0 to 1
-                    duration: 300,
-                  },
-                  translationY: {
-                    from: -32, // Animate translationY from 16dp to 0dp
-                    duration: 300,
-                  },
+                alpha: {
+                  from: 0.92,
+                  to: 1,
+                  duration: 420,
                 },
-                {
-                  id: NAV_SHEAR_NATIVE_IDS.playDetail_player,
-                  alpha: {
-                    from: 0, // We don't declare 'to' value as that is the element's current alpha value, here we're essentially animating from 0 to 1
-                    duration: 300,
-                  },
-                  translationY: {
-                    from: 32, // Animate translationY from 16dp to 0dp
-                    duration: 300,
-                  },
-                },
-              ],
-              // content: {
-              //   translationX: {
-              //     from: windowSizeTools.getSize().width,
-              //     to: 0,
-              //     duration: 300,
-              //   },
-              // },
+              },
             },
-            pop: {
+            pop: skipAnimation ? {} : {
               content: {
-                translationX: {
+                translationY: {
                   from: 0,
-                  to: windowSizeTools.getSize().width,
+                  to: windowSizeTools.getSize().height,
+                  duration: 300,
+                },
+                alpha: {
+                  from: 1,
+                  to: 0.92,
                   duration: 300,
                 },
               },
@@ -223,8 +203,8 @@ export function pushSonglistDetailScreen(componentId: string, info: ListInfoItem
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
-            backgroundColor: theme['c-content-background'],
+            drawBehind: true,
+            backgroundColor: 'transparent',
           },
           layout: {
             componentBackgroundColor: theme['c-content-background'],
@@ -356,8 +336,8 @@ export function pushCommentScreen(componentId: string) {
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
-            backgroundColor: theme['c-content-background'],
+            drawBehind: true,
+            backgroundColor: 'transparent',
           },
           layout: {
             componentBackgroundColor: theme['c-content-background'],
@@ -409,7 +389,8 @@ export function pushLeaderboardDetailScreen(componentId: string, info: { source:
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            backgroundColor: theme['c-content-background'],
+            drawBehind: true,
+            backgroundColor: 'transparent',
           },
           layout: {
             componentBackgroundColor: theme['c-content-background'],

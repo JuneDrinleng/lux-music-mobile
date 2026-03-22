@@ -85,6 +85,7 @@ export default forwardRef<ModalType, ModalProps>(({
       transparent={true}
       hardwareAccelerated={true}
       statusBarTranslucent={true}
+      navigationBarTranslucent={true}
       visible={visible}
       onRequestClose={handleRequestClose}
       {...props}

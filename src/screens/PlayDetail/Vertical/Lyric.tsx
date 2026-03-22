@@ -1,19 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, TouchableOpacity, View, type FlatListProps } from 'react-native'
 import { pop } from '@/navigation'
 import commonState from '@/store/common/state'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { useIsPlay, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
-import { createStyle } from '@/utils/tools'
+import { createStyle, shareMusic } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
-import { playNext, playPrev, togglePlay } from '@/core/player/player'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverAccentColor, getCoverTheme } from './coverTheme'
+import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
+import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
 import SeekBar from './components/SeekBar'
+import { useSettingValue } from '@/store/setting/hook'
+import { LIST_IDS } from '@/config/constant'
+import { getListMusics } from '@/core/list'
 
 const PLAY_BUTTON_COLOR = '#111827'
+const sourceAccentColorMap: Record<string, string> = {
+  tx: '#31c27c',
+  wy: '#d81e06',
+  kg: '#2f88ff',
+  kw: '#f59e0b',
+  mg: '#e11d8d',
+  local: '#475569',
+  bd: '#111827',
+}
+const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
+  if (!musicInfo) return null
+  if ('progress' in musicInfo) return musicInfo.metadata.musicInfo.source
+  return musicInfo.source
+}
+const getSourceAccentColor = (source: string | null | undefined) => {
+  if (!source) return '#111827'
+  return sourceAccentColorMap[source.toLowerCase()] ?? '#111827'
+}
+const getSourceTrackColor = (color: string) => {
+  if (/^#[0-9a-f]{6}$/i.test(color)) return `${color}33`
+  return 'rgba(15,23,42,0.1)'
+}
 
 const defaultLines = [
   'Waiting in a car',
@@ -29,14 +54,21 @@ const defaultLines = [
 export default ({ active }: { active: boolean }) => {
   const statusBarHeight = useStatusbarHeight()
   const musicInfo = usePlayerMusicInfo()
+  const playMusicInfo = usePlayMusicInfo()
+  const shareType = useSettingValue('common.shareType')
+  const downloadFileName = useSettingValue('download.fileName')
   const isPlay = useIsPlay()
   const { line } = useLrcPlay(active)
   const { progress, maxPlayTime } = useProgress(active)
   const lyricLines = useLrcSet()
   const listRef = useRef<FlatList<string>>(null)
-  const accentRequestId = useRef(0)
+  const loveCheckId = useRef(0)
   const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
-  const [accentColor, setAccentColor] = useState(coverTheme.accent)
+  const sourceAccentColor = useMemo(() => {
+    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo))
+  }, [playMusicInfo.musicInfo])
+  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor), [sourceAccentColor])
+  const [isLoved, setIsLoved] = useState(false)
   const hasBackgroundCover = Boolean(musicInfo?.pic)
   const gradientColors = useMemo(() => {
     return hasBackgroundCover
@@ -57,21 +89,52 @@ export default ({ active }: { active: boolean }) => {
     } catch {}
   }, [active, line, lines.length])
 
-  useEffect(() => {
-    const requestId = ++accentRequestId.current
-    const fallbackAccent = coverTheme.accent
-    setAccentColor(fallbackAccent)
-    if (!musicInfo?.pic) return
-
-    void getCoverAccentColor(musicInfo.pic).then(color => {
-      if (requestId !== accentRequestId.current) return
-      if (!color) return
-      setAccentColor(color)
-    })
-  }, [coverTheme.accent, musicInfo?.id, musicInfo?.pic])
-
   const handleGoBack = () => {
     void pop(commonState.componentIds.playDetail!)
+  }
+  const handleShare = () => {
+    const currentMusicInfo = playMusicInfo.musicInfo
+    if (!currentMusicInfo) return
+    const targetMusicInfo = 'progress' in currentMusicInfo ? currentMusicInfo.metadata.musicInfo : currentMusicInfo
+    shareMusic(shareType, downloadFileName, targetMusicInfo)
+  }
+  const refreshLovedState = useCallback(async(targetId?: string | null) => {
+    const musicId = targetId ?? musicInfo.id
+    if (!musicId) {
+      setIsLoved(false)
+      return
+    }
+    const currentCheckId = ++loveCheckId.current
+    const loveList = await getListMusics(LIST_IDS.LOVE)
+    if (currentCheckId != loveCheckId.current) return
+    const targetMusicId = String(musicId)
+    setIsLoved(loveList.some(song => String(song.id) == targetMusicId))
+  }, [musicInfo.id])
+
+  useEffect(() => {
+    void refreshLovedState(musicInfo.id)
+  }, [musicInfo.id, refreshLovedState])
+
+  useEffect(() => {
+    const handleLoveListChanged = (ids: string[]) => {
+      if (!ids.includes(LIST_IDS.LOVE)) return
+      void refreshLovedState()
+    }
+    global.app_event.on('myListMusicUpdate', handleLoveListChanged)
+    return () => {
+      global.app_event.off('myListMusicUpdate', handleLoveListChanged)
+    }
+  }, [refreshLovedState])
+
+  const handleToggleLoved = () => {
+    if (!musicInfo.id) return
+    const nextLoved = !isLoved
+    setIsLoved(nextLoved)
+    if (nextLoved) collectMusic()
+    else uncollectMusic()
+  }
+  const handleToggleQueuePanel = () => {
+    global.app_event.togglePlayQueuePanel()
   }
 
   const renderItem: FlatListProps<string>['renderItem'] = ({ item, index }) => {
@@ -80,7 +143,7 @@ export default ({ active }: { active: boolean }) => {
       <View style={styles.lineWrap}>
         <Text
           size={activeLine ? 34 : 28}
-          color={activeLine ? accentColor : 'rgba(15,23,42,0.35)'}
+          color={activeLine ? sourceAccentColor : 'rgba(15,23,42,0.35)'}
           style={activeLine ? styles.activeLineText : styles.lineText}
         >
           {item}
@@ -93,7 +156,7 @@ export default ({ active }: { active: boolean }) => {
     <View style={styles.container}>
       <View pointerEvents="none" style={styles.gradientLinearWrap}>
         {hasBackgroundCover
-          ? <Image url={musicInfo.pic} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
+          ? <Image url={musicInfo.pic} cache={false} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
           : null}
         {gradientColors.map((color, index) => (
           <View key={`lyric_gradient_${index}`} style={[styles.gradientLinearRow, { backgroundColor: color }]} />
@@ -101,11 +164,11 @@ export default ({ active }: { active: boolean }) => {
       </View>
       <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleGoBack}>
-          <Icon name="chevron-left" rawSize={24} color="#0f172a" />
+          <Icon name="chevron-left" rawSize={24} color="#0f172a" style={styles.backIcon} />
         </TouchableOpacity>
         <View style={styles.headerCenter} />
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8}>
-          <Icon name="menu" rawSize={22} color="#0f172a" />
+        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleShare}>
+          <Icon name="share" rawSize={20} color="#0f172a" />
         </TouchableOpacity>
       </View>
 
@@ -125,8 +188,8 @@ export default ({ active }: { active: boolean }) => {
           <SeekBar
             progress={progress}
             duration={maxPlayTime}
-            accentColor={accentColor}
-            trackColor="rgba(15,23,42,0.1)"
+            accentColor={sourceAccentColor}
+            trackColor={sourceTrackColor}
             barHeight={6}
           />
         </View>
@@ -143,6 +206,11 @@ export default ({ active }: { active: boolean }) => {
           </View>
 
           <View style={styles.controls}>
+            <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={handleToggleLoved}>
+              {isLoved
+                ? <Text size={20} color="#ef4444" style={styles.loveFilled}>{'\u2665'}</Text>
+                : <Icon name="love" rawSize={18} color="#6b7280" />}
+            </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
               <Icon name="prevMusic" rawSize={20} color="#111827" />
             </TouchableOpacity>
@@ -155,10 +223,7 @@ export default ({ active }: { active: boolean }) => {
           </View>
 
           <View style={styles.rightActions}>
-            <TouchableOpacity style={styles.smallIconBtn} activeOpacity={0.8}>
-              <Icon name="share" rawSize={18} color="#6b7280" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.smallIconBtn} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.smallIconBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
               <Icon name="menu" rawSize={18} color="#6b7280" />
             </TouchableOpacity>
           </View>
@@ -205,6 +270,9 @@ const styles = createStyle({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backIcon: {
+    transform: [{ rotate: '-90deg' }],
   },
   headerCenter: {
     flex: 1,
@@ -314,5 +382,9 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 2,
+  },
+  loveFilled: {
+    fontWeight: '700',
+    lineHeight: 22,
   },
 })

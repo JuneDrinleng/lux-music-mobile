@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, TextInput, TouchableOpacity, View, type ListRenderItem } from 'react-native'
+import {
+  Animated,
+  Dimensions,
+  FlatList,
+  Keyboard,
+  LayoutAnimation,
+  Modal,
+  PanResponder,
+  Platform,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+  type ListRenderItem,
+} from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -9,17 +26,20 @@ import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIc
 import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, updateUserList } from '@/core/list'
+import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { playList } from '@/core/player/player'
-import { LIST_IDS } from '@/config/constant'
+import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
 import { search as searchOnlineMusic } from '@/core/search/music'
+import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import settingState from '@/store/setting/state'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useI18n } from '@/lang'
 import listState from '@/store/list/state'
 import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import musicSdk from '@/utils/musicSdk'
+import { debounce } from '@/utils'
 
 const SHOW_LISTENING_STATISTICS = false
 const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
@@ -44,6 +64,42 @@ const getSourceTagColor = (source: string) => {
   return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
 }
 
+const parsePlaylistTimeFromName = (name: string): number | null => {
+  const match = name.match(/((?:19|20)\d{2})\s*(?:[./-]|\u5e74)\s*(1[0-2]|0?[1-9])(?:\s*(?:[./-]|\u6708)\s*(3[01]|[12]\d|0?[1-9]))?/)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  let day = Number(match[3] || 0)
+  if (!day) {
+    if (/\u4e0b(?:\u65ec)?/.test(name)) day = 25
+    else if (/\u4e2d(?:\u65ec)?/.test(name)) day = 15
+    else if (/\u4e0a(?:\u65ec)?/.test(name)) day = 5
+    else day = 1
+  }
+  const time = new Date(year, month - 1, day).getTime()
+  return Number.isNaN(time) ? null : time
+}
+
+const parsePlaylistTimeFromId = (id: string): number | null => {
+  const msMatch = id.match(/(?:^|_)(\d{13})(?:$|_)/)
+  if (msMatch) {
+    const time = Number(msMatch[1])
+    if (Number.isFinite(time) && time > 0) return time
+  }
+  const secMatch = id.match(/(?:^|_)(\d{10})(?:$|_)/)
+  if (secMatch) {
+    const time = Number(secMatch[1]) * 1000
+    if (Number.isFinite(time) && time > 0) return time
+  }
+  return null
+}
+
+const getPlaylistSortTime = (listInfo: LX.List.UserListInfo): number => {
+  return parsePlaylistTimeFromName(listInfo.name) ??
+    parsePlaylistTimeFromId(listInfo.id) ??
+    (listInfo.locationUpdateTime ?? 0)
+}
+
 type SourceMenu = typeof sourceMenus[number]
 type SearchResultItem = LX.Music.MusicInfoOnline
 interface ImportCandidate {
@@ -64,6 +120,25 @@ const stats: Array<{ day: string, height: `${number}%`, active?: boolean }> = [
   { day: 'Sat', height: '95%' },
   { day: 'Sun', height: '30%' },
 ]
+const SONG_DRAG_ROW_GAP = 10
+const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
+const SONG_DRAG_AUTO_SCROLL_EDGE = 96
+const SONG_DRAG_AUTO_SCROLL_SPEED = 16
+const SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS = 240
+
+const clampIndex = (value: number, max: number) => {
+  if (max < 0) return 0
+  if (value < 0) return 0
+  if (value > max) return max
+  return value
+}
+const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
+  if (from === to) return list
+  const next = [...list]
+  const [target] = next.splice(from, 1)
+  next.splice(to, 0, target)
+  return next
+}
 
 export default () => {
   const t = useI18n()
@@ -95,31 +170,101 @@ export default () => {
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
   const [lovedSongMap, setLovedSongMap] = useState<Record<string, true>>({})
   const [isSearchInputEditing, setSearchInputEditing] = useState(false)
+  const [searchHistoryList, setSearchHistoryList] = useState<string[]>([])
+  const [searchTipList, setSearchTipList] = useState<string[]>([])
+  const [searchTipLoading, setSearchTipLoading] = useState(false)
   const [isImportDrawerVisible, setImportDrawerVisible] = useState(false)
   const [importLoading, setImportLoading] = useState(false)
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
+  const [playlistSortMode, setPlaylistSortMode] = useState<'default' | 'time'>('default')
   const detailRequestIdRef = useRef(0)
   const importRequestIdRef = useRef(0)
   const searchRequestIdRef = useRef(0)
+  const searchTipRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
   const createListDialogRef = useRef<PromptDialogType>(null)
   const renameListDialogRef = useRef<PromptDialogType>(null)
   const removeListDialogRef = useRef<PromptDialogType>(null)
+  const removeSongDialogRef = useRef<PromptDialogType>(null)
+  const detailListRef = useRef<FlatList<LX.Music.MusicInfo>>(null)
+  const detailListWrapRef = useRef<View>(null)
+  const detailSongsRef = useRef<LX.Music.MusicInfo[]>([])
+  const songRowLayoutRef = useRef(new Map<string, number>())
+  const detailListPageYRef = useRef(0)
+  const detailListHeightRef = useRef(0)
+  const detailListContentHeightRef = useRef(0)
+  const detailScrollOffsetRef = useRef(0)
+  const songShiftAnimMapRef = useRef(new Map<string, Animated.Value>())
+  const songShiftTargetMapRef = useRef(new Map<string, number>())
+  const dragPressGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipNextSongPressRef = useRef(false)
+  const dragStateRef = useRef({
+    active: false,
+    listId: null as string | null,
+    song: null as LX.Music.MusicInfo | null,
+    songKey: null as string | null,
+    fromIndex: -1,
+    toIndex: -1,
+    rowHeight: SONG_DRAG_ROW_FALLBACK_HEIGHT,
+    rowStep: SONG_DRAG_ROW_FALLBACK_HEIGHT + SONG_DRAG_ROW_GAP,
+    startVisualTop: 0,
+    startScrollOffset: 0,
+    pressOffsetY: 0,
+  })
+  const dragTop = useRef(new Animated.Value(0)).current
+  const dragScale = useRef(new Animated.Value(1)).current
+  const dragOpacity = useRef(new Animated.Value(0)).current
+  const [isSongDragActive, setSongDragActive] = useState(false)
+  const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
+  const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
+  const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
   const setKeepPlayBarVisible = (visible: boolean) => {
     Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
   }
   const lovePlaylist = useMemo(() => playlists.find(list => list.id === LIST_IDS.LOVE) ?? null, [playlists])
   const defaultPlaylist = useMemo(() => playlists.find(list => list.id === LIST_IDS.DEFAULT) ?? null, [playlists])
-  const displayPlaylists = useMemo(() => playlists.filter(list => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT), [playlists])
+  const displayPlaylists = useMemo(() => {
+    const userPlaylists = playlists.filter((list): list is LX.List.UserListInfo => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT)
+    if (playlistSortMode === 'default') return userPlaylists
+    return userPlaylists
+      .map((list, index) => ({
+        list,
+        index,
+        time: getPlaylistSortTime(list),
+      }))
+      .sort((a, b) => {
+        const diff = b.time - a.time
+        if (diff) return diff
+        return a.index - b.index
+      })
+      .map(item => item.list)
+  }, [playlists, playlistSortMode])
   const likedSongsCount = lovePlaylist ? playlistMetaMap[lovePlaylist.id]?.count ?? 0 : 0
   const defaultSongsCount = defaultPlaylist ? playlistMetaMap[defaultPlaylist.id]?.count ?? 0 : 0
+  const isPlaylistTimeSort = playlistSortMode == 'time'
+  const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
 
   useEffect(() => {
     return () => {
       setKeepPlayBarVisible(false)
+    }
+  }, [])
+  useEffect(() => {
+    detailSongsRef.current = detailSongs
+  }, [detailSongs])
+  useEffect(() => {
+    if (Platform.OS != 'android') return
+    if (!UIManager.setLayoutAnimationEnabledExperimental) return
+    UIManager.setLayoutAnimationEnabledExperimental(true)
+  }, [])
+  useEffect(() => {
+    return () => {
+      if (!dragPressGuardTimerRef.current) return
+      clearTimeout(dragPressGuardTimerRef.current)
+      dragPressGuardTimerRef.current = null
     }
   }, [])
 
@@ -248,8 +393,297 @@ export default () => {
       global.app_event.off('myListMusicUpdate', handleMusicUpdate)
     }
   }, [loadDetailSongs, refreshLovedSongMap, selectedListId, updatePlaylistMeta])
+  const getSongRowKey = useCallback((song: LX.Music.MusicInfo, fallbackIndex = 0) => {
+    return `${song.source}_${song.id}_${fallbackIndex}`
+  }, [])
+  const measureDetailListWrap = useCallback(() => {
+    detailListWrapRef.current?.measureInWindow((_, y, _width, height) => {
+      detailListPageYRef.current = y
+      if (height > 0) detailListHeightRef.current = height
+    })
+  }, [])
+  const handleDetailWrapLayout = useCallback((event: LayoutChangeEvent) => {
+    detailListHeightRef.current = event.nativeEvent.layout.height
+    requestAnimationFrame(() => {
+      measureDetailListWrap()
+    })
+  }, [measureDetailListWrap])
+  const handleDetailListScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    if (!dragStateRef.current.active && draggingSong) {
+      setDraggingSong(null)
+      setDraggingSongKey(null)
+      if (dragPressGuardTimerRef.current) {
+        clearTimeout(dragPressGuardTimerRef.current)
+        dragPressGuardTimerRef.current = null
+      }
+      skipNextSongPressRef.current = false
+    }
+    detailScrollOffsetRef.current = event.nativeEvent.contentOffset.y
+  }, [draggingSong])
+  const handleDetailListContentSizeChange = useCallback((_width: number, height: number) => {
+    detailListContentHeightRef.current = height
+  }, [])
+  const clearDragPressGuard = useCallback((delay = 0) => {
+    if (dragPressGuardTimerRef.current) {
+      clearTimeout(dragPressGuardTimerRef.current)
+      dragPressGuardTimerRef.current = null
+    }
+    if (delay <= 0) {
+      skipNextSongPressRef.current = false
+      return
+    }
+    dragPressGuardTimerRef.current = setTimeout(() => {
+      skipNextSongPressRef.current = false
+      dragPressGuardTimerRef.current = null
+    }, delay)
+  }, [])
+  const getSongShiftAnim = useCallback((songKey: string) => {
+    const current = songShiftAnimMapRef.current.get(songKey)
+    if (current) return current
+    const next = new Animated.Value(0)
+    songShiftAnimMapRef.current.set(songKey, next)
+    return next
+  }, [])
+  const setSongShiftTarget = useCallback((songKey: string, value: number, immediate = false) => {
+    const prevTarget = songShiftTargetMapRef.current.get(songKey) ?? 0
+    if (prevTarget == value) return
+    songShiftTargetMapRef.current.set(songKey, value)
+    const anim = getSongShiftAnim(songKey)
+    if (immediate) {
+      anim.stopAnimation()
+      anim.setValue(value)
+      return
+    }
+    Animated.spring(anim, {
+      toValue: value,
+      useNativeDriver: true,
+      speed: 22,
+      bounciness: 8,
+    }).start()
+  }, [getSongShiftAnim])
+  const getDragShiftForIndex = useCallback((index: number, sourceIndex: number, targetIndex: number, rowOffset: number) => {
+    if (targetIndex > sourceIndex && index > sourceIndex && index <= targetIndex) return -rowOffset
+    if (targetIndex < sourceIndex && index >= targetIndex && index < sourceIndex) return rowOffset
+    return 0
+  }, [])
+  const updateDragRowShifts = useCallback((sourceIndex: number, previousTarget: number, nextTarget: number, rowOffset: number) => {
+    if (sourceIndex < 0) return
+    const maxIndex = detailSongsRef.current.length - 1
+    if (maxIndex < 0) return
+    const rangeFrom = Math.max(0, Math.min(sourceIndex, previousTarget, nextTarget))
+    const rangeTo = Math.min(maxIndex, Math.max(sourceIndex, previousTarget, nextTarget))
+    for (let i = rangeFrom; i <= rangeTo; i++) {
+      const song = detailSongsRef.current[i]
+      if (!song) continue
+      const key = getSongRowKey(song, i)
+      const shift = getDragShiftForIndex(i, sourceIndex, nextTarget, rowOffset)
+      setSongShiftTarget(key, shift)
+    }
+  }, [getDragShiftForIndex, getSongRowKey, setSongShiftTarget])
+  const resetDragRowShifts = useCallback((immediate = false) => {
+    for (const [key, value] of songShiftTargetMapRef.current) {
+      if (!value) continue
+      setSongShiftTarget(key, 0, immediate)
+    }
+  }, [setSongShiftTarget])
+  const resetSongDragState = useCallback(() => {
+    resetDragRowShifts(true)
+    dragStateRef.current.active = false
+    setSongDragActive(false)
+    dragStateRef.current.song = null
+    dragStateRef.current.songKey = null
+    dragStateRef.current.listId = null
+    dragStateRef.current.fromIndex = -1
+    dragStateRef.current.toIndex = -1
+    dragStateRef.current.startVisualTop = 0
+    dragStateRef.current.startScrollOffset = 0
+    dragTop.stopAnimation()
+    dragScale.stopAnimation()
+    dragOpacity.stopAnimation()
+    dragTop.setValue(0)
+    dragScale.setValue(1)
+    dragOpacity.setValue(0)
+    setDraggingSong(null)
+    setDraggingSongKey(null)
+    clearDragPressGuard()
+  }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, resetDragRowShifts])
+  const handleFinishSongDrag = useCallback(async() => {
+    if (!dragStateRef.current.active) return
+    const { listId, song, fromIndex, toIndex } = dragStateRef.current
+    dragStateRef.current.active = false
+    setSongDragActive(false)
+    resetDragRowShifts(true)
+    if (fromIndex != toIndex && detailSongsRef.current.length <= SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS) {
+      LayoutAnimation.configureNext({
+        duration: 120,
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+      })
+    }
+    if (fromIndex != toIndex) {
+      setDetailSongs((prev) => moveArrayItem(prev, fromIndex, toIndex))
+    }
+    Animated.parallel([
+      Animated.spring(dragScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 30,
+        bounciness: 2,
+      }),
+      Animated.timing(dragOpacity, {
+        toValue: 0,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDraggingSong(null)
+      setDraggingSongKey(null)
+      clearDragPressGuard(120)
+    })
+    if (!listId || !song || fromIndex == toIndex) return
+    try {
+      await updateListMusicPosition(listId, toIndex, [song.id])
+      await updatePlaylistMeta([listId])
+    } catch {
+      await loadDetailSongs(listId)
+    }
+  }, [clearDragPressGuard, dragOpacity, dragScale, loadDetailSongs, resetDragRowShifts, updatePlaylistMeta])
+  const handleStartSongDrag = useCallback((item: LX.Music.MusicInfo, index: number, event: GestureResponderEvent) => {
+    if (!selectedListId || detailSongsRef.current.length < 2) return
+    if (dragStateRef.current.active) return
+    resetDragRowShifts(true)
+    skipNextSongPressRef.current = true
+    const songKey = getSongRowKey(item, index)
+    const rowHeight = songRowLayoutRef.current.get(songKey) ?? SONG_DRAG_ROW_FALLBACK_HEIGHT
+    const rowStep = rowHeight + SONG_DRAG_ROW_GAP
+    const pressOffsetY = event.nativeEvent.locationY
+    const visualTop = event.nativeEvent.pageY - detailListPageYRef.current - pressOffsetY
+    const startScrollOffset = detailScrollOffsetRef.current
+    dragStateRef.current.active = true
+    dragStateRef.current.listId = selectedListId
+    dragStateRef.current.song = item
+    dragStateRef.current.songKey = songKey
+    dragStateRef.current.fromIndex = index
+    dragStateRef.current.toIndex = index
+    dragStateRef.current.rowHeight = rowHeight
+    dragStateRef.current.rowStep = rowStep
+    dragStateRef.current.startVisualTop = visualTop
+    dragStateRef.current.startScrollOffset = startScrollOffset
+    dragStateRef.current.pressOffsetY = pressOffsetY
+    setSongDragActive(true)
+    setDraggingSong(item)
+    setDraggingSongKey(songKey)
+    dragScale.setValue(1)
+    dragOpacity.setValue(0)
+    dragTop.setValue(visualTop)
+    Animated.parallel([
+      Animated.spring(dragScale, {
+        toValue: 1.06,
+        useNativeDriver: true,
+        speed: 16,
+        bounciness: 8,
+      }),
+      Animated.timing(dragOpacity, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }, [dragOpacity, dragScale, dragTop, getSongRowKey, resetDragRowShifts, selectedListId])
+  const handleShowRemoveSongModal = useCallback((song: LX.Music.MusicInfo) => {
+    if (!selectedListId || dragStateRef.current.active) return
+    setPendingDeleteSong(song)
+    removeSongDialogRef.current?.show('')
+  }, [selectedListId])
+  const handleCancelRemoveSong = useCallback(() => {
+    setPendingDeleteSong(null)
+  }, [])
+  const handleConfirmRemoveSong = useCallback(async() => {
+    if (!selectedListId || !pendingDeleteSong || dragStateRef.current.active) {
+      setPendingDeleteSong(null)
+      return true
+    }
+    try {
+      await removeListMusics(selectedListId, [pendingDeleteSong.id])
+      await Promise.all([
+        loadDetailSongs(selectedListId),
+        updatePlaylistMeta([selectedListId]),
+      ])
+    } catch {
+      await loadDetailSongs(selectedListId)
+    }
+    setPendingDeleteSong(null)
+    return true
+  }, [loadDetailSongs, pendingDeleteSong, selectedListId, updatePlaylistMeta])
+  const detailListPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => dragStateRef.current.active,
+    onMoveShouldSetPanResponder: () => dragStateRef.current.active,
+    onStartShouldSetPanResponderCapture: () => dragStateRef.current.active,
+    onMoveShouldSetPanResponderCapture: () => dragStateRef.current.active,
+    onPanResponderMove: (_event, gestureState) => {
+      if (!dragStateRef.current.active) return
+      const visibleTop = gestureState.moveY - detailListPageYRef.current - dragStateRef.current.pressOffsetY
+      dragTop.setValue(visibleTop)
+      const pointerY = gestureState.moveY - detailListPageYRef.current
+      const maxScrollOffset = Math.max(0, detailListContentHeightRef.current - detailListHeightRef.current)
+      if (pointerY < SONG_DRAG_AUTO_SCROLL_EDGE) {
+        const nextOffset = Math.max(0, detailScrollOffsetRef.current - SONG_DRAG_AUTO_SCROLL_SPEED)
+        if (nextOffset != detailScrollOffsetRef.current) {
+          detailScrollOffsetRef.current = nextOffset
+          detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
+        }
+      } else if (pointerY > detailListHeightRef.current - SONG_DRAG_AUTO_SCROLL_EDGE) {
+        const nextOffset = Math.min(maxScrollOffset, detailScrollOffsetRef.current + SONG_DRAG_AUTO_SCROLL_SPEED)
+        if (nextOffset != detailScrollOffsetRef.current) {
+          detailScrollOffsetRef.current = nextOffset
+          detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
+        }
+      }
+      const contentDelta =
+        (visibleTop - dragStateRef.current.startVisualTop) +
+        (detailScrollOffsetRef.current - dragStateRef.current.startScrollOffset)
+      const roughIndex = dragStateRef.current.fromIndex + Math.round(contentDelta / dragStateRef.current.rowStep)
+      const targetIndex = clampIndex(roughIndex, Math.max(detailSongsRef.current.length - 1, 0))
+      if (targetIndex == dragStateRef.current.toIndex) return
+      const prevTarget = dragStateRef.current.toIndex
+      dragStateRef.current.toIndex = targetIndex
+      updateDragRowShifts(dragStateRef.current.fromIndex, prevTarget, targetIndex, dragStateRef.current.rowStep)
+    },
+    onPanResponderRelease: () => {
+      void handleFinishSongDrag()
+    },
+    onPanResponderTerminate: () => {
+      void handleFinishSongDrag()
+    },
+  }), [dragTop, handleFinishSongDrag, updateDragRowShifts])
+  const handleSongRowLayout = useCallback((song: LX.Music.MusicInfo, index: number, event: LayoutChangeEvent) => {
+    const key = getSongRowKey(song, index)
+    songRowLayoutRef.current.set(key, event.nativeEvent.layout.height)
+  }, [getSongRowKey])
+  useEffect(() => {
+    measureDetailListWrap()
+  }, [measureDetailListWrap, selectedListId])
+  useEffect(() => {
+    if (selectedListId) return
+    setPendingDeleteSong(null)
+    resetSongDragState()
+  }, [resetSongDragState, selectedListId])
+  useEffect(() => {
+    if (isSongDragActive || !draggingSong) return
+    const timer = setTimeout(() => {
+      if (dragStateRef.current.active) return
+      setDraggingSong(null)
+      setDraggingSongKey(null)
+      clearDragPressGuard()
+    }, 240)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [clearDragPressGuard, draggingSong, isSongDragActive])
 
   const handleOpenList = (list: LX.List.MyListInfo) => {
+    resetSongDragState()
     setSelectedListId(list.id)
     setDetailSongs([])
     void loadDetailSongs(list.id, true)
@@ -304,6 +738,9 @@ export default () => {
   const handleShowCreateListModal = useCallback(() => {
     createListDialogRef.current?.show('')
   }, [])
+  const handleTogglePlaylistSort = useCallback(() => {
+    setPlaylistSortMode(prev => prev == 'default' ? 'time' : 'default')
+  }, [])
   const handleCreateList = useCallback(async(name: string) => {
     if (!name) return false
     const isDuplicated = listState.userList.some(list => list.name == name)
@@ -343,10 +780,11 @@ export default () => {
   const handleRemoveSelectedList = useCallback(async() => {
     if (!isUserListInfo(selectedListInfo)) return false
     await removeUserList([selectedListInfo.id])
+    resetSongDragState()
     setSelectedListId(null)
     setDetailSongs([])
     return true
-  }, [selectedListInfo])
+  }, [resetSongDragState, selectedListInfo])
   const selectedListMeta = selectedListInfo ? playlistMetaMap[selectedListInfo.id] : null
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
   const loadImportCandidates = useCallback(async(targetListId: string) => {
@@ -427,33 +865,68 @@ export default () => {
   }, [selectedListId])
   const renderSongItem: ListRenderItem<LX.Music.MusicInfo> = useCallback(({ item, index }) => {
     if (!selectedListId) return null
+    const songKey = getSongRowKey(item, index)
+    const isDraggingRow = draggingSongKey == songKey && dragStateRef.current.active
+    const shiftAnim = getSongShiftAnim(songKey)
     const sourceTagColor = getSourceTagColor(item.source)
     return (
-      <View style={styles.songItem}>
-        <TouchableOpacity
-          style={styles.songMain}
-          activeOpacity={0.8}
-          onPress={() => { void handlePlaySong(selectedListId, item, index) }}
+      <View
+        onLayout={(event) => { handleSongRowLayout(item, index, event) }}
+        style={styles.songItemWrap}
+      >
+        <Animated.View
+          style={[
+            styles.songItem,
+            isDraggingRow ? styles.songItemGhost : null,
+            { transform: [{ translateY: shiftAnim }] },
+          ]}
         >
-          <Image style={styles.songPic} url={item.meta.picUrl ?? null} />
-          <View style={styles.songInfo}>
-            <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.songMetaRow}>
-              <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
+          <TouchableOpacity
+            style={styles.songMain}
+            activeOpacity={0.8}
+            delayLongPress={180}
+            onLongPress={(event) => { handleStartSongDrag(item, index, event) }}
+            onPress={() => {
+              if (skipNextSongPressRef.current) {
+                if (dragStateRef.current.active) {
+                  void handleFinishSongDrag()
+                } else {
+                  clearDragPressGuard()
+                }
+                return
+              }
+              void handlePlaySong(selectedListId, item, index)
+            }}
+          >
+            <Image style={styles.songPic} url={item.meta.picUrl ?? null} />
+            <View style={styles.songInfo}>
+              <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
+              <View style={styles.songMetaRow}>
+                <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
+                <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
+              </View>
             </View>
+          </TouchableOpacity>
+          <View style={styles.songActions}>
+            <Text size={11} color="#9ca3af" style={styles.songInterval}>{item.interval ?? '--:--'}</Text>
+            <TouchableOpacity
+              style={styles.songActionBtn}
+              activeOpacity={0.75}
+              onPress={() => { handleShowRemoveSongModal(item) }}
+            >
+              <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-        <Text size={11} color="#9ca3af">{item.interval ?? '--:--'}</Text>
+        </Animated.View>
       </View>
     )
-  }, [handlePlaySong, selectedListId])
+  }, [clearDragPressGuard, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedListId])
   const detailHeader = useMemo(() => {
     if (!selectedListInfo) return null
     return (
       <>
         <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
-          <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={() => { setSelectedListId(null) }}>
+          <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={() => { resetSongDragState(); setSelectedListId(null) }}>
             <Icon name="chevron-left" rawSize={20} color="#111827" />
           </TouchableOpacity>
         </View>
@@ -488,7 +961,7 @@ export default () => {
         </View>
       </>
     )
-  }, [canRenameSelectedList, handleOpenImportDrawer, handleShowRemoveListModal, handleShowRenameListModal, selectedListInfo, selectedListMeta?.pic, selectedListMeta?.count, statusBarHeight, t])
+  }, [canRenameSelectedList, handleOpenImportDrawer, handleShowRemoveListModal, handleShowRenameListModal, resetSongDragState, selectedListInfo, selectedListMeta?.pic, selectedListMeta?.count, statusBarHeight, t])
   const renderImportCandidateItem: ListRenderItem<ImportCandidate> = useCallback(({ item }) => {
     const sourceTagColor = getSourceTagColor(item.musicInfo.source)
     const isSelected = Boolean(importSelectedMap[item.id])
@@ -507,10 +980,6 @@ export default () => {
     )
   }, [handleToggleImportSong, importSelectedMap])
 
-  const handleSelectSource = useCallback((action: SourceMenu['action']) => {
-    setSearchSource(action)
-    setSourceMenuVisible(false)
-  }, [])
   const toggleSourceMenu = useCallback(() => {
     setSourceMenuVisible((visible) => !visible)
   }, [])
@@ -522,6 +991,60 @@ export default () => {
     searchInputRef.current?.blur()
     Keyboard.dismiss()
   }, [])
+  const loadSearchHistoryList = useCallback(() => {
+    void getSearchHistory().then((list) => {
+      setSearchHistoryList(list)
+    })
+  }, [])
+  const requestSearchTips = useMemo(() => debounce((keyword: string, source: SourceMenu['action']) => {
+    const normalizedKeyword = keyword.trim()
+    if (!normalizedKeyword) return
+    const requestId = ++searchTipRequestIdRef.current
+    setSearchTipLoading(true)
+
+    const sourceSdk = (musicSdk as Record<string, { tipSearch?: { search?: (text: string) => Promise<string[]> } } | undefined>)[source]
+    const kwSdk = (musicSdk as Record<string, { tipSearch?: { search?: (text: string) => Promise<string[]> } | undefined }>).kw
+    const tipSearchApi = source != 'all' && sourceSdk?.tipSearch?.search ? sourceSdk.tipSearch : kwSdk?.tipSearch
+
+    if (!tipSearchApi?.search) {
+      if (requestId !== searchTipRequestIdRef.current) return
+      setSearchTipList([])
+      setSearchTipLoading(false)
+      return
+    }
+
+    void tipSearchApi.search(normalizedKeyword).then((list) => {
+      if (requestId !== searchTipRequestIdRef.current) return
+      if (!Array.isArray(list)) {
+        setSearchTipList([])
+        return
+      }
+      setSearchTipList(
+        list
+          .map(item => typeof item == 'string' ? item.trim() : '')
+          .filter(Boolean),
+      )
+    }).catch(() => {
+      if (requestId !== searchTipRequestIdRef.current) return
+      setSearchTipList([])
+    }).finally(() => {
+      if (requestId === searchTipRequestIdRef.current) setSearchTipLoading(false)
+    })
+  }, 220), [])
+  const handleSelectSource = useCallback((action: SourceMenu['action']) => {
+    setSearchSource(action)
+    setSourceMenuVisible(false)
+    if (!isSearchInputEditing) return
+    const keyword = searchText.trim()
+    if (!keyword) {
+      searchTipRequestIdRef.current += 1
+      setSearchTipLoading(false)
+      setSearchTipList([])
+      loadSearchHistoryList()
+      return
+    }
+    requestSearchTips(keyword, action)
+  }, [isSearchInputEditing, loadSearchHistoryList, requestSearchTips, searchText])
 
   const runSearch = useCallback(async(keyword: string, source: SourceMenu['action']) => {
     const requestId = ++searchRequestIdRef.current
@@ -543,12 +1066,33 @@ export default () => {
       if (requestId === searchRequestIdRef.current) setSearchLoading(false)
     }
   }, [])
+  const handleSearchTextChange = useCallback((text: string) => {
+    setSearchText(text)
+    if (!isSearchInputEditing) return
+    const keyword = text.trim()
+    if (!keyword) {
+      searchTipRequestIdRef.current += 1
+      setSearchTipLoading(false)
+      setSearchTipList([])
+      loadSearchHistoryList()
+      return
+    }
+    requestSearchTips(keyword, searchSource)
+  }, [isSearchInputEditing, loadSearchHistoryList, requestSearchTips, searchSource])
+  const handleSearchInputBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      setSearchInputEditing(false)
+    })
+  }, [])
 
   const handleSubmitSearch = useCallback((text: string) => {
     forceDismissSearchInput()
     const input = (text || searchText).trim()
     setSearchText(text || searchText)
     setSearchInputEditing(false)
+    searchTipRequestIdRef.current += 1
+    setSearchTipLoading(false)
+    setSearchTipList([])
 
     if (!input) {
       setSearchMode(false)
@@ -563,6 +1107,7 @@ export default () => {
     setSearchMode(true)
     setSearchResults([])
     setSourceMenuVisible(false)
+    void addHistoryWord(input)
     void runSearch(input, searchSource)
     forceDismissSearchInput()
   }, [forceDismissSearchInput, runSearch, searchSource, searchText])
@@ -572,7 +1117,16 @@ export default () => {
     setSourceMenuVisible(false)
     setKeepPlayBarVisible(false)
     setSearchInputEditing(true)
-  }, [])
+    const keyword = searchText.trim()
+    if (!keyword) {
+      searchTipRequestIdRef.current += 1
+      setSearchTipLoading(false)
+      setSearchTipList([])
+      loadSearchHistoryList()
+      return
+    }
+    requestSearchTips(keyword, searchSource)
+  }, [loadSearchHistoryList, requestSearchTips, searchSource, searchText])
 
   const handleExitSearch = useCallback(() => {
     setSearchMode(false)
@@ -580,6 +1134,9 @@ export default () => {
     setSearchKeyword('')
     setSearchResults([])
     setSourceMenuVisible(false)
+    searchTipRequestIdRef.current += 1
+    setSearchTipLoading(false)
+    setSearchTipList([])
     forceDismissSearchInput()
   }, [forceDismissSearchInput])
 
@@ -591,6 +1148,7 @@ export default () => {
       return true
     }
     if (selectedListId) {
+      resetSongDragState()
       setSelectedListId(null)
       setDetailSongs([])
       return true
@@ -613,6 +1171,7 @@ export default () => {
     isSearchInputEditing,
     isSearchMode,
     isSourceMenuVisible,
+    resetSongDragState,
     selectedListId,
   ]))
 
@@ -623,6 +1182,33 @@ export default () => {
   const handleBeginSearchInputEdit = useCallback(() => {
     setSearchInputEditing(true)
     setSourceMenuVisible(false)
+    const keyword = searchText.trim()
+    if (!keyword) {
+      searchTipRequestIdRef.current += 1
+      setSearchTipLoading(false)
+      setSearchTipList([])
+      loadSearchHistoryList()
+      return
+    }
+    requestSearchTips(keyword, searchSource)
+  }, [loadSearchHistoryList, requestSearchTips, searchSource, searchText])
+  const handlePickSearchKeyword = useCallback((keyword: string) => {
+    setSearchText(keyword)
+    handleSubmitSearch(keyword)
+  }, [handleSubmitSearch])
+  const handleClearSearchHistoryList = useCallback(() => {
+    clearHistoryList()
+    setSearchHistoryList([])
+  }, [])
+  const handleRemoveSearchHistoryItem = useCallback((keyword: string) => {
+    setSearchHistoryList((list) => {
+      const index = list.indexOf(keyword)
+      if (index < 0) return list
+      const nextList = [...list]
+      nextList.splice(index, 1)
+      removeHistoryWord(index)
+      return nextList
+    })
   }, [])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
@@ -657,6 +1243,10 @@ export default () => {
       </View>
     )
   }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap])
+  const searchAssistKeyword = searchText.trim()
+  const searchAssistList = useMemo(() => {
+    return searchAssistKeyword ? searchTipList : searchHistoryList
+  }, [searchAssistKeyword, searchHistoryList, searchTipList])
 
   const searchHeader = useMemo(() => {
     return (
@@ -673,11 +1263,11 @@ export default () => {
                     ref={searchInputRef}
                     style={styles.searchInput}
                     value={searchText}
-                    onChangeText={setSearchText}
+                    onChangeText={handleSearchTextChange}
                     disableFullscreenUI
                     blurOnSubmit
                     autoFocus
-                    onBlur={() => { setSearchInputEditing(false) }}
+                    onBlur={handleSearchInputBlur}
                     onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
                     returnKeyType="search"
                     placeholder={t('me_search_placeholder')}
@@ -717,20 +1307,73 @@ export default () => {
         </View>
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleExitSearch, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, t, toggleSourceMenu])
+  }, [handleBeginSearchInputEdit, handleExitSearch, handleSearchInputBlur, handleSearchTextChange, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, t, toggleSourceMenu])
 
   if (isSearchMode) {
+    const searchHeaderHeight = statusBarHeight + 8 + 46 + 8
     return (
       <>
         <View style={styles.searchModeRoot}>
+          <View style={styles.searchResultHeaderFloating}>
+            {searchHeader}
+          </View>
+          {isSearchInputEditing
+            ? <View style={[styles.searchAssistPanel, { top: searchHeaderHeight }]}>
+                {!searchAssistKeyword
+                  ? <View style={styles.searchAssistTitleRow}>
+                      <Text size={13} color="#6b7280">{t('search_history_search')}</Text>
+                      {searchHistoryList.length
+                        ? (
+                            <TouchableOpacity
+                              style={styles.searchAssistClearBtn}
+                              activeOpacity={0.8}
+                              onPress={handleClearSearchHistoryList}
+                            >
+                              <Icon name="eraser" rawSize={14} color="#9ca3af" />
+                            </TouchableOpacity>
+                          )
+                        : null}
+                    </View>
+                  : null}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="always"
+                  contentContainerStyle={styles.searchAssistContent}
+                >
+                  {searchAssistList.length
+                    ? searchAssistList.map((keyword, index) => {
+                      return (
+                        <TouchableOpacity
+                          key={`${keyword}_${index}`}
+                          style={styles.searchAssistChip}
+                          activeOpacity={0.82}
+                          onPress={() => { handlePickSearchKeyword(keyword) }}
+                          onLongPress={!searchAssistKeyword ? () => { handleRemoveSearchHistoryItem(keyword) } : undefined}
+                        >
+                          <Text size={13} color="#111827" numberOfLines={1} style={styles.searchAssistChipText}>{keyword}</Text>
+                        </TouchableOpacity>
+                      )
+                    })
+                    : (
+                        <View style={styles.searchAssistEmpty}>
+                          <Text size={13} color="#9ca3af">
+                            {searchAssistKeyword
+                              ? searchTipLoading
+                                ? t('me_searching')
+                                : t('me_search_no_match')
+                              : t('me_search_hint')}
+                          </Text>
+                        </View>
+                      )}
+                </ScrollView>
+              </View>
+            : null}
           <FlatList
             style={styles.searchResultList}
-            contentContainerStyle={[styles.detailContent, styles.searchResultContent]}
+            contentContainerStyle={[styles.detailContent, styles.searchResultContent, { paddingTop: searchHeaderHeight }]}
             data={searchResults}
             renderItem={renderSearchResultItem}
             keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-            ListHeaderComponent={searchHeader}
-            ListHeaderComponentStyle={styles.searchResultHeaderStack}
             ListEmptyComponent={(
               <View style={styles.emptyCard}>
                 <Text size={13} color="#6b7280">
@@ -759,39 +1402,96 @@ export default () => {
   }
 
   if (selectedListInfo) {
+    const draggingSourceTagColor = draggingSong ? getSourceTagColor(draggingSong.source) : null
     return (
       <>
-        <FlatList
-          style={styles.container}
-          contentContainerStyle={styles.detailContent}
-          data={detailSongs}
-          renderItem={renderSongItem}
-          keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-          ListHeaderComponent={detailHeader}
-          ListEmptyComponent={(
-            <View style={styles.emptyCard}>
-              <Text size={13} color="#6b7280">{detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
-            </View>
-          )}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          windowSize={8}
-          maxToRenderPerBatch={12}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-        />
+        <View
+          ref={detailListWrapRef}
+          style={styles.detailListWrap}
+          onLayout={handleDetailWrapLayout}
+          collapsable={false}
+          {...detailListPanResponder.panHandlers}
+        >
+          <FlatList
+            ref={detailListRef}
+            style={styles.container}
+            contentContainerStyle={styles.detailContent}
+            data={detailSongs}
+            renderItem={renderSongItem}
+            keyExtractor={(item, index) => getSongRowKey(item, index)}
+            ListHeaderComponent={detailHeader}
+            ListEmptyComponent={(
+              <View style={styles.emptyCard}>
+                <Text size={13} color="#6b7280">{detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={12}
+            windowSize={isSongDragActive ? 4 : 6}
+            maxToRenderPerBatch={isSongDragActive ? 6 : 8}
+            updateCellsBatchingPeriod={isSongDragActive ? 24 : 16}
+            removeClippedSubviews={false}
+            bounces={false}
+            alwaysBounceVertical={false}
+            overScrollMode="never"
+            onScroll={handleDetailListScroll}
+            onContentSizeChange={handleDetailListContentSizeChange}
+            scrollEventThrottle={16}
+            scrollEnabled={!isSongDragActive}
+          />
+          {draggingSong
+            ? <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.songDragOverlay,
+                  {
+                    transform: [{ translateY: dragTop }, { scale: dragScale }],
+                    opacity: dragOpacity,
+                  },
+                ]}
+              >
+                <View style={[styles.songItem, styles.songDragCard]}>
+                  <View style={styles.songMain}>
+                    <Image style={styles.songPic} url={draggingSong.meta.picUrl ?? null} />
+                    <View style={styles.songInfo}>
+                      <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{draggingSong.name}</Text>
+                      <View style={styles.songMetaRow}>
+                        <Text
+                          size={10}
+                          color={draggingSourceTagColor?.text ?? '#111827'}
+                          style={[
+                            styles.songSource,
+                            { backgroundColor: draggingSourceTagColor?.background ?? '#e5e7eb' },
+                          ]}
+                        >
+                          {draggingSong.source.toUpperCase()}
+                        </Text>
+                        <Text size={11} color="#6b7280" numberOfLines={1}>{draggingSong.singer}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.songActions}>
+                    <Text size={11} color="#9ca3af" style={styles.songInterval}>{draggingSong.interval ?? '--:--'}</Text>
+                    <View style={styles.songActionBtn}>
+                      <MaterialCommunityIcon name="drag-horizontal-variant" size={16} color="#6b7280" />
+                    </View>
+                  </View>
+                </View>
+              </Animated.View>
+            : null}
+        </View>
         <Modal
           transparent={true}
           animationType="slide"
           statusBarTranslucent={true}
           navigationBarTranslucent={true}
+          presentationStyle="overFullScreen"
           visible={isImportDrawerVisible}
           onRequestClose={handleCloseImportDrawer}
         >
           <View style={styles.importDrawerMask}>
             <TouchableOpacity style={styles.importDrawerBackdrop} activeOpacity={1} onPress={handleCloseImportDrawer} />
-            <View style={[styles.importDrawerPanel, { paddingBottom: 10 + modalBottomInset }]}>
+            <View style={[styles.importDrawerPanel, { marginBottom: modalBottomInset }]}>
               <View style={styles.importDrawerHeader}>
                 <TouchableOpacity activeOpacity={0.8} onPress={handleCloseImportDrawer}>
                   <Text size={13} color="#6b7280">{t('cancel')}</Text>
@@ -811,7 +1511,7 @@ export default () => {
                 data={importCandidates}
                 renderItem={renderImportCandidateItem}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={[styles.importDrawerContent, { paddingBottom: 24 + modalBottomInset }]}
+                contentContainerStyle={styles.importDrawerContent}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={(
                   <View style={styles.emptyCard}>
@@ -839,6 +1539,17 @@ export default () => {
           showInput={false}
           bgHide={false}
           onConfirm={async() => handleRemoveSelectedList()}
+        />
+        <PromptDialog
+          ref={removeSongDialogRef}
+          title={t('list_remove_tip', { name: pendingDeleteSong?.name ?? '' })}
+          confirmText={t('list_remove_tip_button')}
+          cancelText={t('cancel')}
+          showInput={false}
+          bgHide={false}
+          onCancel={handleCancelRemoveSong}
+          onHide={handleCancelRemoveSong}
+          onConfirm={async() => handleConfirmRemoveSong()}
         />
       </>
     )
@@ -883,7 +1594,7 @@ export default () => {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2 }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}
@@ -911,10 +1622,10 @@ export default () => {
             }}
           >
             <View style={[styles.quickIconBox, { backgroundColor: '#fee2e2' }]}>
-              <Text size={17} color="#ef4444" style={styles.quickLoveIcon}>{'♥'}</Text>
+              <Text size={17} color="#ef4444" style={styles.quickLoveIcon}>{'\u2665'}</Text>
             </View>
             <View style={styles.quickTextBox}>
-              <Text size={13} color="#111827" style={styles.quickTitle}>我喜欢</Text>
+              <Text size={13} color="#111827" style={styles.quickTitle}>{t('list_name_love')}</Text>
               <Text size={11} color="#6b7280">{t('me_tracks_count', { num: likedSongsCount })}</Text>
             </View>
           </TouchableOpacity>
@@ -926,7 +1637,7 @@ export default () => {
             }}
           >
             <View style={[styles.quickIconBox, { backgroundColor: '#dbeafe' }]}>
-              <Icon name="play-outline" rawSize={18} color="#3b82f6" />
+              <Icon name="play" rawSize={18} color="#3b82f6" />
             </View>
             <View style={styles.quickTextBox}>
               <Text size={13} color="#111827" style={styles.quickTitle}>{t('list_name_default')}</Text>
@@ -938,9 +1649,22 @@ export default () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_my_playlists')}</Text>
-            <TouchableOpacity activeOpacity={0.8} onPress={handleShowCreateListModal}>
-              <Text size={13} color="#111827" style={styles.sectionTag}>{`+ ${t('me_create_new')}`}</Text>
-            </TouchableOpacity>
+            <View style={styles.sectionHeaderActions}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
+                onPress={handleTogglePlaylistSort}
+              >
+                <MaterialCommunityIcon name={playlistSortIcon} size={15} color={isPlaylistTimeSort ? '#111827' : '#6b7280'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.sectionIconBtn}
+                onPress={handleShowCreateListModal}
+              >
+                <MaterialCommunityIcon name="plus" size={16} color="#111827" />
+              </TouchableOpacity>
+            </View>
           </View>
           <View>
             {displayPlaylists.map(item => (
@@ -1005,6 +1729,10 @@ const styles = createStyle({
     paddingBottom: 0,
     paddingHorizontal: 16,
   },
+  detailListWrap: {
+    flex: 1,
+    position: 'relative',
+  },
   header: {
     position: 'relative',
     overflow: 'visible',
@@ -1014,11 +1742,15 @@ const styles = createStyle({
   searchResultHeader: {
     position: 'relative',
     overflow: 'visible',
-    paddingBottom: 8,
   },
-  searchResultHeaderStack: {
-    zIndex: 60,
-    elevation: 20,
+  searchResultHeaderFloating: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: 0,
+    backgroundColor: '#f8f9fa',
   },
   searchResultRow: {
     paddingHorizontal: 16,
@@ -1041,13 +1773,62 @@ const styles = createStyle({
   searchResultContent: {
     paddingBottom: 16,
   },
+  searchAssistPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: APP_LAYER_INDEX.controls - 1,
+    elevation: 0,
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  searchAssistTitleRow: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchAssistClearBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchAssistContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingBottom: 8,
+  },
+  searchAssistChip: {
+    maxWidth: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  searchAssistChipText: {
+    maxWidth: 280,
+  },
+  searchAssistEmpty: {
+    minHeight: 96,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerFloating: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 20,
-    elevation: 6,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: 0,
     backgroundColor: '#f8f9fa',
   },
   detailBackBtn: {
@@ -1070,10 +1851,6 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'visible',
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
   },
   searchInput: {
     flex: 1,
@@ -1097,7 +1874,7 @@ const styles = createStyle({
   sourceMenuAnchor: {
     position: 'relative',
     marginLeft: 8,
-    zIndex: 40,
+    zIndex: APP_LAYER_INDEX.controls + 2,
   },
   sourceMenuBtn: {
     borderRadius: 14,
@@ -1140,8 +1917,8 @@ const styles = createStyle({
     top: '100%',
     right: 0,
     marginTop: 8,
-    zIndex: 80,
-    elevation: 24,
+    zIndex: APP_LAYER_INDEX.controls + 3,
+    elevation: APP_LAYER_INDEX.controls + 3,
   },
   searchResultSourceMenuPanelFloat: {
     marginTop: 2,
@@ -1200,6 +1977,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1278,6 +2060,25 @@ const styles = createStyle({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  sectionIconBtnActive: {
+    borderColor: '#d1d5db',
+    backgroundColor: '#f3f4f6',
+  },
   sectionTitle: {
     fontWeight: '600',
   },
@@ -1289,6 +2090,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 12,
     height: 184,
     flexDirection: 'row',
@@ -1326,6 +2132,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1349,10 +2160,23 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  songItemWrap: {
+    position: 'relative',
+  },
+  songItemGhost: {
+    opacity: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   songMain: {
     flex: 1,
@@ -1382,6 +2206,31 @@ const styles = createStyle({
     marginRight: 6,
     fontWeight: '600',
   },
+  songActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  songInterval: {
+    marginRight: 4,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  songDragOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: APP_LAYER_INDEX.playQueue,
+    elevation: APP_LAYER_INDEX.playQueue,
+  },
+  songDragCard: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 20,
+    borderColor: '#d1d5db',
+  },
   searchSongActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1409,10 +2258,13 @@ const styles = createStyle({
   importDrawerMask: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(17, 24, 39, 0.35)',
+    backgroundColor: 'transparent',
+    zIndex: APP_LAYER_INDEX.playQueue,
+    elevation: APP_LAYER_INDEX.playQueue,
   },
   importDrawerBackdrop: {
     flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.35)',
   },
   importDrawerPanel: {
     maxHeight: '72%',
@@ -1421,6 +2273,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: -5 },
+    elevation: 6,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 10,
@@ -1445,6 +2302,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1459,6 +2321,11 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: '#f1f1f3',
     backgroundColor: '#ffffff',
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
     padding: 14,
     alignItems: 'center',
     justifyContent: 'center',

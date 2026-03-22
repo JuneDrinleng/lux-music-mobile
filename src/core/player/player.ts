@@ -1,4 +1,4 @@
-import { isInitialized, initial as playerInitial, isEmpty, setPause, setPlay, setResource, setStop, initTrackInfo } from '@/plugins/player'
+import { isInitialized, initial as playerInitial, isEmpty, setPause, setPlay, setResource, setStop, initTrackInfo, setVolume, setPlaybackRate } from '@/plugins/player'
 import {
   setStatusText,
 } from '@/core/player/playStatus'
@@ -69,6 +69,37 @@ const createGettingUrlId = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
 const diffCurrentMusicInfo = (curMusicInfo: LX.Music.MusicInfo | LX.Download.ListItem): boolean => {
   // return curMusicInfo !== playerState.playMusicInfo.musicInfo || playerState.isPlay
   return createGettingUrlId(curMusicInfo) != global.lx.gettingUrlId || curMusicInfo.id != playerState.playMusicInfo.musicInfo?.id || playerState.isPlay
+}
+
+const normalizeVolume = (value: number) => {
+  const volume = Number(value)
+  if (!Number.isFinite(volume)) return 1
+  if (volume < 0) return 0
+  if (volume > 1) return 1
+  return volume
+}
+
+const normalizePlayRate = (value: number) => {
+  const playRate = Number(value)
+  if (!Number.isFinite(playRate)) return 1
+  if (playRate < 0.25) return 0.25
+  if (playRate > 4) return 4
+  return playRate
+}
+
+const syncPlayerOutputSetting = async() => {
+  const volume = normalizeVolume(settingState.setting['player.volume'])
+  const playRate = normalizePlayRate(settingState.setting['player.playbackRate'])
+  try {
+    await setVolume(volume)
+  } catch (err) {
+    console.log('setVolume failed', err)
+  }
+  try {
+    await setPlaybackRate(playRate)
+  } catch (err) {
+    console.log('setPlaybackRate failed', err)
+  }
 }
 
 let cancelDelayRetry: (() => void) | null = null
@@ -240,6 +271,7 @@ const handlePlay = async() => {
       isEnableAudioOffload: settingState.setting['player.isEnableAudioOffload'],
     })
   }
+  await syncPlayerOutputSetting()
 
   global.lx.isPlayedStop &&= false
   resetRandomNextMusicInfo()
@@ -597,12 +629,17 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
  * 恢复播放
  */
 export const play = () => {
-  if (playerState.playMusicInfo.musicInfo == null) return
-  if (isEmpty()) {
-    setMusicUrl(playerState.playMusicInfo.musicInfo, true)
-    return
-  }
-  void setPlay()
+  const musicInfo = playerState.playMusicInfo.musicInfo
+  if (!musicInfo) return
+  void syncPlayerOutputSetting().finally(() => {
+    if (isEmpty()) {
+      // Clear stale URL request lock before retrying current song.
+      global.lx.gettingUrlId = ''
+      setMusicUrl(musicInfo, true)
+      return
+    }
+    void setPlay()
+  })
 }
 
 /**

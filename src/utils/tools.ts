@@ -1,4 +1,4 @@
-import { Platform, ToastAndroid, BackHandler, Linking, Dimensions, Alert, Appearance, PermissionsAndroid, AppState, StyleSheet, type ScaledSize } from 'react-native'
+import { Platform, ToastAndroid, BackHandler, Linking, Dimensions, Appearance, PermissionsAndroid, AppState, StyleSheet, type ScaledSize } from 'react-native'
 // import ExtraDimensions from 'react-native-extra-dimensions-android'
 import Clipboard from '@react-native-clipboard/clipboard'
 import { storageDataPrefix } from '@/config/constant'
@@ -12,6 +12,7 @@ import { toOldMusicInfo } from './index'
 import { stringMd5 } from 'react-native-quick-md5'
 import { windowSizeTools } from '@/utils/windowSizeTools'
 import { type PermissionPromptAction, type PermissionPromptPayload } from '@/types/permissionPrompt'
+import { type AppDialogAction, type AppDialogPayload } from '@/types/appDialog'
 
 
 // https://stackoverflow.com/a/47349998
@@ -184,6 +185,58 @@ export const handleReadFile = async<T = unknown>(path: string): Promise<T> => {
   return data
 }
 
+const waitForPromptHostReady = async(flag: 'appDialogReady' | 'permissionPromptReady', timeout = 1500) => {
+  if (Reflect.get(global.lx, flag) === true) return true
+  const startTime = Date.now()
+  return new Promise<boolean>((resolve) => {
+    const check = () => {
+      if (Reflect.get(global.lx, flag) === true) {
+        resolve(true)
+        return
+      }
+      if (Date.now() - startTime >= timeout) {
+        resolve(false)
+        return
+      }
+      setTimeout(check, 50)
+    }
+    check()
+  })
+}
+
+const createAppDialogId = () => `app_dialog_${Date.now()}_${Math.random().toString(16).slice(2)}`
+const showAppDialog = async({
+  title,
+  message,
+  cancelText,
+  confirmText,
+  showConfirm = true,
+  bgHide = true,
+}: Omit<AppDialogPayload, 'requestId'>): Promise<AppDialogAction> => {
+  const ready = await waitForPromptHostReady('appDialogReady')
+  if (!ready) return 'cancel'
+
+  const requestId = createAppDialogId()
+
+  return new Promise<AppDialogAction>((resolve) => {
+    const handleResult = (targetRequestId: string, action: AppDialogAction) => {
+      if (targetRequestId != requestId) return
+      global.app_event.off('appDialogResult', handleResult)
+      resolve(action)
+    }
+    global.app_event.on('appDialogResult', handleResult)
+    global.app_event.showAppDialog({
+      requestId,
+      title,
+      message,
+      cancelText,
+      confirmText,
+      showConfirm,
+      bgHide,
+    })
+  })
+}
+
 export const confirmDialog = async({
   title = '',
   message = '',
@@ -191,27 +244,15 @@ export const confirmDialog = async({
   confirmButtonText = global.i18n.t('dialog_confirm'),
   bgClose = true,
 }) => {
-  return new Promise<boolean>(resolve => {
-    Alert.alert(title, message, [
-      {
-        text: cancelButtonText,
-        onPress() {
-          resolve(false)
-        },
-      },
-      {
-        text: confirmButtonText,
-        onPress() {
-          resolve(true)
-        },
-      },
-    ], {
-      cancelable: bgClose,
-      onDismiss() {
-        resolve(false)
-      },
-    })
+  const action = await showAppDialog({
+    title,
+    message,
+    cancelText: cancelButtonText,
+    confirmText: confirmButtonText,
+    showConfirm: true,
+    bgHide: bgClose,
   })
+  return action == 'confirm'
 }
 
 export const tipDialog = async({
@@ -220,20 +261,13 @@ export const tipDialog = async({
   btnText = global.i18n.t('dialog_confirm'),
   bgClose = true,
 }) => {
-  return new Promise<void>(resolve => {
-    Alert.alert(title, message, [
-      {
-        text: btnText,
-        onPress() {
-          resolve()
-        },
-      },
-    ], {
-      cancelable: bgClose,
-      onDismiss() {
-        resolve()
-      },
-    })
+  await showAppDialog({
+    title,
+    message,
+    cancelText: btnText,
+    confirmText: btnText,
+    showConfirm: false,
+    bgHide: bgClose,
   })
 }
 
@@ -312,38 +346,8 @@ const showPermissionPrompt = async({
   extraText,
   bgHide = false,
 }: Omit<PermissionPromptPayload, 'requestId'>): Promise<PermissionPromptAction> => {
-  if (Reflect.get(global.lx, 'permissionPromptReady') !== true) {
-    return new Promise<PermissionPromptAction>((resolve) => {
-      const buttons: Array<{ text: string, onPress: () => void }> = [
-        {
-          text: cancelText,
-          onPress: () => {
-            resolve('cancel')
-          },
-        },
-      ]
-      if (extraText) {
-        buttons.push({
-          text: extraText,
-          onPress: () => {
-            resolve('extra')
-          },
-        })
-      }
-      buttons.push({
-        text: confirmText,
-        onPress: () => {
-          resolve('confirm')
-        },
-      })
-      Alert.alert(title, message, buttons, {
-        cancelable: bgHide,
-        onDismiss() {
-          resolve('cancel')
-        },
-      })
-    })
-  }
+  const ready = await waitForPromptHostReady('permissionPromptReady')
+  if (!ready) return 'cancel'
 
   const requestId = createPermissionPromptId()
 
@@ -371,12 +375,16 @@ export const shareMusic = (shareType: LX.ShareType, downloadFileName: LX.AppSett
   const singer = musicInfo.singer
   const detailUrl = musicInfo.source == 'local' ? '' : musicSdk[musicInfo.source]?.getMusicDetailPageUrl(toOldMusicInfo(musicInfo)) ?? ''
   const musicTitle = downloadFileName.replace('歌名', name).replace('歌手', singer)
+  const plainTitle = musicTitle.replace(/\s/g, '')
+  // URL-first improves the chance of IM apps (e.g. WeChat) parsing it as a rich link card.
+  const systemShareText = detailUrl || plainTitle
+  const clipboardShareText = detailUrl ? `${musicTitle}\n${detailUrl}` : musicTitle
   switch (shareType) {
     case 'system':
-      void shareText(global.i18n.t('share_card_title_music', { name }), global.i18n.t('share_title_music'), `${musicTitle.replace(/\s/g, '')}${detailUrl ? '\n' + detailUrl : ''}`)
+      void shareText(global.i18n.t('share_card_title_music', { name }), global.i18n.t('share_title_music'), systemShareText)
       break
     case 'clipboard':
-      clipboardWriteText(`${musicTitle}${detailUrl ? '\n' + detailUrl : ''}`)
+      clipboardWriteText(clipboardShareText)
       toast(global.i18n.t('copy_name_tip'))
       break
   }
@@ -585,10 +593,12 @@ export const cheatTip = async() => {
   if (isRead) return
 
   return tipDialog({
-    title: '谨防被骗提示',
-    message: `1. 本项目无微信公众号之类的所谓「官方账号」，也未在小米、华为、vivo 等应用商店发布应用，商店内的「LX Music」「洛雪音乐」相关的应用全部属于假冒应用，谨防被骗！\n
-2. 本软件完全无广告且无引流（如需要加群、关注公众号之类才能使用或者升级）的行为，若你使用过程中遇到广告或者引流的信息，则表明你当前运行的软件是第三方修改版。\n
-3. 目前本项目的原始发布地址只有 GitHub，其他渠道均为第三方转载发布，可信度请自行鉴别。`,
+    title: '安全提醒',
+    message: `1. 本项目没有任何“官方社群”或“收费解锁”渠道，请注意甄别，谨防受骗。
+
+2. 如果你在使用过程中看到广告、引流或要求付费升级，通常说明你当前使用的是第三方修改版本。
+
+3. 项目主要发布渠道为 GitHub，其他来源请自行判断可信度。`,
     btnText: '我知道了 (Close)',
     bgClose: true,
   }).then(() => {
@@ -601,8 +611,8 @@ export const remoteLyricTip = async() => {
   if (isRead) return
 
   return tipDialog({
-    title: '有点温馨的提示',
-    message: '若你将本功能用于汽车，请记住这个：\n道路千万条，安全第一条！\n道路千万条，安全第一条！！\n道路千万条，安全第一条！！！',
+    title: '温馨提示',
+    message: '如果你将该功能用于车机，请务必把安全放在第一位，驾驶时不要分心操作。',
     btnText: '我知道了 (Close)',
     bgClose: true,
   }).then(() => {

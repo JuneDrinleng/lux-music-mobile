@@ -4,7 +4,7 @@ import defaultUrl from '@/resources/medias/Silence02s.mp3'
 // const defaultUrl = resolveAssetSource(resourceDefaultUrl).uri
 
 const notificationIcon = Platform.OS === 'android'
-  ? { uri: 'notification_whitebg' }
+  ? { uri: 'notification_appicon' }
   : undefined
 
 export {

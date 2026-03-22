@@ -74,6 +74,7 @@ const SyncComp = forwardRef<SyncType, Props>(({ embedded = false }: Props, ref) 
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={handleCloseHostModal}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>

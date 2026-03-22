@@ -11,7 +11,7 @@ import { initDeeplink } from './deeplink'
 import { setApiSource } from '@/core/apiSource'
 import commonActions from '@/store/common/action'
 import settingState from '@/store/setting/state'
-import { checkUpdate } from '@/core/version'
+import { checkUpdate, initVersionLifecycle } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
 import { cheatTip } from '@/utils/tools'
 
@@ -59,6 +59,8 @@ export default async() => {
   bootLog('Data inited.')
   await initCommonState(setting)
   bootLog('Common State inited.')
+  initVersionLifecycle()
+  bootLog('Version lifecycle inited.')
 
   void initSync(setting)
   bootLog('Sync inited.')

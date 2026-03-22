@@ -9,7 +9,7 @@ import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { scaleSizeH } from '@/utils/pixelRatio'
-import { HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
+import { APP_LAYER_INDEX, HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
 
@@ -103,7 +103,8 @@ const styles = createStyle({
     justifyContent: 'center',
     alignItems: 'center',
     // backgroundColor: 'rgba(0,0,0,0.1)',
-    zIndex: 10,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: APP_LAYER_INDEX.controls,
   },
   left: {
     flex: 1,

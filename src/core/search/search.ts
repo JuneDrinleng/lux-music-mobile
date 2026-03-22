@@ -1,7 +1,6 @@
 import searchState from '@/store/search/state'
 import searchActions from '@/store/search/action'
 import { getSearchHistory as getSearchHistoryFromStore, saveSearchHistory } from '@/utils/data'
-import settingState from '@/store/setting/state'
 
 
 export const setSearchType: typeof searchActions['setSearchType'] = (type) => {
@@ -22,7 +21,7 @@ export const getSearchHistory = async() => {
   return searchState.historyList
 }
 export const addHistoryWord = async(word: string) => {
-  if (!settingState.setting['search.isShowHistorySearch'] || !word) return
+  if (!word) return
   if (!searchState.historyList.length) searchActions.setHistoryWord(await getSearchHistoryFromStore())
   const list = searchActions.addHistoryWord(word)
   if (!list) return

@@ -235,6 +235,7 @@ const Component = <M extends Menus>({ menus, width, height, activeId, onHide, on
       transparent
       hardwareAccelerated
       statusBarTranslucent
+      navigationBarTranslucent
       visible={visible}
       onRequestClose={hide}
     >

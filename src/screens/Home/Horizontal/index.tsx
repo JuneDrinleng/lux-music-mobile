@@ -5,6 +5,7 @@ import StatusBar from '@/components/common/StatusBar'
 import Header from './Header'
 import Main from './Main'
 import { createStyle } from '@/utils/tools'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
 const styles = createStyle({
   container: {
@@ -18,6 +19,8 @@ const styles = createStyle({
 })
 
 export default () => {
+  const bottomInset = useSystemGestureInsetBottom()
+
   return (
     <>
       <StatusBar />
@@ -26,7 +29,9 @@ export default () => {
         <View style={styles.content}>
           <Header />
           <Main />
-          <PlayerBar isHome />
+          <View style={bottomInset ? { paddingBottom: bottomInset } : null}>
+            <PlayerBar isHome systemGestureInsetBottom={bottomInset} />
+          </View>
         </View>
       </View>
     </>

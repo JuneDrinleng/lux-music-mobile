@@ -1,15 +1,13 @@
 import { useImperativeHandle, forwardRef, useMemo, useRef } from 'react'
-import { View, TouchableHighlight } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
 
 import Modal, { type ModalType } from './Modal'
 import { Icon } from '@/components/common/Icon'
 import { useKeyboard } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
-import { useTheme } from '@/store/theme/hook'
 import Text from './Text'
-import { scaleSizeH } from '@/utils/pixelRatio'
 
-const HEADER_HEIGHT = 20
+const HEADER_HEIGHT = 42
 const styles = createStyle({
   centeredView: {
     flex: 1,
@@ -17,42 +15,46 @@ const styles = createStyle({
     alignItems: 'center',
   },
   modalView: {
-    maxWidth: '90%',
-    minWidth: '60%',
+    width: '100%',
+    maxWidth: 360,
+    minWidth: '70%',
     maxHeight: '78%',
-    // backgroundColor: 'white',
-    borderRadius: 4,
-    // shadowColor: '#000',
-    // shadowOffset: {
-    //   width: 0,
-    //   height: 2,
-    // },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#eef0f3',
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+    overflow: 'hidden',
   },
   header: {
     flexGrow: 0,
     flexShrink: 0,
     flexDirection: 'row',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    alignItems: 'center',
     height: HEADER_HEIGHT,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef0f3',
+    paddingLeft: 14,
+    paddingRight: 40,
   },
   title: {
-    paddingLeft: 5,
-    paddingRight: 25,
-    lineHeight: HEADER_HEIGHT,
+    fontWeight: '700',
+    width: '100%',
   },
   closeBtn: {
     position: 'absolute',
-    right: 0,
-    borderTopRightRadius: 4,
-    flexGrow: 0,
-    flexShrink: 0,
-    height: HEADER_HEIGHT,
-    justifyContent: 'center',
+    right: 8,
+    top: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
   },
 })
 
@@ -79,7 +81,6 @@ export default forwardRef<DialogType, DialogProps>(({
   children,
   height,
 }: DialogProps, ref) => {
-  const theme = useTheme()
   const { keyboardShown, keyboardHeight } = useKeyboard()
   const modalRef = useRef<ModalType>(null)
 
@@ -91,18 +92,24 @@ export default forwardRef<DialogType, DialogProps>(({
 
   const closeBtnComponent = useMemo(() => {
     return closeBtn
-      ? <TouchableHighlight style={{ ...styles.closeBtn, width: scaleSizeH(HEADER_HEIGHT) }} underlayColor={theme['c-primary-dark-200-alpha-600']} onPress={() => modalRef.current?.setVisible(false)}>
-          <Icon name="close" color={theme['c-primary-dark-500-alpha-500']} size={10} />
-        </TouchableHighlight>
+      ? (
+          <TouchableOpacity
+            style={styles.closeBtn}
+            activeOpacity={0.8}
+            onPress={() => { modalRef.current?.setVisible(false) }}
+          >
+            <Icon name="close" color="#6b7280" size={12} />
+          </TouchableOpacity>
+        )
       : null
-  }, [closeBtn, theme])
+  }, [closeBtn])
 
   return (
-    <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(50,50,50,.3)" ref={modalRef}>
-      <View style={{ ...styles.centeredView, paddingBottom: keyboardShown ? keyboardHeight : 0 }}>
-        <View style={{ ...styles.modalView, height, backgroundColor: theme['c-content-background'] }} onStartShouldSetResponder={() => true}>
-          <View style={{ ...styles.header, backgroundColor: theme['c-primary-light-100-alpha-100'] }}>
-            <Text style={styles.title} size={13} color={theme['c-primary-light-1000']} numberOfLines={1}>{title}</Text>
+    <Modal onHide={onHide} keyHide={keyHide} bgHide={bgHide} bgColor="rgba(15,23,42,0.22)" ref={modalRef}>
+      <View style={{ ...styles.centeredView, paddingBottom: keyboardShown ? keyboardHeight : 0, paddingHorizontal: 24 }}>
+        <View style={{ ...styles.modalView, height }} onStartShouldSetResponder={() => true}>
+          <View style={styles.header}>
+            <Text style={styles.title} size={15} color="#111827" numberOfLines={1}>{title}</Text>
             {closeBtnComponent}
           </View>
           {children}

@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     flex: 0,
     // flexGrow: 0,
     // borderBottomWidth: BorderWidths.normal,
-    elevation: 2,
+    elevation: 0,
     maxHeight: '80%',
   },
   blank: {

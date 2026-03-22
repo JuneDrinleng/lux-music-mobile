@@ -23,7 +23,28 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
   isHandleAudioFocus: boolean
   isEnableAudioOffload: boolean
 }) => {
-  if (global.lx.playerStatus.isIniting || global.lx.playerStatus.isInitialized) return
+  const safeVolume = (() => {
+    const value = Number(volume)
+    if (!Number.isFinite(value)) return 1
+    if (value < 0) return 0
+    if (value > 1) return 1
+    return value
+  })()
+  const safePlayRate = (() => {
+    const value = Number(playRate)
+    if (!Number.isFinite(value)) return 1
+    if (value < 0.25) return 0.25
+    if (value > 4) return 4
+    return value
+  })()
+
+  if (global.lx.playerStatus.isIniting) return
+  if (global.lx.playerStatus.isInitialized) {
+    await updateOptions()
+    await setVolume(safeVolume)
+    await setPlaybackRate(safePlayRate)
+    return
+  }
   global.lx.playerStatus.isIniting = true
   console.log('Cache Size', cacheSize * 1024)
   await migratePlayerCache()
@@ -38,8 +59,8 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
   global.lx.playerStatus.isInitialized = true
   global.lx.playerStatus.isIniting = false
   await updateOptions()
-  await setVolume(volume)
-  await setPlaybackRate(playRate)
+  await setVolume(safeVolume)
+  await setPlaybackRate(safePlayRate)
   // listenEvent()
 }
 

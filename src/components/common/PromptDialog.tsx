@@ -109,6 +109,7 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
       transparent
       animationType="fade"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={handleRequestClose}
     >
       <TouchableWithoutFeedback onPress={handleOverlayPress}>

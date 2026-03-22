@@ -35,7 +35,7 @@ const TabItem = ({ id, icon, label, active, onPress }: {
   )
 }
 
-export default memo(() => {
+export default memo(({ bottomInset = 0 }: { bottomInset?: number }) => {
   const t = useI18n()
   const activeId = useNavActiveId()
 
@@ -45,7 +45,7 @@ export default memo(() => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, bottomInset ? { paddingBottom: 10 + bottomInset } : null]}>
       {tabs.map(tab => (
         <TabItem
           key={tab.id}
@@ -65,9 +65,10 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
+    borderTopWidth: 0,
+    borderTopColor: 'transparent',
+    backgroundColor: 'transparent',
+    overflow: 'visible',
     paddingTop: 6,
     paddingBottom: 10,
     paddingHorizontal: 6,
@@ -76,6 +77,7 @@ const styles = createStyle({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
     paddingVertical: 2,
   },
   label: {

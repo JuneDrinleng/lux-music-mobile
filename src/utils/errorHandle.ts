@@ -1,8 +1,7 @@
-import { Alert } from 'react-native'
 // import { exitApp } from '@/utils/common'
 import { setJSExceptionHandler, setNativeExceptionHandler } from 'react-native-exception-handler'
 import { log } from '@/utils/log'
-import { toast } from './tools'
+import { tipDialog, toast } from './tools'
 
 const errorHandler = (e: Error, isFatal: boolean) => {
   const excludedErrors = [
@@ -10,23 +9,19 @@ const errorHandler = (e: Error, isFatal: boolean) => {
   ]
   if (isFatal) {
     if (excludedErrors.includes(e.message)) {
-      toast('应用遇到了错误，如果你有固定的重现方式，请截图并在 GitHub 反馈（并附上刚才你进行了什么操作，以及“设置-错误日志”的内容）')
+      toast('应用遇到异常，如可复现请截图并到 GitHub 反馈，同时附上错误日志。')
     } else {
-      Alert.alert(
-        '💥Unexpected error occurred💥',
-        `
-  应用出 bug 了😭，以下是错误异常信息。请截图并在 GitHub 反馈（并附上刚才你进行了什么操作，以及附上“设置-错误日志”的内容）。现在应用可能会出现异常，若出现异常请尝试强制结束应用后重新启动！
+      void tipDialog({
+        title: 'Unexpected error occurred',
+        message: `
+应用遇到异常，请截图并反馈到 GitHub。
+如出现功能异常，请强制结束应用后重新启动。
 
-  Error:
-  ${isFatal ? 'Fatal:' : ''} ${e.name} ${e.message}
-  `,
-        [{
-          text: '关闭 (Close)',
-          onPress: () => {
-            // exitApp()
-          },
-        }],
-      )
+Error:
+${isFatal ? 'Fatal:' : ''} ${e.name} ${e.message}
+`,
+        btnText: 'Close',
+      })
     }
   }
   log.error(e.stack)
