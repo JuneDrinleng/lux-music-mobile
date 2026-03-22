@@ -1,7 +1,7 @@
 {
   "name": "lx-music-mobile",
-  "version": "0.1.0",
-  "versionCode": 81,
+  "version": "0.1.1",
+  "versionCode": 82,
   "private": true,
   "scripts": {
     "postinstall": "node dependencies-patch.js",

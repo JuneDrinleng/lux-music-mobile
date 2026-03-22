@@ -2,6 +2,29 @@
 
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 
+## [0.1.1] - 2026-03-22
+
+### 新增
+
+- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。
+- 新增播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。
+
+### 调整
+
+- 首页结构重构为垂直 Tab 方案（Me / Settings），主流程收敛到 `src/screens/Home/Vertical/Tabs`，并移除旧 `src/screens/Home/Views/*` 页面实现。
+- 底部播放栏与导航升级为卡片化样式，`PlayerBar` 新增 `inCard` 模式，队列入口改为联动全局队列抽屉。
+- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。
+- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。
+
+### 修复
+
+- 修复设置页旧类型依赖残留问题：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免删除旧 Setting 目录后的引用异常。
+
+### 构建
+
+- 版本号统一更新到 `0.1.1`（`package.json`、`package-lock.json`、iOS 工程）。
+- Android `versionCode` 升级到 `82`。
+
 ## [0.1.0] - 2026-03-22
 
 ### 新增
