@@ -21,6 +21,26 @@ let downloadSession = 0
 let currentDownloadVersion: string | null = null
 let lastDownloadProgressTime = 0
 
+const getErrorMessage = (err: unknown) => {
+  if (!err) return ''
+  if (typeof err == 'string') return err
+  if (err instanceof Error) return err.message || ''
+  if (typeof err == 'object' && 'message' in err) return String(err.message ?? '')
+  return String(err)
+}
+
+const isNoSpaceError = (err: unknown) => {
+  const message = getErrorMessage(err).toLowerCase()
+  if (!message) return false
+  return [
+    'enospc',
+    'no space left on device',
+    'not enough space',
+    'insufficient storage',
+    'disk full',
+  ].some(flag => message.includes(flag))
+}
+
 interface CheckUpdateOptions {
   force?: boolean
   throttleMs?: number
@@ -123,8 +143,14 @@ const runDownloadWithRetry = (targetVersion: string) => {
       if (sessionId != downloadSession) return
       versionActions.setVersionInfo({ status: 'downloaded' })
       currentDownloadVersion = null
-    }).catch(() => {
+    }).catch((err: unknown) => {
       if (sessionId != downloadSession) return
+      if (isNoSpaceError(err)) {
+        versionActions.setVersionInfo({ status: 'error' })
+        currentDownloadVersion = null
+        toast('Not enough storage space for update package.')
+        return
+      }
       retryCount += 1
       if (retryCount < maxDownloadRetry) {
         setTimeout(runDownload, downloadRetryDelayMs)
@@ -132,7 +158,8 @@ const runDownloadWithRetry = (targetVersion: string) => {
       }
       versionActions.setVersionInfo({ status: 'error' })
       currentDownloadVersion = null
-      toast(global.i18n.t('version_tip_failed'))
+      const message = getErrorMessage(err)
+      toast(message ? `${global.i18n.t('version_tip_failed')}\n${message}` : global.i18n.t('version_tip_failed'))
     })
   }
 

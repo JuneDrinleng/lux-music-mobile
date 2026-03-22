@@ -108,6 +108,13 @@ const ensureCleanSavePath = async(savePath) => {
   } catch {}
 }
 
+const getErrorMessage = (err) => {
+  if (!err) return ''
+  if (typeof err == 'string') return err
+  if (err.message != null) return String(err.message)
+  return String(err)
+}
+
 const downloadFromUrl = async(url, savePath, onDownload) => {
   let beginStatusCode = 0
   let beginContentLength = 0
@@ -158,7 +165,7 @@ export const downloadNewVersion = async(version, onDownload = noop) => {
       try {
         await downloadFromUrl(url, savePath, onDownload)
       } catch (err) {
-        lastError = err
+        lastError = new Error(`[${abi}] ${getErrorMessage(err)}`)
         continue
       }
 
