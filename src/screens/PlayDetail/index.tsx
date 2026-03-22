@@ -11,9 +11,14 @@ import { setComponentId } from '@/core/common'
 import { COMPONENT_IDS } from '@/config/constant'
 import { pop } from '@/navigation'
 import commonState from '@/store/common/state'
+import { useComponentIds } from '@/store/common/hook'
+import PlayQueueSheet from '@/screens/Home/Vertical/PlayQueueSheet'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
 export default ({ componentId }: { componentId: string }) => {
   const isHorizontalMode = useHorizontalMode()
+  const componentIds = useComponentIds()
+  const bottomInset = useSystemGestureInsetBottom()
 
   useBackHandler(useCallback(() => {
     if (commonState.componentIds.comment) return false
@@ -28,13 +33,17 @@ export default ({ componentId }: { componentId: string }) => {
   }, [])
 
   return (
-    <PageContent>
+      <PageContent>
         <StatusBar />
         {
           isHorizontalMode
             ? <Horizontal componentId={componentId} />
             : <Vertical componentId={componentId} />
         }
+        <PlayQueueSheet
+          systemGestureInsetBottom={bottomInset}
+          enabled={componentIds.playDetail === componentId}
+        />
       </PageContent>
   )
 }

@@ -41,7 +41,7 @@ const getSourceTagColor = (source: string) => {
 }
 
 export default memo(
-  ({ systemGestureInsetBottom = 0 }: { systemGestureInsetBottom?: number }) => {
+  ({ systemGestureInsetBottom = 0, enabled = true }: { systemGestureInsetBottom?: number, enabled?: boolean }) => {
     const t = useI18n()
     const winSize = useWindowSize()
     const myLists = useMyList()
@@ -121,6 +121,7 @@ export default memo(
     }, [isVisible, panelAnim])
 
     const showQueuePanel = useCallback(() => {
+      if (!enabled) return
       if (isVisible) return
       queueInitialAlignedRef.current = false
       setSystemBarsTransparent()
@@ -133,14 +134,16 @@ export default memo(
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start()
-    }, [isVisible, panelAnim])
+    }, [enabled, isVisible, panelAnim])
 
     const toggleQueuePanel = useCallback(() => {
+      if (!enabled) return
       if (isVisible) hideQueuePanel()
       else showQueuePanel()
-    }, [hideQueuePanel, isVisible, showQueuePanel])
+    }, [enabled, hideQueuePanel, isVisible, showQueuePanel])
 
     useEffect(() => {
+      if (!enabled) return
       global.app_event.on('togglePlayQueuePanel', toggleQueuePanel)
       global.app_event.on('showPlayQueuePanel', showQueuePanel)
       global.app_event.on('hidePlayQueuePanel', hideQueuePanel)
@@ -149,12 +152,19 @@ export default memo(
         global.app_event.off('showPlayQueuePanel', showQueuePanel)
         global.app_event.off('hidePlayQueuePanel', hideQueuePanel)
       }
-    }, [hideQueuePanel, showQueuePanel, toggleQueuePanel])
+    }, [enabled, hideQueuePanel, showQueuePanel, toggleQueuePanel])
 
     useEffect(() => {
-      if (!isVisible) return
+      if (enabled || !isVisible) return
+      panelAnim.stopAnimation()
+      panelAnim.setValue(0)
+      setVisible(false)
+    }, [enabled, isVisible, panelAnim])
+
+    useEffect(() => {
+      if (!enabled || !isVisible) return
       setSystemBarsTransparent()
-    }, [isVisible])
+    }, [enabled, isVisible])
 
     const queueTitle = useMemo(() => {
       const listId = playInfo.playerListId

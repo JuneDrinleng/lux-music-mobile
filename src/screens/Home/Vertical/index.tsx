@@ -6,6 +6,7 @@ import PlayQueueSheet from './PlayQueueSheet'
 import StatusBar from '@/components/common/StatusBar'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
+import { useComponentIds } from '@/store/common/hook'
 
 const styles = createStyle({
   container: {
@@ -43,6 +44,7 @@ const styles = createStyle({
 
 export default () => {
   const bottomInset = useSystemGestureInsetBottom()
+  const componentIds = useComponentIds()
 
   return (
     <View style={styles.container}>
@@ -56,7 +58,7 @@ export default () => {
           </View>
         </View>
       </View>
-      <PlayQueueSheet systemGestureInsetBottom={bottomInset} />
+      <PlayQueueSheet systemGestureInsetBottom={bottomInset} enabled={!componentIds.playDetail} />
     </View>
   )
 }
