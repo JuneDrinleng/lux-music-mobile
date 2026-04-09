@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import MeTab from '../Vertical/Tabs/MeTab'
+import PlaylistTab from '../Vertical/Tabs/PlaylistTab'
 import SettingsTab from '../Vertical/Tabs/SettingsTab'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { setNavActiveId } from '@/core/common'
@@ -33,9 +33,9 @@ const Main = () => {
 
   const component = useMemo(() => {
     switch (id) {
-      case 'nav_love': return <MeTab />
+      case 'nav_love': return <PlaylistTab />
       case 'nav_setting': return <SettingsTab />
-      default: return <MeTab />
+      default: return <PlaylistTab />
     }
   }, [id])
 

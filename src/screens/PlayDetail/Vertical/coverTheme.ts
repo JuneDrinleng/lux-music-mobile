@@ -187,7 +187,7 @@ const accentCache = new Map<string, string>()
 const accentPendingMap = new Map<string, Promise<string | null>>()
 
 const pickPaletteAccent = (result: AndroidImageColors | IOSImageColors) => {
-  const colors = result.platform === 'ios'
+  const colors: Array<string | null | undefined> = result.platform === 'ios'
     ? [result.primary, result.secondary, result.detail, result.background]
     : [result.vibrant, result.lightVibrant, result.dominant, result.muted, result.average, result.darkVibrant, result.lightMuted, result.darkMuted]
 

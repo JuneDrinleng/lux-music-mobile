@@ -5,7 +5,7 @@ import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
 import type { NAV_ID_Type } from '@/config/constant'
-import MeTab from './Tabs/MeTab'
+import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
 
 const normalizeNavId = (id: NAV_ID_Type): 'nav_love' | 'nav_setting' => {
@@ -66,7 +66,7 @@ const Main = () => {
       style={styles.pagerView}
     >
       <View collapsable={false} key="nav_love" style={styles.pageStyle}>
-        <MeTab />
+        <PlaylistTab />
       </View>
       <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
         <SettingsTab />

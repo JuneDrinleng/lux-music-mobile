@@ -2,23 +2,26 @@
 
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 
-## [0.1.8] - 2026-03-22
+## [0.1.9] - 2026-04-10
+
+### 新增
+
+- 歌单页新增「网格 / 列表」双展示模式切换，支持按场景快速切换浏览密度。
+- 新增歌单排序设置项 `list.playlistSortMode`（`default` / `time`），并持久化到设置配置中。
+- 新增项目结构与页面层级文档：`docs/project-structure.md`、`docs/page-hierarchy.md`。
 
 ### 调整
 
-- 播放详情页封面页与歌词页新增播放模式快捷切换按钮，支持在 `listLoop / random / list / singleLoop / single` 之间循环切换。
-- 播放模式按钮图标改为根据当前 `player.togglePlayMethod` 动态显示（`list-loop`、`list-random`、`list-order`、`single-loop`、`single`）。
-- 播放模式切换后立即写入设置项 `player.togglePlayMethod`，并通过多语言 `toast` 提示当前模式。
-
-### 修复
-
-- 修复播放详情页底部播放模式图标固定不变、与实际模式不同步的问题。
-- 修复封面页与歌词页播放模式控制体验不一致的问题，两页现在采用一致的切换逻辑与反馈。
+- 首页主流程中 `MeTab` 重构为 `PlaylistTab`，横屏与竖屏入口统一切换到新的歌单页实现。
+- 歌单页由「个人信息 + 歌单」混合结构调整为「歌单中心」结构，聚焦歌单浏览、管理与播放操作。
+- 歌单详情页新增更自然的场景切换动画（进入 / 返回过渡、遮罩层联动），提升切页连贯性。
+- 搜索区音源筛选菜单升级为动画展开面板，交互反馈与层级表现更清晰。
+- 设置页视觉与信息层级重构：新增账号卡片（头像 / 昵称 / 个性签名）及语言、版本信息的聚合展示。
 
 ### 构建
 
-- 版本号统一更新到 `0.1.8`（`package.json`、`package-lock.json`、iOS 工程）。
-- Android `versionCode` 升级到 `89`。
+- 版本号统一更新到 `0.1.9`（`package.json`、`package-lock.json`、iOS 工程）。
+- Android `versionCode` 升级到 `90`。
 
 ## [0.1.2] - 2026-03-22
 

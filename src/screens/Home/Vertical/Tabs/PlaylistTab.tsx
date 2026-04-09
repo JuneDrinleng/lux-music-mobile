@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Dimensions,
+  Easing,
   FlatList,
   Keyboard,
   LayoutAnimation,
@@ -9,6 +10,7 @@ import {
   PanResponder,
   Platform,
   ScrollView,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
   UIManager,
@@ -29,10 +31,10 @@ import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { addMusicToQueueAndPlay, playListAsQueue } from '@/core/player/player'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
-import { getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
 import { search as searchOnlineMusic } from '@/core/search/music'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import settingState from '@/store/setting/state'
+import { useSettingValue } from '@/store/setting/hook'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useI18n } from '@/lang'
 import listState from '@/store/list/state'
@@ -40,11 +42,18 @@ import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import musicSdk from '@/utils/musicSdk'
 import { debounce } from '@/utils'
+import { updateSetting } from '@/core/common'
 
 const SHOW_LISTENING_STATISTICS = false
-const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
-const DEFAULT_USER_NAME = 'Alex Rivera'
 const BOTTOM_DOCK_BASE_HEIGHT = 112
+const SOURCE_MENU_PANEL_WIDTH = 156
+const SOURCE_MENU_ROW_HEIGHT = 44
+const SOURCE_MENU_EXPAND_DURATION = 132
+const SOURCE_MENU_REVEAL_DURATION = 156
+const SOURCE_MENU_REVEAL_DELAY = 52
+const DETAIL_TRANSITION_FORWARD_DURATION = 318
+const DETAIL_TRANSITION_BACKWARD_DURATION = 304
+const DETAIL_TRANSITION_HOME_PARALLAX = 0.28
 const sourceMenus = [
   { action: 'all', label: 'all' },
   { action: 'kg', label: 'kg' },
@@ -60,9 +69,22 @@ const sourceTagColorMap: Record<string, { text: string, background: string }> = 
   kw: { text: '#f59e0b', background: '#fffbeb' },
   mg: { text: '#e11d8d', background: '#fdf2f8' },
 }
+const playlistCardTones = [
+  { surface: '#f6e2e7', accent: '#cf385b', ink: '#652233' },
+  { surface: '#ebe4d7', accent: '#8a6745', ink: '#45301d' },
+  { surface: '#e4e8f1', accent: '#556b96', ink: '#293548' },
+  { surface: '#ece6f2', accent: '#7f5da5', ink: '#413052' },
+] as const
 
 const getSourceTagColor = (source: string) => {
   return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
+}
+const getSourceMenuLabel = (source: SourceMenu['action']) => {
+  return source == 'all' ? 'All' : source.toUpperCase()
+}
+
+const getPlaylistCardTone = (index: number) => {
+  return playlistCardTones[index % playlistCardTones.length]
 }
 
 const parsePlaylistTimeFromName = (name: string): number | null => {
@@ -156,13 +178,11 @@ export default () => {
     return extraInset
   }, [statusBarHeight])
   const playlists = useMyList()
+  const detailSceneWidth = Dimensions.get('window').width
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>({})
   const [selectedListId, setSelectedListId] = useState<string | null>(null)
   const [detailSongs, setDetailSongs] = useState<LX.Music.MusicInfo[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const [avatarUrl, setAvatarUrl] = useState<string>(DEFAULT_AVATAR)
-  const [userName, setUserName] = useState<string>(DEFAULT_USER_NAME)
-  const [userSignature, setUserSignature] = useState('')
   const [searchText, setSearchText] = useState('')
   const [searchSource, setSearchSource] = useState<SourceMenu['action']>('all')
   const [isSourceMenuVisible, setSourceMenuVisible] = useState(false)
@@ -180,12 +200,15 @@ export default () => {
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
-  const [playlistSortMode, setPlaylistSortMode] = useState<'default' | 'time'>('default')
+  const [isDetailTransitioning, setDetailTransitioning] = useState(false)
+  const playlistSortMode = useSettingValue('list.playlistSortMode')
+  const [playlistDisplayMode, setPlaylistDisplayMode] = useState<'grid' | 'list'>('grid')
   const detailRequestIdRef = useRef(0)
   const importRequestIdRef = useRef(0)
   const searchRequestIdRef = useRef(0)
   const searchTipRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
+  const sourceMenuVisibleRef = useRef(false)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
   const createListDialogRef = useRef<PromptDialogType>(null)
   const renameListDialogRef = useRef<PromptDialogType>(null)
@@ -219,6 +242,10 @@ export default () => {
   const dragTop = useRef(new Animated.Value(0)).current
   const dragScale = useRef(new Animated.Value(1)).current
   const dragOpacity = useRef(new Animated.Value(0)).current
+  const detailSceneAnim = useRef(new Animated.Value(0)).current
+  const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
+  const sourceMenuListAnim = useRef(new Animated.Value(0)).current
+  const detailTransitionTokenRef = useRef(0)
   const [isSongDragActive, setSongDragActive] = useState(false)
   const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
@@ -246,8 +273,55 @@ export default () => {
   }, [playlists, playlistSortMode])
   const likedSongsCount = lovePlaylist ? playlistMetaMap[lovePlaylist.id]?.count ?? 0 : 0
   const defaultSongsCount = defaultPlaylist ? playlistMetaMap[defaultPlaylist.id]?.count ?? 0 : 0
+  const featuredLibraryCards = useMemo(() => {
+    const cards: Array<{
+      id: string
+      list: LX.List.MyListInfo
+      title: string
+      count: number
+      cover: string | null
+      icon: string
+    }> = []
+
+    if (lovePlaylist) {
+      cards.push({
+        id: lovePlaylist.id,
+        list: lovePlaylist,
+        title: t('list_name_love'),
+        count: likedSongsCount,
+        cover: playlistMetaMap[lovePlaylist.id]?.pic ?? null,
+        icon: 'heart',
+      })
+    }
+    if (defaultPlaylist) {
+      cards.push({
+        id: defaultPlaylist.id,
+        list: defaultPlaylist,
+        title: t('list_name_default'),
+        count: defaultSongsCount,
+        cover: playlistMetaMap[defaultPlaylist.id]?.pic ?? null,
+        icon: 'play-circle',
+      })
+    }
+
+    return cards
+  }, [defaultPlaylist, defaultSongsCount, likedSongsCount, lovePlaylist, playlistMetaMap, t])
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
+  const isPlaylistListMode = playlistDisplayMode == 'list'
+  const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
+  const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [detailSceneWidth, 0],
+  }), [detailSceneAnim, detailSceneWidth])
+  const homeSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -homeSceneParallax],
+  }), [detailSceneAnim, homeSceneParallax])
+  const detailSceneShadeOpacity = useMemo(() => detailSceneAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.065],
+  }), [detailSceneAnim])
 
   useEffect(() => {
     return () => {
@@ -307,6 +381,43 @@ export default () => {
     setDetailSongs([...list])
     if (showLoading) setDetailLoading(false)
   }, [])
+  const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
+    const token = ++detailTransitionTokenRef.current
+    setDetailTransitioning(true)
+    detailSceneAnim.stopAnimation()
+    const animation = Animated.timing(detailSceneAnim, {
+      toValue,
+      duration: toValue ? DETAIL_TRANSITION_FORWARD_DURATION : DETAIL_TRANSITION_BACKWARD_DURATION,
+      easing: toValue
+        ? Easing.bezier(0.36, 0.66, 0.04, 1)
+        : Easing.bezier(0.32, 0.72, 0, 1),
+      useNativeDriver: true,
+    })
+    animation.start(({ finished }) => {
+      if (token !== detailTransitionTokenRef.current) return
+      if (finished) onFinish?.()
+      setDetailTransitioning(false)
+    })
+  }, [detailSceneAnim])
+  const clearDetailSelection = useCallback((immediate = false) => {
+    if (!selectedListId && !isDetailTransitioning) return
+    detailRequestIdRef.current += 1
+    const finish = () => {
+      detailScrollOffsetRef.current = 0
+      setSelectedListId(null)
+      setDetailSongs([])
+      setDetailLoading(false)
+    }
+    if (immediate) {
+      detailTransitionTokenRef.current += 1
+      detailSceneAnim.stopAnimation()
+      detailSceneAnim.setValue(0)
+      setDetailTransitioning(false)
+      finish()
+      return
+    }
+    animateDetailScene(0, finish)
+  }, [animateDetailScene, detailSceneAnim, isDetailTransitioning, selectedListId])
 
   const refreshLovedSongMap = useCallback(async() => {
     const list = await getListMusics(LIST_IDS.LOVE)
@@ -320,67 +431,13 @@ export default () => {
   useEffect(() => {
     void updatePlaylistMeta(playlists.map(list => list.id))
     if (selectedListId && !playlists.some(list => list.id === selectedListId)) {
-      setSelectedListId(null)
-      setDetailSongs([])
+      clearDetailSelection(true)
     }
-  }, [playlists, selectedListId, updatePlaylistMeta])
+  }, [clearDetailSelection, playlists, selectedListId, updatePlaylistMeta])
 
   useEffect(() => {
     void refreshLovedSongMap()
   }, [refreshLovedSongMap])
-
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserAvatar().then((path) => {
-      if (isUnmounted) return
-      setAvatarUrl(path ?? DEFAULT_AVATAR)
-    })
-
-    const handleAvatarUpdate = (path: string | null) => {
-      setAvatarUrl(path ?? DEFAULT_AVATAR)
-    }
-    global.app_event.on('userAvatarUpdated', handleAvatarUpdate)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userAvatarUpdated', handleAvatarUpdate)
-    }
-  }, [])
-
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserName().then((name) => {
-      if (isUnmounted) return
-      setUserName(name ?? DEFAULT_USER_NAME)
-    })
-
-    const handleNameUpdate = (name: string) => {
-      setUserName(name.trim() ? name : DEFAULT_USER_NAME)
-    }
-    global.app_event.on('userNameUpdated', handleNameUpdate)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userNameUpdated', handleNameUpdate)
-    }
-  }, [])
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserSignature().then((signature) => {
-      if (isUnmounted) return
-      setUserSignature(signature?.trim() ?? '')
-    })
-
-    const handleSignatureUpdate = (signature: string) => {
-      setUserSignature(signature.trim())
-    }
-    global.app_event.on('userSignatureUpdated', handleSignatureUpdate)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userSignatureUpdated', handleSignatureUpdate)
-    }
-  }, [])
 
   useEffect(() => {
     const handleMusicUpdate = (ids: string[]) => {
@@ -509,6 +566,10 @@ export default () => {
     setDraggingSongKey(null)
     clearDragPressGuard()
   }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, resetDragRowShifts])
+  const handleCloseDetail = useCallback((immediate = false) => {
+    resetSongDragState()
+    clearDetailSelection(immediate)
+  }, [clearDetailSelection, resetSongDragState])
   const handleFinishSongDrag = useCallback(async() => {
     if (!dragStateRef.current.active) return
     const { listId, song, fromIndex, toIndex } = dragStateRef.current
@@ -684,12 +745,14 @@ export default () => {
     }
   }, [clearDragPressGuard, draggingSong, isSongDragActive])
 
-  const handleOpenList = (list: LX.List.MyListInfo) => {
+  const handleOpenList = useCallback((list: LX.List.MyListInfo) => {
     resetSongDragState()
     setSelectedListId(list.id)
     setDetailSongs([])
+    setDetailLoading(true)
+    animateDetailScene(1)
     void loadDetailSongs(list.id, true)
-  }
+  }, [animateDetailScene, loadDetailSongs, resetSongDragState])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
@@ -735,8 +798,8 @@ export default () => {
     createListDialogRef.current?.show('')
   }, [])
   const handleTogglePlaylistSort = useCallback(() => {
-    setPlaylistSortMode(prev => prev == 'default' ? 'time' : 'default')
-  }, [])
+    updateSetting({ 'list.playlistSortMode': playlistSortMode == 'default' ? 'time' : 'default' })
+  }, [playlistSortMode])
   const handleCreateList = useCallback(async(name: string) => {
     if (!name) return false
     const isDuplicated = listState.userList.some(list => list.name == name)
@@ -776,11 +839,9 @@ export default () => {
   const handleRemoveSelectedList = useCallback(async() => {
     if (!isUserListInfo(selectedListInfo)) return false
     await removeUserList([selectedListInfo.id])
-    resetSongDragState()
-    setSelectedListId(null)
-    setDetailSongs([])
+    handleCloseDetail(true)
     return true
-  }, [resetSongDragState, selectedListInfo])
+  }, [handleCloseDetail, selectedListInfo])
   const selectedListMeta = selectedListInfo ? playlistMetaMap[selectedListInfo.id] : null
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
   const loadImportCandidates = useCallback(async(targetListId: string) => {
@@ -922,7 +983,7 @@ export default () => {
     return (
       <>
         <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
-          <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={() => { resetSongDragState(); setSelectedListId(null) }}>
+          <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={() => { handleCloseDetail() }}>
             <Icon name="chevron-left" rawSize={20} color="#111827" />
           </TouchableOpacity>
         </View>
@@ -957,7 +1018,7 @@ export default () => {
         </View>
       </>
     )
-  }, [canRenameSelectedList, handleOpenImportDrawer, handleShowRemoveListModal, handleShowRenameListModal, resetSongDragState, selectedListInfo, selectedListMeta?.pic, selectedListMeta?.count, statusBarHeight, t])
+  }, [canRenameSelectedList, handleCloseDetail, handleOpenImportDrawer, handleShowRemoveListModal, handleShowRenameListModal, selectedListInfo, selectedListMeta?.pic, selectedListMeta?.count, statusBarHeight, t])
   const renderImportCandidateItem: ListRenderItem<ImportCandidate> = useCallback(({ item }) => {
     const sourceTagColor = getSourceTagColor(item.musicInfo.source)
     const isSelected = Boolean(importSelectedMap[item.id])
@@ -976,13 +1037,96 @@ export default () => {
     )
   }, [handleToggleImportSong, importSelectedMap])
 
+  const openSourceMenu = useCallback(() => {
+    sourceMenuVisibleRef.current = true
+    setSourceMenuVisible(true)
+    sourceMenuExpandAnim.stopAnimation()
+    sourceMenuListAnim.stopAnimation()
+    sourceMenuExpandAnim.setValue(0)
+    sourceMenuListAnim.setValue(0)
+    Animated.sequence([
+      Animated.timing(sourceMenuExpandAnim, {
+        toValue: 1,
+        duration: SOURCE_MENU_EXPAND_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.delay(SOURCE_MENU_REVEAL_DELAY),
+      Animated.timing(sourceMenuListAnim, {
+        toValue: 1,
+        duration: SOURCE_MENU_REVEAL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start()
+  }, [sourceMenuExpandAnim, sourceMenuListAnim])
+  const closeSourceMenu = useCallback(() => {
+    if (!sourceMenuVisibleRef.current) return
+    sourceMenuVisibleRef.current = false
+    sourceMenuExpandAnim.stopAnimation()
+    sourceMenuListAnim.stopAnimation()
+    Animated.sequence([
+      Animated.timing(sourceMenuListAnim, {
+        toValue: 0,
+        duration: 110,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(sourceMenuExpandAnim, {
+        toValue: 0,
+        duration: 128,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && !sourceMenuVisibleRef.current) setSourceMenuVisible(false)
+    })
+  }, [sourceMenuExpandAnim, sourceMenuListAnim])
   const toggleSourceMenu = useCallback(() => {
-    setSourceMenuVisible((visible) => !visible)
-  }, [])
-  const searchSourceLabel = useMemo(() => {
-    const target = sourceMenus.find(item => item.action === searchSource)
-    return target?.label ?? 'kw'
-  }, [searchSource])
+    if (sourceMenuVisibleRef.current) {
+      closeSourceMenu()
+      return
+    }
+    openSourceMenu()
+  }, [closeSourceMenu, openSourceMenu])
+  const handleToggleMainSourceMenu = useCallback(() => {
+    toggleSourceMenu()
+  }, [toggleSourceMenu])
+  const handleToggleSearchSourceMenu = useCallback(() => {
+    toggleSourceMenu()
+  }, [toggleSourceMenu])
+  const searchSourceLabel = useMemo(() => getSourceMenuLabel(searchSource), [searchSource])
+  const sourceChevronRotate = useMemo(() => sourceMenuExpandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['90deg', '-90deg'],
+  }), [sourceMenuExpandAnim])
+  const sourceMenuBackdropOpacity = useMemo(() => sourceMenuListAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  }), [sourceMenuListAnim])
+  const sourceMenuWidth = useMemo(() => sourceMenuExpandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [58, SOURCE_MENU_PANEL_WIDTH],
+  }), [sourceMenuExpandAnim])
+  const sourceMenuHeight = useMemo(() => sourceMenuListAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      26,
+      26 + sourceMenus.length * SOURCE_MENU_ROW_HEIGHT,
+    ],
+  }), [sourceMenuListAnim])
+  const sourceMenuRadius = useMemo(() => sourceMenuExpandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [9, 14],
+  }), [sourceMenuExpandAnim])
+  const sourceMenuListOpacity = useMemo(() => sourceMenuListAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  }), [sourceMenuListAnim])
+  const sourceMenuListTranslateY = useMemo(() => sourceMenuListAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-6, 0],
+  }), [sourceMenuListAnim])
   const forceDismissSearchInput = useCallback(() => {
     searchInputRef.current?.blur()
     Keyboard.dismiss()
@@ -1029,7 +1173,7 @@ export default () => {
   }, 220), [])
   const handleSelectSource = useCallback((action: SourceMenu['action']) => {
     setSearchSource(action)
-    setSourceMenuVisible(false)
+    closeSourceMenu()
     if (!isSearchInputEditing) return
     const keyword = searchText.trim()
     if (!keyword) {
@@ -1040,7 +1184,7 @@ export default () => {
       return
     }
     requestSearchTips(keyword, action)
-  }, [isSearchInputEditing, loadSearchHistoryList, requestSearchTips, searchText])
+  }, [closeSourceMenu, isSearchInputEditing, loadSearchHistoryList, requestSearchTips, searchText])
 
   const runSearch = useCallback(async(keyword: string, source: SourceMenu['action']) => {
     const requestId = ++searchRequestIdRef.current
@@ -1094,7 +1238,7 @@ export default () => {
       setSearchMode(false)
       setSearchKeyword('')
       setSearchResults([])
-      setSourceMenuVisible(false)
+      closeSourceMenu()
       forceDismissSearchInput()
       return
     }
@@ -1102,15 +1246,15 @@ export default () => {
     setSearchKeyword(input)
     setSearchMode(true)
     setSearchResults([])
-    setSourceMenuVisible(false)
+    closeSourceMenu()
     void addHistoryWord(input)
     void runSearch(input, searchSource)
     forceDismissSearchInput()
-  }, [forceDismissSearchInput, runSearch, searchSource, searchText])
+  }, [closeSourceMenu, forceDismissSearchInput, runSearch, searchSource, searchText])
 
   const handleEnterSearchMode = useCallback(() => {
     setSearchMode(true)
-    setSourceMenuVisible(false)
+    closeSourceMenu()
     setKeepPlayBarVisible(false)
     setSearchInputEditing(true)
     const keyword = searchText.trim()
@@ -1122,19 +1266,19 @@ export default () => {
       return
     }
     requestSearchTips(keyword, searchSource)
-  }, [loadSearchHistoryList, requestSearchTips, searchSource, searchText])
+  }, [closeSourceMenu, loadSearchHistoryList, requestSearchTips, searchSource, searchText])
 
   const handleExitSearch = useCallback(() => {
     setSearchMode(false)
     setSearchInputEditing(false)
     setSearchKeyword('')
     setSearchResults([])
-    setSourceMenuVisible(false)
+    closeSourceMenu()
     searchTipRequestIdRef.current += 1
     setSearchTipLoading(false)
     setSearchTipList([])
     forceDismissSearchInput()
-  }, [forceDismissSearchInput])
+  }, [closeSourceMenu, forceDismissSearchInput])
 
   useBackHandler(useCallback(() => {
     if (Object.keys(commonState.componentIds).length != 1) return false
@@ -1144,9 +1288,7 @@ export default () => {
       return true
     }
     if (selectedListId) {
-      resetSongDragState()
-      setSelectedListId(null)
-      setDetailSongs([])
+      handleCloseDetail()
       return true
     }
     if (isSearchMode || isSearchInputEditing) {
@@ -1154,7 +1296,7 @@ export default () => {
       return true
     }
     if (isSourceMenuVisible) {
-      setSourceMenuVisible(false)
+      closeSourceMenu()
       forceDismissSearchInput()
       return true
     }
@@ -1167,7 +1309,8 @@ export default () => {
     isSearchInputEditing,
     isSearchMode,
     isSourceMenuVisible,
-    resetSongDragState,
+    closeSourceMenu,
+    handleCloseDetail,
     selectedListId,
   ]))
 
@@ -1177,7 +1320,7 @@ export default () => {
   }, [isSearchMode, searchKeyword, searchSource, runSearch])
   const handleBeginSearchInputEdit = useCallback(() => {
     setSearchInputEditing(true)
-    setSourceMenuVisible(false)
+    closeSourceMenu()
     const keyword = searchText.trim()
     if (!keyword) {
       searchTipRequestIdRef.current += 1
@@ -1187,7 +1330,7 @@ export default () => {
       return
     }
     requestSearchTips(keyword, searchSource)
-  }, [loadSearchHistoryList, requestSearchTips, searchSource, searchText])
+  }, [closeSourceMenu, loadSearchHistoryList, requestSearchTips, searchSource, searchText])
   const handlePickSearchKeyword = useCallback((keyword: string) => {
     setSearchText(keyword)
     handleSubmitSearch(keyword)
@@ -1243,6 +1386,82 @@ export default () => {
   const searchAssistList = useMemo(() => {
     return searchAssistKeyword ? searchTipList : searchHistoryList
   }, [searchAssistKeyword, searchHistoryList, searchTipList])
+  const renderSourceMenuControl = useCallback(({
+    textColor,
+    iconColor,
+    iconSize,
+    onPress,
+  }: {
+    textColor: string
+    iconColor: string
+    iconSize: number
+    onPress: () => void
+  }) => {
+    return (
+      <View style={styles.sourceMenuAnchor}>
+        <Animated.View
+          style={[
+            styles.sourceMenuSheet,
+            {
+              width: sourceMenuWidth,
+              height: sourceMenuHeight,
+              borderRadius: sourceMenuRadius,
+            },
+          ]}
+        >
+          <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.sourceMenuHeadBtn}>
+            <View style={styles.sourceMenuSheetHead}>
+              <Text size={12} color={textColor} style={styles.sourceText}>{searchSourceLabel}</Text>
+              <Animated.View style={[styles.sourceChevronWrap, { transform: [{ rotate: sourceChevronRotate }] }]}>
+                <Icon name="chevron-right-2" rawSize={iconSize} color={iconColor} />
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+          <Animated.View
+            pointerEvents={isSourceMenuVisible ? 'auto' : 'none'}
+            style={[
+              styles.sourceMenuSheetList,
+              {
+                opacity: sourceMenuListOpacity,
+                transform: [{ translateY: sourceMenuListTranslateY }],
+              },
+            ]}
+          >
+            {sourceMenus.map((menu, index) => {
+              const isActive = menu.action === searchSource
+              const tone = menu.action === 'all'
+                ? { text: '#6b7280', background: '#f3f4f6' }
+                : getSourceTagColor(menu.action)
+              return (
+                <TouchableOpacity
+                  key={menu.action}
+                  activeOpacity={0.78}
+                  style={[
+                    styles.sourcePanelItem,
+                    isActive ? styles.sourcePanelItemActive : null,
+                    index < sourceMenus.length - 1 ? styles.sourcePanelItemBorder : null,
+                  ]}
+                  onPress={() => { handleSelectSource(menu.action) }}
+                >
+                  <View style={[styles.sourcePanelBadge, { backgroundColor: tone.background }]}>
+                    <Text size={10} color={tone.text} style={styles.sourcePanelBadgeText}>
+                      {menu.action == 'all' ? 'ALL' : menu.action.toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text size={13} color="#111827" style={styles.sourcePanelLabel}>
+                    {getSourceMenuLabel(menu.action)}
+                  </Text>
+                  <View style={styles.sourcePanelCheck}>
+                    {isActive ? <MaterialCommunityIcon name="check" size={16} color="#111827" /> : null}
+                  </View>
+                </TouchableOpacity>
+              )
+            })}
+          </Animated.View>
+        </Animated.View>
+      </View>
+    )
+  }, [handleSelectSource, isSourceMenuVisible, searchSource, searchSourceLabel, sourceChevronRotate, sourceMenuHeight, sourceMenuListOpacity, sourceMenuListTranslateY, sourceMenuRadius, sourceMenuWidth])
 
   const searchHeader = useMemo(() => {
     return (
@@ -1274,42 +1493,29 @@ export default () => {
                       {searchText || t('me_search_placeholder')}
                     </Text>
                   </TouchableOpacity>}
-              <View style={styles.sourceMenuAnchor}>
-                <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
-                  <View style={styles.sourceCapsule}>
-                    <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
-                    <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
-                  </View>
-                </TouchableOpacity>
-                {isSourceMenuVisible
-                  ? <View style={[styles.sourceMenuPanelFloat, styles.searchResultSourceMenuPanelFloat]}>
-                      <View style={styles.sourcePanel}>
-                        {sourceMenus.map(menu => (
-                          <TouchableOpacity
-                            key={menu.action}
-                            activeOpacity={0.85}
-                            style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
-                            onPress={() => { handleSelectSource(menu.action) }}
-                          >
-                            <Text size={12} color={menu.action === searchSource ? '#111827' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  : null}
-              </View>
+              {renderSourceMenuControl({
+                textColor: '#111827',
+                iconColor: '#6b7280',
+                iconSize: 13,
+                onPress: handleToggleSearchSourceMenu,
+              })}
             </View>
           </View>
         </View>
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleExitSearch, handleSearchInputBlur, handleSearchTextChange, handleSelectSource, handleSubmitSearch, isSearchInputEditing, isSourceMenuVisible, searchSource, searchSourceLabel, searchText, statusBarHeight, t, toggleSourceMenu])
+  }, [handleBeginSearchInputEdit, handleExitSearch, handleSearchInputBlur, handleSearchTextChange, handleSubmitSearch, handleToggleSearchSourceMenu, isSearchInputEditing, renderSourceMenuControl, searchText, statusBarHeight, t])
 
   if (isSearchMode) {
     const searchHeaderHeight = statusBarHeight + 8 + 46 + 8
     return (
       <>
         <View style={styles.searchModeRoot}>
+          {isSourceMenuVisible
+            ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
+                <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={closeSourceMenu} />
+              </Animated.View>
+            : null}
           <View style={styles.searchResultHeaderFloating}>
             {searchHeader}
           </View>
@@ -1401,7 +1607,8 @@ export default () => {
     )
   }
 
-  if (selectedListInfo) {
+  const renderDetailScene = () => {
+    if (!selectedListInfo) return null
     const draggingSourceTagColor = draggingSong ? getSourceTagColor(draggingSong.source) : null
     return (
       <>
@@ -1555,40 +1762,27 @@ export default () => {
     )
   }
 
-  return (
+  const homeScene = (
     <View style={styles.container}>
+      {isSourceMenuVisible
+        ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
+            <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={closeSourceMenu} />
+          </Animated.View>
+        : null}
       <View style={[styles.header, styles.headerFloating, { paddingTop: headerTopPadding }]}>
         <View style={styles.searchWrap}>
-          <Icon name="search-2" rawSize={18} color="#9ca3af" />
+          <Icon name="search-2" rawSize={16} color="#8e8e93" />
           <TouchableOpacity style={styles.searchInputTrigger} activeOpacity={0.85} onPress={handleEnterSearchMode}>
-            <Text size={13} color={searchText ? '#111827' : '#9ca3af'} numberOfLines={1}>
+            <Text size={14} color={searchText ? '#1c1c1e' : '#8e8e93'} numberOfLines={1}>
               {searchText || t('me_search_placeholder')}
             </Text>
           </TouchableOpacity>
-          <View style={styles.sourceMenuAnchor}>
-            <TouchableOpacity style={styles.sourceMenuBtn} activeOpacity={0.85} onPress={toggleSourceMenu}>
-              <View style={styles.sourceCapsule}>
-                <Text size={12} color="#111827" style={styles.sourceText}>{searchSourceLabel}</Text>
-                <Icon name="chevron-right-2" rawSize={13} color="#6b7280" style={styles.sourceChevron} />
-              </View>
-            </TouchableOpacity>
-            {isSourceMenuVisible
-              ? <View style={styles.sourceMenuPanelFloat}>
-                  <View style={styles.sourcePanel}>
-                    {sourceMenus.map(menu => (
-                      <TouchableOpacity
-                        key={menu.action}
-                        activeOpacity={0.85}
-                        style={[styles.sourcePanelItem, menu.action === searchSource ? styles.sourcePanelItemActive : null]}
-                        onPress={() => { handleSelectSource(menu.action) }}
-                      >
-                        <Text size={12} color={menu.action === searchSource ? '#111827' : '#374151'} style={styles.sourcePanelText}>{menu.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              : null}
-          </View>
+          {renderSourceMenuControl({
+            textColor: '#3a3a3c',
+            iconColor: '#8e8e93',
+            iconSize: 11,
+            onPress: handleToggleMainSourceMenu,
+          })}
         </View>
       </View>
 
@@ -1600,56 +1794,55 @@ export default () => {
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <View style={styles.profileSection}>
-          <View style={styles.avatarWrap}>
-            <Image
-              style={styles.avatar}
-              url={avatarUrl}
-            />
-          </View>
-          <View style={styles.profileInfo}>
-            <Text size={24} color="#111827" style={styles.profileName}>{userName}</Text>
-            <Text size={12} color="#6b7280">{userSignature || t('me_profile_status')}</Text>
-          </View>
-        </View>
-
         <View style={styles.quickRow}>
-          <TouchableOpacity
-            style={styles.quickCard}
-            activeOpacity={0.8}
-            onPress={() => {
-              if (lovePlaylist) handleOpenList(lovePlaylist)
-            }}
-          >
-            <View style={[styles.quickIconBox, { backgroundColor: '#fee2e2' }]}>
-              <Text size={17} color="#ef4444" style={styles.quickLoveIcon}>{'\u2665'}</Text>
-            </View>
-            <View style={styles.quickTextBox}>
-              <Text size={13} color="#111827" style={styles.quickTitle}>{t('list_name_love')}</Text>
-              <Text size={11} color="#6b7280">{t('me_tracks_count', { num: likedSongsCount })}</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickCard, styles.quickCardLast]}
-            activeOpacity={0.8}
-            onPress={() => {
-              if (defaultPlaylist) handleOpenList(defaultPlaylist)
-            }}
-          >
-            <View style={[styles.quickIconBox, { backgroundColor: '#dbeafe' }]}>
-              <Icon name="play" rawSize={18} color="#3b82f6" />
-            </View>
-            <View style={styles.quickTextBox}>
-              <Text size={13} color="#111827" style={styles.quickTitle}>{t('list_name_default')}</Text>
-              <Text size={11} color="#6b7280">{t('me_tracks_count', { num: defaultSongsCount })}</Text>
-            </View>
-          </TouchableOpacity>
+          {featuredLibraryCards.map((card, index) => {
+            const tone = getPlaylistCardTone(index)
+            return (
+              <TouchableOpacity
+                key={card.id}
+                style={[styles.quickCard, index === featuredLibraryCards.length - 1 ? styles.quickCardLast : null]}
+                activeOpacity={0.86}
+                onPress={() => { handleOpenList(card.list) }}
+              >
+                <View style={styles.quickMedia}>
+                  {card.cover
+                    ? <Image style={styles.quickMediaImage} url={card.cover} />
+                    : <View style={[styles.quickMediaImage, styles.listPicFallback, { backgroundColor: tone.surface }]}>
+                        <MaterialCommunityIcon name={card.icon} size={24} color={tone.accent} />
+                      </View>}
+                </View>
+                <View style={styles.quickInfo}>
+                  <Text size={15} color="#1c1c1e" style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
+                  <View style={styles.quickMetaRow}>
+                    <MaterialCommunityIcon name={card.icon} size={12} color={tone.accent} />
+                    <Text size={12} color="#8e8e93" style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )
+          })}
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_my_playlists')}</Text>
             <View style={styles.sectionHeaderActions}>
+              <View style={styles.displaySwitch}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[styles.displaySwitchItem, !isPlaylistListMode ? styles.displaySwitchItemActive : null]}
+                  onPress={() => { setPlaylistDisplayMode('grid') }}
+                >
+                  <MaterialCommunityIcon name="view-grid-outline" size={15} color={!isPlaylistListMode ? '#19171c' : '#8b818a'} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[styles.displaySwitchItem, isPlaylistListMode ? styles.displaySwitchItemActive : null]}
+                  onPress={() => { setPlaylistDisplayMode('list') }}
+                >
+                  <MaterialCommunityIcon name="format-list-bulleted" size={15} color={isPlaylistListMode ? '#19171c' : '#8b818a'} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
@@ -1666,17 +1859,50 @@ export default () => {
               </TouchableOpacity>
             </View>
           </View>
-          <View>
-            {displayPlaylists.map(item => (
-              <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.8} onPress={() => { handleOpenList(item) }}>
-                <Image style={styles.listPic} url={playlistMetaMap[item.id]?.pic ?? null} />
-                <View style={styles.listInfo}>
-                  <Text size={14} color="#111827" style={styles.listTitle}>{item.name}</Text>
-                  <Text size={11} color="#6b7280">{t('me_songs_count', { num: playlistMetaMap[item.id]?.count ?? 0 })}</Text>
-                </View>
-                <Icon name="chevron-right" rawSize={16} color="#9ca3af" />
-              </TouchableOpacity>
-            ))}
+          <View style={isPlaylistListMode ? styles.listPanel : styles.listGrid}>
+            {displayPlaylists.length
+              ? displayPlaylists.map((item, index) => {
+                const tone = getPlaylistCardTone(index + 2)
+                return (
+                  isPlaylistListMode
+                    ? <View key={item.id}>
+                        <TouchableOpacity style={styles.listRowItem} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
+                          <View style={styles.listRowCoverWrap}>
+                            {playlistMetaMap[item.id]?.pic
+                              ? <Image style={styles.listRowCover} url={playlistMetaMap[item.id]?.pic ?? null} />
+                              : <View style={[styles.listRowCover, styles.listPicFallback, { backgroundColor: tone.surface }]}>
+                                  <MaterialCommunityIcon name="music-note-eighth" size={20} color={tone.accent} />
+                                </View>}
+                          </View>
+                          <View style={styles.listRowInfo}>
+                            <Text size={15} color="#1c1c1e" style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
+                            <Text size={12} color="#8e8e93" style={styles.listRowSubtitle}>{t('me_songs_count', { num: playlistMetaMap[item.id]?.count ?? 0 })}</Text>
+                          </View>
+                          <Icon name="chevron-right" rawSize={14} color="#c7c7cc" />
+                        </TouchableOpacity>
+                        {index < displayPlaylists.length - 1 ? <View style={styles.listRowDivider} /> : null}
+                      </View>
+                    : <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
+                        <View style={styles.listPicWrap}>
+                          {playlistMetaMap[item.id]?.pic
+                            ? <Image style={styles.listPic} url={playlistMetaMap[item.id]?.pic ?? null} />
+                            : <View style={[styles.listPic, styles.listPicFallback, { backgroundColor: tone.surface }]}>
+                                <MaterialCommunityIcon name="music-note-eighth" size={24} color={tone.accent} />
+                              </View>}
+                        </View>
+                        <View style={styles.listInfo}>
+                          <Text size={14} color="#19171c" style={styles.listTitle} numberOfLines={2}>{item.name}</Text>
+                          <Text size={11} color="#7a7179">{t('me_songs_count', { num: playlistMetaMap[item.id]?.count ?? 0 })}</Text>
+                        </View>
+                      </TouchableOpacity>
+                )
+              })
+              : <View style={styles.emptyCard}>
+                  <Text size={13} color="#7a7179">{t('me_my_playlists')}</Text>
+                  <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={handleShowCreateListModal}>
+                    <Text size={13} color="#19171c" style={styles.emptyActionText}>{t('me_create_new')}</Text>
+                  </TouchableOpacity>
+                </View>}
           </View>
         </View>
 
@@ -1712,12 +1938,66 @@ export default () => {
       />
     </View>
   )
+  const shouldRenderDetailScene = Boolean(selectedListInfo)
+
+  return (
+    <View style={styles.sceneRoot}>
+      <Animated.View
+        pointerEvents={shouldRenderDetailScene ? 'none' : 'auto'}
+        renderToHardwareTextureAndroid={isDetailTransitioning}
+        shouldRasterizeIOS={isDetailTransitioning}
+        style={[
+          styles.scene,
+          { transform: [{ translateX: homeSceneTranslateX }] },
+        ]}
+      >
+        {homeScene}
+      </Animated.View>
+      {shouldRenderDetailScene
+        ? <>
+            <Animated.View pointerEvents="none" style={[styles.detailSceneShade, { opacity: detailSceneShadeOpacity }]} />
+            <Animated.View
+              renderToHardwareTextureAndroid={isDetailTransitioning}
+              shouldRasterizeIOS={isDetailTransitioning}
+              style={[
+                styles.scene,
+                styles.sceneOverlay,
+                styles.detailScene,
+                {
+                  transform: [{ translateX: detailSceneTranslateX }],
+                },
+              ]}
+            >
+              {renderDetailScene()}
+            </Animated.View>
+          </>
+        : null}
+    </View>
+  )
 }
 
 const styles = createStyle({
+  sceneRoot: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  scene: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  sceneOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 4,
+  },
+  detailSceneShade: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 3,
+    backgroundColor: '#000000',
+  },
+  detailScene: {},
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   content: {
     paddingBottom: 0,
@@ -1750,7 +2030,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   searchResultRow: {
     paddingHorizontal: 16,
@@ -1764,11 +2044,11 @@ const styles = createStyle({
   },
   searchResultList: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   searchModeRoot: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   searchResultContent: {
     paddingBottom: 16,
@@ -1780,7 +2060,7 @@ const styles = createStyle({
     bottom: 0,
     zIndex: APP_LAYER_INDEX.controls - 1,
     elevation: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
@@ -1829,7 +2109,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   detailBackBtn: {
     width: 34,
@@ -1839,14 +2119,12 @@ const styles = createStyle({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#f1f1f3',
+    borderColor: '#e5e5ea',
   },
   searchWrap: {
-    height: 46,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#f2f2f7',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1854,160 +2132,160 @@ const styles = createStyle({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    color: '#111827',
-    fontSize: 13,
+    marginLeft: 6,
+    color: '#1c1c1e',
+    fontSize: 14,
     paddingVertical: 0,
   },
   searchInputDisplay: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 6,
     justifyContent: 'center',
     height: '100%',
   },
   searchInputTrigger: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 6,
     height: '100%',
     justifyContent: 'center',
   },
   sourceMenuAnchor: {
     position: 'relative',
-    marginLeft: 8,
+    marginLeft: 6,
+    width: 58,
+    height: 26,
     zIndex: APP_LAYER_INDEX.controls + 2,
-  },
-  sourceMenuBtn: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  sourceCapsule: {
-    height: 28,
-    minWidth: 62,
-    borderRadius: 14,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sourceText: {
     fontWeight: '600',
   },
-  sourceChevron: {
+  sourceChevronWrap: {
     marginLeft: 2,
-    transform: [{ rotate: '90deg' }],
   },
-  sourcePanel: {
-    alignSelf: 'flex-end',
-    width: 110,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  sourceMenuHeadBtn: {
+    height: 26,
+  },
+  sourceMenuPageBackdropWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 1,
+  },
+  sourceMenuPageBackdrop: {
+    flex: 1,
+  },
+  sourceMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(17,24,39,0.04)',
+  },
+  sourceMenuSheet: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#d9d9de',
     backgroundColor: '#ffffff',
     overflow: 'hidden',
     shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  sourceMenuPanelFloat: {
-    position: 'absolute',
-    top: '100%',
-    right: 0,
-    marginTop: 8,
-    zIndex: APP_LAYER_INDEX.controls + 3,
-    elevation: APP_LAYER_INDEX.controls + 3,
-  },
-  searchResultSourceMenuPanelFloat: {
-    marginTop: 2,
-  },
-  sourcePanelItem: {
-    height: 36,
+  sourceMenuSheetHead: {
+    height: 26,
+    paddingLeft: 9,
+    paddingRight: 7,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sourcePanelItemActive: {
-    backgroundColor: '#f3f4f6',
+  sourceMenuSheetList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#ececf0',
+    paddingTop: 1,
   },
-  sourcePanelText: {
-    fontWeight: '600',
-  },
-  profileSection: {
+  sourcePanelItem: {
+    height: SOURCE_MENU_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: 12,
   },
-  avatarWrap: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    backgroundColor: '#111827',
-    padding: 3,
-    shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+  sourcePanelItemActive: {
+    backgroundColor: '#f4f4f7',
   },
-  avatar: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 39,
-    borderWidth: 2,
-    borderColor: '#ffffff',
+  sourcePanelItemBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ececf0',
   },
-  profileInfo: {
-    flex: 1,
-    marginLeft: 12,
+  sourcePanelBadge: {
+    width: 30,
+    height: 22,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
-  profileName: {
+  sourcePanelBadgeText: {
     fontWeight: '700',
-    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
+  sourcePanelLabel: {
+    fontWeight: '600',
+    flex: 1,
+  },
+  sourcePanelCheck: {
+    width: 18,
+    alignItems: 'flex-end',
   },
   quickRow: {
     flexDirection: 'row',
+    alignItems: 'stretch',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 22,
   },
   quickCard: {
     flex: 1,
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
+    borderColor: '#ededf0',
     backgroundColor: '#ffffff',
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
     marginRight: 10,
+    padding: 12,
   },
   quickCardLast: {
     marginRight: 0,
   },
-  quickIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+  quickMedia: {
+    height: 104,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f7',
   },
-  quickLoveIcon: {
-    lineHeight: 18,
-    fontWeight: '700',
+  quickMediaImage: {
+    width: '100%',
+    height: '100%',
   },
-  quickTextBox: {
-    marginLeft: 8,
-    flex: 1,
+  quickInfo: {
+    paddingTop: 10,
+    paddingHorizontal: 2,
+    paddingBottom: 0,
   },
   quickTitle: {
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 5,
+  },
+  quickMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  quickMeta: {
+    fontWeight: '500',
+    marginLeft: 5,
   },
   section: {
     paddingHorizontal: 16,
@@ -2058,32 +2336,65 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   sectionHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  sectionIconBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  displaySwitch: {
+    height: 31,
+    borderRadius: 9,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#d8d8dc',
+    backgroundColor: '#f2f2f7',
+    padding: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  displaySwitchItem: {
+    width: 34,
+    height: 25,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  displaySwitchItemActive: {
     backgroundColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  sectionIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#e2dade',
+    backgroundColor: '#fbfafb',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   sectionIconBtnActive: {
-    borderColor: '#d1d5db',
-    backgroundColor: '#f3f4f6',
+    borderColor: '#e0d2d8',
+    backgroundColor: '#f5ebef',
   },
   sectionTitle: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sectionTag: {
     fontWeight: '500',
+  },
+  listGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  listPanel: {
+    width: '100%',
   },
   statsCard: {
     borderRadius: 10,
@@ -2128,32 +2439,76 @@ const styles = createStyle({
     fontWeight: '700',
   },
   listItem: {
-    borderRadius: 10,
+    width: '48.4%',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    borderColor: '#eadfe4',
+    backgroundColor: '#fcfbfc',
+    shadowColor: '#2b1f25',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  listPicWrap: {
+    height: 126,
+    backgroundColor: '#f2ebee',
   },
   listPic: {
-    width: 58,
-    height: 58,
-    borderRadius: 8,
+    width: '100%',
+    height: '100%',
+  },
+  listPicFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listInfo: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  listRowItem: {
+    width: '100%',
+    minHeight: 58,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listRowDivider: {
+    height: 1,
+    marginLeft: 68,
+    marginRight: 0,
+    backgroundColor: '#e5e5ea',
+  },
+  listRowCoverWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f2f2f7',
+  },
+  listRowCover: {
+    width: '100%',
+    height: '100%',
+  },
+  listRowInfo: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  listRowTitle: {
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  listRowSubtitle: {
+    fontWeight: '500',
   },
   listTitle: {
-    fontWeight: '500',
-    marginBottom: 2,
+    fontWeight: '700',
+    marginBottom: 5,
   },
   songItem: {
     borderRadius: 10,
@@ -2317,17 +2672,30 @@ const styles = createStyle({
     marginLeft: 8,
   },
   emptyCard: {
-    borderRadius: 10,
+    width: '100%',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    borderColor: '#eadfe4',
+    backgroundColor: '#fcfbfc',
+    shadowColor: '#2b1f25',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-    padding: 14,
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyActionBtn: {
+    marginTop: 12,
+    height: 38,
+    paddingHorizontal: 16,
+    borderRadius: 19,
+    backgroundColor: '#f2e6eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyActionText: {
+    fontWeight: '700',
   },
 })

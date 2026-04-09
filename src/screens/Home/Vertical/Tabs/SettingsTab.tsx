@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Keyboard, Modal, ScrollView, Switch, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import Image from '@/components/common/Image'
 import FileSelect, { type FileSelectType } from '@/components/common/FileSelect'
 import Input from '@/components/common/Input'
 import { createStyle, openUrl } from '@/utils/tools'
@@ -10,7 +11,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
-import { getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
+import { getUserAvatar, getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
@@ -18,6 +19,7 @@ import { setLanguage } from '@/core/common'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 
 const SHOW_ADVANCED_SWITCHES = false
+const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
 const DEFAULT_USER_NAME = 'Alex Rivera'
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const currentVer = process.versions.app
@@ -44,6 +46,7 @@ export default () => {
   const sourceRef = useRef<SourceType>(null)
   const syncRef = useRef<SyncType>(null)
   const avatarFileRef = useRef<FileSelectType>(null)
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
@@ -77,6 +80,23 @@ export default () => {
               ? t('version_tip_failed')
               : t('version_title_new')
 
+  useEffect(() => {
+    let isUnmounted = false
+    void getUserAvatar().then((path) => {
+      if (isUnmounted) return
+      setAvatarUrl(path ?? DEFAULT_AVATAR)
+    })
+
+    const handleAvatarUpdate = (path: string | null) => {
+      setAvatarUrl(path ?? DEFAULT_AVATAR)
+    }
+    global.app_event.on('userAvatarUpdated', handleAvatarUpdate)
+
+    return () => {
+      isUnmounted = true
+      global.app_event.off('userAvatarUpdated', handleAvatarUpdate)
+    }
+  }, [])
   useEffect(() => {
     let isUnmounted = false
     void getUserName().then((name) => {
@@ -208,6 +228,32 @@ export default () => {
         overScrollMode="never"
       >
         <View style={styles.list}>
+          <TouchableOpacity style={styles.accountCard} activeOpacity={0.85} onPress={handlePickAvatar}>
+            <View style={styles.accountTopRow}>
+              <View style={styles.accountAvatarWrap}>
+                <Image style={styles.accountAvatar} url={avatarUrl} />
+              </View>
+              <View style={styles.accountInfo}>
+                <Text size={27} color="#19171c" style={styles.accountName}>{nickname}</Text>
+                <Text size={12} color="#766d75" numberOfLines={2}>{signature || defaultSignature}</Text>
+              </View>
+              <View style={styles.accountChevron}>
+                <Icon name="chevron-right-2" rawSize={16} color="#9a8f98" />
+              </View>
+            </View>
+
+            <View style={styles.accountMetaRow}>
+              <View style={styles.accountMetaCard}>
+                <Text size={11} color="#8b4b5f" style={styles.accountMetaLabel}>{t('setting_basic_lang')}</Text>
+                <Text size={14} color="#19171c" style={styles.accountMetaValue}>{activeLanguageLabel}</Text>
+              </View>
+              <View style={[styles.accountMetaCard, styles.accountMetaCardLast]}>
+                <Text size={11} color="#8b4b5f" style={styles.accountMetaLabel}>{t('version_label_current_ver')}</Text>
+                <Text size={14} color="#19171c" style={styles.accountMetaValue}>{currentVer}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
           <View style={styles.sectionCard}>
             <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_profile')}</Text>
             <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handlePickAvatar}>
@@ -217,7 +263,10 @@ export default () => {
                 </View>
                 <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_avatar')}</Text>
               </View>
-              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>JPEG / PNG</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleShowNameModal}>
               <View style={styles.profileLeft}>
@@ -226,7 +275,10 @@ export default () => {
                 </View>
                 <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_nickname')}</Text>
               </View>
-              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{nickname}</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleShowSignatureModal}>
               <View style={styles.profileLeft}>
@@ -235,7 +287,10 @@ export default () => {
                 </View>
                 <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_signature')}</Text>
               </View>
-              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{signature || defaultSignature}</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -246,12 +301,12 @@ export default () => {
                 <View style={styles.profileIconWrap}>
                   <Icon name="setting" rawSize={16} color="#5b6474" />
                 </View>
-                <View>
-                  <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_basic_lang')}</Text>
-                  <Text size={11} color="#6b7280">{activeLanguageLabel}</Text>
-                </View>
+                <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_basic_lang')}</Text>
               </View>
-              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" style={isLanguagePanelVisible ? styles.chevronExpanded : undefined} />
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{activeLanguageLabel}</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" style={isLanguagePanelVisible ? styles.chevronExpanded : undefined} />
+              </View>
             </TouchableOpacity>
             {isLanguagePanelVisible
               ? <View style={styles.languageList}>
@@ -306,7 +361,10 @@ export default () => {
                 </View>
                 <Text size={14} color="#111827" style={styles.profileLabel}>GitHub Releases</Text>
               </View>
-              <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{aboutStatusText}</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -404,7 +462,7 @@ export default () => {
 const styles = createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f4f1f2',
   },
   content: {
     paddingBottom: 18,
@@ -423,15 +481,15 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f4f1f2',
   },
   searchWrap: {
     height: 46,
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
+    borderColor: '#ebe5e8',
+    backgroundColor: '#fbfafb',
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -445,24 +503,95 @@ const styles = createStyle({
   list: {
     paddingHorizontal: 16,
   },
-  sectionCard: {
-    borderRadius: 12,
+  accountCard: {
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
+    borderColor: '#eadfe4',
+    backgroundColor: '#fcfbfc',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 12,
+    shadowColor: '#2b1f25',
     shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  accountTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountAvatarWrap: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: '#f1dde4',
+    padding: 4,
+  },
+  accountAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  accountInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  accountName: {
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  accountChevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f5edf1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountMetaRow: {
+    flexDirection: 'row',
+    marginTop: 18,
+  },
+  accountMetaCard: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 16,
+    backgroundColor: '#f7edf0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginRight: 10,
+  },
+  accountMetaCardLast: {
+    marginRight: 0,
+  },
+  accountMetaLabel: {
+    marginBottom: 9,
+    fontWeight: '600',
+  },
+  accountMetaValue: {
+    fontWeight: '700',
+  },
+  sectionCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#eadfe4',
+    backgroundColor: '#fcfbfc',
+    shadowColor: '#2b1f25',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-    paddingTop: 12,
-    paddingBottom: 10,
-    paddingHorizontal: 12,
-    marginBottom: 10,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
   },
   cardTitle: {
     fontWeight: '700',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -478,8 +607,8 @@ const styles = createStyle({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: '#e2dade',
+    backgroundColor: '#f6eef2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -488,50 +617,65 @@ const styles = createStyle({
     fontWeight: '600',
   },
   profileRow: {
-    minHeight: 44,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    marginBottom: 4,
+    borderRadius: 14,
+    backgroundColor: '#faf7f8',
+    borderWidth: 1,
+    borderColor: '#efe7ea',
+    paddingHorizontal: 10,
+    marginBottom: 8,
   },
   profileLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    paddingRight: 12,
+  },
+  profileRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '48%',
   },
   profileIconWrap: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f3edef',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   profileLabel: {
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  profileValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    marginRight: 6,
   },
   chevronExpanded: {
     transform: [{ rotate: '90deg' }],
   },
   languageList: {
-    marginTop: 4,
-    borderRadius: 10,
+    marginTop: 2,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#eef0f3',
-    backgroundColor: '#f9fafb',
+    borderColor: '#efe7ea',
+    backgroundColor: '#faf7f8',
     overflow: 'hidden',
   },
   languageItem: {
-    minHeight: 38,
-    paddingHorizontal: 10,
+    minHeight: 40,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   languageItemActive: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f4edf0',
   },
   languageItemText: {
     fontWeight: '600',
@@ -540,16 +684,16 @@ const styles = createStyle({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#111827',
+    backgroundColor: '#c2395b',
   },
   aboutInfoWrap: {
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#eef0f3',
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 6,
+    borderColor: '#efe7ea',
+    backgroundColor: '#faf7f8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
     gap: 4,
   },
   item: {
@@ -593,7 +737,7 @@ const styles = createStyle({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.22)',
+    backgroundColor: 'rgba(36, 24, 31, 0.18)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -601,14 +745,14 @@ const styles = createStyle({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#eef0f3',
-    shadowColor: '#111827',
+    borderColor: '#efe7ea',
+    shadowColor: '#2b1f25',
     shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 4,
     paddingTop: 18,
     paddingHorizontal: 16,
@@ -636,10 +780,10 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   modalBtnGhost: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f3edef',
   },
   modalBtnPrimary: {
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#f0dfe6',
   },
   modalBtnPrimaryText: {
     fontWeight: '600',

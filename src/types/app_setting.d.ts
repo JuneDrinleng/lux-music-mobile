@@ -342,6 +342,11 @@ declare global {
       'list.addMusicLocationType': AddMusicLocationType
 
       /**
+       * 鎴戠殑姝屽崟鎺掑簭鏂瑰紡
+       */
+      'list.playlistSortMode': 'default' | 'time'
+
+      /**
        * 文件命名方式
        */
       'download.fileName': '歌名 - 歌手' | '歌手 - 歌名' | '歌名'
