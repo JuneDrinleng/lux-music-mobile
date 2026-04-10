@@ -1,5 +1,5 @@
 import TrackPlayer from 'react-native-track-player'
-import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache } from './utils'
+import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache, isNotificationLikeSupported } from './utils'
 
 // const listenEvent = () => {
 //   TrackPlayer.addEventListener('playback-error', err => {
@@ -73,6 +73,8 @@ export {
   isInitialized,
   setVolume,
   setPlaybackRate,
+  updateOptions,
+  isNotificationLikeSupported,
 }
 
 export {

@@ -89,6 +89,7 @@ export const storageDataPrefix = {
   userAvatar: '@user_avatar',
   userName: '@user_name',
   userSignature: '@user_signature',
+  userGender: '@user_gender',
 } as const
 
 // v0.x.x 版本的 data keys

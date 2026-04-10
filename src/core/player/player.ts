@@ -1,4 +1,4 @@
-import { isInitialized, initial as playerInitial, isEmpty, setPause, setPlay, setResource, setStop, initTrackInfo, setVolume, setPlaybackRate } from '@/plugins/player'
+import { isInitialized, initial as playerInitial, isEmpty, setPause, setPlay, setResource, setStop, initTrackInfo, setVolume, setPlaybackRate, updateOptions, isNotificationLikeSupported } from '@/plugins/player'
 import {
   setStatusText,
 } from '@/core/player/playStatus'
@@ -70,6 +70,18 @@ const createGettingUrlId = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
 const diffCurrentMusicInfo = (curMusicInfo: LX.Music.MusicInfo | LX.Download.ListItem): boolean => {
   // return curMusicInfo !== playerState.playMusicInfo.musicInfo || playerState.isPlay
   return createGettingUrlId(curMusicInfo) != global.lx.gettingUrlId || curMusicInfo.id != playerState.playMusicInfo.musicInfo?.id || playerState.isPlay
+}
+
+const getRawMusicInfo = (musicInfo: LX.Player.PlayMusic | null | undefined): LX.Music.MusicInfo | null => {
+  if (!musicInfo) return null
+  return 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
+}
+
+const isLovedMusic = async(musicInfo: LX.Player.PlayMusic | null | undefined) => {
+  const targetMusic = getRawMusicInfo(musicInfo)
+  if (!targetMusic) return false
+  const loveList = await getListMusics(LIST_IDS.LOVE)
+  return loveList.some(item => item.id === targetMusic.id && item.source === targetMusic.source)
 }
 
 const normalizeVolume = (value: number) => {
@@ -707,6 +719,17 @@ export const play = () => {
   })
 }
 
+export const syncNotificationLikeState = async(musicInfo: LX.Player.PlayMusic | null | undefined = playerState.playMusicInfo.musicInfo) => {
+  if (!isInitialized()) return
+  if (!isNotificationLikeSupported) return
+  const isActive = await isLovedMusic(musicInfo)
+  await updateOptions({
+    likeOptions: {
+      isActive,
+    },
+  })
+}
+
 /**
  * 暂停播放
  */
@@ -739,25 +762,47 @@ export const togglePlay = () => {
 /**
  * 收藏当前播放的歌曲
  */
-export const collectMusic = () => {
+export const collectMusic = async() => {
   if (!playerState.playMusicInfo.musicInfo) return
-  void addListMusics(LIST_IDS.LOVE, [
-    'progress' in playerState.playMusicInfo.musicInfo
-      ? playerState.playMusicInfo.musicInfo.metadata.musicInfo
-      : playerState.playMusicInfo.musicInfo,
-  ], settingState.setting['list.addMusicLocationType'])
+  try {
+    await addListMusics(LIST_IDS.LOVE, [
+      'progress' in playerState.playMusicInfo.musicInfo
+        ? playerState.playMusicInfo.musicInfo.metadata.musicInfo
+        : playerState.playMusicInfo.musicInfo,
+    ], settingState.setting['list.addMusicLocationType'])
+    await syncNotificationLikeState()
+  } catch (err) {
+    console.log('collectMusic failed', err)
+  }
+}
+
+export const toggleCollectMusic = async() => {
+  const musicInfo = playerState.playMusicInfo.musicInfo
+  if (!musicInfo) return
+
+  if (await isLovedMusic(musicInfo)) {
+    await uncollectMusic()
+    return
+  }
+
+  await collectMusic()
 }
 
 /**
  * 取消收藏当前播放的歌曲
  */
-export const uncollectMusic = () => {
+export const uncollectMusic = async() => {
   if (!playerState.playMusicInfo.musicInfo) return
-  void removeListMusics(LIST_IDS.LOVE, [
-    'progress' in playerState.playMusicInfo.musicInfo
-      ? playerState.playMusicInfo.musicInfo.metadata.musicInfo.id
-      : playerState.playMusicInfo.musicInfo.id,
-  ])
+  try {
+    await removeListMusics(LIST_IDS.LOVE, [
+      'progress' in playerState.playMusicInfo.musicInfo
+        ? playerState.playMusicInfo.musicInfo.metadata.musicInfo.id
+        : playerState.playMusicInfo.musicInfo.id,
+    ])
+    await syncNotificationLikeState()
+  } catch (err) {
+    console.log('uncollectMusic failed', err)
+  }
 }
 
 /**

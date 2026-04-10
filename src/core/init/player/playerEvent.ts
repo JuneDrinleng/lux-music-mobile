@@ -1,4 +1,4 @@
-import { playNext, setMusicUrl } from '@/core/player/player'
+import { playNext, setMusicUrl, syncNotificationLikeState } from '@/core/player/player'
 import { setStatusText } from '@/core/player/playStatus'
 import { getPosition, isEmpty, setStop } from '@/plugins/player'
 import { isActive } from '@/utils/tools'
@@ -123,6 +123,15 @@ export default () => {
     clearDelayNextTimeout()
     clearLoadingTimeout()
   }
+  const handleSyncNotificationLikeState = () => {
+    void syncNotificationLikeState().catch(err => {
+      console.log('syncNotificationLikeState failed', err)
+    })
+  }
+  const handleMyListMusicUpdate = (ids: string[]) => {
+    if (!ids.includes('love')) return
+    handleSyncNotificationLikeState()
+  }
 
   // const handlePlayedStop = () => {
   //   clearDelayNextTimeout()
@@ -138,4 +147,6 @@ export default () => {
   global.app_event.on('playerEmptied', handleEmpied)
   global.app_event.on('playerError', handleError)
   global.app_event.on('musicToggled', handleSetPlayInfo)
+  global.app_event.on('musicToggled', handleSyncNotificationLikeState)
+  global.app_event.on('myListMusicUpdate', handleMyListMusicUpdate)
 }

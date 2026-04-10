@@ -87,6 +87,27 @@ export default function SearchPage({
   const requestTokenRef = useRef<number | null>(null)
   const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
 
+  const forceDismissSearchInput = useCallback(() => {
+    searchInputRef.current?.blur()
+    Keyboard.dismiss()
+  }, [])
+  const resetSearchPageState = useCallback(() => {
+    searchRequestIdRef.current += 1
+    searchTipRequestIdRef.current += 1
+    setSearchLoading(false)
+    setSearchTipLoading(false)
+    setSearchTipList([])
+    setSearchText('')
+    setSearchKeyword('')
+    setSearchResults([])
+    setSearchInputEditing(false)
+    global.app_event.verticalSearchStateUpdated({
+      keyword: '',
+      source: searchSource ?? 'all',
+    })
+    forceDismissSearchInput()
+  }, [forceDismissSearchInput, searchSource])
+
   const refreshLovedSongMap = useCallback(async() => {
     const list = await getListMusics(LIST_IDS.LOVE)
     const next: Record<string, true> = {}
@@ -120,7 +141,7 @@ export default function SearchPage({
       return
     }
 
-    Keyboard.dismiss()
+    resetSearchPageState()
     Animated.timing(pageAnim, {
       toValue: 0,
       duration: 220,
@@ -129,12 +150,8 @@ export default function SearchPage({
     }).start(({ finished }) => {
       if (finished) setShouldRender(false)
     })
-  }, [pageAnim, visible])
+  }, [pageAnim, resetSearchPageState, visible])
 
-  const forceDismissSearchInput = useCallback(() => {
-    searchInputRef.current?.blur()
-    Keyboard.dismiss()
-  }, [])
   const loadSearchHistoryList = useCallback(() => {
     void getSearchHistory().then((list) => {
       setSearchHistoryList(list)
@@ -197,22 +214,9 @@ export default function SearchPage({
   }, [])
 
   const handleClose = useCallback(() => {
-    searchRequestIdRef.current += 1
-    searchTipRequestIdRef.current += 1
-    setSearchLoading(false)
-    setSearchTipLoading(false)
-    setSearchTipList([])
-    setSearchText('')
-    setSearchKeyword('')
-    setSearchResults([])
-    setSearchInputEditing(false)
-    global.app_event.verticalSearchStateUpdated({
-      keyword: '',
-      source: searchSource ?? 'all',
-    })
-    forceDismissSearchInput()
+    resetSearchPageState()
     onClose()
-  }, [forceDismissSearchInput, onClose, searchSource])
+  }, [onClose, resetSearchPageState])
 
   const handleSearchTextChange = useCallback((text: string) => {
     setSearchText(text)
@@ -632,8 +636,8 @@ export default function SearchPage({
               renderItem={renderSearchResultItem}
               keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
               ListEmptyComponent={(
-                <View style={styles.emptyCard}>
-                  <Text size={13} color="#6b7280">
+                <View style={styles.searchResultStatus}>
+                  <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
                     {searchLoading ? t('me_searching') : t('me_search_no_match')}
                   </Text>
                 </View>
@@ -907,19 +911,11 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   songItem: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-    padding: 10,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    paddingVertical: 7,
+    marginBottom: 1,
   },
   songMain: {
     flex: 1,
@@ -927,14 +923,19 @@ const styles = createStyle({
     alignItems: 'center',
   },
   songPic: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    shadowColor: '#747b8f',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
   },
   songInfo: {
     flex: 1,
-    marginLeft: 10,
-    marginRight: 8,
+    marginLeft: 13,
+    marginRight: 12,
   },
   songMetaRow: {
     flexDirection: 'row',
@@ -951,23 +952,27 @@ const styles = createStyle({
   },
   listTitle: {
     fontWeight: '700',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   searchSongActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 4,
+    marginLeft: 0,
   },
   searchSongInterval: {
-    marginRight: 4,
-    minWidth: 38,
+    marginRight: 6,
+    minWidth: 42,
     textAlign: 'right',
   },
   songActionBtn: {
     width: 30,
     height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.52)',
+    borderWidth: 1,
+    borderColor: 'rgba(230,234,243,0.92)',
   },
   searchLoveFilled: {
     lineHeight: 18,
@@ -976,6 +981,18 @@ const styles = createStyle({
   searchAddText: {
     lineHeight: 19,
     fontWeight: '700',
+  },
+  searchResultStatus: {
+    width: '100%',
+    minHeight: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  searchResultStatusText: {
+    fontWeight: '600',
+    textAlign: 'center',
   },
   emptyCard: {
     borderRadius: 18,

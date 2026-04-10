@@ -30,6 +30,7 @@ const userApiPrefix = storageDataPrefix.userApi
 const userAvatarPrefix = storageDataPrefix.userAvatar
 const userNamePrefix = storageDataPrefix.userName
 const userSignaturePrefix = storageDataPrefix.userSignature
+const userGenderPrefix = storageDataPrefix.userGender
 const openStoragePathPrefix = storageDataPrefix.openStoragePath
 const selectedManagedFolderPrefix = storageDataPrefix.selectedManagedFolder
 
@@ -637,5 +638,22 @@ export const saveUserSignature = async(signature: string | null) => {
   } else {
     userSignature = null
     await removeData(userSignaturePrefix)
+  }
+}
+
+let userGender: 'male' | 'female' | 'unknown' | null | '' = ''
+export const getUserGender = async() => {
+  if (userGender !== '') return userGender ?? 'unknown'
+  // eslint-disable-next-line require-atomic-updates
+  userGender = await getData<'male' | 'female' | 'unknown'>(userGenderPrefix) ?? 'unknown'
+  return userGender
+}
+export const saveUserGender = async(gender: 'male' | 'female' | 'unknown' | null) => {
+  if (gender && ['male', 'female', 'unknown'].includes(gender)) {
+    userGender = gender
+    await saveData(userGenderPrefix, gender)
+  } else {
+    userGender = 'unknown'
+    await saveData(userGenderPrefix, 'unknown')
   }
 }

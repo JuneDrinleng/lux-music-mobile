@@ -1,17 +1,17 @@
 import { BorderRadius } from '@/theme'
 import { createStyle } from '@/utils/tools'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
-import { memo, useCallback, useEffect, useState } from 'react'
-import { View, type ViewProps, Image as _Image, StyleSheet } from 'react-native'
-import FastImage, { type FastImageProps } from '@d11/react-native-fast-image'
+import { type ComponentProps, memo, useCallback, useEffect, useState } from 'react'
+import { View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
 import loadFailPic from '../../../assets/img/loadfail.png'
-export type { OnLoadEvent } from '@d11/react-native-fast-image'
+
+export type OnLoadEvent = NativeSyntheticEvent<ImageLoadEventData>
 
 export interface ImageProps extends ViewProps {
-  style: FastImageProps['style']
+  style: ComponentProps<typeof _Image>['style']
   url?: string | number | null
   cache?: boolean
-  resizeMode?: FastImageProps['resizeMode']
+  resizeMode?: ComponentProps<typeof _Image>['resizeMode']
   blurRadius?: number
   showFallback?: boolean
   onError?: (url: string | number) => void
@@ -35,7 +35,7 @@ const EmptyPic = memo(({ style, nativeID }: { style: ImageProps['style'], native
   )
 })
 
-const Image = memo(({ url, cache, resizeMode = FastImage.resizeMode.cover, blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
+const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
   const [isLoaded, setLoaded] = useState(false)
   const [isError, setError] = useState(false)
   const [cachedUriState, setCachedUriState] = useState<{ rawUri: string, cachedUri: string } | null>(null)
@@ -108,14 +108,12 @@ const Image = memo(({ url, cache, resizeMode = FastImage.resizeMode.cover, blurR
   return (
     <View style={StyleSheet.compose(styles.imageWrap, style)}>
       {shouldShowFallback ? <_Image source={loadFailPic} style={styles.imageLayer} resizeMode="cover" /> : null}
-      <FastImage
+      <_Image
         style={StyleSheet.compose(styles.imageLayer, shouldHideImageLayer ? styles.hiddenLayer : undefined)}
-        transition={shouldShowFallback ? 'fade' : 'none'}
         source={{
           uri,
           headers: isRemote ? defaultHeaders : undefined,
-          priority: FastImage.priority.normal,
-          cache: isRemote ? (cache === false ? 'web' : 'immutable') : 'immutable',
+          cache: isRemote ? (cache === false ? 'reload' : 'force-cache') : undefined,
         }}
         onError={handleError}
         onLoad={handleLoad}
@@ -130,6 +128,7 @@ const Image = memo(({ url, cache, resizeMode = FastImage.resizeMode.cover, blurR
     prevProps.style == nextProps.style &&
     prevProps.nativeID == nextProps.nativeID &&
     prevProps.cache == nextProps.cache &&
+    prevProps.resizeMode == nextProps.resizeMode &&
     prevProps.blurRadius == nextProps.blurRadius &&
     prevProps.showFallback == nextProps.showFallback
 })
@@ -138,7 +137,7 @@ export const getSize = (uri: string, success: (width: number, height: number) =>
   _Image.getSize(uri, success, failure)
 }
 export const clearMemoryCache = async() => {
-  return Promise.all([FastImage.clearMemoryCache(), FastImage.clearDiskCache()])
+  return Promise.resolve()
 }
 export default Image
 

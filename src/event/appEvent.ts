@@ -242,6 +242,10 @@ export class AppEvent extends Event {
     this.emit('userSignatureUpdated', signature)
   }
 
+  userGenderUpdated(gender: 'male' | 'female' | 'unknown') {
+    this.emit('userGenderUpdated', gender)
+  }
+
   openVerticalSearchPage(payload: VerticalSearchPagePayload) {
     this.emit('openVerticalSearchPage', payload)
   }

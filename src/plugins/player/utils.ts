@@ -1,6 +1,7 @@
-import TrackPlayer, { Capability, Event, RepeatMode, State } from 'react-native-track-player'
+import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { playMusic as handlePlayMusic } from './playList'
+import { getTrackCacheKey } from './cache'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
 import { toast } from '@/utils/tools'
 import { notificationIcon } from '@/config'
@@ -176,7 +177,7 @@ export const updateNowPlayingTitles = async(duration: number, title: string, art
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
 
-export const isCached = async(url: string) => TrackPlayer.isCached(url)
+export const isCached = async(url: string, musicInfo?: LX.Player.PlayMusic) => TrackPlayer.isCached(url, musicInfo ? getTrackCacheKey(musicInfo) : null)
 export const getCacheSize = async() => TrackPlayer.getCacheSize()
 export const clearCache = async() => TrackPlayer.clearCache()
 export const migratePlayerCache = async() => {
@@ -243,47 +244,69 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
  */
 // export const playState = callback => TrackPlayer.addEventListener('playback-state', callback)
 
-export const updateOptions = async(options = {
-  // Whether the player should stop running when the app is closed on Android
-  // stopWithApp: true,
+export const isNotificationLikeSupported = typeof Capability.Like == 'number'
 
-  // An array of media controls capabilities
-  // Can contain CAPABILITY_PLAY, CAPABILITY_PAUSE, CAPABILITY_STOP, CAPABILITY_SEEK_TO,
-  // CAPABILITY_SKIP_TO_NEXT, CAPABILITY_SKIP_TO_PREVIOUS, CAPABILITY_SET_RATING
-  capabilities: [
+const createPlayerOptions = (isLiked = false): MetadataOptions => {
+  const capabilities = [
     Capability.Play,
     Capability.Pause,
     Capability.Stop,
     Capability.SeekTo,
     Capability.SkipToNext,
     Capability.SkipToPrevious,
-  ],
-
-  notificationCapabilities: [
+  ]
+  const notificationCapabilities = [
     Capability.Play,
     Capability.Pause,
     Capability.Stop,
     Capability.SkipToNext,
     Capability.SkipToPrevious,
-  ],
-
-  // // An array of capabilities that will show up when the notification is in the compact form on Android
-  compactCapabilities: [
+  ]
+  const compactCapabilities = [
     Capability.Play,
     Capability.Pause,
-    Capability.Stop,
     Capability.SkipToNext,
-  ],
+  ]
 
-  // Icons for the notification on Android (if you don't like the default ones)
-  // playIcon: require('./play-icon.png'),
-  // pauseIcon: require('./pause-icon.png'),
-  // stopIcon: require('./stop-icon.png'),
-  // previousIcon: require('./previous-icon.png'),
-  // nextIcon: require('./next-icon.png'),
-  icon: notificationIcon, // The notification small icon on Android
-}) => {
-  return TrackPlayer.updateOptions(options)
+  const playerOptions: MetadataOptions = {
+    capabilities,
+    notificationCapabilities,
+    compactCapabilities,
+    icon: notificationIcon,
+  }
+
+  // This project patches RNTP on Android to expose a custom notification
+  // like action, while iOS uses the built-in feedback command support.
+  if (isNotificationLikeSupported) {
+    playerOptions.capabilities = [...capabilities, Capability.Like]
+    playerOptions.notificationCapabilities = [...notificationCapabilities, Capability.Like]
+    playerOptions.compactCapabilities = [...compactCapabilities, Capability.Like]
+    playerOptions.likeOptions = {
+      isActive: isLiked,
+      title: global.i18n.t('collect'),
+    }
+  }
+
+  return playerOptions
+}
+
+export const updateOptions = async(options?: Partial<MetadataOptions>) => {
+  const baseOptions = createPlayerOptions()
+  const nextOptions: MetadataOptions = {
+    ...baseOptions,
+    ...options,
+  }
+
+  if (isNotificationLikeSupported && (baseOptions.likeOptions ?? options?.likeOptions)) {
+    nextOptions.likeOptions = {
+      ...baseOptions.likeOptions,
+      ...options?.likeOptions,
+    }
+  } else {
+    delete nextOptions.likeOptions
+  }
+
+  return TrackPlayer.updateOptions(nextOptions)
 }
 
 // export const setMaxCache = async size => {

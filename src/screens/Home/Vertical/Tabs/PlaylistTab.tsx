@@ -20,6 +20,7 @@ import {
   type ListRenderItem,
 } from 'react-native'
 import { BlurView } from '@react-native-community/blur'
+import { Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -30,13 +31,14 @@ import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, updateListMusicPosition, updateUserList } from '@/core/list'
-import { addMusicToQueueAndPlay, playListAsQueue } from '@/core/player/player'
+import { addMusicToQueueAndPlay, isPlayQueueMetaId, pause, play, playListAsQueue } from '@/core/player/player'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { search as searchOnlineMusic } from '@/core/search/music'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import settingState from '@/store/setting/state'
 import { useSettingValue } from '@/store/setting/hook'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
+import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
 import { useI18n } from '@/lang'
 import listState from '@/store/list/state'
 import commonState from '@/store/common/state'
@@ -125,6 +127,14 @@ const getPlaylistSortTime = (listInfo: LX.List.UserListInfo): number => {
     (listInfo.locationUpdateTime ?? 0)
 }
 
+const getQueueSourceListId = (queueMetaId: string | null | undefined) => {
+  if (!isPlayQueueMetaId(queueMetaId)) return null
+  const queueBody = queueMetaId.slice('play_queue__'.length)
+  const timestampSeparatorIndex = queueBody.lastIndexOf('_')
+  if (timestampSeparatorIndex < 0) return queueBody
+  return queueBody.slice(0, timestampSeparatorIndex)
+}
+
 type SourceMenu = typeof sourceMenus[number]
 type SearchResultItem = LX.Music.MusicInfoOnline
 interface ImportCandidate {
@@ -181,6 +191,8 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
     return extraInset
   }, [statusBarHeight])
   const playlists = useMyList()
+  const playMusicInfo = usePlayMusicInfo()
+  const isPlay = useIsPlay()
   const detailSceneWidth = Dimensions.get('window').width
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>({})
   const [selectedListId, setSelectedListId] = useState<string | null>(null)
@@ -204,6 +216,7 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
   const [isDetailTransitioning, setDetailTransitioning] = useState(false)
+  const [linkedPlaylistId, setLinkedPlaylistId] = useState<string | null>(null)
   const playlistSortMode = useSettingValue('list.playlistSortMode')
   const [playlistDisplayMode, setPlaylistDisplayMode] = useState<'grid' | 'list'>('grid')
   const detailRequestIdRef = useRef(0)
@@ -310,6 +323,7 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
 
     return cards
   }, [defaultPlaylist, defaultSongsCount, likedSongsCount, lovePlaylist, playlistMetaMap, t])
+  const currentQueueMetaId = playMusicInfo.listId === LIST_IDS.TEMP ? listState.tempListMeta.id : null
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
@@ -350,6 +364,58 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
       useNativeDriver: true,
     }).start()
   }, [displaySwitchAnim, isPlaylistListMode])
+  useEffect(() => {
+    let cancelled = false
+
+    const syncLinkedPlaylist = async() => {
+      const currentListId = playMusicInfo.listId
+      if (!currentListId || !playMusicInfo.musicInfo) {
+        if (!cancelled) setLinkedPlaylistId(null)
+        return
+      }
+
+      if (currentListId !== LIST_IDS.TEMP) {
+        if (!cancelled) setLinkedPlaylistId(currentListId)
+        return
+      }
+
+      const sourceListId = getQueueSourceListId(currentQueueMetaId)
+      if (!sourceListId) {
+        if (!cancelled) setLinkedPlaylistId(null)
+        return
+      }
+
+      const [tempList, sourceList] = await Promise.all([
+        getListMusics(LIST_IDS.TEMP),
+        getListMusics(sourceListId),
+      ])
+      const isSameList = tempList.length === sourceList.length && tempList.every((music, index) => {
+        const sourceMusic = sourceList[index]
+        return sourceMusic != null && sourceMusic.id === music.id && sourceMusic.source === music.source
+      })
+
+      if (!cancelled) {
+        setLinkedPlaylistId(isSameList ? sourceListId : null)
+      }
+    }
+
+    const handleListUpdate = (ids: string[]) => {
+      if (!playMusicInfo.listId) return
+      if (playMusicInfo.listId !== LIST_IDS.TEMP) return
+
+      const sourceListId = getQueueSourceListId(currentQueueMetaId)
+      if (!ids.includes(LIST_IDS.TEMP) && (!sourceListId || !ids.includes(sourceListId))) return
+      void syncLinkedPlaylist()
+    }
+
+    void syncLinkedPlaylist()
+    global.app_event.on('myListMusicUpdate', handleListUpdate)
+
+    return () => {
+      cancelled = true
+      global.app_event.off('myListMusicUpdate', handleListUpdate)
+    }
+  }, [currentQueueMetaId, playMusicInfo.listId, playMusicInfo.musicInfo])
   useEffect(() => {
     detailSongsRef.current = detailSongs
   }, [detailSongs])
@@ -829,6 +895,23 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   const handleShowCreateListModal = useCallback(() => {
     createListDialogRef.current?.show('')
   }, [])
+  const isPlaylistCurrent = useCallback((listId: string | null | undefined) => {
+    if (!listId || !linkedPlaylistId) return false
+    return linkedPlaylistId === listId
+  }, [linkedPlaylistId])
+  const handlePlayPlaylist = useCallback(async(listId: string | null | undefined) => {
+    if (!listId) return
+    if (isPlaylistCurrent(listId)) {
+      if (isPlay) await pause()
+      else play()
+      return
+    }
+    await playListAsQueue(listId, 0)
+  }, [isPlay, isPlaylistCurrent])
+  const handlePlayPlaylistPress = useCallback((listId: string | null | undefined) => (event: GestureResponderEvent) => {
+    event.stopPropagation()
+    void handlePlayPlaylist(listId)
+  }, [handlePlayPlaylist])
   const handleTogglePlaylistSort = useCallback(() => {
     updateSetting({ 'list.playlistSortMode': playlistSortMode == 'default' ? 'time' : 'default' })
   }, [playlistSortMode])
@@ -1618,8 +1701,8 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
             renderItem={renderSearchResultItem}
             keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
             ListEmptyComponent={(
-              <View style={styles.emptyCard}>
-                <Text size={13} color="#6b7280">
+              <View style={styles.searchResultStatus}>
+                <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
                   {searchLoading
                     ? t('me_searching')
                     : searchKeyword
@@ -1898,6 +1981,8 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
             {displayPlaylists.length
               ? displayPlaylists.map((item, index) => {
                 const tone = getPlaylistCardTone(index + 2)
+                const playlistCount = playlistMetaMap[item.id]?.count ?? 0
+                const isCurrentPlaylist = isPlaylistCurrent(item.id)
                 return (
                   isPlaylistListMode
                     ? <TouchableOpacity key={item.id} style={[styles.listRowItem, index < displayPlaylists.length - 1 ? styles.listRowSpacing : null]} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
@@ -1910,11 +1995,20 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
                           </View>
                           <View style={styles.listRowInfo}>
                             <Text size={15} color="#171a22" style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
-                            <Text size={12} color="#7d8190" style={styles.listRowSubtitle}>{t('me_songs_count', { num: playlistMetaMap[item.id]?.count ?? 0 })}</Text>
+                            <Text size={12} color="#7d8190" style={styles.listRowSubtitle} numberOfLines={1}>{t('home_daily_tracks', { count: playlistCount })}</Text>
                           </View>
-                          <View style={styles.listRowAction}>
-                            <Icon name="chevron-right" rawSize={14} color="#aab0bd" />
-                          </View>
+                          <TouchableOpacity
+                            style={styles.listRowPlayButton}
+                            activeOpacity={0.82}
+                            onPress={handlePlayPlaylistPress(item.id)}
+                          >
+                            {isCurrentPlaylist && isPlay
+                              ? <View style={styles.pauseGlyphSmall}>
+                                  <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
+                                  <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
+                                </View>
+                              : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
+                          </TouchableOpacity>
                         </TouchableOpacity>
                     : <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
                         <View style={styles.listPicWrap}>
@@ -1926,7 +2020,7 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
                         </View>
                         <View style={styles.listInfo}>
                           <Text size={14} color="#19171c" style={styles.listTitle} numberOfLines={2}>{item.name}</Text>
-                          <Text size={11} color="#7a7179">{t('me_songs_count', { num: playlistMetaMap[item.id]?.count ?? 0 })}</Text>
+                          <Text size={11} color="#7a7179">{t('me_songs_count', { num: playlistCount })}</Text>
                         </View>
                       </TouchableOpacity>
                 )
@@ -2613,30 +2707,25 @@ const styles = createStyle({
   },
   listRowItem: {
     width: '100%',
-    minHeight: 72,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    paddingVertical: 7,
   },
   listRowSpacing: {
-    marginBottom: 10,
+    marginBottom: 1,
   },
   listRowCoverWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 58,
+    height: 58,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#f2f5fb',
+    shadowColor: '#747b8f',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
   },
   listRowCover: {
     width: '100%',
@@ -2644,27 +2733,48 @@ const styles = createStyle({
   },
   listRowInfo: {
     flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
+    marginLeft: 13,
+    marginRight: 12,
   },
   listRowTitle: {
-    fontWeight: '600',
-    marginBottom: 2,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   listRowSubtitle: {
     fontWeight: '500',
   },
-  listRowAction: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  listRowPlayButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f6f7fb',
+    backgroundColor: 'rgba(255,255,255,0.52)',
+    borderWidth: 1,
+    borderColor: 'rgba(230,234,243,0.92)',
   },
   listTitle: {
     fontWeight: '700',
     marginBottom: 5,
+  },
+  pauseGlyphSmall: {
+    width: 10,
+    height: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pauseBar: {
+    width: 4,
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+  },
+  pauseBarSmall: {
+    width: 3,
+  },
+  pauseBarDark: {
+    backgroundColor: '#303340',
   },
   songItem: {
     borderRadius: 16,
@@ -2826,6 +2936,17 @@ const styles = createStyle({
   importSongMain: {
     flex: 1,
     marginLeft: 8,
+  },
+  searchResultStatus: {
+    width: '100%',
+    minHeight: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  searchResultStatusText: {
+    fontWeight: '600',
+    textAlign: 'center',
   },
   emptyCard: {
     width: '100%',

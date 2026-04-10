@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, Modal, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -11,7 +11,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature } from '@/utils/data'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
@@ -27,6 +27,7 @@ const languageOptions = [
   { locale: 'en_us', label: 'English' },
 ] as const
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
+const genderOptionValues = ['male', 'female', 'unknown'] as const
 
 const settingItems = [
   { title: 'App Theme', subtitle: 'Light Mode', icon: 'setting', enabled: true },
@@ -42,19 +43,23 @@ export default () => {
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
+  const detailSceneWidth = Dimensions.get('window').width
   const sourceRef = useRef<SourceType>(null)
   const syncRef = useRef<SyncType>(null)
   const avatarFileRef = useRef<FileSelectType>(null)
+  const profileDetailAnim = useRef(new Animated.Value(0)).current
+  const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
   const [signatureDraft, setSignatureDraft] = useState('')
+  const [gender, setGender] = useState<typeof genderOptionValues[number]>('unknown')
   const [isNameModalVisible, setNameModalVisible] = useState(false)
   const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
-  const [isLanguagePanelVisible, setLanguagePanelVisible] = useState(false)
-  const [isSearchSourcePanelVisible, setSearchSourcePanelVisible] = useState(false)
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
+  const [isProfileDetailVisible, setProfileDetailVisible] = useState(false)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender'>(null)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
@@ -72,9 +77,23 @@ export default () => {
     { value: 'wy', label: 'NetEase' },
     { value: 'mg', label: 'Migu' },
   ] as const, [t])
+  const genderOptions = useMemo(() => [
+    { value: 'male', label: t('setting_profile_gender_male') },
+    { value: 'female', label: t('setting_profile_gender_female') },
+    { value: 'unknown', label: t('setting_profile_gender_unknown') },
+  ] as const, [t])
   const activeSearchSourceLabel = useMemo(() => {
     return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
   }, [searchDefaultSource, searchSourceOptions, t])
+  const activeGenderLabel = useMemo(() => {
+    return genderOptions.find(item => item.value === gender)?.label ?? t('setting_profile_gender_unknown')
+  }, [gender, genderOptions, t])
+  const genderBadgeText = gender === 'male' ? 'M' : gender === 'female' ? 'F' : '?'
+  const genderBadgeStyle = gender === 'male'
+    ? styles.profileHeroBadgeMale
+    : gender === 'female'
+      ? styles.profileHeroBadgeFemale
+      : styles.profileHeroBadgeUnknown
   const aboutStatusText = versionInfo.status == 'downloading'
     ? t('version_btn_downloading', {
       total: sizeFormate(versionProgress.total),
@@ -153,6 +172,23 @@ export default () => {
     }
   }, [defaultSignature])
   useEffect(() => {
+    let isUnmounted = false
+    void getUserGender().then((value) => {
+      if (isUnmounted) return
+      setGender(value ?? 'unknown')
+    })
+
+    const handleGenderUpdate = (value: typeof genderOptionValues[number]) => {
+      setGender(value)
+    }
+    global.app_event.on('userGenderUpdated', handleGenderUpdate)
+
+    return () => {
+      isUnmounted = true
+      global.app_event.off('userGenderUpdated', handleGenderUpdate)
+    }
+  }, [])
+  useEffect(() => {
     const handleSettingsSearchStateUpdated = (payload: { keyword: string }) => {
       setSettingsSearchQuery(payload.keyword)
     }
@@ -167,11 +203,13 @@ export default () => {
     if (!normalizedSettingsSearchQuery) return true
     return values.some((value) => value?.toLowerCase().includes(normalizedSettingsSearchQuery))
   }, [normalizedSettingsSearchQuery])
-  const showProfileSection = matchesSettingsSearch(
+  const showProfileEntry = matchesSettingsSearch(
     t('setting_profile'),
     t('setting_profile_avatar'),
     t('setting_profile_nickname'),
     t('setting_profile_signature'),
+    t('setting_profile_gender'),
+    activeGenderLabel,
     nickname,
     signature || defaultSignature,
     'JPEG',
@@ -197,13 +235,57 @@ export default () => {
     currentVer,
     t('version_label_current_ver'),
   )
-  const showHeroSection = !normalizedSettingsSearchQuery || showProfileSection
-  const hasSettingSearchResults = showProfileSection ||
+  const showHeroSection = !normalizedSettingsSearchQuery || showProfileEntry
+  const hasSettingSearchResults = showProfileEntry ||
     showAppearanceSection ||
     showSearchSection ||
     showPlayerSection ||
     showSyncSection ||
     showAboutSection
+  const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [detailSceneWidth, 0],
+  }), [detailSceneWidth, profileDetailAnim])
+  const profileDetailOpacity = useMemo(() => profileDetailAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1],
+  }), [profileDetailAnim])
+  const optionDetailTranslateX = useMemo(() => optionDetailAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [detailSceneWidth, 0],
+  }), [detailSceneWidth, optionDetailAnim])
+  const optionDetailOpacity = useMemo(() => optionDetailAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1],
+  }), [optionDetailAnim])
+  const optionDetailTitle = activeOptionDetail === 'language'
+    ? t('setting_basic_lang')
+    : activeOptionDetail === 'searchSource'
+      ? t('setting_search_source')
+      : activeOptionDetail === 'gender'
+        ? t('setting_profile_gender')
+      : ''
+
+  useEffect(() => {
+    Animated.timing(profileDetailAnim, {
+      toValue: isProfileDetailVisible ? 1 : 0,
+      duration: isProfileDetailVisible ? 248 : 220,
+      easing: isProfileDetailVisible
+        ? Easing.bezier(0.22, 0.84, 0.22, 1)
+        : Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    }).start()
+  }, [isProfileDetailVisible, profileDetailAnim])
+  useEffect(() => {
+    Animated.timing(optionDetailAnim, {
+      toValue: activeOptionDetail ? 1 : 0,
+      duration: activeOptionDetail ? 248 : 220,
+      easing: activeOptionDetail
+        ? Easing.bezier(0.22, 0.84, 0.22, 1)
+        : Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    }).start()
+  }, [activeOptionDetail, optionDetailAnim])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
@@ -260,24 +342,41 @@ export default () => {
       setSignatureModalVisible(false)
     })
   }
-  const handleToggleLanguagePanel = () => {
-    setSearchSourcePanelVisible(false)
-    setLanguagePanelVisible((visible) => !visible)
+  const handleOpenLanguageDetail = () => {
+    setActiveOptionDetail('language')
   }
-  const handleToggleSearchSourcePanel = () => {
-    setLanguagePanelVisible(false)
-    setSearchSourcePanelVisible((visible) => !visible)
+  const handleOpenSearchSourceDetail = () => {
+    setActiveOptionDetail('searchSource')
+  }
+  const handleOpenGenderDetail = () => {
+    setActiveOptionDetail('gender')
+  }
+  const handleCloseOptionDetail = () => {
+    setActiveOptionDetail(null)
   }
   const handleSelectLanguage = (locale: typeof languageOptions[number]['locale']) => {
     setLanguage(locale)
-    setLanguagePanelVisible(false)
+    setActiveOptionDetail(null)
   }
   const handleSelectSearchSource = (source: typeof searchSourceOptionValues[number]) => {
     updateSetting({ 'search.defaultSource': source })
-    setSearchSourcePanelVisible(false)
+    setActiveOptionDetail(null)
+  }
+  const handleSelectGender = (nextGender: typeof genderOptionValues[number]) => {
+    void saveUserGender(nextGender).then(() => {
+      setGender(nextGender)
+      global.app_event.userGenderUpdated(nextGender)
+      setActiveOptionDetail(null)
+    })
   }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
+  }
+  const handleOpenProfileDetail = () => {
+    setProfileDetailVisible(true)
+  }
+  const handleCloseProfileDetail = () => {
+    setProfileDetailVisible(false)
   }
 
   return (
@@ -292,11 +391,13 @@ export default () => {
       >
         <View style={styles.list}>
           {showHeroSection
-            ? <TouchableOpacity style={styles.profileHero} activeOpacity={0.88} onPress={handlePickAvatar}>
+            ? <TouchableOpacity style={styles.profileHero} activeOpacity={0.88} onPress={handleOpenProfileDetail}>
                 <View style={styles.profileHeroAvatarWrap}>
-                  <Image style={styles.profileHeroAvatar} url={avatarUrl} resizeMode="contain" />
-                  <View style={styles.profileHeroBadge}>
-                    <Icon name="music" rawSize={12} color="#f4ffbe" />
+                  <View style={styles.profileHeroAvatarInner}>
+                    <Image style={styles.profileHeroAvatar} url={avatarUrl} resizeMode="contain" />
+                  </View>
+                  <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
+                    <Text size={11} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>
                   </View>
                 </View>
                 <View style={styles.profileHeroContent}>
@@ -317,57 +418,11 @@ export default () => {
               </TouchableOpacity>
             : null}
 
-          {showProfileSection
-            ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
-                <View style={styles.sectionGroup}>
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handlePickAvatar}>
-                    <View style={styles.groupRowLeft}>
-                      <View style={[styles.groupRowIconWrap, styles.groupRowAvatarWrap]}>
-                        <Image style={styles.groupRowAvatar} url={avatarUrl} resizeMode="contain" />
-                      </View>
-                      <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>JPEG / PNG</Text>
-                      </View>
-                    </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-                  </TouchableOpacity>
-                  <View style={styles.groupDivider} />
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
-                    <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="menu" rawSize={18} color="#58651b" />
-                      </View>
-                      <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
-                      </View>
-                    </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-                  </TouchableOpacity>
-                  <View style={styles.groupDivider} />
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
-                    <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="comment" rawSize={18} color="#58651b" />
-                      </View>
-                      <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{signature || defaultSignature}</Text>
-                      </View>
-                    </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            : null}
-
           {showAppearanceSection
             ? <View style={styles.sectionCard}>
                 <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
                 <View style={styles.sectionGroup}>
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleToggleLanguagePanel}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenLanguageDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={styles.groupRowIconWrap}>
                         <Icon name="setting" rawSize={18} color="#58651b" />
@@ -377,29 +432,8 @@ export default () => {
                         <Text size={12} color="#767d89" numberOfLines={1}>{activeLanguageLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" style={isLanguagePanelVisible ? styles.chevronExpanded : undefined} />
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
-                  {isLanguagePanelVisible
-                    ? <>
-                        <View style={styles.groupDivider} />
-                        <View style={styles.inlineOptionList}>
-                      {languageOptions.map(option => {
-                        const isActive = (activeLangId ?? 'en_us') === option.locale
-                        return (
-                          <TouchableOpacity
-                            key={option.locale}
-                            style={styles.inlineOptionRow}
-                            activeOpacity={0.8}
-                            onPress={() => { handleSelectLanguage(option.locale) }}
-                          >
-                            <Text size={13} color={isActive ? '#20242d' : '#5f6572'} style={styles.inlineOptionText}>{option.label}</Text>
-                            {isActive ? <View style={styles.languageActiveDot} /> : null}
-                          </TouchableOpacity>
-                        )
-                      })}
-                        </View>
-                      </>
-                    : null}
                 </View>
               </View>
             : null}
@@ -408,7 +442,7 @@ export default () => {
             ? <View style={styles.sectionCard}>
                 <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search')}</Text>
                 <View style={styles.sectionGroup}>
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleToggleSearchSourcePanel}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSearchSourceDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={styles.groupRowIconWrap}>
                         <Icon name="search-2" rawSize={18} color="#58651b" />
@@ -418,29 +452,8 @@ export default () => {
                         <Text size={12} color="#767d89" numberOfLines={1}>{activeSearchSourceLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" style={isSearchSourcePanelVisible ? styles.chevronExpanded : undefined} />
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
-                  {isSearchSourcePanelVisible
-                    ? <>
-                        <View style={styles.groupDivider} />
-                        <View style={styles.inlineOptionList}>
-                      {searchSourceOptions.map(option => {
-                        const isActive = (searchDefaultSource ?? 'all') === option.value
-                        return (
-                          <TouchableOpacity
-                            key={option.value}
-                            style={styles.inlineOptionRow}
-                            activeOpacity={0.8}
-                            onPress={() => { handleSelectSearchSource(option.value) }}
-                          >
-                            <Text size={13} color={isActive ? '#20242d' : '#5f6572'} style={styles.inlineOptionText}>{option.label}</Text>
-                            {isActive ? <View style={styles.languageActiveDot} /> : null}
-                          </TouchableOpacity>
-                        )
-                      })}
-                        </View>
-                      </>
-                    : null}
                 </View>
               </View>
             : null}
@@ -540,6 +553,183 @@ export default () => {
         }
       </ScrollView>
       <FileSelect ref={avatarFileRef} />
+      <Animated.View
+        pointerEvents={isProfileDetailVisible ? 'auto' : 'none'}
+        style={[
+          styles.profileDetailLayer,
+          {
+            opacity: profileDetailOpacity,
+            transform: [{ translateX: profileDetailTranslateX }],
+          },
+        ]}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: 18 + bottomDockHeight }]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+        >
+          <View style={styles.profileDetailHeaderRow}>
+            <TouchableOpacity style={styles.profileDetailBackBtn} activeOpacity={0.82} onPress={handleCloseProfileDetail}>
+              <Icon name="chevron-left" rawSize={20} color="#232733" />
+            </TouchableOpacity>
+            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
+          </View>
+
+          <View style={styles.profileDetailHero}>
+            <View style={styles.profileDetailAvatarWrap}>
+              <View style={styles.profileDetailAvatarInner}>
+                <Image style={styles.profileDetailAvatar} url={avatarUrl} resizeMode="contain" />
+              </View>
+            </View>
+            <Text size={22} color="#1a1c1e" style={styles.profileDetailName}>{nickname}</Text>
+            <Text size={13} color="#6a707c" style={styles.profileDetailSignature}>{signature || defaultSignature}</Text>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionGroup}>
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handlePickAvatar}>
+                <View style={styles.groupRowLeft}>
+                  <View style={[styles.groupRowIconWrap, styles.groupRowAvatarWrap]}>
+                    <Image style={styles.groupRowAvatar} url={avatarUrl} resizeMode="contain" />
+                  </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>JPEG / PNG</Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+              </TouchableOpacity>
+              <View style={styles.groupDivider} />
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
+                <View style={styles.groupRowLeft}>
+                  <View style={styles.groupRowIconWrap}>
+                    <Icon name="menu" rawSize={18} color="#58651b" />
+                  </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+              </TouchableOpacity>
+              <View style={styles.groupDivider} />
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
+                <View style={styles.groupRowLeft}>
+                  <View style={styles.groupRowIconWrap}>
+                    <Icon name="comment" rawSize={18} color="#58651b" />
+                  </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>{signature || defaultSignature}</Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+              </TouchableOpacity>
+              <View style={styles.groupDivider} />
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenGenderDetail}>
+                <View style={styles.groupRowLeft}>
+                  <View style={[styles.groupRowIconWrap, genderBadgeStyle]}>
+                    <Text size={13} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>
+                  </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>{activeGenderLabel}</Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </Animated.View>
+      <Animated.View
+        pointerEvents={activeOptionDetail ? 'auto' : 'none'}
+        style={[
+          styles.optionDetailLayer,
+          {
+            opacity: optionDetailOpacity,
+            transform: [{ translateX: optionDetailTranslateX }],
+          },
+        ]}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: 18 + bottomDockHeight }]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+        >
+          <View style={styles.profileDetailHeaderRow}>
+            <TouchableOpacity style={styles.profileDetailBackBtn} activeOpacity={0.82} onPress={handleCloseOptionDetail}>
+              <Icon name="chevron-left" rawSize={20} color="#232733" />
+            </TouchableOpacity>
+            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{optionDetailTitle}</Text>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionGroup}>
+              {activeOptionDetail === 'language'
+                ? languageOptions.map((option, index) => {
+                  const isActive = (activeLangId ?? 'en_us') === option.locale
+                  return (
+                    <View key={option.locale}>
+                      <TouchableOpacity
+                        style={styles.optionDetailRow}
+                        activeOpacity={0.84}
+                        onPress={() => { handleSelectLanguage(option.locale) }}
+                      >
+                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        {isActive ? <View style={styles.languageActiveDot} /> : null}
+                      </TouchableOpacity>
+                      {index < languageOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                    </View>
+                  )
+                })
+                : null}
+              {activeOptionDetail === 'searchSource'
+                ? searchSourceOptions.map((option, index) => {
+                  const isActive = (searchDefaultSource ?? 'all') === option.value
+                  return (
+                    <View key={option.value}>
+                      <TouchableOpacity
+                        style={styles.optionDetailRow}
+                        activeOpacity={0.84}
+                        onPress={() => { handleSelectSearchSource(option.value) }}
+                      >
+                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        {isActive ? <View style={styles.languageActiveDot} /> : null}
+                      </TouchableOpacity>
+                      {index < searchSourceOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                    </View>
+                  )
+                })
+                : null}
+              {activeOptionDetail === 'gender'
+                ? genderOptions.map((option, index) => {
+                  const isActive = gender === option.value
+                  return (
+                    <View key={option.value}>
+                      <TouchableOpacity
+                        style={styles.optionDetailRow}
+                        activeOpacity={0.84}
+                        onPress={() => { handleSelectGender(option.value) }}
+                      >
+                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        {isActive ? <View style={styles.languageActiveDot} /> : null}
+                      </TouchableOpacity>
+                      {index < genderOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                    </View>
+                  )
+                })
+                : null}
+            </View>
+          </View>
+        </ScrollView>
+      </Animated.View>
       <Modal
         visible={isNameModalVisible}
         transparent
@@ -715,6 +905,72 @@ const styles = createStyle({
   list: {
     paddingHorizontal: 0,
   },
+  profileDetailLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 4,
+    elevation: APP_LAYER_INDEX.controls + 4,
+    backgroundColor: '#eef0fb',
+  },
+  optionDetailLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 5,
+    elevation: APP_LAYER_INDEX.controls + 5,
+    backgroundColor: '#eef0fb',
+  },
+  profileDetailHeaderRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  profileDetailBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(231,236,245,0.96)',
+    marginRight: 12,
+  },
+  profileDetailTitle: {
+    fontWeight: '700',
+  },
+  profileDetailHero: {
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  profileDetailAvatarWrap: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    padding: 5,
+    backgroundColor: '#ffffff',
+    marginBottom: 14,
+  },
+  profileDetailAvatarInner: {
+    flex: 1,
+    borderRadius: 49,
+    overflow: 'hidden',
+    backgroundColor: '#eef1f7',
+  },
+  profileDetailAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 49,
+    backgroundColor: '#eef1f7',
+  },
+  profileDetailName: {
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  profileDetailSignature: {
+    textAlign: 'center',
+    lineHeight: 19,
+  },
   profileHero: {
     borderRadius: 24,
     backgroundColor: '#ffffff',
@@ -739,6 +995,12 @@ const styles = createStyle({
     padding: 4,
     backgroundColor: '#ffffff',
   },
+  profileHeroAvatarInner: {
+    flex: 1,
+    borderRadius: 36,
+    overflow: 'hidden',
+    backgroundColor: '#eef1f7',
+  },
   profileHeroAvatar: {
     width: '100%',
     height: '100%',
@@ -757,6 +1019,19 @@ const styles = createStyle({
     borderColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileHeroBadgeMale: {
+    backgroundColor: '#4c78d8',
+  },
+  profileHeroBadgeFemale: {
+    backgroundColor: '#cb6f9b',
+  },
+  profileHeroBadgeUnknown: {
+    backgroundColor: '#58651b',
+  },
+  profileHeroBadgeText: {
+    fontWeight: '700',
+    lineHeight: 13,
   },
   profileHeroContent: {
     flex: 1,
@@ -951,6 +1226,10 @@ const styles = createStyle({
     borderRadius: 18,
     backgroundColor: '#eef1f7',
   },
+  groupRowBadgeText: {
+    fontWeight: '700',
+    lineHeight: 15,
+  },
   groupRowTextWrap: {
     flex: 1,
   },
@@ -977,6 +1256,22 @@ const styles = createStyle({
   },
   inlineOptionText: {
     fontWeight: '600',
+  },
+  optionDetailRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+  },
+  optionDetailText: {
+    fontWeight: '600',
+  },
+  optionDetailDivider: {
+    height: 1,
+    marginLeft: 18,
+    marginRight: 18,
+    backgroundColor: '#e1e6ef',
   },
   groupEmbedWrap: {
     paddingHorizontal: 18,

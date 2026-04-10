@@ -2,11 +2,11 @@
 import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-track-player'
 // import { store } from '@/store'
 // import { action as playerAction, STATUS } from '@/store/modules/player'
-import { isTempId, isEmpty } from './utils'
+import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
 // import { play as lrcPlay, pause as lrcPause } from '@/core/lyric'
 import { exitApp } from '@/core/common'
 import { getCurrentTrackId } from './playList'
-import { pause, play, playNext, playPrev } from '@/core/player/player'
+import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
 
 let isInitialized = false
 
@@ -52,6 +52,12 @@ const registerPlaybackService = async() => {
     // console.log('remote-stop')
     void handleExitApp('Remote Stop')
   })
+
+  if (isNotificationLikeSupported) {
+    TrackPlayer.addEventListener(TPEvent.RemoteLike, () => {
+      void toggleCollectMusic()
+    })
+  }
 
   // TrackPlayer.addEventListener(TPEvent.RemoteDuck, async({ permanent, paused, ducking }) => {
   //   console.log('remote-duck')
@@ -141,6 +147,7 @@ const registerPlaybackService = async() => {
       //   store.dispatch(playerAction.playNext(true))
       // }
     }
+    await syncNotificationLikeState()
   //   // if (!info.nextTrack) return
   //   // if (info.track) {
   //   //   const track = info.track.substring(0, info.track.lastIndexOf('__//'))
