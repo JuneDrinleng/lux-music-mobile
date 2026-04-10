@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
-import { View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
-import type { NAV_ID_Type } from '@/config/constant'
+import { APP_LAYER_INDEX, type NAV_ID_Type } from '@/config/constant'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
 import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
@@ -35,10 +35,12 @@ const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId] ?? 0)
   const searchRequestTokenRef = useRef(0)
+  const playlistDetailIdRef = useRef<string | null>(null)
   const [activeNavId, setActiveNavId] = useState<'nav_search' | 'nav_love' | 'nav_setting'>(normalizeNavId(commonState.navActiveId))
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
+  const [playlistDetailId, setPlaylistDetailId] = useState<string | null>(null)
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -54,7 +56,12 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
+    playlistDetailIdRef.current = playlistDetailId
+  }, [playlistDetailId])
+
+  useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
+      if (playlistDetailIdRef.current) setPlaylistDetailId(null)
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -72,6 +79,7 @@ const Main = () => {
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
+      if (playlistDetailIdRef.current) setPlaylistDetailId(null)
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -92,6 +100,18 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
+    const handleOpenPlaylistDetail = (listId: string) => {
+      setSearchPageVisible(false)
+      setPlaylistDetailId(listId)
+    }
+
+    global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
+    return () => {
+      global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
+    }
+  }, [])
+
+  useEffect(() => {
     global.app_event.verticalSearchPageVisibleChanged(searchPageVisible)
   }, [searchPageVisible])
 
@@ -100,6 +120,7 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
+  const playlistDetailVisible = Boolean(playlistDetailId)
   const sharedTopBarVisible = !searchPageVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
@@ -116,7 +137,7 @@ const Main = () => {
         ref={pagerViewRef}
         initialPage={activeIndexRef.current}
         onPageSelected={onPageSelected}
-        scrollEnabled={!searchPageVisible}
+        scrollEnabled={!searchPageVisible && !playlistDetailVisible}
         style={styles.pagerView}
       >
         <View collapsable={false} key="nav_search" style={styles.pageStyle}>
@@ -134,14 +155,32 @@ const Main = () => {
         request={searchPageRequest}
         onClose={() => { setSearchPageVisible(false) }}
       />
+      {playlistDetailId
+        ? <View pointerEvents="box-none" style={styles.overlayLayer}>
+            <View style={styles.playlistDetailOverlay}>
+              <PlaylistTab
+                standaloneListId={playlistDetailId}
+                onStandaloneClose={() => { setPlaylistDetailId(null) }}
+              />
+            </View>
+          </View>
+        : null}
     </View>
-  ), [activeNavId, onPageSelected, searchPageRequest, searchPageVisible, sharedTopBarVisible])
+  ), [activeNavId, onPageSelected, playlistDetailId, playlistDetailVisible, searchPageRequest, searchPageVisible, sharedTopBarVisible])
 
   return component
 }
 
 const styles = createStyle({
   root: {
+    flex: 1,
+  },
+  overlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 8,
+    elevation: APP_LAYER_INDEX.controls + 8,
+  },
+  playlistDetailOverlay: {
     flex: 1,
   },
   pagerView: {

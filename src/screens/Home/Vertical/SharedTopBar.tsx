@@ -33,25 +33,36 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
   const topBarWidth = Math.max(0, Dimensions.get('window').width - 36)
   const modeAnim = useRef(new Animated.Value(mode === 'settings' ? 1 : 0)).current
   const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
+  const [avatarVersion, setAvatarVersion] = useState(0)
   const [musicSearchQuery, setMusicSearchQuery] = useState('')
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
 
   useEffect(() => {
     let isUnmounted = false
 
-    void getUserAvatar().then((path) => {
+    const syncAvatar = async() => {
+      const path = await getUserAvatar()
       if (isUnmounted) return
       setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    })
+      setAvatarVersion(version => version + 1)
+    }
+
+    void syncAvatar()
 
     const handleUserAvatarUpdated = (path: string | null) => {
       setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
+      setAvatarVersion(version => version + 1)
+    }
+    const handleFocus = () => {
+      void syncAvatar()
     }
     global.app_event.on('userAvatarUpdated', handleUserAvatarUpdated)
+    global.app_event.on('focus', handleFocus)
 
     return () => {
       isUnmounted = true
       global.app_event.off('userAvatarUpdated', handleUserAvatarUpdated)
+      global.app_event.off('focus', handleFocus)
     }
   }, [])
 
@@ -132,6 +143,11 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
     inputRange: [0, 0.4, 1],
     outputRange: [1, 0.78, 1],
   }), [modeAnim])
+  const avatarDisplayUrl = useMemo(() => {
+    if (!avatarUrl || avatarUrl === DEFAULT_USER_AVATAR) return avatarUrl
+    if (avatarUrl.startsWith('/')) return `file://${avatarUrl}?v=${avatarVersion}`
+    return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
+  }, [avatarUrl, avatarVersion])
 
   const displayQuery = mode === 'settings' ? settingsSearchQuery : musicSearchQuery
   const placeholder = mode === 'settings' ? t('setting_search_topbar_placeholder') : t('me_search_placeholder')
@@ -157,7 +173,7 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
           <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={() => { setNavActiveId('nav_setting') }}>
             <View style={styles.avatarBubble}>
               <View style={styles.avatarInner}>
-                <Image style={styles.avatarImage} url={avatarUrl} resizeMode="contain" />
+                <Image style={styles.avatarImage} url={avatarDisplayUrl} resizeMode="contain" />
               </View>
             </View>
           </TouchableOpacity>

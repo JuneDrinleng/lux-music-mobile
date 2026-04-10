@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent } from 'react-native'
 import { Disc3, Ellipsis, Heart, Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
@@ -7,7 +7,7 @@ import { LIST_IDS } from '@/config/constant'
 import { setNavActiveId } from '@/core/common'
 import { isPlayQueueMetaId, pause, play, playListAsQueue } from '@/core/player/player'
 import { useI18n } from '@/lang'
-import { useStatusbarHeight } from '@/store/common/hook'
+import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import listState from '@/store/list/state'
 import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
@@ -40,6 +40,13 @@ const pickCover = (list: LX.Music.MusicInfo[]) => {
 const openLibrary = () => {
   setNavActiveId('nav_love')
 }
+const openPlaylistDetail = (listId: string | null | undefined) => {
+  if (!listId) {
+    openLibrary()
+    return
+  }
+  global.app_event.openPlaylistDetail(listId)
+}
 
 const getQueueSourceListId = (queueMetaId: string | null | undefined) => {
   if (!isPlayQueueMetaId(queueMetaId)) return null
@@ -53,6 +60,7 @@ export default () => {
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
+  const activeNavId = useNavActiveId()
   const playlists = useMyList()
   const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
@@ -60,6 +68,7 @@ export default () => {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>({})
   const [linkedPlaylistId, setLinkedPlaylistId] = useState<string | null>(null)
+  const playlistMetaRequestRef = useRef(0)
   const topPadding = statusBarHeight + 18 + 44 + 16
 
   useEffect(() => {
@@ -109,36 +118,62 @@ export default () => {
       }))
   }, [playlists, t])
 
-  useEffect(() => {
-    let cancelled = false
+  const refreshPlaylistMeta = useCallback(async() => {
+    const requestId = ++playlistMetaRequestRef.current
     if (!libraryItems.length) {
       setPlaylistMetaMap({})
       return
     }
 
-    void Promise.all(libraryItems.map(async(item) => {
+    const result = await Promise.all(libraryItems.map(async(item) => {
       const musics = await getListMusics(item.id)
       return {
         id: item.id,
         count: musics.length,
         cover: pickCover(musics),
       }
-    })).then((result) => {
-      if (cancelled) return
-      const next: Record<string, { count: number, cover: string | null }> = {}
-      for (const item of result) {
-        next[item.id] = {
-          count: item.count,
-          cover: item.cover,
-        }
+    }))
+
+    if (playlistMetaRequestRef.current !== requestId) return
+
+    const next: Record<string, { count: number, cover: string | null }> = {}
+    for (const item of result) {
+      next[item.id] = {
+        count: item.count,
+        cover: item.cover,
       }
-      setPlaylistMetaMap(next)
-    })
+    }
+    setPlaylistMetaMap(next)
+  }, [libraryItems])
+
+  useEffect(() => {
+    void refreshPlaylistMeta()
+  }, [refreshPlaylistMeta])
+
+  useEffect(() => {
+    const handleListsUpdated = () => {
+      void refreshPlaylistMeta()
+    }
+    const handleListMusicUpdate = (ids: string[]) => {
+      if (!ids.some(id => libraryItems.some(item => item.id === id))) return
+      void refreshPlaylistMeta()
+    }
+
+    global.state_event.on('mylistUpdated', handleListsUpdated)
+    global.app_event.on('myListMusicUpdate', handleListMusicUpdate)
+    global.app_event.on('focus', handleListsUpdated)
 
     return () => {
-      cancelled = true
+      global.state_event.off('mylistUpdated', handleListsUpdated)
+      global.app_event.off('myListMusicUpdate', handleListMusicUpdate)
+      global.app_event.off('focus', handleListsUpdated)
     }
-  }, [libraryItems])
+  }, [libraryItems, refreshPlaylistMeta])
+
+  useEffect(() => {
+    if (activeNavId !== 'nav_search') return
+    void refreshPlaylistMeta()
+  }, [activeNavId, refreshPlaylistMeta])
 
   const greetingName = displayName.trim() || DEFAULT_USER_NAME
   const filterChips = [
@@ -330,7 +365,7 @@ export default () => {
                       },
                     ]}
                     activeOpacity={0.88}
-                    onPress={openLibrary}
+                    onPress={() => { openPlaylistDetail(card.sourceListId) }}
                   >
                     <View style={styles.featuredBody}>
                       <View style={styles.featuredHeader}>
@@ -355,10 +390,10 @@ export default () => {
                                   </View>
                                 : <Play size={16} color="#ffffff" fill="#ffffff" strokeWidth={1.8} />}
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={openLibrary}>
+                            <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
                               <Heart size={16} color={card.tone.accent} strokeWidth={2} />
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={openLibrary}>
+                            <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
                               <Ellipsis size={16} color={card.tone.accent} strokeWidth={2} />
                             </TouchableOpacity>
                           </View>
@@ -395,7 +430,7 @@ export default () => {
                   key={item.id}
                   style={[styles.dailyRow, index < dailyLists.length - 1 ? styles.dailyRowSpacing : null]}
                   activeOpacity={0.84}
-                  onPress={openLibrary}
+                  onPress={() => { openPlaylistDetail(item.id) }}
                 >
                   <View style={styles.dailyCoverWrap}>
                     {meta?.cover

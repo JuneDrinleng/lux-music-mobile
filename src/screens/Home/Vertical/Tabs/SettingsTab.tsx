@@ -7,6 +7,7 @@ import FileSelect, { type FileSelectType } from '@/components/common/FileSelect'
 import Input from '@/components/common/Input'
 import { createStyle, openUrl } from '@/utils/tools'
 import { sizeFormate } from '@/utils'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
@@ -50,6 +51,7 @@ export default () => {
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
+  const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
@@ -114,19 +116,30 @@ export default () => {
 
   useEffect(() => {
     let isUnmounted = false
-    void getUserAvatar().then((path) => {
+
+    const syncAvatar = async() => {
+      const path = await getUserAvatar()
       if (isUnmounted) return
       setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    })
+      setAvatarVersion(version => version + 1)
+    }
+
+    void syncAvatar()
 
     const handleAvatarUpdate = (path: string | null) => {
       setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
+      setAvatarVersion(version => version + 1)
+    }
+    const handleFocus = () => {
+      void syncAvatar()
     }
     global.app_event.on('userAvatarUpdated', handleAvatarUpdate)
+    global.app_event.on('focus', handleFocus)
 
     return () => {
       isUnmounted = true
       global.app_event.off('userAvatarUpdated', handleAvatarUpdate)
+      global.app_event.off('focus', handleFocus)
     }
   }, [])
   useEffect(() => {
@@ -264,7 +277,12 @@ export default () => {
       ? t('setting_search_source')
       : activeOptionDetail === 'gender'
         ? t('setting_profile_gender')
-      : ''
+        : ''
+  const avatarDisplayUrl = useMemo(() => {
+    if (!avatarUrl || avatarUrl === DEFAULT_USER_AVATAR) return avatarUrl
+    if (avatarUrl.startsWith('/')) return `file://${avatarUrl}?v=${avatarVersion}`
+    return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
+  }, [avatarUrl, avatarVersion])
 
   useEffect(() => {
     Animated.timing(profileDetailAnim, {
@@ -379,6 +397,26 @@ export default () => {
     setProfileDetailVisible(false)
   }
 
+  useBackHandler(() => {
+    if (isNameModalVisible) {
+      handleCloseNameModal()
+      return true
+    }
+    if (isSignatureModalVisible) {
+      handleCloseSignatureModal()
+      return true
+    }
+    if (activeOptionDetail) {
+      handleCloseOptionDetail()
+      return true
+    }
+    if (isProfileDetailVisible) {
+      handleCloseProfileDetail()
+      return true
+    }
+    return false
+  })
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -394,7 +432,7 @@ export default () => {
             ? <TouchableOpacity style={styles.profileHero} activeOpacity={0.88} onPress={handleOpenProfileDetail}>
                 <View style={styles.profileHeroAvatarWrap}>
                   <View style={styles.profileHeroAvatarInner}>
-                    <Image style={styles.profileHeroAvatar} url={avatarUrl} resizeMode="contain" />
+                    <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
                     <Text size={11} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>
@@ -581,7 +619,7 @@ export default () => {
           <View style={styles.profileDetailHero}>
             <View style={styles.profileDetailAvatarWrap}>
               <View style={styles.profileDetailAvatarInner}>
-                <Image style={styles.profileDetailAvatar} url={avatarUrl} resizeMode="contain" />
+                <Image style={styles.profileDetailAvatar} url={avatarDisplayUrl} resizeMode="contain" />
               </View>
             </View>
             <Text size={22} color="#1a1c1e" style={styles.profileDetailName}>{nickname}</Text>
@@ -593,7 +631,7 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handlePickAvatar}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, styles.groupRowAvatarWrap]}>
-                    <Image style={styles.groupRowAvatar} url={avatarUrl} resizeMode="contain" />
+                    <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>

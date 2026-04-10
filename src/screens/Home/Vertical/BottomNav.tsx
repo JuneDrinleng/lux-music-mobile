@@ -16,15 +16,10 @@ const tabs = [
   { id: 'nav_setting', icon: Settings2, labelKey: 'nav_setting' },
 ] as const
 const ACTIVE_ORB_SIZE = 52
-const ACTIVE_ICON_SHIFT_MAP: Record<TabId, number> = {
+const ACTIVE_ALIGNMENT_SHIFT_MAP: Record<TabId, number> = {
   nav_search: 2.25,
   nav_love: 3.25,
   nav_setting: 2.25,
-}
-const ACTIVE_INDICATOR_SHIFT_MAP: Record<TabId, number> = {
-  nav_search: 0.75,
-  nav_love: 1.0,
-  nav_setting: 0.75,
 }
 
 type TabId = InitState['navActiveId']
@@ -54,7 +49,7 @@ const TabItem = ({ id, icon: Icon, label, active, compact = false, onPress, onLa
         compact ? styles.iconOrbCompact : null,
         active ? styles.iconOrbActive : styles.iconOrbIdle,
       ]}>
-        <View style={active ? { transform: [{ translateX: ACTIVE_ICON_SHIFT_MAP[id] }] } : null}>
+        <View style={active ? { transform: [{ translateX: ACTIVE_ALIGNMENT_SHIFT_MAP[id] }] } : null}>
           <Icon
             size={compact ? 18 : active ? 22 : 20}
             color={active ? '#2a311c' : '#5f6574'}
@@ -111,7 +106,7 @@ export default memo(({ bottomInset = 0, inCard = false }: { bottomInset?: number
     const activeLayout = itemLayouts[activeId]
     if (!activeLayout) return
 
-    const nextX = activeLayout.x + activeLayout.width / 2 - ACTIVE_ORB_SIZE / 2 + ACTIVE_INDICATOR_SHIFT_MAP[activeId]
+    const nextX = activeLayout.x + activeLayout.width / 2 - ACTIVE_ORB_SIZE / 2 + ACTIVE_ALIGNMENT_SHIFT_MAP[activeId]
     if (!hasAnimatedRef.current) {
       indicatorX.setValue(nextX)
       indicatorOpacity.setValue(1)

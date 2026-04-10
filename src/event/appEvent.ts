@@ -202,6 +202,10 @@ export class AppEvent extends Event {
     this.emit('changeLoveListVisible', visible)
   }
 
+  openPlaylistDetail(listId: string) {
+    this.emit('openPlaylistDetail', listId)
+  }
+
   togglePlayQueuePanel() {
     this.emit('togglePlayQueuePanel')
   }

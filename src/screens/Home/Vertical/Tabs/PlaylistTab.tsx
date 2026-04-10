@@ -91,6 +91,12 @@ const getPlaylistCardTone = (index: number) => {
   return playlistCardTones[index % playlistCardTones.length]
 }
 
+const playlistSnapshotCache = new Map<string, {
+  songs: LX.Music.MusicInfo[]
+  count: number
+  pic: string | null
+}>()
+
 const parsePlaylistTimeFromName = (name: string): number | null => {
   const match = name.match(/((?:19|20)\d{2})\s*(?:[./-]|\u5e74)\s*(1[0-2]|0?[1-9])(?:\s*(?:[./-]|\u6708)\s*(3[01]|[12]\d|0?[1-9]))?/)
   if (!match) return null
@@ -142,6 +148,11 @@ interface ImportCandidate {
   musicInfo: LX.Music.MusicInfo
   fromListName: string
 }
+interface PlaylistTabProps {
+  onSharedTopBarVisibleChange?: (visible: boolean) => void
+  standaloneListId?: string | null
+  onStandaloneClose?: () => void
+}
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
 }
@@ -175,12 +186,13 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
-export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?: (visible: boolean) => void }) => {
+export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStandaloneClose }: PlaylistTabProps) => {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
+  const isStandaloneDetail = Boolean(standaloneListId)
   const shouldUseSearchBlur = hasNativeBlurView
   const modalBottomInset = useMemo(() => {
     const screenHeight = Dimensions.get('screen').height
@@ -194,10 +206,20 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
   const detailSceneWidth = Dimensions.get('window').width
-  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>({})
-  const [selectedListId, setSelectedListId] = useState<string | null>(null)
-  const [detailSongs, setDetailSongs] = useState<LX.Music.MusicInfo[]>([])
-  const [detailLoading, setDetailLoading] = useState(false)
+  const initialStandaloneCache = standaloneListId ? playlistSnapshotCache.get(standaloneListId) ?? null : null
+  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>(() => {
+    const next: Record<string, { count: number, pic: string | null }> = {}
+    for (const [id, value] of playlistSnapshotCache) {
+      next[id] = {
+        count: value.count,
+        pic: value.pic,
+      }
+    }
+    return next
+  })
+  const [selectedListId, setSelectedListId] = useState<string | null>(standaloneListId)
+  const [detailSongs, setDetailSongs] = useState<LX.Music.MusicInfo[]>(() => initialStandaloneCache ? [...initialStandaloneCache.songs] : [])
+  const [detailLoading, setDetailLoading] = useState(Boolean(standaloneListId && !initialStandaloneCache))
   const [searchText, setSearchText] = useState('')
   const [searchSource, setSearchSource] = useState<SourceMenu['action']>('all')
   const [isSourceMenuVisible, setSourceMenuVisible] = useState(false)
@@ -258,7 +280,7 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   const dragTop = useRef(new Animated.Value(0)).current
   const dragScale = useRef(new Animated.Value(1)).current
   const dragOpacity = useRef(new Animated.Value(0)).current
-  const detailSceneAnim = useRef(new Animated.Value(0)).current
+  const detailSceneAnim = useRef(new Animated.Value(isStandaloneDetail ? 0 : 0)).current
   const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
   const sourceMenuListAnim = useRef(new Animated.Value(0)).current
   const detailTransitionTokenRef = useRef(0)
@@ -438,15 +460,29 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
     }
     return null
   }
+  const cachePlaylistSnapshot = useCallback((id: string, list: LX.Music.MusicInfo[]) => {
+    const songs = [...list]
+    const pic = pickCover(songs)
+    playlistSnapshotCache.set(id, {
+      songs,
+      count: songs.length,
+      pic,
+    })
+    return {
+      count: songs.length,
+      pic,
+    }
+  }, [])
 
   const updatePlaylistMeta = useCallback(async(ids: string[]) => {
     if (!ids.length) return
     const result = await Promise.all(ids.map(async(id) => {
       const list = await getListMusics(id)
+      const cached = cachePlaylistSnapshot(id, list)
       return {
         id,
-        count: list.length,
-        pic: pickCover(list),
+        count: cached.count,
+        pic: cached.pic,
       }
     }))
     setPlaylistMetaMap((prev) => {
@@ -459,16 +495,21 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
       }
       return next
     })
-  }, [])
+  }, [cachePlaylistSnapshot])
 
   const loadDetailSongs = useCallback(async(id: string, showLoading = false) => {
     const requestId = ++detailRequestIdRef.current
     if (showLoading) setDetailLoading(true)
     const list = await getListMusics(id)
     if (requestId !== detailRequestIdRef.current) return
+    const cached = cachePlaylistSnapshot(id, list)
+    setPlaylistMetaMap((prev) => ({
+      ...prev,
+      [id]: cached,
+    }))
     setDetailSongs([...list])
     if (showLoading) setDetailLoading(false)
-  }, [])
+  }, [cachePlaylistSnapshot])
   const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
     const token = ++detailTransitionTokenRef.current
     setDetailTransitioning(true)
@@ -519,9 +560,10 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   useEffect(() => {
     void updatePlaylistMeta(playlists.map(list => list.id))
     if (selectedListId && !playlists.some(list => list.id === selectedListId)) {
-      clearDetailSelection(true)
+      if (isStandaloneDetail) onStandaloneClose?.()
+      else clearDetailSelection(true)
     }
-  }, [clearDetailSelection, playlists, selectedListId, updatePlaylistMeta])
+  }, [clearDetailSelection, isStandaloneDetail, onStandaloneClose, playlists, selectedListId, updatePlaylistMeta])
 
   useEffect(() => {
     void refreshLovedSongMap()
@@ -666,8 +708,37 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, resetDragRowShifts])
   const handleCloseDetail = useCallback((immediate = false) => {
     resetSongDragState()
+    if (isStandaloneDetail) {
+      const finish = () => {
+        onStandaloneClose?.()
+      }
+      if (immediate) {
+        detailTransitionTokenRef.current += 1
+        detailSceneAnim.stopAnimation()
+        detailSceneAnim.setValue(0)
+        setDetailTransitioning(false)
+        finish()
+        return
+      }
+      animateDetailScene(0, finish)
+      return
+    }
     clearDetailSelection(immediate)
-  }, [clearDetailSelection, resetSongDragState])
+  }, [animateDetailScene, clearDetailSelection, detailSceneAnim, isStandaloneDetail, onStandaloneClose, resetSongDragState])
+  useEffect(() => {
+    if (!isStandaloneDetail || !standaloneListId) return
+    const cachedStandalone = playlistSnapshotCache.get(standaloneListId) ?? null
+    resetSongDragState()
+    detailTransitionTokenRef.current += 1
+    detailSceneAnim.stopAnimation()
+    detailSceneAnim.setValue(0)
+    setDetailTransitioning(false)
+    setSelectedListId(standaloneListId)
+    setDetailSongs(cachedStandalone ? [...cachedStandalone.songs] : [])
+    setDetailLoading(!cachedStandalone)
+    animateDetailScene(1)
+    void loadDetailSongs(standaloneListId, !cachedStandalone)
+  }, [animateDetailScene, detailSceneAnim, isStandaloneDetail, loadDetailSongs, resetSongDragState, standaloneListId])
   const handleFinishSongDrag = useCallback(async() => {
     if (!dragStateRef.current.active) return
     const { listId, song, fromIndex, toIndex } = dragStateRef.current
@@ -1380,8 +1451,18 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
     setSearchTipList([])
     forceDismissSearchInput()
   }, [closeSourceMenu, forceDismissSearchInput])
-
   useBackHandler(useCallback(() => {
+    if (isStandaloneDetail) {
+      if (isImportDrawerVisible && !importSubmitting) {
+        setImportDrawerVisible(false)
+        return true
+      }
+      if (standaloneListId) {
+        handleCloseDetail()
+        return true
+      }
+      return false
+    }
     if (Object.keys(commonState.componentIds).length != 1) return false
     if (commonState.navActiveId != 'nav_love') return false
     if (isImportDrawerVisible && !importSubmitting) {
@@ -1407,12 +1488,14 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
     handleExitSearch,
     importSubmitting,
     isImportDrawerVisible,
+    isStandaloneDetail,
     isSearchInputEditing,
     isSearchMode,
     isSourceMenuVisible,
     closeSourceMenu,
     handleCloseDetail,
     selectedListId,
+    standaloneListId,
   ]))
 
   useEffect(() => {
@@ -1935,9 +2018,11 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
         </View>
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_my_playlists')}</Text>
-            <View style={styles.sectionHeaderActions}>
+          <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
+            <View style={styles.playlistSectionTitleWrap}>
+              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_my_playlists')}</Text>
+            </View>
+            <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
               <View style={styles.displaySwitch}>
                 <Animated.View
                   pointerEvents="none"
@@ -2068,6 +2153,30 @@ export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?:
   )
   const shouldRenderDetailScene = Boolean(selectedListInfo)
 
+  if (isStandaloneDetail) {
+    return (
+      <View style={[styles.sceneRoot, styles.standaloneRoot]} pointerEvents="box-none">
+        {shouldRenderDetailScene
+          ? <Animated.View
+              renderToHardwareTextureAndroid={isDetailTransitioning}
+              shouldRasterizeIOS={isDetailTransitioning}
+              style={[
+                styles.scene,
+                styles.sceneOverlay,
+                styles.detailScene,
+                styles.standaloneScene,
+                {
+                  transform: [{ translateX: detailSceneTranslateX }],
+                },
+              ]}
+            >
+              {renderDetailScene()}
+            </Animated.View>
+          : null}
+      </View>
+    )
+  }
+
   return (
     <View style={styles.sceneRoot}>
       <Animated.View
@@ -2109,6 +2218,9 @@ const styles = createStyle({
     flex: 1,
     backgroundColor: '#eef0fb',
   },
+  standaloneRoot: {
+    backgroundColor: 'transparent',
+  },
   scene: {
     flex: 1,
     backgroundColor: '#eef0fb',
@@ -2123,6 +2235,9 @@ const styles = createStyle({
     backgroundColor: '#000000',
   },
   detailScene: {},
+  standaloneScene: {
+    zIndex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#eef0fb',
@@ -2562,11 +2677,29 @@ const styles = createStyle({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
+  playlistSectionHeader: {
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  playlistSectionTitleWrap: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  playlistSectionTitle: {
+    flexShrink: 1,
+  },
   sectionHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  playlistSectionHeaderActions: {
+    flexShrink: 0,
+    marginLeft: 'auto',
+  },
   displaySwitch: {
+    width: 72,
     height: 34,
     borderRadius: 17,
     borderWidth: 1,

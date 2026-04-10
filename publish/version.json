@@ -1,54 +1,58 @@
 {
-    "version":  "0.2.1",
-    "desc":  "v0.2.1\n本次更新继续聚焦 UI 的彻底重构与美化，并覆盖播放通知交互、搜索链路稳定性与缓存细节优化。\n新增\n- 新增播放通知栏「喜欢」动作联动：支持从系统通知栏直接收藏/取消收藏当前歌曲，并自动同步「我喜欢」歌单状态。\n- 新增设置页性别字段（男 / 女 / 未设置），支持本地持久化与多语言文案。\n- 新增 TX 搜索签名请求链路：引入 signRequest 与 SHA1 原生桥接能力。\n调整\n- 设置页重构为分层详情结构：个人资料、语言、默认搜索音源等选项改为独立详情面板，视觉层级与动效更统一。\n- 歌单页视觉与交互细节继续打磨：卡片/列表样式优化，新增歌单快捷播放/暂停按钮，并支持按当前播放队列自动关联高亮。\n- 搜索页关闭与重置流程重构，统一空状态展示与歌曲条目样式，交互更连贯。\n- 通用图片组件从 FastImage 切换为 React Native Image 缓存策略实现，保持失败兜底与缓存命中能力。\n修复\n- 修复预加载下一首缓存判断不准确问题（改为基于 cacheKey 判定）。\n- 修复通知栏喜欢状态在切歌/歌单更新后不同步的问题。\n构建\n- 版本号更新到 0.2.1（package.json、package-lock.json、iOS 工程）。\n- Android versionCode 升级到 92。",
-    "history":  [
-                    {
-                        "version":  "0.2.0",
-                        "desc":  "v0.2.0\n本次更新聚焦 UI 的彻底重构与美化，重点统一首页视觉风格与顶部交互体系。\n新增\n- 新增共享顶栏组件 `SharedTopBar`，统一头像入口、搜索入口与搜索清空交互。\n- 共享顶栏搜索支持携带默认音源 `search.defaultSource`，并同步关键字/音源状态。\n调整\n- 首页垂直主容器统一接入共享顶栏，并根据当前 Tab / 搜索页 / 歌单详情状态动态控制显隐。\n- `HomeTab`、`SettingsTab` 移除重复顶部区域，页面内容改为适配统一顶栏留白，整体观感更简洁。\n- `PlaylistTab` 新增 `onSharedTopBarVisibleChange` 协同控制，歌单详情与搜索场景自动隐藏共享顶栏，页面沉浸感更强。\n- 首页 UI 层级与交互动线进一步收敛，跨页面切换的一致性和连贯性显著提升。\n构建\n- 版本号更新到 `0.2.0`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `91`。"
-                    },
-                    {
-                        "version":  "0.1.2",
-                        "desc":  "v0.1.2\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.2`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `83`。"
-                    },
-                    {
-                        "version":  "0.1.1",
-                        "desc":  "v0.1.1\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.1`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `82`。"
-                    },
-                    {
-                        "version":  "0.1.0",
-                        "desc":  "v0.1.0\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.0`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `81`。"
-                    },
-                    {
-                        "version":  "0.0.9",
-                        "desc":  "v0.0.9\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.0.9`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `80`。"
-                    },
-                    {
-                        "version":  "0.0.8",
-                        "desc":  "v0.0.8\n本次更新聚焦播放队列交互、歌单操作体验、沉浸式系统栏适配和更新流程稳定性。\n\n播放与队列\n- 底部播放栏新增队列抽屉，支持查看队列、快速切歌、移除歌曲、按名称升降序与随机排序。\n- 新增播放队列全局事件（toggle/show/hide），播放详情页与播放栏可双向控制队列面板。\n- 播放详情页（封面/歌词）按音源动态着色，新增分享、喜欢、队列入口，交互与播放栏联动。\n- 播放详情返回行为调整为直接关闭详情页。\n- 在线临时列表支持补齐完整列表后再进入队列，减少队列内容不完整的问题。\n\n歌单与页面交互\n- 我的歌单详情新增长按拖拽排序，提供拖拽位移预览并持久化到列表顺序。\n- 歌单详情新增单曲删除确认弹窗，管理歌曲更直接。\n- 我的歌单新增“按时间排序”切换，支持默认顺序与时间顺序快速切换。\n- 首页垂直布局重构为内容层/控制层分离，底部手势区与导航区显示更稳定。\n- Android 主界面与导航配置统一启用沉浸式系统栏（透明导航栏 + drawBehind）。\n- 统一弹窗沉浸式参数（`navigationBarTranslucent`）与层级常量（`APP_LAYER_INDEX`），减少遮挡冲突。\n\n稳定性与体验\n- 新增本地封面缓存模块，图片组件优先命中本地缓存并支持后台预热，弱网显示更稳。\n- 更新检查与下载流程增强：前台恢复自动检测、下载状态守护、超时重试与会话恢复。\n- 播放器初始化与恢复时强制同步音量/倍速并校正异常值，避免设置失效。\n- 歌曲分享策略优化：系统分享优先链接，剪贴板保留标题+链接。\n\n构建\n- 版本号更新到 `0.0.8`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `79`。"
-                    },
-                    {
-                        "version":  "0.0.7",
-                        "desc":  "v0.0.7\n本次更新围绕通知栏图标加载稳定性与资源适配进行了优化。\n\n通知栏与图标\n- Android 通知栏小图标改为通过原生资源名 `notification_whitebg` 加载（`{ uri: \u0027notification_whitebg\u0027 }`），提升兼容性。\n- 补齐 Android `mdpi` 到 `xxxhdpi` 全密度通知栏小图标资源，减少不同设备下的缩放失真。\n\n文案\n- 设置页中文“关于”文案从“关于 LX Music”调整为“关于”。\n\n构建\n- 版本号更新到 `0.0.7`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `78`。"
-                    },
-                    {
-                        "version":  "0.0.6",
-                        "desc":  "v0.0.6\n本次更新重点围绕播放详情页交互和设置页版本信息展示优化。\n\n播放详情页\n- 新增可复用的 `SeekBar` 拖拽进度条组件，封面页与歌词页统一支持拖拽快进/回退。\n- 优化返回键逻辑：在歌词页按返回先切回封面页，再次返回才关闭播放详情页。\n- 统一封面页与歌词页的进度条展示与触控实现，交互体验更一致。\n\n我的页与设置页\n- 我的页新增分层返回处理：优先关闭批量导入抽屉、歌单详情、搜索态和音源菜单。\n- 设置页新增「关于」信息卡，展示当前版本、下载更新状态，并提供 GitHub Releases 快捷入口。\n- 移除设置独立页面的全局返回拦截，避免与底部标签导航返回行为冲突。\n\n构建\n- 版本号更新到 `0.0.6`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `77`。"
-                    },
-                    {
-                        "version":  "0.0.5",
-                        "desc":  "v0.0.5\n本次更新围绕通知栏图标、播放栏进度视觉与进度计算准确性进行了优化。\n\n通知栏与资源\n- 系统通知栏小图标切换为新图标资源（`notification_whitebg.xhdpi.png`）。\n- 修复更新应用图标后，通知栏仍显示旧图标的问题。\n\n播放栏与进度\n- 底部播放栏封面外圈进度效果从点阵环改为 SVG 连续圆环，进度展示更平滑。\n- 修复播放进度计算分母错误导致的进度异常问题（由 `currentTime` 修正为 `totalTime`）。\n\n构建与依赖\n- 版本号更新到 `0.0.5`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `76`。\n- 新增依赖 `react-native-svg`（`^13.10.0`），用于播放栏圆环渲染。"
-                    },
-                    {
-                        "version":  "0.0.4",
-                        "desc":  "v0.0.4\n\n本次更新重点围绕 Me 页交互重构、歌单批量导入、个性签名能力和设置页体验优化。\n\nMe 页与歌单\n- 歌单详情新增“歌曲 + 导入”批量导入流程：底部抽屉多选后可一次添加到当前歌单。\n- 导入候选自动排除当前歌单已有歌曲，并忽略试听列表来源歌曲，减少重复导入。\n- 批量导入抽屉完成底部手势条区域适配，修复底部显示异常问题。\n- 歌单详情支持快捷重命名和删除（用户歌单）。\n- 快捷入口改版：\n  - “本地歌曲”改为“试听列表”入口；\n  - “我的歌单”中不再展示试听列表；\n  - “我喜欢的歌曲”文案改为“我喜欢”，图标改为实心心形。\n\n个人设置\n- 新增“个性签名”编辑入口（设置 -\u003e 个人设置）。\n- Me 页资料副标题改为优先显示个性签名；未设置时默认显示“我是一个很有个性的人”。\n- 个性签名输入框支持自动回填当前签名内容，编辑体验更连贯。\n\n设置页与样式\n- 播放设置中的音源列表移除浅灰色外框。\n- 音源右侧 × 按钮样式与标题栏 + 按钮对齐，视觉一致性更好。\n\n多语言与数据\n- 新增个性签名相关多语言文案（简中/繁中/英文）。\n- 新增个性签名本地存储与全局事件同步能力。"
-                    },
-                    {
-                        "version":  "0.0.2",
-                        "desc":  "v0.0.2\n\n新增\n- 我的页、底部导航、播放栏空状态接入多语言文案（简中 / 繁中 / English）。\n- 设置页新增应用内语言切换入口。\n- 设置页补充个人信息相关交互（头像选择、昵称编辑）。\n\n调整\n- 应用品牌文案统一为 lux-music-mobile。\n- Android 应用图标资源替换为新品牌图标。\n- 搜索提交流程优化：提交关键词时同步到全局搜索状态。\n- 发布说明改为由本仓库独立维护。\n\n构建\n- 版本号升级到 0.0.2。\n- Android versionCode 升级到 74。"
-                    },
-                    {
-                        "version":  "0.0.1",
-                        "desc":  "v0.0.1\n\n新增\n- 从上游 lx-music-mobile fork，建立本仓库独立发布线。\n\n调整\n- 检查更新目标仓库切换为 JuneDrinleng/lux-music-mobile。\n- APK 产物命名前缀切换为 lux-music-mobile。\n- 增加适配本仓库的 GitHub Actions 自动构建与发布流程。"
-                    }
-                ]
+  "version": "0.2.2",
+  "desc": "v0.2.2\n本次更新继续聚焦 UI 的彻底重构与美化，重点补齐歌单联动、设置分层与搜索收口体验。\n新增\n- 新增歌单与当前播放队列的关联高亮能力，支持快速识别当前播放来源歌单。\n- 新增歌单列表快捷播放/暂停按钮，降低播放操作路径。\n- 新增设置页二级详情选择面板（语言、默认搜索音源、性别）。\n调整\n- 歌单页、搜索页、设置页继续统一视觉风格与交互节奏，整体页面切换更连贯。\n- 搜索页关闭时统一执行状态重置（关键字、联想、结果、输入焦点），避免残留状态干扰下一次搜索。\n- 通用图片组件切换到 React Native Image 缓存策略实现，弱网与失败兜底表现更稳定。\n修复\n- 修复通知栏喜欢状态在切歌/歌单变化后偶发不同步的问题。\n- 修复下一首预加载缓存判定偏差（基于 track cacheKey 修正）。\n- 修复 TX 搜索签名链路导致的请求稳定性问题。\n构建\n- 版本号更新到 0.2.2（package.json、package-lock.json、iOS 工程）。\n- Android versionCode 升级到 93。",
+  "history": [
+    {
+      "version": "0.2.1",
+      "desc": "v0.2.1\n本次更新继续聚焦 UI 的彻底重构与美化，并覆盖播放通知交互、搜索链路稳定性与缓存细节优化。\n新增\n- 新增播放通知栏「喜欢」动作联动：支持从系统通知栏直接收藏/取消收藏当前歌曲，并自动同步「我喜欢」歌单状态。\n- 新增设置页性别字段（男 / 女 / 未设置），支持本地持久化与多语言文案。\n- 新增 TX 搜索签名请求链路：引入 signRequest 与 SHA1 原生桥接能力。\n调整\n- 设置页重构为分层详情结构：个人资料、语言、默认搜索音源等选项改为独立详情面板，视觉层级与动效更统一。\n- 歌单页视觉与交互细节继续打磨：卡片/列表样式优化，新增歌单快捷播放/暂停按钮，并支持按当前播放队列自动关联高亮。\n- 搜索页关闭与重置流程重构，统一空状态展示与歌曲条目样式，交互更连贯。\n- 通用图片组件从 FastImage 切换为 React Native Image 缓存策略实现，保持失败兜底与缓存命中能力。\n修复\n- 修复预加载下一首缓存判断不准确问题（改为基于 cacheKey 判定）。\n- 修复通知栏喜欢状态在切歌/歌单更新后不同步的问题。\n构建\n- 版本号更新到 0.2.1（package.json、package-lock.json、iOS 工程）。\n- Android versionCode 升级到 92。"
+    },
+    {
+      "version": "0.2.0",
+      "desc": "v0.2.0\n本次更新聚焦 UI 的彻底重构与美化，重点统一首页视觉风格与顶部交互体系。\n新增\n- 新增共享顶栏组件 `SharedTopBar`，统一头像入口、搜索入口与搜索清空交互。\n- 共享顶栏搜索支持携带默认音源 `search.defaultSource`，并同步关键字/音源状态。\n调整\n- 首页垂直主容器统一接入共享顶栏，并根据当前 Tab / 搜索页 / 歌单详情状态动态控制显隐。\n- `HomeTab`、`SettingsTab` 移除重复顶部区域，页面内容改为适配统一顶栏留白，整体观感更简洁。\n- `PlaylistTab` 新增 `onSharedTopBarVisibleChange` 协同控制，歌单详情与搜索场景自动隐藏共享顶栏，页面沉浸感更强。\n- 首页 UI 层级与交互动线进一步收敛，跨页面切换的一致性和连贯性显著提升。\n构建\n- 版本号更新到 `0.2.0`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `91`。"
+    },
+    {
+      "version": "0.1.2",
+      "desc": "v0.1.2\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.2`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `83`。"
+    },
+    {
+      "version": "0.1.1",
+      "desc": "v0.1.1\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.1`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `82`。"
+    },
+    {
+      "version": "0.1.0",
+      "desc": "v0.1.0\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.1.0`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `81`。"
+    },
+    {
+      "version": "0.0.9",
+      "desc": "v0.0.9\n本次更新聚焦首页架构收敛、播放队列抽屉能力与沉浸式系统栏适配。\n- 首页主流程重构为垂直 Tab 方案（Me / Settings），并移除旧的 Home Views 页面实现。\n- 底部播放栏与导航升级为卡片化布局，播放器栏新增 `inCard` 模式。\n- 播放器栏队列入口改为直接联动全局播放队列抽屉。\n- 新增全局播放队列抽屉 `PlayQueueSheet`，支持查看当前队列、点击切歌、独立临时队列单曲移除与一键清空（含确认弹窗）。\n- 歌单页与搜索等场景统一为“入队并播放”流程（`playListAsQueue` / `addMusicToQueueAndPlay`），队列行为更一致。\n- 补充播放队列清空相关多语言文案键：`play_queue_clear_current_btn`、`play_queue_clear_current_confirm`。\n- Android 原生层启用沉浸式系统栏（透明状态栏/导航栏），并新增 `UtilsModule.setSystemBarsTransparent()` 供 JS 调用。\n- 设置页类型声明去耦：`src/types/app.d.ts` 改为本地 `SettingScreenIds` 联合类型，避免旧路径残留引用问题。\n- 版本号更新到 `0.0.9`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `80`。"
+    },
+    {
+      "version": "0.0.8",
+      "desc": "v0.0.8\n本次更新聚焦播放队列交互、歌单操作体验、沉浸式系统栏适配和更新流程稳定性。\n\n播放与队列\n- 底部播放栏新增队列抽屉，支持查看队列、快速切歌、移除歌曲、按名称升降序与随机排序。\n- 新增播放队列全局事件（toggle/show/hide），播放详情页与播放栏可双向控制队列面板。\n- 播放详情页（封面/歌词）按音源动态着色，新增分享、喜欢、队列入口，交互与播放栏联动。\n- 播放详情返回行为调整为直接关闭详情页。\n- 在线临时列表支持补齐完整列表后再进入队列，减少队列内容不完整的问题。\n\n歌单与页面交互\n- 我的歌单详情新增长按拖拽排序，提供拖拽位移预览并持久化到列表顺序。\n- 歌单详情新增单曲删除确认弹窗，管理歌曲更直接。\n- 我的歌单新增“按时间排序”切换，支持默认顺序与时间顺序快速切换。\n- 首页垂直布局重构为内容层/控制层分离，底部手势区与导航区显示更稳定。\n- Android 主界面与导航配置统一启用沉浸式系统栏（透明导航栏 + drawBehind）。\n- 统一弹窗沉浸式参数（`navigationBarTranslucent`）与层级常量（`APP_LAYER_INDEX`），减少遮挡冲突。\n\n稳定性与体验\n- 新增本地封面缓存模块，图片组件优先命中本地缓存并支持后台预热，弱网显示更稳。\n- 更新检查与下载流程增强：前台恢复自动检测、下载状态守护、超时重试与会话恢复。\n- 播放器初始化与恢复时强制同步音量/倍速并校正异常值，避免设置失效。\n- 歌曲分享策略优化：系统分享优先链接，剪贴板保留标题+链接。\n\n构建\n- 版本号更新到 `0.0.8`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `79`。"
+    },
+    {
+      "version": "0.0.7",
+      "desc": "v0.0.7\n本次更新围绕通知栏图标加载稳定性与资源适配进行了优化。\n\n通知栏与图标\n- Android 通知栏小图标改为通过原生资源名 `notification_whitebg` 加载（`{ uri: 'notification_whitebg' }`），提升兼容性。\n- 补齐 Android `mdpi` 到 `xxxhdpi` 全密度通知栏小图标资源，减少不同设备下的缩放失真。\n\n文案\n- 设置页中文“关于”文案从“关于 LX Music”调整为“关于”。\n\n构建\n- 版本号更新到 `0.0.7`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `78`。"
+    },
+    {
+      "version": "0.0.6",
+      "desc": "v0.0.6\n本次更新重点围绕播放详情页交互和设置页版本信息展示优化。\n\n播放详情页\n- 新增可复用的 `SeekBar` 拖拽进度条组件，封面页与歌词页统一支持拖拽快进/回退。\n- 优化返回键逻辑：在歌词页按返回先切回封面页，再次返回才关闭播放详情页。\n- 统一封面页与歌词页的进度条展示与触控实现，交互体验更一致。\n\n我的页与设置页\n- 我的页新增分层返回处理：优先关闭批量导入抽屉、歌单详情、搜索态和音源菜单。\n- 设置页新增「关于」信息卡，展示当前版本、下载更新状态，并提供 GitHub Releases 快捷入口。\n- 移除设置独立页面的全局返回拦截，避免与底部标签导航返回行为冲突。\n\n构建\n- 版本号更新到 `0.0.6`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `77`。"
+    },
+    {
+      "version": "0.0.5",
+      "desc": "v0.0.5\n本次更新围绕通知栏图标、播放栏进度视觉与进度计算准确性进行了优化。\n\n通知栏与资源\n- 系统通知栏小图标切换为新图标资源（`notification_whitebg.xhdpi.png`）。\n- 修复更新应用图标后，通知栏仍显示旧图标的问题。\n\n播放栏与进度\n- 底部播放栏封面外圈进度效果从点阵环改为 SVG 连续圆环，进度展示更平滑。\n- 修复播放进度计算分母错误导致的进度异常问题（由 `currentTime` 修正为 `totalTime`）。\n\n构建与依赖\n- 版本号更新到 `0.0.5`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `76`。\n- 新增依赖 `react-native-svg`（`^13.10.0`），用于播放栏圆环渲染。"
+    },
+    {
+      "version": "0.0.4",
+      "desc": "v0.0.4\n\n本次更新重点围绕 Me 页交互重构、歌单批量导入、个性签名能力和设置页体验优化。\n\nMe 页与歌单\n- 歌单详情新增“歌曲 + 导入”批量导入流程：底部抽屉多选后可一次添加到当前歌单。\n- 导入候选自动排除当前歌单已有歌曲，并忽略试听列表来源歌曲，减少重复导入。\n- 批量导入抽屉完成底部手势条区域适配，修复底部显示异常问题。\n- 歌单详情支持快捷重命名和删除（用户歌单）。\n- 快捷入口改版：\n  - “本地歌曲”改为“试听列表”入口；\n  - “我的歌单”中不再展示试听列表；\n  - “我喜欢的歌曲”文案改为“我喜欢”，图标改为实心心形。\n\n个人设置\n- 新增“个性签名”编辑入口（设置 -> 个人设置）。\n- Me 页资料副标题改为优先显示个性签名；未设置时默认显示“我是一个很有个性的人”。\n- 个性签名输入框支持自动回填当前签名内容，编辑体验更连贯。\n\n设置页与样式\n- 播放设置中的音源列表移除浅灰色外框。\n- 音源右侧 × 按钮样式与标题栏 + 按钮对齐，视觉一致性更好。\n\n多语言与数据\n- 新增个性签名相关多语言文案（简中/繁中/英文）。\n- 新增个性签名本地存储与全局事件同步能力。"
+    },
+    {
+      "version": "0.0.2",
+      "desc": "v0.0.2\n\n新增\n- 我的页、底部导航、播放栏空状态接入多语言文案（简中 / 繁中 / English）。\n- 设置页新增应用内语言切换入口。\n- 设置页补充个人信息相关交互（头像选择、昵称编辑）。\n\n调整\n- 应用品牌文案统一为 lux-music-mobile。\n- Android 应用图标资源替换为新品牌图标。\n- 搜索提交流程优化：提交关键词时同步到全局搜索状态。\n- 发布说明改为由本仓库独立维护。\n\n构建\n- 版本号升级到 0.0.2。\n- Android versionCode 升级到 74。"
+    },
+    {
+      "version": "0.0.1",
+      "desc": "v0.0.1\n\n新增\n- 从上游 lx-music-mobile fork，建立本仓库独立发布线。\n\n调整\n- 检查更新目标仓库切换为 JuneDrinleng/lux-music-mobile。\n- APK 产物命名前缀切换为 lux-music-mobile。\n- 增加适配本仓库的 GitHub Actions 自动构建与发布流程。"
+    }
+  ]
 }

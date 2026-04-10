@@ -10,15 +10,15 @@ import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { clearListMusics, getListMusics, removeListMusics } from '@/core/list'
-import { isPlayQueueMetaId, playList } from '@/core/player/player'
+import { playList } from '@/core/player/player'
 import { useI18n } from '@/lang'
 import { useMyList } from '@/store/list/hook'
-import listState from '@/store/list/state'
 import {
   useIsPlay,
   usePlayInfo,
   usePlayerMusicInfo,
 } from '@/store/player/hook'
+import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import { useWindowSize } from '@/utils/hooks'
 import { setSystemBarsTransparent } from '@/utils/nativeModules/utils'
 import { confirmDialog, createStyle } from '@/utils/tools'
@@ -51,14 +51,13 @@ export default memo(
     const queueLoadId = useRef(0)
     const queueListRef = useRef<FlatList<LX.Music.MusicInfo>>(null)
     const queueInitialAlignedRef = useRef(false)
+    const musicAddModalRef = useRef<MusicAddModalType>(null)
     const panelAnim = useRef(new Animated.Value(0)).current
     const [isVisible, setVisible] = useState(false)
     const [playQueue, setPlayQueue] = useState<LX.Music.MusicInfo[]>([])
     void systemGestureInsetBottom
 
-    const isIndependentQueue =
-      playInfo.playerListId == LIST_IDS.TEMP &&
-      isPlayQueueMetaId(listState.tempListMeta.id)
+    const isTempQueue = playInfo.playerListId == LIST_IDS.TEMP
 
     const panelBodyHeight = useMemo(() => {
       const targetHeight = Math.floor(winSize.height * QUEUE_PANEL_HEIGHT_RATIO)
@@ -230,16 +229,23 @@ export default memo(
       async(id: string) => {
         const listId = playInfo.playerListId
         if (!listId) return
-        if (listId != LIST_IDS.TEMP || !isIndependentQueue) return
+        if (listId != LIST_IDS.TEMP) return
         await removeListMusics(listId, [id])
         setPlayQueue((prev) => prev.filter((item) => item.id !== id))
       },
-      [isIndependentQueue, playInfo.playerListId],
+      [playInfo.playerListId],
     )
+    const handleShowMusicAddModal = useCallback((musicInfo: LX.Music.MusicInfo) => {
+      musicAddModalRef.current?.show({
+        musicInfo,
+        listId: '',
+        isMove: false,
+      })
+    }, [])
     const handleClearQueue = useCallback(async() => {
       const listId = playInfo.playerListId
       if (!listId || !playQueue.length) return
-      if (listId != LIST_IDS.TEMP || !isIndependentQueue) return
+      if (listId != LIST_IDS.TEMP) return
       const confirm = await confirmDialog({
         message: t('play_queue_clear_current_confirm'),
         cancelButtonText: t('cancel_button_text'),
@@ -251,7 +257,6 @@ export default memo(
       hideQueuePanel()
     }, [
       hideQueuePanel,
-      isIndependentQueue,
       playInfo.playerListId,
       playQueue.length,
       t,
@@ -305,34 +310,48 @@ export default memo(
                 </View>
               </View>
             </TouchableOpacity>
-            {isCurrent ? (
-              <View style={styles.itemNowPlaying}>
-                <Icon
-                  name={isPlay ? 'pause' : 'play'}
-                  rawSize={14}
-                  color={sourceTagColor.text}
-                />
-              </View>
-            ) : null}
-            {isIndependentQueue ? (
-              <TouchableOpacity
-                style={styles.itemRemoveBtn}
-                activeOpacity={0.75}
-                onPress={() => {
-                  void handleRemoveQueueMusic(item.id)
-                }}
-              >
-                <Icon name="remove" rawSize={15} color="#6b7280" />
-              </TouchableOpacity>
-            ) : null}
+            <View style={styles.itemActions}>
+              {isCurrent ? (
+                <View style={styles.itemNowPlaying}>
+                  <Icon
+                    name={isPlay ? 'pause' : 'play'}
+                    rawSize={14}
+                    color={sourceTagColor.text}
+                  />
+                </View>
+              ) : null}
+              {isTempQueue ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.itemActionBtn}
+                    activeOpacity={0.75}
+                    onPress={() => {
+                      handleShowMusicAddModal(item)
+                    }}
+                  >
+                    <Icon name="add-music" rawSize={15} color="#6b7280" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.itemActionBtn}
+                    activeOpacity={0.75}
+                    onPress={() => {
+                      void handleRemoveQueueMusic(item.id)
+                    }}
+                  >
+                    <Icon name="remove" rawSize={15} color="#6b7280" />
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
           </View>
         )
       },
       [
         currentQueueIndex,
+        handleShowMusicAddModal,
         handleRemoveQueueMusic,
         handleSelectQueueMusic,
-        isIndependentQueue,
+        isTempQueue,
         isPlay,
       ],
     )
@@ -378,17 +397,17 @@ export default memo(
               <TouchableOpacity
                 style={[
                   styles.closeBtn,
-                  !isIndependentQueue || !playQueue.length ? styles.closeBtnDisabled : null,
+                  !isTempQueue || !playQueue.length ? styles.closeBtnDisabled : null,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => {
                   void handleClearQueue()
                 }}
-                disabled={!isIndependentQueue || !playQueue.length}
+                disabled={!isTempQueue || !playQueue.length}
               >
                 <Text
                   size={12}
-                  color={!isIndependentQueue || !playQueue.length ? '#9ca3af' : '#ef4444'}
+                  color={!isTempQueue || !playQueue.length ? '#9ca3af' : '#ef4444'}
                 >
                   {t('play_queue_clear_current_btn')}
                 </Text>
@@ -429,6 +448,7 @@ export default memo(
               </View>
             )}
           </View>
+          <MusicAddModal ref={musicAddModalRef} />
         </Animated.View>
       </View>
     )
@@ -566,12 +586,19 @@ const styles = createStyle({
     flex: 1,
     minWidth: 0,
   },
-  itemNowPlaying: {
-    width: 24,
+  itemActions: {
+    minWidth: 28,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemRemoveBtn: {
+  itemNowPlaying: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemActionBtn: {
     width: 28,
     height: 28,
     alignItems: 'center',
