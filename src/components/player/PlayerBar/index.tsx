@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { Platform, StyleSheet, TouchableOpacity, UIManager, View } from 'react-native'
+import { BlurView } from '@react-native-community/blur'
 import Svg, { Circle } from 'react-native-svg'
 import { useKeyboard } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
@@ -24,6 +25,7 @@ const RING_BORDER_WIDTH = scaleSizeW(RING_BORDER_WIDTH_RAW)
 const CIRCLE_CENTER = RING_RENDER_SIZE / 2
 const RING_RADIUS = (RING_RENDER_SIZE - RING_BORDER_WIDTH) / 2
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 
 const sourceRingColorMap: Record<string, string> = {
   tx: '#31c27c',
@@ -145,9 +147,39 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
   const keepPlayBarOnKeyboard = Reflect.get(global.lx, 'keepPlayBarOnKeyboard') === true
   if (autoHidePlayBar && keyboardShown && !keepPlayBarOnKeyboard) return null
 
+  const shouldUseGlass = isHome && !inCard
+  const shouldUseBlur = shouldUseGlass && hasNativeBlurView
+
   return (
-    <View style={[styles.wrap, inCard ? styles.wrapInCard : (isHome ? styles.wrapHome : styles.wrapFloat)]}>
-      <View style={[styles.container, inCard ? styles.containerInCard : null]}>
+    <View style={[
+      styles.wrap,
+      inCard ? styles.wrapInCard : (isHome ? styles.wrapHome : styles.wrapFloat),
+      shouldUseGlass ? styles.wrapHomeGlass : null,
+    ]}>
+      <View style={[
+        styles.container,
+        inCard ? styles.containerInCard : null,
+        shouldUseGlass ? styles.containerGlass : null,
+      ]}>
+        {shouldUseGlass
+          ? <>
+              {shouldUseBlur
+                ? <>
+                    <BlurView
+                      style={StyleSheet.absoluteFillObject}
+                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
+                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
+                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
+                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
+                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
+                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
+                    />
+                    <View style={styles.glassTint} pointerEvents="none" />
+                  </>
+                : <View style={styles.glassFallback} pointerEvents="none" />}
+              <View style={styles.glassRim} pointerEvents="none" />
+            </>
+          : null}
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.contentPress}
@@ -193,15 +225,27 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
           </View>
         </TouchableOpacity>
         <View style={[styles.actions, inCard ? styles.actionsInCard : null]}>
-          <TouchableOpacity style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null]} activeOpacity={0.8} onPress={handleToggleLoved}>
+          <TouchableOpacity
+            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null, shouldUseGlass ? styles.iconBtnGlass : null]}
+            activeOpacity={0.8}
+            onPress={handleToggleLoved}
+          >
             {isLoved
               ? <Text size={inCard ? 20 : 18} color="#ef4444" style={[styles.loveFilled, inCard ? styles.loveFilledInCard : null]}>{'\u2665'}</Text>
               : <Icon name="love" rawSize={inCard ? 20 : 18} color="#9ca3af" />}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.playBtn, inCard ? styles.playBtnInCard : null]} activeOpacity={0.85} onPress={togglePlay}>
+          <TouchableOpacity
+            style={[styles.playBtn, inCard ? styles.playBtnInCard : null, shouldUseGlass ? styles.playBtnGlass : null]}
+            activeOpacity={0.85}
+            onPress={togglePlay}
+          >
             <Icon name={isPlay ? 'pause' : 'play'} rawSize={inCard ? 21 : 18} color="#ffffff" />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null]} activeOpacity={0.8} onPress={handleMenuPress}>
+          <TouchableOpacity
+            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null, shouldUseGlass ? styles.iconBtnGlass : null]}
+            activeOpacity={0.8}
+            onPress={handleMenuPress}
+          >
             <Icon name="menu" rawSize={inCard ? 20 : 18} color="#9ca3af" />
           </TouchableOpacity>
         </View>
@@ -218,6 +262,10 @@ const styles = createStyle({
   wrapHome: {
     marginTop: 0,
   },
+  wrapHomeGlass: {
+    paddingHorizontal: 14,
+    paddingBottom: 1,
+  },
   wrapFloat: {
     marginTop: -12,
   },
@@ -227,6 +275,7 @@ const styles = createStyle({
     marginTop: 0,
   },
   container: {
+    overflow: 'hidden',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e8e8ec',
@@ -241,6 +290,19 @@ const styles = createStyle({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
+  containerGlass: {
+    width: '100%',
+    maxWidth: 328,
+    alignSelf: 'center',
+    borderRadius: 34,
+    borderColor: 'rgba(244,247,252,0.56)',
+    backgroundColor: 'rgba(255,255,255,0.26)',
+    shadowColor: '#81889a',
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
   containerInCard: {
     borderRadius: 0,
     borderWidth: 0,
@@ -253,6 +315,20 @@ const styles = createStyle({
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
+  },
+  glassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  glassFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.62)',
+  },
+  glassRim: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 34,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   contentPress: {
     flex: 1,
@@ -314,6 +390,11 @@ const styles = createStyle({
     justifyContent: 'center',
     borderRadius: 15,
   },
+  iconBtnGlass: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
   iconBtnInCard: {
     width: 36,
     height: 36,
@@ -338,6 +419,14 @@ const styles = createStyle({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  playBtnGlass: {
+    backgroundColor: '#1d2434',
+    shadowColor: '#2f3748',
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   playBtnInCard: {
     width: 44,

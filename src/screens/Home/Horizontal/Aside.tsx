@@ -107,7 +107,7 @@ export default memo(() => {
   // console.log('render drawer nav')
   const showBackBtn = useSettingValue('common.showBackBtn')
   const showExitBtn = useSettingValue('common.showExitBtn')
-  const visibleMenus = NAV_MENUS.filter(menu => menu.id === 'nav_love' || menu.id === 'nav_setting')
+  const visibleMenus = NAV_MENUS.filter(menu => menu.id === 'nav_search' || menu.id === 'nav_love' || menu.id === 'nav_setting')
 
   const handlePress = (id: IdType) => {
     switch (id) {

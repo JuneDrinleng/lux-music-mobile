@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, Modal, ScrollView, Switch, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Keyboard, Modal, Platform, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, TouchableWithoutFeedback, UIManager, View } from 'react-native'
+import { BlurView } from '@react-native-community/blur'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -11,22 +12,29 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
-import { getUserAvatar, getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserName, getUserSignature, saveUserAvatar, saveUserName, saveUserSignature } from '@/utils/data'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
-import { setLanguage } from '@/core/common'
+import { setLanguage, updateSetting } from '@/core/common'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 
 const SHOW_ADVANCED_SWITCHES = false
-const DEFAULT_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
-const DEFAULT_USER_NAME = 'Alex Rivera'
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const currentVer = process.versions.app
+const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 const languageOptions = [
   { locale: 'zh_cn', label: '\u7b80\u4f53\u4e2d\u6587' },
   { locale: 'zh_tw', label: '\u7e41\u9ad4\u4e2d\u6587' },
   { locale: 'en_us', label: 'English' },
+] as const
+const searchSourceOptions = [
+  { value: 'all', label: 'All Sources' },
+  { value: 'kw', label: 'Kuwo' },
+  { value: 'kg', label: 'KuGou' },
+  { value: 'tx', label: 'QQ Music' },
+  { value: 'wy', label: 'NetEase' },
+  { value: 'mg', label: 'Migu' },
 ] as const
 
 const settingItems = [
@@ -41,12 +49,13 @@ export default () => {
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
-  const headerTopPadding = statusBarHeight + 8
-  const headerHeight = headerTopPadding + 46 + 8
+  const shouldUseSearchBlur = hasNativeBlurView
+  const headerTopPadding = statusBarHeight + 18
+  const headerHeight = headerTopPadding + 44 + 16
   const sourceRef = useRef<SourceType>(null)
   const syncRef = useRef<SyncType>(null)
   const avatarFileRef = useRef<FileSelectType>(null)
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR)
+  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
@@ -54,14 +63,19 @@ export default () => {
   const [isNameModalVisible, setNameModalVisible] = useState(false)
   const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
   const [isLanguagePanelVisible, setLanguagePanelVisible] = useState(false)
+  const [isSearchSourcePanelVisible, setSearchSourcePanelVisible] = useState(false)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
+  const searchDefaultSource = useSettingValue('search.defaultSource')
   const versionInfo = useVersionInfo()
   const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
     const activeLocale = activeLangId ?? 'en_us'
     return languageOptions.find(item => item.locale === activeLocale)?.label ?? 'English'
   }, [activeLangId])
+  const activeSearchSourceLabel = useMemo(() => {
+    return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? 'All Sources'
+  }, [searchDefaultSource])
   const aboutStatusText = versionInfo.status == 'downloading'
     ? t('version_btn_downloading', {
       total: sizeFormate(versionProgress.total),
@@ -84,11 +98,11 @@ export default () => {
     let isUnmounted = false
     void getUserAvatar().then((path) => {
       if (isUnmounted) return
-      setAvatarUrl(path ?? DEFAULT_AVATAR)
+      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
     })
 
     const handleAvatarUpdate = (path: string | null) => {
-      setAvatarUrl(path ?? DEFAULT_AVATAR)
+      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
     }
     global.app_event.on('userAvatarUpdated', handleAvatarUpdate)
 
@@ -196,11 +210,20 @@ export default () => {
     })
   }
   const handleToggleLanguagePanel = () => {
+    setSearchSourcePanelVisible(false)
     setLanguagePanelVisible((visible) => !visible)
+  }
+  const handleToggleSearchSourcePanel = () => {
+    setLanguagePanelVisible(false)
+    setSearchSourcePanelVisible((visible) => !visible)
   }
   const handleSelectLanguage = (locale: typeof languageOptions[number]['locale']) => {
     setLanguage(locale)
     setLanguagePanelVisible(false)
+  }
+  const handleSelectSearchSource = (source: typeof searchSourceOptions[number]['value']) => {
+    updateSetting({ 'search.defaultSource': source })
+    setSearchSourcePanelVisible(false)
   }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
@@ -209,13 +232,41 @@ export default () => {
   return (
     <View style={styles.container}>
       <View style={[styles.header, styles.headerFloating, { paddingTop: headerTopPadding }]}>
-        <View style={styles.searchWrap}>
-          <Icon name="search-2" rawSize={18} color="#9ca3af" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t('setting_search_placeholder')}
-            placeholderTextColor="#9ca3af"
-          />
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={handlePickAvatar}>
+            <View style={styles.avatarBubble}>
+              <View style={styles.avatarInner}>
+                <Image style={styles.avatarBubbleImage} url={avatarUrl} />
+              </View>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.searchDock}>
+            <View style={styles.searchField}>
+              {shouldUseSearchBlur
+                ? <>
+                    <BlurView
+                      style={StyleSheet.absoluteFillObject}
+                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
+                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
+                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
+                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
+                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
+                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
+                    />
+                    <View style={styles.searchGlassTint} pointerEvents="none" />
+                  </>
+                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
+              <View style={styles.searchGlassRim} pointerEvents="none" />
+              <View style={styles.searchContent}>
+                <Icon name="search-2" rawSize={18} color="#666d7b" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={t('setting_search_placeholder')}
+                  placeholderTextColor="#9aa1ae"
+                />
+              </View>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -318,6 +369,40 @@ export default () => {
                         style={[styles.languageItem, isActive ? styles.languageItemActive : null]}
                         activeOpacity={0.8}
                         onPress={() => { handleSelectLanguage(option.locale) }}
+                      >
+                        <Text size={13} color={isActive ? '#111827' : '#374151'} style={styles.languageItemText}>{option.label}</Text>
+                        {isActive ? <View style={styles.languageActiveDot} /> : null}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              : null}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <Text size={15} color="#111827" style={styles.cardTitle}>Search</Text>
+            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleToggleSearchSourcePanel}>
+              <View style={styles.profileLeft}>
+                <View style={styles.profileIconWrap}>
+                  <Icon name="search-2" rawSize={16} color="#5b6474" />
+                </View>
+                <Text size={14} color="#111827" style={styles.profileLabel}>Search Source</Text>
+              </View>
+              <View style={styles.profileRight}>
+                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{activeSearchSourceLabel}</Text>
+                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" style={isSearchSourcePanelVisible ? styles.chevronExpanded : undefined} />
+              </View>
+            </TouchableOpacity>
+            {isSearchSourcePanelVisible
+              ? <View style={styles.languageList}>
+                  {searchSourceOptions.map(option => {
+                    const isActive = (searchDefaultSource ?? 'all') === option.value
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={[styles.languageItem, isActive ? styles.languageItemActive : null]}
+                        activeOpacity={0.8}
+                        onPress={() => { handleSelectSearchSource(option.value) }}
                       >
                         <Text size={13} color={isActive ? '#111827' : '#374151'} style={styles.languageItemText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
@@ -462,17 +547,18 @@ export default () => {
 const styles = createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#f4f1f2',
+    backgroundColor: '#eef0fb',
   },
   content: {
+    paddingHorizontal: 18,
     paddingBottom: 18,
   },
   scroll: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
   },
   headerFloating: {
     position: 'absolute',
@@ -481,38 +567,100 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#f4f1f2',
+    backgroundColor: '#eef0fb',
   },
-  searchWrap: {
-    height: 46,
-    borderRadius: 14,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarButton: {
+    borderRadius: 22,
+  },
+  avatarBubble: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    padding: 2,
+    shadowColor: '#2d3242',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#f3eef2',
+  },
+  avatarBubbleImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+  },
+  searchDock: {
+    flex: 1,
+    marginLeft: 12,
+    position: 'relative',
+    zIndex: 8,
+  },
+  searchField: {
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ebe5e8',
-    backgroundColor: '#fbfafb',
-    paddingHorizontal: 14,
+    borderColor: 'rgba(244,247,252,0.58)',
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#2d3242',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  searchGlassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  searchGlassFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.62)',
+  },
+  searchGlassRim: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  searchContent: {
+    flex: 1,
+    paddingLeft: 14,
+    paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    color: '#111827',
-    fontSize: 13,
+    height: '100%',
+    marginLeft: 10,
+    color: '#232733',
+    fontSize: 14,
     paddingVertical: 0,
+    backgroundColor: 'transparent',
   },
   list: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
   },
   accountCard: {
-    borderRadius: 22,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: '#eadfe4',
-    backgroundColor: '#fcfbfc',
+    borderColor: 'rgba(245,247,252,0.72)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     paddingHorizontal: 18,
     paddingVertical: 18,
-    marginBottom: 12,
-    shadowColor: '#2b1f25',
-    shadowOpacity: 0.06,
+    marginBottom: 14,
+    shadowColor: '#2d3242',
+    shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
@@ -525,15 +673,20 @@ const styles = createStyle({
     width: 78,
     height: 78,
     borderRadius: 39,
-    backgroundColor: '#f1dde4',
+    backgroundColor: '#ffffff',
     padding: 4,
+    shadowColor: '#7b8193',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   accountAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 35,
-    borderWidth: 2,
-    borderColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.9)',
   },
   accountInfo: {
     flex: 1,
@@ -547,7 +700,7 @@ const styles = createStyle({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#f5edf1',
+    backgroundColor: 'rgba(255,255,255,0.78)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -558,8 +711,8 @@ const styles = createStyle({
   accountMetaCard: {
     flex: 1,
     minHeight: 72,
-    borderRadius: 16,
-    backgroundColor: '#f7edf0',
+    borderRadius: 18,
+    backgroundColor: '#f7f8fd',
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginRight: 10,
@@ -575,19 +728,19 @@ const styles = createStyle({
     fontWeight: '700',
   },
   sectionCard: {
-    borderRadius: 18,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#eadfe4',
-    backgroundColor: '#fcfbfc',
-    shadowColor: '#2b1f25',
-    shadowOpacity: 0.04,
+    borderColor: 'rgba(245,247,252,0.72)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    shadowColor: '#2d3242',
+    shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
-    paddingTop: 14,
-    paddingBottom: 12,
-    paddingHorizontal: 14,
-    marginBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    marginBottom: 14,
   },
   cardTitle: {
     fontWeight: '700',
@@ -603,12 +756,12 @@ const styles = createStyle({
     fontWeight: '700',
   },
   addBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#e2dade',
-    backgroundColor: '#f6eef2',
+    borderColor: '#edf0f7',
+    backgroundColor: '#f8f9fd',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -617,16 +770,16 @@ const styles = createStyle({
     fontWeight: '600',
   },
   profileRow: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 14,
-    backgroundColor: '#faf7f8',
+    borderRadius: 18,
+    backgroundColor: '#f8f9fd',
     borderWidth: 1,
-    borderColor: '#efe7ea',
-    paddingHorizontal: 10,
-    marginBottom: 8,
+    borderColor: '#edf0f7',
+    paddingHorizontal: 12,
+    marginBottom: 10,
   },
   profileLeft: {
     flexDirection: 'row',
@@ -640,10 +793,10 @@ const styles = createStyle({
     maxWidth: '48%',
   },
   profileIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#f3edef',
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#eef1f8',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -660,22 +813,22 @@ const styles = createStyle({
     transform: [{ rotate: '90deg' }],
   },
   languageList: {
-    marginTop: 2,
-    borderRadius: 14,
+    marginTop: 4,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#efe7ea',
-    backgroundColor: '#faf7f8',
+    borderColor: '#edf0f7',
+    backgroundColor: '#f8f9fd',
     overflow: 'hidden',
   },
   languageItem: {
-    minHeight: 40,
-    paddingHorizontal: 12,
+    minHeight: 44,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   languageItemActive: {
-    backgroundColor: '#f4edf0',
+    backgroundColor: '#eef3d7',
   },
   languageItemText: {
     fontWeight: '600',
@@ -684,16 +837,16 @@ const styles = createStyle({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#c2395b',
+    backgroundColor: '#8caf33',
   },
   aboutInfoWrap: {
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#efe7ea',
-    backgroundColor: '#faf7f8',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
+    borderColor: '#edf0f7',
+    backgroundColor: '#f8f9fd',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
     gap: 4,
   },
   item: {
@@ -737,7 +890,7 @@ const styles = createStyle({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(36, 24, 31, 0.18)',
+    backgroundColor: 'rgba(34, 39, 51, 0.16)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -745,11 +898,11 @@ const styles = createStyle({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    borderRadius: 20,
+    borderRadius: 24,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#efe7ea',
-    shadowColor: '#2b1f25',
+    borderColor: '#edf0f7',
+    shadowColor: '#2d3242',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -763,7 +916,7 @@ const styles = createStyle({
     marginBottom: 12,
   },
   modalInput: {
-    borderRadius: 12,
+    borderRadius: 16,
     height: 44,
   },
   modalActions: {
@@ -780,10 +933,10 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   modalBtnGhost: {
-    backgroundColor: '#f3edef',
+    backgroundColor: '#f1f4fb',
   },
   modalBtnPrimary: {
-    backgroundColor: '#f0dfe6',
+    backgroundColor: '#d9ef62',
   },
   modalBtnPrimaryText: {
     fontWeight: '600',

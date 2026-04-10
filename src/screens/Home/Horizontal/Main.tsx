@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import HomeTab from '../Vertical/Tabs/HomeTab'
 import PlaylistTab from '../Vertical/Tabs/PlaylistTab'
 import SettingsTab from '../Vertical/Tabs/SettingsTab'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { setNavActiveId } from '@/core/common'
 
-const normalizeNavId = (id: CommonState['navActiveId']): 'nav_love' | 'nav_setting' => {
-  return id === 'nav_setting' ? 'nav_setting' : 'nav_love'
+const normalizeNavId = (id: CommonState['navActiveId']): 'nav_search' | 'nav_love' | 'nav_setting' => {
+  if (id === 'nav_setting') return 'nav_setting'
+  if (id === 'nav_search') return 'nav_search'
+  return 'nav_love'
 }
 
 const Main = () => {
@@ -33,9 +36,10 @@ const Main = () => {
 
   const component = useMemo(() => {
     switch (id) {
+      case 'nav_search': return <HomeTab />
       case 'nav_love': return <PlaylistTab />
       case 'nav_setting': return <SettingsTab />
-      default: return <PlaylistTab />
+      default: return <HomeTab />
     }
   }, [id])
 

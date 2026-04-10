@@ -33,6 +33,9 @@ const userSignaturePrefix = storageDataPrefix.userSignature
 const openStoragePathPrefix = storageDataPrefix.openStoragePath
 const selectedManagedFolderPrefix = storageDataPrefix.selectedManagedFolder
 
+export const DEFAULT_USER_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
+export const DEFAULT_USER_NAME = 'Alex Rivera'
+
 // const defaultListKey = listPrefix + 'default'
 // const loveListKey = listPrefix + 'love'
 

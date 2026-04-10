@@ -6,6 +6,17 @@ import { type SearchType } from '@/store/search/state'
 import { type PermissionPromptAction, type PermissionPromptPayload } from '@/types/permissionPrompt'
 import { type AppDialogAction, type AppDialogPayload } from '@/types/appDialog'
 
+export type VerticalSearchSource = 'all' | 'kg' | 'kw' | 'mg' | 'tx' | 'wy'
+export interface VerticalSearchPagePayload {
+  keyword?: string
+  source?: VerticalSearchSource
+  submit?: boolean
+}
+export interface VerticalSearchStatePayload {
+  keyword: string
+  source: VerticalSearchSource
+}
+
 
 // {
 //   // sync: {
@@ -226,6 +237,22 @@ export class AppEvent extends Event {
 
   userSignatureUpdated(signature: string) {
     this.emit('userSignatureUpdated', signature)
+  }
+
+  openVerticalSearchPage(payload: VerticalSearchPagePayload) {
+    this.emit('openVerticalSearchPage', payload)
+  }
+
+  verticalSearchStateUpdated(payload: VerticalSearchStatePayload) {
+    this.emit('verticalSearchStateUpdated', payload)
+  }
+
+  verticalSearchPageVisibleChanged(visible: boolean) {
+    this.emit('verticalSearchPageVisibleChanged', visible)
+  }
+
+  closeVerticalSearchPage() {
+    this.emit('closeVerticalSearchPage')
   }
 
   showPermissionPrompt(payload: PermissionPromptPayload) {

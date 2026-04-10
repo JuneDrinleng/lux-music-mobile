@@ -11,7 +11,7 @@ import { useComponentIds } from '@/store/common/hook'
 const styles = createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
   },
   bottomLayer: {
     position: 'absolute',
@@ -22,23 +22,17 @@ const styles = createStyle({
     elevation: 21,
     backgroundColor: 'transparent',
   },
-  bottomCard: {
-    marginHorizontal: 12,
+  playerWrap: {
     marginBottom: 6,
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
-  bottomCardInner: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#e8e8ec',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    overflow: 'hidden',
+  navShell: {
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+    shadowColor: '#000000',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
 })
 
@@ -50,12 +44,12 @@ export default () => {
     <View style={styles.container}>
       <StatusBar />
       <Content />
-      <View style={[styles.bottomLayer, bottomInset ? { paddingBottom: bottomInset } : null]} pointerEvents="box-none">
-        <View style={styles.bottomCard}>
-          <View style={styles.bottomCardInner}>
-            <PlayerBar isHome inCard systemGestureInsetBottom={bottomInset} />
-            <BottomNav inCard />
-          </View>
+      <View style={styles.bottomLayer} pointerEvents="box-none">
+        <View style={styles.playerWrap}>
+          <PlayerBar isHome systemGestureInsetBottom={bottomInset} />
+        </View>
+        <View style={styles.navShell}>
+          <BottomNav bottomInset={bottomInset} />
         </View>
       </View>
       <PlayQueueSheet systemGestureInsetBottom={bottomInset} enabled={!componentIds.playDetail} />
