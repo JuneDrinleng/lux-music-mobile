@@ -6,6 +6,17 @@ export const exitApp = UtilsModule.exitApp
 
 export const getSupportedAbis = UtilsModule.getSupportedAbis
 
+export interface BuildInfo {
+  applicationId: string
+  providerAuthority: string
+  releaseAssetPrefix: string
+  updateChannel: string
+}
+
+export const getBuildInfo = async(): Promise<BuildInfo> => {
+  return UtilsModule.getBuildInfo()
+}
+
 export const installApk = (filePath: string, fileProviderAuthority: string) => UtilsModule.installApk(filePath, fileProviderAuthority)
 
 

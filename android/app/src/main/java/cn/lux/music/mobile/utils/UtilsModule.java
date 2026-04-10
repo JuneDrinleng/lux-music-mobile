@@ -22,6 +22,8 @@ import androidx.core.content.FileProvider;
 import androidx.core.os.LocaleListCompat;
 import androidx.core.view.WindowCompat;
 
+import cn.lux.music.mobile.BuildConfig;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -126,6 +128,16 @@ public class UtilsModule extends ReactContextBaseJavaModule {
       array.pushString(abi);
     }
     promise.resolve(array);
+  }
+
+  @ReactMethod
+  public void getBuildInfo(Promise promise) {
+    WritableMap params = Arguments.createMap();
+    params.putString("applicationId", BuildConfig.APP_PACKAGE_NAME);
+    params.putString("providerAuthority", BuildConfig.APP_PROVIDER_AUTHORITY);
+    params.putString("releaseAssetPrefix", BuildConfig.RELEASE_ASSET_PREFIX);
+    params.putString("updateChannel", BuildConfig.UPDATE_CHANNEL);
+    promise.resolve(params);
   }
 
   @ReactMethod

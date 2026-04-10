@@ -101,6 +101,18 @@ def npmPackageJson = getNpmPackageJson()
 def verCode = npmPackageJson["versionCode"]
 def verName = npmPackageJson["version"]
 def applicationName = "lux-music-mobile"
+def channels = [
+    standard: [
+        applicationId: "cn.lux.music.mobile",
+        releaseAssetPrefix: applicationName,
+        updateChannel: "standard",
+    ],
+    vivo: [
+        applicationId: "com.luna.music",
+        releaseAssetPrefix: "${applicationName}-vivo",
+        updateChannel: "vivo",
+    ],
+]
 project.ext.vectoricons = [
     iconFontNames: [ 'MaterialCommunityIcons.ttf' ],
 ]
@@ -113,11 +125,31 @@ android {
 
     namespace "cn.lux.music.mobile"
     defaultConfig {
-        applicationId "cn.lux.music.mobile"
+        applicationId channels.standard.applicationId
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode verCode
         versionName verName
+    }
+
+    flavorDimensions "channel"
+    productFlavors {
+        standard {
+            dimension "channel"
+            applicationId channels.standard.applicationId
+            buildConfigField "String", "APP_PACKAGE_NAME", "\"${channels.standard.applicationId}\""
+            buildConfigField "String", "APP_PROVIDER_AUTHORITY", "\"${channels.standard.applicationId}.provider\""
+            buildConfigField "String", "RELEASE_ASSET_PREFIX", "\"${channels.standard.releaseAssetPrefix}\""
+            buildConfigField "String", "UPDATE_CHANNEL", "\"${channels.standard.updateChannel}\""
+        }
+        vivo {
+            dimension "channel"
+            applicationId channels.vivo.applicationId
+            buildConfigField "String", "APP_PACKAGE_NAME", "\"${channels.vivo.applicationId}\""
+            buildConfigField "String", "APP_PROVIDER_AUTHORITY", "\"${channels.vivo.applicationId}.provider\""
+            buildConfigField "String", "RELEASE_ASSET_PREFIX", "\"${channels.vivo.releaseAssetPrefix}\""
+            buildConfigField "String", "UPDATE_CHANNEL", "\"${channels.vivo.updateChannel}\""
+        }
     }
 
     splits {
@@ -184,14 +216,16 @@ android {
             // Example: versionCode 1 will generate 1001 for armeabi-v7a, 1002 for x86, etc.
             def versionCodes = ["armeabi-v7a": 1, "x86": 2, "arm64-v8a": 3, "x86_64": 4]
             def abi = output.getFilter(OutputFile.ABI)
+            def channel = variant.productFlavors[0]?.name ?: channels.standard.updateChannel
+            def releaseAssetPrefix = channels[channel].releaseAssetPrefix
             if (abi == null) {  // null for the universal-debug, universal-release variants
                 output.outputFileName =
-                        "${applicationName}-v${defaultConfig.versionName}-universal.apk"
+                        "${releaseAssetPrefix}-v${defaultConfig.versionName}-universal.apk"
             } else {
                 output.versionCodeOverride =
                         defaultConfig.versionCode * 1000 + versionCodes.get(abi)
                 output.outputFileName =
-                        "${applicationName}-v${defaultConfig.versionName}-${abi}.apk"
+                        "${releaseAssetPrefix}-v${defaultConfig.versionName}-${abi}.apk"
             }
 
         }

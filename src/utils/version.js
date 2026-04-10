@@ -1,13 +1,17 @@
 import { httpFetch, httpGet } from '@/utils/request'
 import { appendFile, downloadFile, existsFile, privateStorageDirectoryPath, stopDownload, temporaryDirectoryPath, unlink, writeFile } from '@/utils/fs'
-import { getSupportedAbis, installApk } from '@/utils/nativeModules/utils'
-import { APP_PROVIDER_NAME } from '@/config/constant'
+import { getBuildInfo, getSupportedAbis, installApk } from '@/utils/nativeModules/utils'
 
 const updateRepo = {
   owner: 'JuneDrinleng',
   name: 'lux-music-mobile',
 }
-const releaseAssetNamePrefix = 'lux-music-mobile'
+const defaultBuildInfo = {
+  applicationId: 'cn.lux.music.mobile',
+  providerAuthority: 'cn.lux.music.mobile.provider',
+  releaseAssetPrefix: 'lux-music-mobile',
+  updateChannel: 'standard',
+}
 
 const abis = [
   'arm64-v8a',
@@ -17,7 +21,6 @@ const abis = [
   'universal',
 ]
 const defaultAbi = 'universal'
-const apkFileName = 'lux-music-mobile-update.apk'
 const downloadConnectionTimeout = 60000
 const downloadReadTimeout = 600000
 const chunkSize = 1024 * 1024
@@ -99,11 +102,40 @@ let downloadJobId = null
 const noop = (total, download) => {}
 let apkSavePath
 export const isVersionDownloadActive = () => downloadJobId != null
+let cachedBuildInfo = null
+let buildInfoPromise = null
 
-const savePaths = [
-  `${privateStorageDirectoryPath}/${apkFileName}`,
-  `${temporaryDirectoryPath}/${apkFileName}`,
-]
+const getUpdateApkFileName = buildInfo => {
+  return buildInfo.updateChannel == 'vivo'
+    ? 'lux-music-mobile-vivo-update.apk'
+    : 'lux-music-mobile-update.apk'
+}
+
+const getSavePaths = buildInfo => {
+  const apkFileName = getUpdateApkFileName(buildInfo)
+  return [
+    `${privateStorageDirectoryPath}/${apkFileName}`,
+    `${temporaryDirectoryPath}/${apkFileName}`,
+  ]
+}
+
+const ensureBuildInfo = async() => {
+  if (cachedBuildInfo) return cachedBuildInfo
+  if (!buildInfoPromise) {
+    buildInfoPromise = getBuildInfo()
+      .then(info => ({
+        ...defaultBuildInfo,
+        ...info,
+      }))
+      .catch(() => defaultBuildInfo)
+      .then(info => {
+        cachedBuildInfo = info
+        return info
+      })
+  }
+
+  return buildInfoPromise
+}
 
 const ensureCleanSavePath = async(savePath) => {
   try {
@@ -252,7 +284,9 @@ const downloadFromUrl = async(url, savePath, onDownload) => {
 }
 
 export const downloadNewVersion = async(version, onDownload = noop) => {
+  const buildInfo = await ensureBuildInfo()
   const targetAbis = await getTargetAbis()
+  const savePaths = getSavePaths(buildInfo)
   if (downloadJobId != null) {
     stopDownload(downloadJobId)
     downloadJobId = null
@@ -260,7 +294,7 @@ export const downloadNewVersion = async(version, onDownload = noop) => {
 
   let lastError = null
   for (const abi of targetAbis) {
-    const url = `https://github.com/${updateRepo.owner}/${updateRepo.name}/releases/download/v${version}/${releaseAssetNamePrefix}-v${version}-${abi}.apk`
+    const url = `https://github.com/${updateRepo.owner}/${updateRepo.name}/releases/download/v${version}/${buildInfo.releaseAssetPrefix}-v${version}-${abi}.apk`
 
     for (const savePath of savePaths) {
       await ensureCleanSavePath(savePath)
@@ -282,5 +316,6 @@ export const downloadNewVersion = async(version, onDownload = noop) => {
 
 export const updateApp = async() => {
   if (!apkSavePath) throw new Error('apk Save Path is null')
-  await installApk(apkSavePath, APP_PROVIDER_NAME)
+  const buildInfo = await ensureBuildInfo()
+  await installApk(apkSavePath, buildInfo.providerAuthority)
 }
