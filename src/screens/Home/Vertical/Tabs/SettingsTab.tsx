@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, Modal, Platform, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, TouchableWithoutFeedback, UIManager, View } from 'react-native'
-import { BlurView } from '@react-native-community/blur'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Keyboard, Modal, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -22,20 +21,12 @@ import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/versi
 const SHOW_ADVANCED_SWITCHES = false
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const currentVer = process.versions.app
-const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 const languageOptions = [
   { locale: 'zh_cn', label: '\u7b80\u4f53\u4e2d\u6587' },
   { locale: 'zh_tw', label: '\u7e41\u9ad4\u4e2d\u6587' },
   { locale: 'en_us', label: 'English' },
 ] as const
-const searchSourceOptions = [
-  { value: 'all', label: 'All Sources' },
-  { value: 'kw', label: 'Kuwo' },
-  { value: 'kg', label: 'KuGou' },
-  { value: 'tx', label: 'QQ Music' },
-  { value: 'wy', label: 'NetEase' },
-  { value: 'mg', label: 'Migu' },
-] as const
+const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 
 const settingItems = [
   { title: 'App Theme', subtitle: 'Light Mode', icon: 'setting', enabled: true },
@@ -49,7 +40,6 @@ export default () => {
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
-  const shouldUseSearchBlur = hasNativeBlurView
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
   const sourceRef = useRef<SourceType>(null)
@@ -64,6 +54,7 @@ export default () => {
   const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
   const [isLanguagePanelVisible, setLanguagePanelVisible] = useState(false)
   const [isSearchSourcePanelVisible, setSearchSourcePanelVisible] = useState(false)
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
@@ -73,9 +64,17 @@ export default () => {
     const activeLocale = activeLangId ?? 'en_us'
     return languageOptions.find(item => item.locale === activeLocale)?.label ?? 'English'
   }, [activeLangId])
+  const searchSourceOptions = useMemo(() => [
+    { value: 'all', label: t('setting_search_source_all') },
+    { value: 'kw', label: 'Kuwo' },
+    { value: 'kg', label: 'KuGou' },
+    { value: 'tx', label: 'QQ Music' },
+    { value: 'wy', label: 'NetEase' },
+    { value: 'mg', label: 'Migu' },
+  ] as const, [t])
   const activeSearchSourceLabel = useMemo(() => {
-    return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? 'All Sources'
-  }, [searchDefaultSource])
+    return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
+  }, [searchDefaultSource, searchSourceOptions, t])
   const aboutStatusText = versionInfo.status == 'downloading'
     ? t('version_btn_downloading', {
       total: sizeFormate(versionProgress.total),
@@ -153,6 +152,58 @@ export default () => {
       global.app_event.off('userSignatureUpdated', handleSignatureUpdate)
     }
   }, [defaultSignature])
+  useEffect(() => {
+    const handleSettingsSearchStateUpdated = (payload: { keyword: string }) => {
+      setSettingsSearchQuery(payload.keyword)
+    }
+    global.app_event.on('settingsSearchStateUpdated', handleSettingsSearchStateUpdated)
+    return () => {
+      global.app_event.off('settingsSearchStateUpdated', handleSettingsSearchStateUpdated)
+    }
+  }, [])
+
+  const normalizedSettingsSearchQuery = settingsSearchQuery.trim().toLowerCase()
+  const matchesSettingsSearch = useCallback((...values: Array<string | null | undefined>) => {
+    if (!normalizedSettingsSearchQuery) return true
+    return values.some((value) => value?.toLowerCase().includes(normalizedSettingsSearchQuery))
+  }, [normalizedSettingsSearchQuery])
+  const showProfileSection = matchesSettingsSearch(
+    t('setting_profile'),
+    t('setting_profile_avatar'),
+    t('setting_profile_nickname'),
+    t('setting_profile_signature'),
+    nickname,
+    signature || defaultSignature,
+    'JPEG',
+    'PNG',
+  )
+  const showAppearanceSection = matchesSettingsSearch(
+    t('setting_appearance'),
+    t('setting_basic_lang'),
+    activeLanguageLabel,
+  )
+  const showSearchSection = matchesSettingsSearch(
+    t('setting_search'),
+    t('setting_search_source'),
+    activeSearchSourceLabel,
+    ...searchSourceOptions.map((item) => item.label),
+  )
+  const showPlayerSection = matchesSettingsSearch(t('setting_player'))
+  const showSyncSection = matchesSettingsSearch(t('setting_sync'))
+  const showAboutSection = matchesSettingsSearch(
+    t('setting_about'),
+    'GitHub Releases',
+    aboutStatusText,
+    currentVer,
+    t('version_label_current_ver'),
+  )
+  const showHeroSection = !normalizedSettingsSearchQuery || showProfileSection
+  const hasSettingSearchResults = showProfileSection ||
+    showAppearanceSection ||
+    showSearchSection ||
+    showPlayerSection ||
+    showSyncSection ||
+    showAboutSection
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
@@ -221,7 +272,7 @@ export default () => {
     setLanguage(locale)
     setLanguagePanelVisible(false)
   }
-  const handleSelectSearchSource = (source: typeof searchSourceOptions[number]['value']) => {
+  const handleSelectSearchSource = (source: typeof searchSourceOptionValues[number]) => {
     updateSetting({ 'search.defaultSource': source })
     setSearchSourcePanelVisible(false)
   }
@@ -231,45 +282,6 @@ export default () => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, styles.headerFloating, { paddingTop: headerTopPadding }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={handlePickAvatar}>
-            <View style={styles.avatarBubble}>
-              <View style={styles.avatarInner}>
-                <Image style={styles.avatarBubbleImage} url={avatarUrl} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.searchDock}>
-            <View style={styles.searchField}>
-              {shouldUseSearchBlur
-                ? <>
-                    <BlurView
-                      style={StyleSheet.absoluteFillObject}
-                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
-                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
-                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-                    />
-                    <View style={styles.searchGlassTint} pointerEvents="none" />
-                  </>
-                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
-              <View style={styles.searchGlassRim} pointerEvents="none" />
-              <View style={styles.searchContent}>
-                <Icon name="search-2" rawSize={18} color="#666d7b" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder={t('setting_search_placeholder')}
-                  placeholderTextColor="#9aa1ae"
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: 18 + bottomDockHeight }]}
@@ -279,179 +291,231 @@ export default () => {
         overScrollMode="never"
       >
         <View style={styles.list}>
-          <TouchableOpacity style={styles.accountCard} activeOpacity={0.85} onPress={handlePickAvatar}>
-            <View style={styles.accountTopRow}>
-              <View style={styles.accountAvatarWrap}>
-                <Image style={styles.accountAvatar} url={avatarUrl} />
-              </View>
-              <View style={styles.accountInfo}>
-                <Text size={27} color="#19171c" style={styles.accountName}>{nickname}</Text>
-                <Text size={12} color="#766d75" numberOfLines={2}>{signature || defaultSignature}</Text>
-              </View>
-              <View style={styles.accountChevron}>
-                <Icon name="chevron-right-2" rawSize={16} color="#9a8f98" />
-              </View>
-            </View>
-
-            <View style={styles.accountMetaRow}>
-              <View style={styles.accountMetaCard}>
-                <Text size={11} color="#8b4b5f" style={styles.accountMetaLabel}>{t('setting_basic_lang')}</Text>
-                <Text size={14} color="#19171c" style={styles.accountMetaValue}>{activeLanguageLabel}</Text>
-              </View>
-              <View style={[styles.accountMetaCard, styles.accountMetaCardLast]}>
-                <Text size={11} color="#8b4b5f" style={styles.accountMetaLabel}>{t('version_label_current_ver')}</Text>
-                <Text size={14} color="#19171c" style={styles.accountMetaValue}>{currentVer}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <View style={styles.sectionCard}>
-            <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_profile')}</Text>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handlePickAvatar}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="album" rawSize={16} color="#5b6474" />
+          {showHeroSection
+            ? <TouchableOpacity style={styles.profileHero} activeOpacity={0.88} onPress={handlePickAvatar}>
+                <View style={styles.profileHeroAvatarWrap}>
+                  <Image style={styles.profileHeroAvatar} url={avatarUrl} resizeMode="contain" />
+                  <View style={styles.profileHeroBadge}>
+                    <Icon name="music" rawSize={12} color="#f4ffbe" />
+                  </View>
                 </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_avatar')}</Text>
-              </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>JPEG / PNG</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleShowNameModal}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="menu" rawSize={16} color="#5b6474" />
+                <View style={styles.profileHeroContent}>
+                  <Text size={24} color="#1a1c1e" style={styles.profileHeroName}>{nickname}</Text>
+                  <Text size={13} color="#5f6572" numberOfLines={2}>{signature || defaultSignature}</Text>
+                  <View style={styles.profileHeroMetaRow}>
+                    <View style={styles.profileHeroMetaPill}>
+                      <Text size={11} color="#4b570d" style={styles.profileHeroMetaText}>{`LX Music ${currentVer}`}</Text>
+                    </View>
+                    <View style={styles.profileHeroMetaPillMuted}>
+                      <Text size={11} color="#596069" style={styles.profileHeroMetaText}>{activeLanguageLabel}</Text>
+                    </View>
+                  </View>
                 </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_nickname')}</Text>
-              </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{nickname}</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleShowSignatureModal}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="comment" rawSize={16} color="#5b6474" />
+                <View style={styles.profileHeroArrow}>
+                  <Icon name="chevron-right-2" rawSize={16} color="#8f96a2" />
                 </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_profile_signature')}</Text>
-              </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{signature || defaultSignature}</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.sectionCard}>
-            <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_appearance')}</Text>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleToggleLanguagePanel}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="setting" rawSize={16} color="#5b6474" />
-                </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>{t('setting_basic_lang')}</Text>
-              </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{activeLanguageLabel}</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" style={isLanguagePanelVisible ? styles.chevronExpanded : undefined} />
-              </View>
-            </TouchableOpacity>
-            {isLanguagePanelVisible
-              ? <View style={styles.languageList}>
-                  {languageOptions.map(option => {
-                    const isActive = (activeLangId ?? 'en_us') === option.locale
-                    return (
-                      <TouchableOpacity
-                        key={option.locale}
-                        style={[styles.languageItem, isActive ? styles.languageItemActive : null]}
-                        activeOpacity={0.8}
-                        onPress={() => { handleSelectLanguage(option.locale) }}
-                      >
-                        <Text size={13} color={isActive ? '#111827' : '#374151'} style={styles.languageItemText}>{option.label}</Text>
-                        {isActive ? <View style={styles.languageActiveDot} /> : null}
-                      </TouchableOpacity>
-                    )
-                  })}
-                </View>
-              : null}
-          </View>
-
-          <View style={styles.sectionCard}>
-            <Text size={15} color="#111827" style={styles.cardTitle}>Search</Text>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleToggleSearchSourcePanel}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="search-2" rawSize={16} color="#5b6474" />
-                </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>Search Source</Text>
-              </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{activeSearchSourceLabel}</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" style={isSearchSourcePanelVisible ? styles.chevronExpanded : undefined} />
-              </View>
-            </TouchableOpacity>
-            {isSearchSourcePanelVisible
-              ? <View style={styles.languageList}>
-                  {searchSourceOptions.map(option => {
-                    const isActive = (searchDefaultSource ?? 'all') === option.value
-                    return (
-                      <TouchableOpacity
-                        key={option.value}
-                        style={[styles.languageItem, isActive ? styles.languageItemActive : null]}
-                        activeOpacity={0.8}
-                        onPress={() => { handleSelectSearchSource(option.value) }}
-                      >
-                        <Text size={13} color={isActive ? '#111827' : '#374151'} style={styles.languageItemText}>{option.label}</Text>
-                        {isActive ? <View style={styles.languageActiveDot} /> : null}
-                      </TouchableOpacity>
-                    )
-                  })}
-                </View>
-              : null}
-          </View>
-
-          <View style={styles.sectionCard}>
-            <View style={styles.cardTitleRow}>
-              <Text size={15} color="#111827" style={styles.cardTitleNoMargin}>{t('setting_player')}</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.75} onPress={handleAddSource}>
-                <Text size={18} color="#111827" style={styles.addBtnText}>+</Text>
               </TouchableOpacity>
-            </View>
-            <Source ref={sourceRef} embedded />
-          </View>
+            : null}
 
-          <View style={styles.sectionCard}>
-            <View style={styles.cardTitleRow}>
-              <Text size={15} color="#111827" style={styles.cardTitleNoMargin}>{t('setting_sync')}</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.75} onPress={handleAddSyncHost}>
-                <Text size={18} color="#111827" style={styles.addBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
-            <Sync ref={syncRef} embedded />
-          </View>
-
-          <View style={styles.sectionCard}>
-            <Text size={15} color="#111827" style={styles.cardTitle}>{t('setting_about')}</Text>
-            <View style={styles.aboutInfoWrap}>
-              <Text size={13} color="#111827">{`${t('version_label_current_ver')}${currentVer}`}</Text>
-              <Text size={12} color="#6b7280">{aboutStatusText}</Text>
-            </View>
-            <TouchableOpacity style={styles.profileRow} activeOpacity={0.75} onPress={handleOpenReleasePage}>
-              <View style={styles.profileLeft}>
-                <View style={styles.profileIconWrap}>
-                  <Icon name="download-2" rawSize={16} color="#5b6474" />
+          {showProfileSection
+            ? <View style={styles.sectionCard}>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
+                <View style={styles.sectionGroup}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handlePickAvatar}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.groupRowAvatarWrap]}>
+                        <Image style={styles.groupRowAvatar} url={avatarUrl} resizeMode="contain" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>JPEG / PNG</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="menu" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="comment" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{signature || defaultSignature}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                 </View>
-                <Text size={14} color="#111827" style={styles.profileLabel}>GitHub Releases</Text>
               </View>
-              <View style={styles.profileRight}>
-                <Text size={12} color="#8d838c" numberOfLines={1} style={styles.profileValue}>{aboutStatusText}</Text>
-                <Icon name="chevron-right-2" rawSize={16} color="#9ca3af" />
+            : null}
+
+          {showAppearanceSection
+            ? <View style={styles.sectionCard}>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
+                <View style={styles.sectionGroup}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleToggleLanguagePanel}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="setting" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{activeLanguageLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" style={isLanguagePanelVisible ? styles.chevronExpanded : undefined} />
+                  </TouchableOpacity>
+                  {isLanguagePanelVisible
+                    ? <>
+                        <View style={styles.groupDivider} />
+                        <View style={styles.inlineOptionList}>
+                      {languageOptions.map(option => {
+                        const isActive = (activeLangId ?? 'en_us') === option.locale
+                        return (
+                          <TouchableOpacity
+                            key={option.locale}
+                            style={styles.inlineOptionRow}
+                            activeOpacity={0.8}
+                            onPress={() => { handleSelectLanguage(option.locale) }}
+                          >
+                            <Text size={13} color={isActive ? '#20242d' : '#5f6572'} style={styles.inlineOptionText}>{option.label}</Text>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                        )
+                      })}
+                        </View>
+                      </>
+                    : null}
+                </View>
               </View>
-            </TouchableOpacity>
-          </View>
+            : null}
+
+          {showSearchSection
+            ? <View style={styles.sectionCard}>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search')}</Text>
+                <View style={styles.sectionGroup}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleToggleSearchSourcePanel}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="search-2" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSearchSourceLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" style={isSearchSourcePanelVisible ? styles.chevronExpanded : undefined} />
+                  </TouchableOpacity>
+                  {isSearchSourcePanelVisible
+                    ? <>
+                        <View style={styles.groupDivider} />
+                        <View style={styles.inlineOptionList}>
+                      {searchSourceOptions.map(option => {
+                        const isActive = (searchDefaultSource ?? 'all') === option.value
+                        return (
+                          <TouchableOpacity
+                            key={option.value}
+                            style={styles.inlineOptionRow}
+                            activeOpacity={0.8}
+                            onPress={() => { handleSelectSearchSource(option.value) }}
+                          >
+                            <Text size={13} color={isActive ? '#20242d' : '#5f6572'} style={styles.inlineOptionText}>{option.label}</Text>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                        )
+                      })}
+                        </View>
+                      </>
+                    : null}
+                </View>
+              </View>
+            : null}
+
+          {showPlayerSection
+            ? <View style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_player')}</Text>
+                  <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.82} onPress={handleAddSource}>
+                    <Text size={18} color="#4b570d" style={styles.sectionActionText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.sectionGroup}>
+                  <View style={styles.groupEmbedWrap}>
+                    <Source ref={sourceRef} embedded />
+                  </View>
+                </View>
+              </View>
+            : null}
+
+          {showSyncSection
+            ? <View style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_sync')}</Text>
+                  <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.82} onPress={handleAddSyncHost}>
+                    <Text size={18} color="#4b570d" style={styles.sectionActionText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.sectionGroup}>
+                  <View style={styles.groupEmbedWrap}>
+                    <Sync ref={syncRef} embedded />
+                  </View>
+                </View>
+              </View>
+            : null}
+
+          {showAboutSection
+            ? <View style={styles.sectionCard}>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_about')}</Text>
+                <View style={styles.sectionGroup}>
+                  <View style={styles.groupRow}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="music" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
+                      </View>
+                    </View>
+                    <Text size={12} color="#8d838c" style={styles.aboutVersionValue}>{currentVer}</Text>
+                  </View>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="download-2" rawSize={18} color="#58651b" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            : null}
+
+          {!hasSettingSearchResults
+            ? <View style={styles.emptySearchCard}>
+                <Text size={16} color="#111827" style={styles.emptySearchTitle}>{t('setting_search_empty_title')}</Text>
+                <Text size={13} color="#707789" style={styles.emptySearchText}>{t('setting_search_empty_text')}</Text>
+              </View>
+            : null}
         </View>
 
         {
@@ -651,6 +715,85 @@ const styles = createStyle({
   list: {
     paddingHorizontal: 0,
   },
+  profileHero: {
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(231,236,245,0.96)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#2d333b',
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  profileHeroAvatarWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    position: 'relative',
+    padding: 4,
+    backgroundColor: '#ffffff',
+  },
+  profileHeroAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+    backgroundColor: '#eef1f7',
+  },
+  profileHeroBadge: {
+    position: 'absolute',
+    right: 1,
+    bottom: 1,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#58651b',
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileHeroContent: {
+    flex: 1,
+    marginLeft: 16,
+    marginRight: 12,
+  },
+  profileHeroName: {
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  profileHeroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 11,
+  },
+  profileHeroMetaPill: {
+    borderRadius: 999,
+    backgroundColor: '#dbeb92',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    marginRight: 8,
+  },
+  profileHeroMetaPillMuted: {
+    borderRadius: 999,
+    backgroundColor: '#eef1f7',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  profileHeroMetaText: {
+    fontWeight: '700',
+  },
+  profileHeroArrow: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   accountCard: {
     borderRadius: 26,
     borderWidth: 1,
@@ -728,32 +871,116 @@ const styles = createStyle({
     fontWeight: '700',
   },
   sectionCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(245,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    marginBottom: 14,
+    marginBottom: 22,
   },
-  cardTitle: {
+  sectionEyebrow: {
     fontWeight: '700',
-    marginBottom: 12,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    paddingLeft: 4,
   },
-  cardTitleRow: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
   },
+  sectionActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eef1f7',
+  },
+  sectionActionText: {
+    lineHeight: 20,
+    fontWeight: '700',
+  },
+  cardTitle: {
+    fontWeight: '700',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   cardTitleNoMargin: {
     fontWeight: '700',
+  },
+  sectionGroup: {
+    borderRadius: 20,
+    backgroundColor: '#f1f3fb',
+    overflow: 'hidden',
+  },
+  groupRow: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  groupRowLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 14,
+  },
+  groupRowIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#dbeb92',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  groupRowAvatarWrap: {
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+    padding: 2,
+  },
+  groupRowAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+    backgroundColor: '#eef1f7',
+  },
+  groupRowTextWrap: {
+    flex: 1,
+  },
+  groupRowTitle: {
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  groupDivider: {
+    height: 1,
+    marginLeft: 72,
+    marginRight: 18,
+    backgroundColor: '#e1e6ef',
+  },
+  inlineOptionList: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  inlineOptionRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 36,
+  },
+  inlineOptionText: {
+    fontWeight: '600',
+  },
+  groupEmbedWrap: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
   addBtn: {
     width: 30,
@@ -770,22 +997,18 @@ const styles = createStyle({
     fontWeight: '600',
   },
   profileRow: {
-    minHeight: 52,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 18,
-    backgroundColor: '#f8f9fd',
-    borderWidth: 1,
-    borderColor: '#edf0f7',
-    paddingHorizontal: 12,
-    marginBottom: 10,
+    paddingVertical: 7,
+    marginBottom: 1,
   },
   profileLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 14,
   },
   profileRight: {
     flexDirection: 'row',
@@ -793,16 +1016,30 @@ const styles = createStyle({
     maxWidth: '48%',
   },
   profileIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
+    width: 58,
+    height: 58,
+    borderRadius: 16,
     backgroundColor: '#eef1f8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 13,
+    shadowColor: '#747b8f',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+  },
+  profileAvatarWrap: {
+    overflow: 'hidden',
+    padding: 0,
+    backgroundColor: '#ffffff',
+  },
+  profileAvatarThumb: {
+    width: '100%',
+    height: '100%',
   },
   profileLabel: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   profileValue: {
     flexShrink: 1,
@@ -813,22 +1050,18 @@ const styles = createStyle({
     transform: [{ rotate: '90deg' }],
   },
   languageList: {
-    marginTop: 4,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fd',
-    overflow: 'hidden',
+    marginTop: 2,
+    marginLeft: 71,
   },
   languageItem: {
-    minHeight: 44,
-    paddingHorizontal: 14,
+    minHeight: 40,
+    paddingRight: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   languageItemActive: {
-    backgroundColor: '#eef3d7',
+    backgroundColor: 'transparent',
   },
   languageItemText: {
     fontWeight: '600',
@@ -837,7 +1070,7 @@ const styles = createStyle({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#8caf33',
+    backgroundColor: '#58651b',
   },
   aboutInfoWrap: {
     borderRadius: 18,
@@ -848,6 +1081,22 @@ const styles = createStyle({
     paddingVertical: 12,
     marginBottom: 10,
     gap: 4,
+  },
+  emptySearchCard: {
+    minHeight: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aboutVersionValue: {
+    marginLeft: 12,
+    fontWeight: '700',
+  },
+  emptySearchTitle: {
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  emptySearchText: {
+    lineHeight: 19,
   },
   item: {
     borderRadius: 12,

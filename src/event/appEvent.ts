@@ -16,6 +16,9 @@ export interface VerticalSearchStatePayload {
   keyword: string
   source: VerticalSearchSource
 }
+export interface SettingsSearchStatePayload {
+  keyword: string
+}
 
 
 // {
@@ -253,6 +256,10 @@ export class AppEvent extends Event {
 
   closeVerticalSearchPage() {
     this.emit('closeVerticalSearchPage')
+  }
+
+  settingsSearchStateUpdated(payload: SettingsSearchStatePayload) {
+    this.emit('settingsSearchStateUpdated', payload)
   }
 
   showPermissionPrompt(payload: PermissionPromptPayload) {

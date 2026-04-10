@@ -6,6 +6,7 @@ import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
 import type { NAV_ID_Type } from '@/config/constant'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
+import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
 import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
@@ -34,12 +35,15 @@ const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId] ?? 0)
   const searchRequestTokenRef = useRef(0)
+  const [activeNavId, setActiveNavId] = useState<'nav_search' | 'nav_love' | 'nav_setting'>(normalizeNavId(commonState.navActiveId))
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
+  const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
     const navId = indexMap[nativeEvent.position] ?? 'nav_search'
+    setActiveNavId(navId)
     if (navId !== commonState.navActiveId) setNavActiveId(navId)
   }, [])
 
@@ -56,6 +60,7 @@ const Main = () => {
       activeIndexRef.current = index
       pagerViewRef.current?.setPage(index)
       const normalized = normalizeNavId(id)
+      setActiveNavId(normalized)
       if (normalized !== id) setNavActiveId(normalized)
     }
 
@@ -90,8 +95,23 @@ const Main = () => {
     global.app_event.verticalSearchPageVisibleChanged(searchPageVisible)
   }, [searchPageVisible])
 
+  useEffect(() => {
+    if (activeNavId === 'nav_setting') return
+    global.app_event.settingsSearchStateUpdated({ keyword: '' })
+  }, [activeNavId])
+
+  const sharedTopBarVisible = !searchPageVisible && (
+    activeNavId === 'nav_search' ||
+    activeNavId === 'nav_setting' ||
+    (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
+  )
+
   const component = useMemo(() => (
     <View style={styles.root}>
+      <SharedTopBar
+        visible={sharedTopBarVisible}
+        mode={activeNavId === 'nav_setting' ? 'settings' : 'music'}
+      />
       <PagerView
         ref={pagerViewRef}
         initialPage={activeIndexRef.current}
@@ -103,7 +123,7 @@ const Main = () => {
           <HomeTab />
         </View>
         <View collapsable={false} key="nav_love" style={styles.pageStyle}>
-          <PlaylistTab />
+          <PlaylistTab onSharedTopBarVisibleChange={setPlaylistSharedTopBarVisible} />
         </View>
         <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
           <SettingsTab />
@@ -115,7 +135,7 @@ const Main = () => {
         onClose={() => { setSearchPageVisible(false) }}
       />
     </View>
-  ), [onPageSelected, searchPageRequest, searchPageVisible])
+  ), [activeNavId, onPageSelected, searchPageRequest, searchPageVisible, sharedTopBarVisible])
 
   return component
 }

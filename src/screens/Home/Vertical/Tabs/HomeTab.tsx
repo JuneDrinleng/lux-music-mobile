@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, UIManager, View, useWindowDimensions, type GestureResponderEvent } from 'react-native'
-import { BlurView } from '@react-native-community/blur'
-import { Disc3, Ellipsis, Heart, Play, Search, X } from 'lucide-react-native'
+import { useEffect, useMemo, useState } from 'react'
+import { ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent } from 'react-native'
+import { Disc3, Ellipsis, Heart, Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { LIST_IDS } from '@/config/constant'
@@ -13,7 +12,7 @@ import { useMyList } from '@/store/list/hook'
 import listState from '@/store/list/state'
 import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
 import { createStyle } from '@/utils/tools'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getListMusics, getUserAvatar, getUserName } from '@/utils/data'
+import { DEFAULT_USER_NAME, getListMusics, getUserName } from '@/utils/data'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const cardTones = [
@@ -27,8 +26,6 @@ const heroCardTones = [
   { surface: '#dff0ad', accent: '#435817', ink: '#1f2613', textSoft: '#526236' },
   { surface: '#f3e6d5', accent: '#6b4b2e', ink: '#22170e', textSoft: '#705640' },
 ] as const
-const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
-
 type FilterId = 'all' | 'new' | 'trending' | 'top'
 
 const getTone = (index: number) => cardTones[index % cardTones.length]
@@ -60,13 +57,10 @@ export default () => {
   const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
   const [displayName, setDisplayName] = useState(DEFAULT_USER_NAME)
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
-  const [searchQuery, setSearchQuery] = useState('')
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>({})
   const [linkedPlaylistId, setLinkedPlaylistId] = useState<string | null>(null)
-  const topPadding = statusBarHeight + 18
-  const shouldUseSearchBlur = hasNativeBlurView
+  const topPadding = statusBarHeight + 18 + 44 + 16
 
   useEffect(() => {
     let isUnmounted = false
@@ -84,35 +78,6 @@ export default () => {
     return () => {
       isUnmounted = true
       global.app_event.off('userNameUpdated', handleUserNameUpdated)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleVerticalSearchStateUpdated = (payload: { keyword: string }) => {
-      setSearchQuery(payload.keyword)
-    }
-    global.app_event.on('verticalSearchStateUpdated', handleVerticalSearchStateUpdated)
-    return () => {
-      global.app_event.off('verticalSearchStateUpdated', handleVerticalSearchStateUpdated)
-    }
-  }, [])
-
-  useEffect(() => {
-    let isUnmounted = false
-
-    void getUserAvatar().then((path) => {
-      if (isUnmounted) return
-      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    })
-
-    const handleUserAvatarUpdated = (path: string | null) => {
-      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    }
-    global.app_event.on('userAvatarUpdated', handleUserAvatarUpdated)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userAvatarUpdated', handleUserAvatarUpdated)
     }
   }, [])
 
@@ -244,16 +209,6 @@ export default () => {
     return cards
   }, [featuredCover, featuredItem?.id, featuredItem?.title, featuredStat, playlistMetaMap, rankedItems, t])
 
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('')
-  }, [])
-  const handleOpenSearchPage = useCallback(() => {
-    global.app_event.openVerticalSearchPage({
-      keyword: searchQuery.trim(),
-      submit: false,
-    })
-  }, [searchQuery])
-
   const handlePlayPlaylist = async(listId: string | null | undefined) => {
     if (!listId) return
     if (isPlaylistCurrent(listId)) {
@@ -331,60 +286,6 @@ export default () => {
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={() => { setNavActiveId('nav_setting') }}>
-            <View style={styles.avatarBubble}>
-              <View style={styles.avatarInner}>
-                <Image style={styles.avatarImage} url={avatarUrl} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.searchDock}>
-            <View style={styles.searchField}>
-              {shouldUseSearchBlur
-                ? <>
-                    <BlurView
-                      style={StyleSheet.absoluteFillObject}
-                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
-                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
-                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-                    />
-                    <View style={styles.searchGlassTint} pointerEvents="none" />
-                  </>
-                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
-              <View style={styles.searchGlassRim} pointerEvents="none" />
-              <View style={styles.searchContent}>
-                <Search size={17} color="#666d7b" strokeWidth={2.1} />
-                <TouchableOpacity
-                  style={styles.searchInputTrigger}
-                  activeOpacity={0.82}
-                  onPress={handleOpenSearchPage}
-                >
-                  <Text
-                    size={14}
-                    color={searchQuery ? '#232733' : '#9aa1ae'}
-                    numberOfLines={1}
-                    style={styles.searchInputText}
-                  >
-                    {searchQuery || t('me_search_placeholder')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.clearSearchButton}
-                  activeOpacity={0.8}
-                  onPress={handleClearSearch}
-                  disabled={!searchQuery.length}
-                >
-                  <X size={16} color={searchQuery.length ? '#666d7b' : '#bcc2cf'} strokeWidth={2.2} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-
         <View style={styles.greetingBlock}>
           <Text size={30} color="#16181f" style={styles.greetingTitle}>{`${t('home_greeting_short')}, ${greetingName}`}</Text>
         </View>

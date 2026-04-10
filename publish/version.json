@@ -1,6 +1,6 @@
 {
-  "version": "0.1.9",
-  "desc": "v0.1.9\n本次更新聚焦首页歌单页重构、设置页信息架构优化与文档补全。\n新增\n- 歌单页新增「网格 / 列表」展示模式切换。\n- 新增歌单排序设置项 `list.playlistSortMode`（`default` / `time`），并支持持久化。\n- 新增项目文档：`docs/project-structure.md`、`docs/page-hierarchy.md`。\n调整\n- 首页 `MeTab` 重构为 `PlaylistTab`，横竖屏首页统一切换到新歌单页逻辑。\n- 歌单页结构从「个人信息 + 歌单」调整为「歌单中心」，并强化歌单详情管理流程。\n- 歌单详情页新增场景转场动画（进入 / 返回 / 遮罩联动），切换体验更连贯。\n- 搜索音源菜单升级为动画展开面板，选择反馈与层级更清晰。\n- 设置页新增账号信息卡片（头像 / 昵称 / 个性签名）并整合语言、版本信息展示。\n构建\n- 版本号更新到 `0.1.9`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `90`。",
+  "version": "0.2.0",
+  "desc": "v0.2.0\n本次更新聚焦 UI 的彻底重构与美化，重点统一首页视觉风格与顶部交互体系。\n新增\n- 新增共享顶栏组件 `SharedTopBar`，统一头像入口、搜索入口与搜索清空交互。\n- 共享顶栏搜索支持携带默认音源 `search.defaultSource`，并同步关键字/音源状态。\n调整\n- 首页垂直主容器统一接入共享顶栏，并根据当前 Tab / 搜索页 / 歌单详情状态动态控制显隐。\n- `HomeTab`、`SettingsTab` 移除重复顶部区域，页面内容改为适配统一顶栏留白，整体观感更简洁。\n- `PlaylistTab` 新增 `onSharedTopBarVisibleChange` 协同控制，歌单详情与搜索场景自动隐藏共享顶栏，页面沉浸感更强。\n- 首页 UI 层级与交互动线进一步收敛，跨页面切换的一致性和连贯性显著提升。\n构建\n- 版本号更新到 `0.2.0`（`package.json`、`package-lock.json`、iOS 工程）。\n- Android `versionCode` 升级到 `91`。",
   "history": [
     {
       "version": "0.1.2",

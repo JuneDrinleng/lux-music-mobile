@@ -20,7 +20,6 @@ import {
   type ListRenderItem,
 } from 'react-native'
 import { BlurView } from '@react-native-community/blur'
-import { X } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -44,8 +43,7 @@ import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import musicSdk from '@/utils/musicSdk'
 import { debounce } from '@/utils'
-import { setNavActiveId, updateSetting } from '@/core/common'
-import { DEFAULT_USER_AVATAR, getUserAvatar } from '@/utils/data'
+import { updateSetting } from '@/core/common'
 
 const SHOW_LISTENING_STATISTICS = false
 const BOTTOM_DOCK_BASE_HEIGHT = 112
@@ -167,7 +165,7 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
-export default () => {
+export default ({ onSharedTopBarVisibleChange }: { onSharedTopBarVisibleChange?: (visible: boolean) => void }) => {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
@@ -183,7 +181,6 @@ export default () => {
     return extraInset
   }, [statusBarHeight])
   const playlists = useMyList()
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
   const detailSceneWidth = Dimensions.get('window').width
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>({})
   const [selectedListId, setSelectedListId] = useState<string | null>(null)
@@ -252,6 +249,7 @@ export default () => {
   const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
   const sourceMenuListAnim = useRef(new Animated.Value(0)).current
   const detailTransitionTokenRef = useRef(0)
+  const displaySwitchAnim = useRef(new Animated.Value(0)).current
   const [isSongDragActive, setSongDragActive] = useState(false)
   const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
@@ -315,6 +313,10 @@ export default () => {
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
+  const displaySwitchThumbTranslateX = useMemo(() => displaySwitchAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 34],
+  }), [displaySwitchAnim])
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
@@ -330,28 +332,24 @@ export default () => {
   }), [detailSceneAnim])
 
   useEffect(() => {
-    let isUnmounted = false
-
-    void getUserAvatar().then((path) => {
-      if (isUnmounted) return
-      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    })
-
-    const handleUserAvatarUpdated = (path: string | null) => {
-      setAvatarUrl(path ?? DEFAULT_USER_AVATAR)
-    }
-    global.app_event.on('userAvatarUpdated', handleUserAvatarUpdated)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userAvatarUpdated', handleUserAvatarUpdated)
-    }
-  }, [])
-  useEffect(() => {
     return () => {
       setKeepPlayBarVisible(false)
     }
   }, [])
+  useEffect(() => {
+    onSharedTopBarVisibleChange?.(!(isSearchMode || Boolean(selectedListId)))
+    return () => {
+      onSharedTopBarVisibleChange?.(true)
+    }
+  }, [isSearchMode, onSharedTopBarVisibleChange, selectedListId])
+  useEffect(() => {
+    Animated.timing(displaySwitchAnim, {
+      toValue: isPlaylistListMode ? 1 : 0,
+      duration: 188,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [displaySwitchAnim, isPlaylistListMode])
   useEffect(() => {
     detailSongsRef.current = detailSongs
   }, [detailSongs])
@@ -1261,9 +1259,6 @@ export default () => {
       setSearchInputEditing(false)
     })
   }, [])
-  const handleClearSearchPreview = useCallback(() => {
-    setSearchText('')
-  }, [])
 
   const handleSubmitSearch = useCallback((text: string) => {
     forceDismissSearchInput()
@@ -1291,14 +1286,6 @@ export default () => {
     void runSearch(input, searchSource)
     forceDismissSearchInput()
   }, [closeSourceMenu, forceDismissSearchInput, runSearch, searchSource, searchText])
-  const handleEnterSearchMode = useCallback(() => {
-    global.app_event.openVerticalSearchPage({
-      keyword: searchText.trim(),
-      source: searchSource,
-      submit: Boolean(searchText.trim()),
-    })
-  }, [searchSource, searchText])
-
   const handleExitSearch = useCallback(() => {
     setSearchMode(false)
     setSearchInputEditing(false)
@@ -1819,53 +1806,6 @@ export default () => {
             <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={closeSourceMenu} />
           </Animated.View>
         : null}
-      <View style={[styles.header, styles.headerFloating, { paddingTop: headerTopPadding }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={() => { setNavActiveId('nav_setting') }}>
-            <View style={styles.avatarBubble}>
-              <View style={styles.avatarInner}>
-                <Image style={styles.avatarImage} url={avatarUrl} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.searchDock}>
-            <View style={styles.searchWrap}>
-              {shouldUseSearchBlur
-                ? <>
-                    <BlurView
-                      style={StyleSheet.absoluteFillObject}
-                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
-                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
-                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-                    />
-                    <View style={styles.searchGlassTint} pointerEvents="none" />
-                  </>
-                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
-              <View style={styles.searchGlassRim} pointerEvents="none" />
-              <View style={styles.searchContent}>
-                <Icon name="search-2" rawSize={17} color="#666d7b" />
-                <TouchableOpacity style={styles.searchInputTrigger} activeOpacity={0.85} onPress={handleEnterSearchMode}>
-                  <Text size={14} color={searchText ? '#232733' : '#9aa1ae'} numberOfLines={1} style={styles.searchInputText}>
-                    {searchText || t('me_search_placeholder')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.clearSearchButton}
-                  activeOpacity={0.8}
-                  onPress={handleClearSearchPreview}
-                  disabled={!searchText.length}
-                >
-                  <X size={16} color={searchText.length ? '#666d7b' : '#bcc2cf'} strokeWidth={2.2} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: bottomDockHeight }]}
@@ -1916,19 +1856,26 @@ export default () => {
             <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_my_playlists')}</Text>
             <View style={styles.sectionHeaderActions}>
               <View style={styles.displaySwitch}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.displaySwitchThumb,
+                    { transform: [{ translateX: displaySwitchThumbTranslateX }] },
+                  ]}
+                />
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  style={[styles.displaySwitchItem, !isPlaylistListMode ? styles.displaySwitchItemActive : null]}
+                  style={styles.displaySwitchItem}
                   onPress={() => { setPlaylistDisplayMode('grid') }}
                 >
-                  <MaterialCommunityIcon name="view-grid-outline" size={15} color={!isPlaylistListMode ? '#19171c' : '#8b818a'} />
+                  <MaterialCommunityIcon name="view-grid-outline" size={15} color={!isPlaylistListMode ? '#20242d' : '#72798a'} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  style={[styles.displaySwitchItem, isPlaylistListMode ? styles.displaySwitchItemActive : null]}
+                  style={styles.displaySwitchItem}
                   onPress={() => { setPlaylistDisplayMode('list') }}
                 >
-                  <MaterialCommunityIcon name="format-list-bulleted" size={15} color={isPlaylistListMode ? '#19171c' : '#8b818a'} />
+                  <MaterialCommunityIcon name="format-list-bulleted" size={15} color={isPlaylistListMode ? '#20242d' : '#72798a'} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
@@ -2529,12 +2476,30 @@ const styles = createStyle({
     height: 34,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: 'rgba(255,255,255,0.76)',
+    borderColor: '#d7deec',
+    backgroundColor: '#e3e9f4',
     padding: 2,
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
     marginRight: 10,
+  },
+  displaySwitchThumb: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 34,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#eef2f8',
+    shadowColor: '#687189',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   displaySwitchItem: {
     width: 34,
@@ -2542,13 +2507,7 @@ const styles = createStyle({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  displaySwitchItemActive: {
-    backgroundColor: '#ffffff',
-    shadowColor: '#687189',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    zIndex: 1,
   },
   sectionIconBtn: {
     width: 34,
