@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { memo, type ReactNode } from 'react'
 import { View, type ViewProps } from 'react-native'
 import { useTheme } from '@/store/theme/hook'

@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { memo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { TextInput, View, type TextInputProps } from 'react-native'
 import { createStyle } from '@/utils/tools'

@@ -1,3 +1,4 @@
+<!-- Lux Proprietary -->
 # 项目结构说明
 
 本文用于快速梳理 `lux-music-mobile` 当前目录结构，以及各核心模块的职责边界。
