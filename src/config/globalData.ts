@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { version } from '../../package.json'
 import { createAppEventHub } from '@/event/appEvent'
 import { createListEventHub } from '@/event/listEvent'

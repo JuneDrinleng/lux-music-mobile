@@ -6,6 +6,8 @@
 
 <p align="center">基于 LX Music 构建的 UI 重构版音乐 App</p>
 
+<!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
+
 ## 项目简介
 
 `Lux Music` 是在 `LX Music Mobile` 基础上演进的一个 UI 重构版本。

@@ -1,3 +1,4 @@
+<!-- Lux Repository Notice: registry of files explicitly marked as Lux Proprietary. See LICENSE-NOTICE.md. -->
 # Lux Proprietary 文件清单
 
 最后更新：2026-04-11
@@ -10,6 +11,17 @@
 - 仅登记可独立分离、且不构成上游 Apache-2.0 代码派生的原创内容。
 - 登记后请在对应文件头或目录说明中添加 `Lux Proprietary` 标记。
 - 对于本清单内文件，未经书面授权不得商用或再分发。
+- 已标记为 `Modified by Lux Music ... Apache-2.0` 的上游派生文档，不属于 `Lux Proprietary`，因此不登记在本清单中。
+
+## 已标记但不在本清单的 fork 后文件
+
+| 路径 | 文件头标记 | 说明 |
+| --- | --- | --- |
+| `README.md` | `Modified by Lux Music ... Apache-2.0` | 上游 README 的派生修改版，继续按 Apache-2.0 处理 |
+| `CHANGELOG.md` | `Modified by Lux Music ... Apache-2.0` | 上游 CHANGELOG 的派生修改版，继续按 Apache-2.0 处理 |
+| `publish/changeLog.md` | `Modified by Lux Music ... Apache-2.0` | 上游发布说明文档的派生修改版，继续按 Apache-2.0 处理 |
+| `LICENSE-NOTICE.md` | `Lux Repository Notice` | 仓库级授权/合规说明文档，不单独认定为 `Lux Proprietary` |
+| `PROPRIETARY_FILES.md` | `Lux Repository Notice` | 仓库级权属登记说明文档，不单独认定为 `Lux Proprietary` |
 
 ## 文件列表
 
@@ -74,6 +86,7 @@
 | --- | --- | --- | --- |
 | `docs/page-hierarchy.md` | `doc` | Lux Music 页面层级说明文档（本仓库独立撰写）| `2026-04-11` |
 | `docs/project-structure.md` | `doc` | Lux Music 项目结构说明文档（本仓库独立撰写）| `2026-04-11` |
+| `src/component/instruction.md` | `doc` | `src/components` 目录逐文件用途说明文档（本仓库独立撰写）| `2026-04-11` |
 
 ### 代码组件
 
@@ -96,10 +109,18 @@
 | `src/screens/Launch/index.tsx` | `code` | Lux Music 品牌启动/同步等待页，上游无此页面 | `2026-04-11` |
 | `src/screens/LeaderboardDetail/index.tsx` | `code` | Lux 独立新增的排行榜详情页，上游无此页面 | `2026-04-11` |
 | `src/components/common/PromptDialog.tsx` | `code` | Lux 独立新增的通用提示对话框组件，上游无对应文件 | `2026-04-11` |
+| `src/components/PermissionPromptHost.tsx` | `code` | Lux 独立新增的权限提示宿主组件，上游无对应文件 | `2026-04-11` |
+| `src/plugins/player/cache.ts` | `code` | Lux 独立新增的播放器缓存键工具，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Views/Search/Discover.tsx` | `code` | Lux 独立新增的搜索发现页内容组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/PlayDetail/Vertical/components/SeekBar.tsx` | `code` | Lux 独立新增的播放详情拖拽进度条组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/PlayDetail/Vertical/coverTheme.ts` | `code` | Lux 独立新增的播放详情封面配色工具，上游无对应文件 | `2026-04-11` |
 | `src/types/appDialog.ts` | `code` | Lux 独立定义的 AppDialog 类型，上游无此类型文件 | `2026-04-11` |
 | `src/types/permissionPrompt.ts` | `code` | Lux 独立定义的权限提示类型，上游无此类型文件 | `2026-04-11` |
 | `src/utils/imageCache.ts` | `code` | Lux 独立实现的图片缓存工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
+| `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
+| `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |
+| `android/app/src/main/res/values-v29/styles.xml` | `code` | Lux 独立新增的 Android 29+ 系统栏样式配置，上游无对应文件 | `2026-04-11` |
 
 ## 维护模板
 

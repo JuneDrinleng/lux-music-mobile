@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { encryptMsg, decryptMsg } from './utils'
 import { callObj } from './sync'
 // import { action as commonAction } from '@/store/modules/common'

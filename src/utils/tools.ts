@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { Platform, ToastAndroid, BackHandler, Linking, Dimensions, Appearance, PermissionsAndroid, AppState, StyleSheet, type ScaledSize } from 'react-native'
 // import ExtraDimensions from 'react-native-extra-dimensions-android'
 import Clipboard from '@react-native-clipboard/clipboard'

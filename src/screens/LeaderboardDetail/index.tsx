@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 import { useEffect, useMemo, useRef } from 'react'
 import { TouchableOpacity, View } from 'react-native'

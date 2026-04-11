@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { getMusicUrl } from '@/core/music'
 import { getNextPlayMusicInfo, resetRandomNextMusicInfo } from '@/core/player/player'
 import { checkUrl } from '@/utils/request'

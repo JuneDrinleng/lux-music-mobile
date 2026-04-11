@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 import { memo, useEffect, useRef, useState } from "react";
 import {

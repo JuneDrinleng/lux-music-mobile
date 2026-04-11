@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import searchState from '@/store/search/state'
 import searchActions from '@/store/search/action'
 import { getSearchHistory as getSearchHistoryFromStore, saveSearchHistory } from '@/utils/data'

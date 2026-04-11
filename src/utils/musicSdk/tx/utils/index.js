@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { httpFetch } from '@/utils/request'
 import { zzcSign } from './crypto'
 

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 // 修补依赖源码以使构建的依赖恢复正常工作
 
 const fs = require('node:fs')

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 /* eslint-disable no-var */
 import type { AppEventTypes } from '@/event/appEvent'
 import type { ListEventTypes } from '@/event/listEvent'

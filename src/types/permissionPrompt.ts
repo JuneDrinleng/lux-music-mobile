@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 export type PermissionPromptAction = 'cancel' | 'confirm' | 'extra'
 

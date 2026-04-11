@@ -1,3 +1,5 @@
+/* Lux Third-Party Patch Notice: repository-maintained patch file for a third-party dependency. Rights remain subject to the upstream dependency license. See LICENSE-NOTICE.md. */
+
 package com.guichaguri.trackplayer.service.models;
 
 import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_MEDIA_URI;

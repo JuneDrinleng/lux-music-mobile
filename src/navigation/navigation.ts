@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { Navigation } from 'react-native-navigation'
 // import { InteractionManager } from 'react-native'
 
@@ -114,6 +116,32 @@ export async function pushHomeScreen() {
               },
               layout: {
                 componentBackgroundColor: theme['c-content-background'],
+              },
+              animations: {
+                setRoot: {
+                  enter: {
+                    enabled: true,
+                    waitForRender: true,
+                    alpha: {
+                      from: 0,
+                      to: 1,
+                      duration: 280,
+                    },
+                    translationY: {
+                      from: 18,
+                      to: 0,
+                      duration: 280,
+                    },
+                  },
+                  exit: {
+                    enabled: true,
+                    alpha: {
+                      from: 1,
+                      to: 0,
+                      duration: 220,
+                    },
+                  },
+                },
               },
             },
           },

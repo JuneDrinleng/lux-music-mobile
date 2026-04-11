@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { BorderRadius } from '@/theme'
 import { createStyle } from '@/utils/tools'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'

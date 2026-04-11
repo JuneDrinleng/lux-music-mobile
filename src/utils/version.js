@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { httpFetch, httpGet } from '@/utils/request'
 import { appendFile, downloadFile, existsFile, privateStorageDirectoryPath, stopDownload, temporaryDirectoryPath, unlink, writeFile } from '@/utils/fs'
 import { getBuildInfo, getSupportedAbis, installApk } from '@/utils/nativeModules/utils'

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 // import { createStyle } from '@/utils/tools'
 import { useImperativeHandle, forwardRef, useState, useMemo } from 'react'
 import { Modal, TouchableWithoutFeedback, View, type ModalProps as _ModalProps } from 'react-native'

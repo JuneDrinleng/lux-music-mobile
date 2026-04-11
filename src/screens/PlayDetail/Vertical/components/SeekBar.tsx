@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { PanResponder, View } from 'react-native'
 import { useDrag } from '@/utils/hooks'

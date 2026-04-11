@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 import { memo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { TextInput, View, type TextInputProps } from 'react-native'

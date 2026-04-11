@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 // import { exitApp } from '@/utils/common'
 import { setJSExceptionHandler, setNativeExceptionHandler } from 'react-native-exception-handler'
 import { log } from '@/utils/log'

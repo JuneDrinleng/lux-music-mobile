@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { memo, useCallback, useImperativeHandle, useState, forwardRef } from 'react'
 
 import { Keyboard, Modal, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'

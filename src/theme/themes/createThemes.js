@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 //! 更新默认主题配置后，需要执行 npm run build:theme 重新构建index.json
 
 const fs = require('fs')

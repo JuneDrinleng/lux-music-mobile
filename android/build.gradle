@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {

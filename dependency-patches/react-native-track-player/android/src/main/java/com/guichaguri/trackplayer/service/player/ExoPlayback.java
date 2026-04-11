@@ -1,3 +1,5 @@
+/* Lux Third-Party Patch Notice: repository-maintained patch file for a third-party dependency. Rights remain subject to the upstream dependency license. See LICENSE-NOTICE.md. */
+
 package com.guichaguri.trackplayer.service.player;
 
 import static androidx.media3.common.Player.PLAYBACK_SUPPRESSION_REASON_NONE;

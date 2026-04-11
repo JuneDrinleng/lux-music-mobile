@@ -1,3 +1,5 @@
+<!-- Lux Proprietary: repository-original source/config file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. -->
+
 <resources>
 
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">

@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 import { useMemo } from 'react'
 import { Dimensions, Platform } from 'react-native'

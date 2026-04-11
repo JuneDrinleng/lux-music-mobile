@@ -1,4 +1,4 @@
-<!-- Lux Proprietary -->
+<!-- Lux Proprietary: repository-original documentation. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. -->
 # 项目结构说明
 
 本文用于快速梳理 `lux-music-mobile` 当前目录结构，以及各核心模块的职责边界。

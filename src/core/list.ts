@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { LIST_IDS } from '@/config/constant'
 import listAction from '@/store/list/action'
 import listState from '@/store/list/state'

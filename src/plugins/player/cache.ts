@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { getPlayQuality } from '@/core/music/utils'
 import settingState from '@/store/setting/state'
 

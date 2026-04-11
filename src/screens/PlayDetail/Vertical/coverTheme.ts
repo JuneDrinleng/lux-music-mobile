@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { getColors, type AndroidImageColors, type IOSImageColors } from 'react-native-image-colors'
 
 const clamp = (num: number, min: number, max: number) => {

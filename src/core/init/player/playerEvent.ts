@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { playNext, setMusicUrl, syncNotificationLikeState } from '@/core/player/player'
 import { setStatusText } from '@/core/player/playStatus'
 import { getPosition, isEmpty, setStop } from '@/plugins/player'

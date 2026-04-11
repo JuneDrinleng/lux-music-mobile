@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { TextInput, View, TouchableOpacity, StyleSheet, type TextInputProps } from 'react-native'
 import { Icon } from '@/components/common/Icon'

@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -22,6 +24,7 @@ import {
 } from 'react-native'
 import { BlurView } from '@react-native-community/blur'
 import { Play } from 'lucide-react-native'
+import SegmentedIconSwitch, { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -58,14 +61,6 @@ const SOURCE_MENU_REVEAL_DELAY = 52
 const DETAIL_TRANSITION_FORWARD_DURATION = 318
 const DETAIL_TRANSITION_BACKWARD_DURATION = 304
 const DETAIL_TRANSITION_HOME_PARALLAX = 0.28
-const DISPLAY_SWITCH_PADDING = 3
-const DISPLAY_SWITCH_ITEM_WIDTH = 34
-const DISPLAY_SWITCH_ITEM_HEIGHT = 28
-const DISPLAY_SWITCH_WIDTH = DISPLAY_SWITCH_ITEM_WIDTH * 2 + DISPLAY_SWITCH_PADDING * 2
-const DISPLAY_SWITCH_HEIGHT = DISPLAY_SWITCH_ITEM_HEIGHT + DISPLAY_SWITCH_PADDING * 2
-const DISPLAY_SWITCH_THUMB_WIDTH = 30
-const DISPLAY_SWITCH_THUMB_HEIGHT = DISPLAY_SWITCH_ITEM_HEIGHT
-const DISPLAY_SWITCH_THUMB_OFFSET = DISPLAY_SWITCH_PADDING + (DISPLAY_SWITCH_ITEM_WIDTH - DISPLAY_SWITCH_THUMB_WIDTH) / 2
 const sourceMenus = [
   { action: 'all', label: 'all' },
   { action: 'kg', label: 'kg' },
@@ -293,7 +288,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
   const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
   const sourceMenuListAnim = useRef(new Animated.Value(0)).current
   const detailTransitionTokenRef = useRef(0)
-  const displaySwitchAnim = useRef(new Animated.Value(0)).current
   const [isSongDragActive, setSongDragActive] = useState(false)
   const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
@@ -358,10 +352,30 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
-  const displaySwitchThumbTranslateX = useMemo(() => displaySwitchAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, DISPLAY_SWITCH_ITEM_WIDTH],
-  }), [displaySwitchAnim])
+  const displaySwitchItems = useMemo<SegmentedIconSwitchItem[]>(() => [
+    {
+      key: 'grid',
+      renderIcon: active => (
+        <MaterialCommunityIcon
+          name="view-grid-outline"
+          size={15}
+          color={active ? '#20242d' : '#72798a'}
+          style={[styles.displaySwitchIcon, styles.displaySwitchGridIcon]}
+        />
+      ),
+    },
+    {
+      key: 'list',
+      renderIcon: active => (
+        <MaterialCommunityIcon
+          name="view-list-outline"
+          size={15}
+          color={active ? '#20242d' : '#72798a'}
+          style={[styles.displaySwitchIcon, styles.displaySwitchListIcon]}
+        />
+      ),
+    },
+  ], [])
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
@@ -387,14 +401,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
       onSharedTopBarVisibleChange?.(true)
     }
   }, [isSearchMode, onSharedTopBarVisibleChange, selectedListId])
-  useEffect(() => {
-    Animated.timing(displaySwitchAnim, {
-      toValue: isPlaylistListMode ? 1 : 0,
-      duration: 188,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start()
-  }, [displaySwitchAnim, isPlaylistListMode])
   useEffect(() => {
     let cancelled = false
 
@@ -2032,29 +2038,12 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
               <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
             </View>
             <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
-              <View style={styles.displaySwitch}>
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.displaySwitchThumb,
-                    { transform: [{ translateX: displaySwitchThumbTranslateX }] },
-                  ]}
-                />
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.displaySwitchItem}
-                  onPress={() => { setPlaylistDisplayMode('grid') }}
-                >
-                  <MaterialCommunityIcon name="view-grid-outline" size={15} color={!isPlaylistListMode ? '#20242d' : '#72798a'} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.displaySwitchItem}
-                  onPress={() => { setPlaylistDisplayMode('list') }}
-                >
-                  <MaterialCommunityIcon name="format-list-bulleted" size={15} color={isPlaylistListMode ? '#20242d' : '#72798a'} />
-                </TouchableOpacity>
-              </View>
+              <SegmentedIconSwitch
+                value={playlistDisplayMode}
+                items={displaySwitchItems}
+                onChange={value => { setPlaylistDisplayMode(value as 'grid' | 'list') }}
+                style={styles.displaySwitch}
+              />
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
@@ -2707,43 +2696,20 @@ const styles = createStyle({
     marginLeft: 'auto',
   },
   displaySwitch: {
-    width: DISPLAY_SWITCH_WIDTH,
-    height: DISPLAY_SWITCH_HEIGHT,
-    borderRadius: DISPLAY_SWITCH_HEIGHT / 2,
-    borderWidth: 1,
-    borderColor: '#d7deec',
-    backgroundColor: '#e3e9f4',
-    paddingHorizontal: DISPLAY_SWITCH_PADDING,
-    paddingVertical: DISPLAY_SWITCH_PADDING,
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
     marginRight: 10,
   },
-  displaySwitchThumb: {
-    position: 'absolute',
-    top: DISPLAY_SWITCH_PADDING,
-    left: DISPLAY_SWITCH_THUMB_OFFSET,
-    width: DISPLAY_SWITCH_THUMB_WIDTH,
-    height: DISPLAY_SWITCH_THUMB_HEIGHT,
-    borderRadius: DISPLAY_SWITCH_THUMB_HEIGHT / 2,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#eef2f8',
-    shadowColor: '#687189',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+  displaySwitchIcon: {
+    width: 18,
+    lineHeight: 15,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
-  displaySwitchItem: {
-    width: DISPLAY_SWITCH_ITEM_WIDTH,
-    height: DISPLAY_SWITCH_ITEM_HEIGHT,
-    borderRadius: DISPLAY_SWITCH_ITEM_HEIGHT / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
+  displaySwitchGridIcon: {
+    transform: [{ translateX: -0.5 }, { translateY: -0.5 }],
+  },
+  displaySwitchListIcon: {
+    transform: [{ translateX: 0.5 }, { translateY: -0.5 }],
   },
   sectionIconBtn: {
     width: 34,

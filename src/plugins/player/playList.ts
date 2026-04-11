@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import TrackPlayer, { State } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { defaultUrl } from '@/config'

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { addPlayedList, clearPlayedList } from '@/core/player/playedList'
 import { pause, playNext } from '@/core/player/player'
 import { setStatusText, setIsPlay } from '@/core/player/playStatus'

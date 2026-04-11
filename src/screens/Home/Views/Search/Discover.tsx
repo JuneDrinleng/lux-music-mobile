@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, ScrollView, TouchableOpacity, View } from 'react-native'
 import { createStyle } from '@/utils/tools'

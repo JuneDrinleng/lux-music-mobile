@@ -1,3 +1,5 @@
+/* Lux Third-Party Patch Notice: repository-maintained patch file for a third-party dependency. Rights remain subject to the upstream dependency license. See LICENSE-NOTICE.md. */
+
 import { MetadataOptions, PlayerOptions, Event, Track, State, TrackMetadataBase, NowPlayingMetadata, RepeatMode } from './interfaces';
 declare function setupPlayer(options?: PlayerOptions): Promise<void>;
 declare function destroy(): any;

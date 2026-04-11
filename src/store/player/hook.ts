@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { isActive } from '@/utils/tools'
 import { useEffect, useState } from 'react'
 import state, { type InitState } from './state'

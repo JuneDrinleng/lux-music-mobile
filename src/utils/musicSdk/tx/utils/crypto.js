@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { hashSHA1 } from '@/utils/nativeModules/crypto'
 
 const PART_1_INDEXES = [23, 14, 6, 36, 16, 40, 7, 19]

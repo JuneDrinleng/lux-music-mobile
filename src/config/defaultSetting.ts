@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 const defaultSetting: LX.AppSetting = {
   version: '2.0',
   'common.isAutoTheme': false,

@@ -1,4 +1,4 @@
-<!-- Lux Proprietary -->
+<!-- Lux Proprietary: repository-original documentation. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. -->
 # 页面层级说明
 
 本文基于当前仓库代码整理，重点说明应用的页面入口、导航关系，以及 `Home` 页面内部层级。

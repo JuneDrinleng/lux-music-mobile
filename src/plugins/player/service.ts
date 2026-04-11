@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 /* eslint-disable @typescript-eslint/no-misused-promises */
 import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-track-player'
 // import { store } from '@/store'

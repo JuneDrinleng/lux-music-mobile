@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import type { InitState as SearchState } from '@/store/search/state'
 import type { Source as MusicSource } from '@/store/search/music/state'

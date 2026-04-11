@@ -1,3 +1,5 @@
+<!-- Modified by Lux Music: derived from the upstream LX Music Mobile source/config file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools">
 

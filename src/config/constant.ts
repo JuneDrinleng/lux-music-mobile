@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 export const HEADER_HEIGHT = 42
 export const LIST_ITEM_HEIGHT = 54
 export const LIST_SCROLL_POSITION_KEY = '__LIST_SCROLL_POSITION_KEY__'

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import '@/utils/errorHandle'
 import { init as initLog } from '@/utils/log'
 import { bootLog, getBootLog } from '@/utils/bootLog'
