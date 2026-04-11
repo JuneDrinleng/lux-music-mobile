@@ -95,6 +95,11 @@
 | `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` | `code` | Lux 独立新增的设置 Tab 组件，上游无 Tabs 目录 | `2026-04-11` |
 | `src/screens/Launch/index.tsx` | `code` | Lux Music 品牌启动/同步等待页，上游无此页面 | `2026-04-11` |
 | `src/screens/LeaderboardDetail/index.tsx` | `code` | Lux 独立新增的排行榜详情页，上游无此页面 | `2026-04-11` |
+| `src/components/common/PromptDialog.tsx` | `code` | Lux 独立新增的通用提示对话框组件，上游无对应文件 | `2026-04-11` |
+| `src/types/appDialog.ts` | `code` | Lux 独立定义的 AppDialog 类型，上游无此类型文件 | `2026-04-11` |
+| `src/types/permissionPrompt.ts` | `code` | Lux 独立定义的权限提示类型，上游无此类型文件 | `2026-04-11` |
+| `src/utils/imageCache.ts` | `code` | Lux 独立实现的图片缓存工具，上游无对应文件 | `2026-04-11` |
+| `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 
 ## 维护模板
 

@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react'
 import { Keyboard, Modal, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Input, { type InputType } from './Input'

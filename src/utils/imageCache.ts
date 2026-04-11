@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { stringMd5 } from 'react-native-quick-md5'
 import { downloadFile, existsFile, mkdir, moveFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
 

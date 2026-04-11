@@ -1,3 +1,4 @@
+// Lux Proprietary
 export type PermissionPromptAction = 'cancel' | 'confirm' | 'extra'
 
 export interface PermissionPromptPayload {

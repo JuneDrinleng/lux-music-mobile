@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { useMemo } from 'react'
 import { Dimensions, Platform } from 'react-native'
 import { useStatusbarHeight } from '@/store/common/hook'

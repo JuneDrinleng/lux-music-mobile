@@ -1,3 +1,4 @@
+// Lux Proprietary
 export type AppDialogAction = 'cancel' | 'confirm'
 
 export interface AppDialogPayload {
