@@ -79,10 +79,22 @@
 
 | 路径 | 类型 | 说明 | 首次加入 |
 | --- | --- | --- | --- |
+| `src/components/AppDialogHost.tsx` | `code` | Lux 全局对话框宿主组件，上游无对应文件 | `2026-04-11` |
 | `src/components/modern/SearchBar.tsx` | `code` | Lux 独立设计的现代风格搜索框组件，上游无对应文件 | `2026-04-11` |
 | `src/components/modern/SectionHeader.tsx` | `code` | Lux 独立设计的节标题组件，上游无对应文件 | `2026-04-11` |
 | `src/components/modern/Surface.tsx` | `code` | Lux 独立设计的卡片容器组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Views/Mylist/LibraryTabs.tsx` | `code` | Lux 独立新增的媒体库标签组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Views/Mylist/RecentList.tsx` | `code` | Lux 独立新增的最近播放列表组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/BottomNav.tsx` | `code` | Lux 独立新增的底部导航栏组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/PlayQueueSheet.tsx` | `code` | Lux 独立新增的播放队列底部弹层，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/SearchPage.tsx` | `code` | Lux 独立新增的搜索页面组件，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/SharedTopBar.tsx` | `code` | Lux 独立新增的顶部共享导航栏，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/HomeTab.tsx` | `code` | Lux 独立新增的主页 Tab 组件，上游无 Tabs 目录 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/PlaylistTab.tsx` | `code` | Lux 独立新增的歌单 Tab 组件，上游无 Tabs 目录 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/RankingsTab.tsx` | `code` | Lux 独立新增的排行榜 Tab 组件，上游无 Tabs 目录 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` | `code` | Lux 独立新增的设置 Tab 组件，上游无 Tabs 目录 | `2026-04-11` |
 | `src/screens/Launch/index.tsx` | `code` | Lux Music 品牌启动/同步等待页，上游无此页面 | `2026-04-11` |
+| `src/screens/LeaderboardDetail/index.tsx` | `code` | Lux 独立新增的排行榜详情页，上游无此页面 | `2026-04-11` |
 
 ## 维护模板
 

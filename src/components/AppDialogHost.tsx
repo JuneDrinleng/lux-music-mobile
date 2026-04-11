@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import { type AppDialogAction, type AppDialogPayload } from '@/types/appDialog'

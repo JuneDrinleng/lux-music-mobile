@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent } from 'react-native'
 import { Disc3, Ellipsis, Heart, Play } from 'lucide-react-native'

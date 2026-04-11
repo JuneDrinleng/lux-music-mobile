@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'

@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { memo } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 import { createStyle } from '@/utils/tools'
