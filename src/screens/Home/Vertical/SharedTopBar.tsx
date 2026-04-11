@@ -32,7 +32,7 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
   const shouldUseSearchBlur = hasNativeBlurView
   const topBarWidth = Math.max(0, Dimensions.get('window').width - 36)
   const modeAnim = useRef(new Animated.Value(mode === 'settings' ? 1 : 0)).current
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
+  const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [musicSearchQuery, setMusicSearchQuery] = useState('')
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
@@ -144,8 +144,10 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
     outputRange: [1, 0.78, 1],
   }), [modeAnim])
   const avatarDisplayUrl = useMemo(() => {
-    if (!avatarUrl || avatarUrl === DEFAULT_USER_AVATAR) return avatarUrl
-    if (avatarUrl.startsWith('/')) return `file://${avatarUrl}?v=${avatarVersion}`
+    if (!avatarUrl) return DEFAULT_USER_AVATAR
+    if (typeof avatarUrl != 'string') return avatarUrl
+    const normalizedAvatarUrl = avatarUrl.startsWith('file://') ? avatarUrl.replace(/^file:\/\//, '') : avatarUrl
+    if (normalizedAvatarUrl.startsWith('/')) return `file://${normalizedAvatarUrl}?v=${avatarVersion}`
     return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
   }, [avatarUrl, avatarVersion])
 

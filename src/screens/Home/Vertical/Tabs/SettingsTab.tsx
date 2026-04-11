@@ -50,7 +50,7 @@ export default () => {
   const avatarFileRef = useRef<FileSelectType>(null)
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
-  const [avatarUrl, setAvatarUrl] = useState(DEFAULT_USER_AVATAR)
+  const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
@@ -279,8 +279,10 @@ export default () => {
         ? t('setting_profile_gender')
         : ''
   const avatarDisplayUrl = useMemo(() => {
-    if (!avatarUrl || avatarUrl === DEFAULT_USER_AVATAR) return avatarUrl
-    if (avatarUrl.startsWith('/')) return `file://${avatarUrl}?v=${avatarVersion}`
+    if (!avatarUrl) return DEFAULT_USER_AVATAR
+    if (typeof avatarUrl != 'string') return avatarUrl
+    const normalizedAvatarUrl = avatarUrl.startsWith('file://') ? avatarUrl.replace(/^file:\/\//, '') : avatarUrl
+    if (normalizedAvatarUrl.startsWith('/')) return `file://${normalizedAvatarUrl}?v=${avatarVersion}`
     return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
   }, [avatarUrl, avatarVersion])
 
@@ -317,8 +319,8 @@ export default () => {
       dirOnly: false,
       filter: ['jpg', 'jpeg', 'png', 'webp', 'bmp'],
     }, (path) => {
-      void saveUserAvatar(path).then(() => {
-        global.app_event.userAvatarUpdated(path)
+      void saveUserAvatar(path).then((savedPath) => {
+        global.app_event.userAvatarUpdated(savedPath)
       })
     })
   }

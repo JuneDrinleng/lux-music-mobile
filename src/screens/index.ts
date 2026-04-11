@@ -1,3 +1,4 @@
+export { default as Launch } from './Launch'
 export { default as Home } from './Home'
 export { default as PlayDetail } from './PlayDetail'
 export { default as SonglistDetail } from './SonglistDetail'

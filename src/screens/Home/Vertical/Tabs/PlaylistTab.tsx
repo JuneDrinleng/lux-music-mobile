@@ -57,6 +57,14 @@ const SOURCE_MENU_REVEAL_DELAY = 52
 const DETAIL_TRANSITION_FORWARD_DURATION = 318
 const DETAIL_TRANSITION_BACKWARD_DURATION = 304
 const DETAIL_TRANSITION_HOME_PARALLAX = 0.28
+const DISPLAY_SWITCH_PADDING = 3
+const DISPLAY_SWITCH_ITEM_WIDTH = 34
+const DISPLAY_SWITCH_ITEM_HEIGHT = 28
+const DISPLAY_SWITCH_WIDTH = DISPLAY_SWITCH_ITEM_WIDTH * 2 + DISPLAY_SWITCH_PADDING * 2
+const DISPLAY_SWITCH_HEIGHT = DISPLAY_SWITCH_ITEM_HEIGHT + DISPLAY_SWITCH_PADDING * 2
+const DISPLAY_SWITCH_THUMB_WIDTH = 30
+const DISPLAY_SWITCH_THUMB_HEIGHT = DISPLAY_SWITCH_ITEM_HEIGHT
+const DISPLAY_SWITCH_THUMB_OFFSET = DISPLAY_SWITCH_PADDING + (DISPLAY_SWITCH_ITEM_WIDTH - DISPLAY_SWITCH_THUMB_WIDTH) / 2
 const sourceMenus = [
   { action: 'all', label: 'all' },
   { action: 'kg', label: 'kg' },
@@ -351,7 +359,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
   const isPlaylistListMode = playlistDisplayMode == 'list'
   const displaySwitchThumbTranslateX = useMemo(() => displaySwitchAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 34],
+    outputRange: [0, DISPLAY_SWITCH_ITEM_WIDTH],
   }), [displaySwitchAnim])
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
@@ -2020,7 +2028,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
         <View style={styles.section}>
           <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
             <View style={styles.playlistSectionTitleWrap}>
-              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_my_playlists')}</Text>
+              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
             </View>
             <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
               <View style={styles.displaySwitch}>
@@ -2110,8 +2118,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneListId = null, onStanda
                       </TouchableOpacity>
                 )
               })
-              : <View style={styles.emptyCard}>
-                  <Text size={13} color="#7a7179">{t('me_my_playlists')}</Text>
+              : <View style={[styles.emptyCard, styles.emptyPlaylistCard]}>
                   <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={handleShowCreateListModal}>
                     <Text size={13} color="#19171c" style={styles.emptyActionText}>{t('me_create_new')}</Text>
                   </TouchableOpacity>
@@ -2699,13 +2706,14 @@ const styles = createStyle({
     marginLeft: 'auto',
   },
   displaySwitch: {
-    width: 72,
-    height: 34,
-    borderRadius: 17,
+    width: DISPLAY_SWITCH_WIDTH,
+    height: DISPLAY_SWITCH_HEIGHT,
+    borderRadius: DISPLAY_SWITCH_HEIGHT / 2,
     borderWidth: 1,
     borderColor: '#d7deec',
     backgroundColor: '#e3e9f4',
-    padding: 2,
+    paddingHorizontal: DISPLAY_SWITCH_PADDING,
+    paddingVertical: DISPLAY_SWITCH_PADDING,
     flexDirection: 'row',
     alignItems: 'center',
     position: 'relative',
@@ -2714,11 +2722,11 @@ const styles = createStyle({
   },
   displaySwitchThumb: {
     position: 'absolute',
-    top: 2,
-    left: 2,
-    width: 34,
-    height: 28,
-    borderRadius: 14,
+    top: DISPLAY_SWITCH_PADDING,
+    left: DISPLAY_SWITCH_THUMB_OFFSET,
+    width: DISPLAY_SWITCH_THUMB_WIDTH,
+    height: DISPLAY_SWITCH_THUMB_HEIGHT,
+    borderRadius: DISPLAY_SWITCH_THUMB_HEIGHT / 2,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#eef2f8',
@@ -2729,9 +2737,9 @@ const styles = createStyle({
     elevation: 2,
   },
   displaySwitchItem: {
-    width: 34,
-    height: 28,
-    borderRadius: 14,
+    width: DISPLAY_SWITCH_ITEM_WIDTH,
+    height: DISPLAY_SWITCH_ITEM_HEIGHT,
+    borderRadius: DISPLAY_SWITCH_ITEM_HEIGHT / 2,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
@@ -3096,8 +3104,11 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emptyPlaylistCard: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 16,
+  },
   emptyActionBtn: {
-    marginTop: 12,
     height: 40,
     paddingHorizontal: 16,
     borderRadius: 20,

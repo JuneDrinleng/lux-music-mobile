@@ -11,6 +11,11 @@ import { tipDialog } from './utils/tools'
 console.log('starting app...')
 listenLaunchEvent()
 
+const LAUNCH_SCREEN_MIN_DURATION = 3500
+const delay = async(ms: number) => new Promise<void>(resolve => {
+  setTimeout(resolve, ms)
+})
+
 void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize]) => {
   global.lx.fontSize = fontSize
   bootLog('Font size setting loaded.')
@@ -48,11 +53,33 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
   const { init: initNavigation, navigations } = await import('@/navigation')
 
   initNavigation(async() => {
+    const launchStartedAt = Date.now()
+    global.lx.isShowingLaunchScreen = true
+
+    const isLaunchScreenShown = await navigations.pushLaunchScreen().then(() => {
+      bootLog('Launch screen shown.')
+      return true
+    }).catch((err: any) => {
+      void tipDialog({
+        title: 'Error',
+        message: err.message,
+        btnText: 'Exit',
+        bgClose: false,
+      }).then(() => {
+        exitApp()
+      })
+      return false
+    })
+
+    if (!isLaunchScreenShown) return
     await handleInit()
     if (!isInited) return
+    const remainDuration = LAUNCH_SCREEN_MIN_DURATION - (Date.now() - launchStartedAt)
+    if (remainDuration > 0) await delay(remainDuration)
     // import('@/utils/nativeModules/cryptoTest')
 
     await navigations.pushHomeScreen().then(() => {
+      global.lx.isShowingLaunchScreen = false
       void handlePushedHomeScreen()
     }).catch((err: any) => {
       void tipDialog({

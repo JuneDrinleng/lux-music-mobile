@@ -58,6 +58,7 @@ global.lx = {
   jumpMyListPosition: false,
 
   settingActiveId: 'basic',
+  isShowingLaunchScreen: true,
 
   homePagerIdle: true,
 

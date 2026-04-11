@@ -2,6 +2,7 @@ import { Navigation } from 'react-native-navigation'
 // import { InteractionManager } from 'react-native'
 
 import {
+  LAUNCH_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
   SONGLIST_DETAIL_SCREEN,
@@ -18,6 +19,41 @@ import { type ListInfoItem } from '@/store/songlist/state'
 
 // const store = getStore()
 // const getTheme = () => getter('common', 'theme')(store.getState())
+
+export async function pushLaunchScreen() {
+  const theme = themeState.theme
+
+  return Navigation.setRoot({
+    root: {
+      stack: {
+        children: [{
+          component: {
+            name: LAUNCH_SCREEN,
+            options: {
+              topBar: {
+                visible: false,
+                height: 0,
+                drawBehind: false,
+              },
+              statusBar: {
+                drawBehind: true,
+                visible: true,
+                style: getStatusBarStyle(theme.isDark),
+                backgroundColor: 'transparent',
+              },
+              navigationBar: {
+                backgroundColor: 'transparent',
+              },
+              layout: {
+                componentBackgroundColor: theme['c-content-background'],
+              },
+            },
+          },
+        }],
+      },
+    },
+  })
+}
 
 export async function pushHomeScreen() {
   /*

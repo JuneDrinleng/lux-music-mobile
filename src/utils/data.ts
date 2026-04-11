@@ -1,6 +1,9 @@
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
 import { throttle } from './common'
+import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
+import { log } from './log'
+import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
 // import { isNotificationsEnabled, openNotificationPermissionActivity, shareText } from '@/utils/nativeModules/utils'
@@ -34,8 +37,61 @@ const userGenderPrefix = storageDataPrefix.userGender
 const openStoragePathPrefix = storageDataPrefix.openStoragePath
 const selectedManagedFolderPrefix = storageDataPrefix.selectedManagedFolder
 
-export const DEFAULT_USER_AVATAR = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcVca8jY8f-JP2fdUKrHa_XFfVv4N77gpir_i1Q-OurG6uswWSse3yJNJJbZGpnM2tQ050EHA3ZGui2TJgYQCuiLjFgMR3sGA7R602hWmDCqTJ0ABPvqfNVwgSqTKgeY9ojtsoEXx1hi-SmEyE_lTXJnzVRT-XoPMSwq82IZLvnaOAg4IVTJ5Y1lKuksGcqjxLc448H-n0G9AlKAO0ZvRn-jqY3boR70xtpI1fJo8ou-0ZtR-AkL9CmhAzGR0K9nPhk-rt5yI7-tE'
+const userAvatarFileDir = `${privateStorageDirectoryPath}/user`
+const userAvatarFilePrefix = `${userAvatarFileDir}/avatar`
+const userAvatarLocalExts = ['jpg', 'jpeg', 'png', 'webp', 'bmp'] as const
+const localFileProtocolRxp = /^file:\/\//
+
+export const DEFAULT_USER_AVATAR: number = defaultUserAvatar as number
 export const DEFAULT_USER_NAME = 'Alex Rivera'
+
+const normalizeLocalFilePath = (path: string) => path.replace(localFileProtocolRxp, '')
+const isLocalFilePath = (path: string) => path.startsWith('/') || localFileProtocolRxp.test(path)
+const isPersistedUserAvatarPath = (path: string) => path.startsWith(userAvatarFilePrefix + '.')
+const getPersistedUserAvatarPath = (path: string) => {
+  const targetExt = extname(path).toLowerCase()
+  return `${userAvatarFilePrefix}.${userAvatarLocalExts.includes(targetExt as typeof userAvatarLocalExts[number]) ? targetExt : 'png'}`
+}
+const ensureUserAvatarDir = async() => {
+  if (await existsFile(userAvatarFileDir)) return
+  await mkdir(userAvatarFileDir)
+}
+const clearPersistedUserAvatarFiles = async(excludePath?: string) => {
+  await Promise.all(userAvatarLocalExts.map(async(ext) => {
+    const path = `${userAvatarFilePrefix}.${ext}`
+    if (path == excludePath || !await existsFile(path)) return
+    await unlink(path).catch(() => {})
+  }))
+}
+const persistUserAvatarPath = async(path: string) => {
+  const sourcePath = normalizeLocalFilePath(path)
+  const targetPath = getPersistedUserAvatarPath(sourcePath)
+  await ensureUserAvatarDir()
+  const avatarData = await readFile(sourcePath, 'base64')
+  await writeFile(targetPath, avatarData, 'base64')
+  await clearPersistedUserAvatarFiles(targetPath)
+  return targetPath
+}
+const resolveUserAvatar = async(path: string | null) => {
+  if (!path) return null
+  if (!isLocalFilePath(path)) return path
+
+  const sourcePath = normalizeLocalFilePath(path)
+  if (!await existsFile(sourcePath)) {
+    await removeData(userAvatarPrefix)
+    return null
+  }
+  if (isPersistedUserAvatarPath(sourcePath)) return sourcePath
+
+  try {
+    const persistedPath = await persistUserAvatarPath(sourcePath)
+    await saveData(userAvatarPrefix, persistedPath)
+    return persistedPath
+  } catch (error: any) {
+    log.warn('persist user avatar failed:', error?.message ?? error)
+    return sourcePath
+  }
+}
 
 // const defaultListKey = listPrefix + 'default'
 // const loveListKey = listPrefix + 'love'
@@ -594,16 +650,19 @@ let userAvatar: string | null = ''
 export const getUserAvatar = async() => {
   if (userAvatar !== '') return userAvatar
   // eslint-disable-next-line require-atomic-updates
-  userAvatar = await getData<string>(userAvatarPrefix) ?? null
+  userAvatar = await resolveUserAvatar(await getData<string>(userAvatarPrefix) ?? null)
   return userAvatar
 }
 export const saveUserAvatar = async(path: string | null) => {
   if (path) {
-    userAvatar = path
-    await saveData(userAvatarPrefix, path)
+    userAvatar = await persistUserAvatarPath(path)
+    await saveData(userAvatarPrefix, userAvatar)
+    return userAvatar
   } else {
     userAvatar = null
+    await clearPersistedUserAvatarFiles()
     await removeData(userAvatarPrefix)
+    return userAvatar
   }
 }
 
