@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { memo } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
 import Loading from '@/components/common/Loading'

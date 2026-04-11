@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { memo, useEffect, useRef, useState } from "react";
 import {
   Animated,

@@ -1,3 +1,4 @@
+// Lux Proprietary
 import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
