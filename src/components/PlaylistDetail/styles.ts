@@ -1,0 +1,267 @@
+import { createStyle } from '@/utils/tools'
+import { APP_LAYER_INDEX } from '@/config/constant'
+
+export default createStyle({
+  container: {
+    flex: 1,
+    backgroundColor: '#eef0fb',
+  },
+  detailContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 0,
+  },
+  detailListWrap: {
+    flex: 1,
+    position: 'relative',
+  },
+  header: {
+    position: 'relative',
+    overflow: 'visible',
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailBackBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    padding: 2,
+    shadowColor: '#2d3242',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  detailBackBtnInner: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#f3eef2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailHeroCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#edf0f7',
+    backgroundColor: '#ffffff',
+    shadowColor: '#76809b',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    marginBottom: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  detailHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailHeroCover: {
+    width: 92,
+    height: 92,
+    borderRadius: 14,
+  },
+  detailHeroText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  detailHeroNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  detailHeroName: {
+    flexShrink: 1,
+  },
+  detailHeroMeta: {
+    marginTop: 2,
+  },
+  detailHeroSourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  detailHeroSourceBadge: {
+    marginRight: 8,
+  },
+  detailHeroSourceText: {
+    flexShrink: 1,
+    fontWeight: '500',
+  },
+  detailHeroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  detailHeroIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailHeroDeleteBtn: {
+    marginLeft: 8,
+    backgroundColor: '#fee2e2',
+  },
+  section: {
+    marginBottom: 18,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+  },
+  sectionTag: {
+    fontWeight: '600',
+  },
+  detailActionBtn: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e3e8f3',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailActionBtnDisabled: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#edf2f7',
+  },
+  detailActionBtnText: {
+    fontWeight: '600',
+  },
+  emptyCard: {
+    width: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#edf0f7',
+    backgroundColor: '#ffffff',
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listTitle: {
+    fontWeight: '700',
+    marginBottom: 5,
+  },
+  songItem: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#edf0f7',
+    backgroundColor: '#ffffff',
+    shadowColor: '#76809b',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  songItemWrap: {
+    position: 'relative',
+  },
+  songItemGhost: {
+    opacity: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  songMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  songPic: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+  },
+  songInfo: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  songMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  songSource: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#e5e7eb',
+    marginRight: 6,
+    fontWeight: '600',
+  },
+  songActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  songInterval: {
+    marginRight: 4,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  songActionBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  songDragOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: APP_LAYER_INDEX.playQueue,
+    elevation: APP_LAYER_INDEX.playQueue,
+  },
+  songDragCard: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 20,
+    borderColor: '#d1d5db',
+  },
+  importDrawerList: {
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  importDrawerContent: {
+    paddingBottom: 8,
+  },
+  importSongItem: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#edf0f7',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  importSongItemSelected: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  importSongMain: {
+    flex: 1,
+    marginLeft: 8,
+  },
+})

@@ -92,7 +92,7 @@ export default forwardRef<ModalType, ModalProps>(({
       onRequestClose={handleRequestClose}
       {...props}
     >
-      <View style={{ flex: 1, paddingTop: statusBarPadding ? statusBarHeight : 0 }}>
+      <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={handleBgClose}>
           <View
             style={{
@@ -105,7 +105,7 @@ export default forwardRef<ModalType, ModalProps>(({
             }}
           />
         </TouchableWithoutFeedback>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingTop: statusBarPadding ? statusBarHeight : 0 }}>
           {memoChildren}
         </View>
       </View>

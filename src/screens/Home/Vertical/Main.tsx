@@ -123,7 +123,7 @@ const Main = () => {
   }, [activeNavId])
 
   const playlistDetailVisible = Boolean(playlistDetailRequest)
-  const sharedTopBarVisible = !searchPageVisible && (
+  const sharedTopBarVisible = !searchPageVisible && !playlistDetailVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
