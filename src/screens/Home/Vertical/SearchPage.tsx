@@ -22,18 +22,22 @@ import { Search, X } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
+import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { addListMusics, getListMusics, removeListMusics } from '@/core/list'
 import { addMusicToQueueAndPlay } from '@/core/player/player'
 import { search as searchOnlineMusic } from '@/core/search/music'
+import { search as searchOnlineSonglist } from '@/core/search/songlist'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
+import { type Source as OnlineSonglistSearchSource } from '@/store/search/songlist/state'
 import settingState from '@/store/setting/state'
+import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
 import { type VerticalSearchPagePayload, type VerticalSearchSource } from '@/event/appEvent'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { createStyle } from '@/utils/tools'
@@ -41,6 +45,9 @@ import { debounce } from '@/utils'
 import musicSdk from '@/utils/musicSdk'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 112
+const SEARCH_TYPE_BAR_HEIGHT = 36
+const SEARCH_TYPE_BAR_GAP = 14
+const SEARCH_HEADER_BOTTOM_GAP = 16
 const sourceTagColorMap: Record<string, { text: string, background: string }> = {
   tx: { text: '#31c27c', background: '#ecfdf3' },
   wy: { text: '#d81e06', background: '#fef2f2' },
@@ -51,6 +58,7 @@ const sourceTagColorMap: Record<string, { text: string, background: string }> = 
 const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 
 type SearchResultItem = LX.Music.MusicInfoOnline
+type SearchResultType = 'music' | 'songlist'
 export interface SearchPageRequest extends VerticalSearchPagePayload {
   token: number
 }
@@ -75,8 +83,10 @@ export default function SearchPage({
   const shouldUseSearchBlur = hasNativeBlurView
   const [searchText, setSearchText] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [searchResultType, setSearchResultType] = useState<SearchResultType>('music')
   const [searchLoading, setSearchLoading] = useState(false)
-  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
+  const [musicSearchResults, setMusicSearchResults] = useState<SearchResultItem[]>([])
+  const [songlistSearchResults, setSonglistSearchResults] = useState<SearchSonglistItem[]>([])
   const [lovedSongMap, setLovedSongMap] = useState<Record<string, true>>({})
   const [isSearchInputEditing, setSearchInputEditing] = useState(false)
   const [searchHistoryList, setSearchHistoryList] = useState<string[]>([])
@@ -88,6 +98,10 @@ export default function SearchPage({
   const searchInputRef = useRef<TextInput>(null)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
   const requestTokenRef = useRef<number | null>(null)
+  const searchLoadedKeyRef = useRef<Record<SearchResultType, string>>({
+    music: '',
+    songlist: '',
+  })
   const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
 
   const forceDismissSearchInput = useCallback(() => {
@@ -102,7 +116,11 @@ export default function SearchPage({
     setSearchTipList([])
     setSearchText('')
     setSearchKeyword('')
-    setSearchResults([])
+    setSearchResultType('music')
+    setMusicSearchResults([])
+    setSonglistSearchResults([])
+    searchLoadedKeyRef.current.music = ''
+    searchLoadedKeyRef.current.songlist = ''
     setSearchInputEditing(false)
     global.app_event.verticalSearchStateUpdated({
       keyword: '',
@@ -195,22 +213,34 @@ export default function SearchPage({
       if (requestId === searchTipRequestIdRef.current) setSearchTipLoading(false)
     })
   }, 220), [])
-  const runSearch = useCallback(async(keyword: string, source: VerticalSearchSource) => {
+  const runSearch = useCallback(async(keyword: string, source: VerticalSearchSource, type: SearchResultType) => {
     const requestId = ++searchRequestIdRef.current
     setSearchLoading(true)
+    const lowerKeyword = keyword.trim().toLowerCase()
+    const requestKey = `${type}__${source}__${lowerKeyword}`
     try {
-      const lowerKeyword = keyword.trim().toLowerCase()
       if (!lowerKeyword) {
         if (requestId !== searchRequestIdRef.current) return
-        setSearchResults([])
+        if (type === 'songlist') setSonglistSearchResults([])
+        else setMusicSearchResults([])
+        searchLoadedKeyRef.current[type] = ''
         return
       }
-      const results = await searchOnlineMusic(lowerKeyword, 1, source as OnlineSearchSource)
-      if (requestId !== searchRequestIdRef.current) return
-      setSearchResults(results)
+      if (type === 'songlist') {
+        const results = await searchOnlineSonglist(lowerKeyword, 1, source as OnlineSonglistSearchSource)
+        if (requestId !== searchRequestIdRef.current) return
+        setSonglistSearchResults(results)
+      } else {
+        const results = await searchOnlineMusic(lowerKeyword, 1, source as OnlineSearchSource)
+        if (requestId !== searchRequestIdRef.current) return
+        setMusicSearchResults(results)
+      }
+      searchLoadedKeyRef.current[type] = requestKey
     } catch {
       if (requestId !== searchRequestIdRef.current) return
-      setSearchResults([])
+      if (type === 'songlist') setSonglistSearchResults([])
+      else setMusicSearchResults([])
+      searchLoadedKeyRef.current[type] = requestKey
     } finally {
       if (requestId === searchRequestIdRef.current) setSearchLoading(false)
     }
@@ -247,7 +277,10 @@ export default function SearchPage({
     setSearchTipList([])
     setSearchText('')
     setSearchKeyword('')
-    setSearchResults([])
+    setMusicSearchResults([])
+    setSonglistSearchResults([])
+    searchLoadedKeyRef.current.music = ''
+    searchLoadedKeyRef.current.songlist = ''
     setSearchInputEditing(true)
     global.app_event.verticalSearchStateUpdated({
       keyword: '',
@@ -269,7 +302,10 @@ export default function SearchPage({
 
     if (!input) {
       setSearchKeyword('')
-      setSearchResults([])
+      setMusicSearchResults([])
+      setSonglistSearchResults([])
+      searchLoadedKeyRef.current.music = ''
+      searchLoadedKeyRef.current.songlist = ''
       requestAnimationFrame(() => {
         setSearchInputEditing(true)
         loadSearchHistoryList()
@@ -279,15 +315,18 @@ export default function SearchPage({
     }
 
     setSearchKeyword(input)
-    setSearchResults([])
+    setMusicSearchResults([])
+    setSonglistSearchResults([])
+    searchLoadedKeyRef.current.music = ''
+    searchLoadedKeyRef.current.songlist = ''
     global.app_event.verticalSearchStateUpdated({
       keyword: input,
       source: searchSource ?? 'all',
     })
     void addHistoryWord(input)
-    void runSearch(input, searchSource ?? 'all')
+    void runSearch(input, searchSource ?? 'all', searchResultType)
     forceDismissSearchInput()
-  }, [forceDismissSearchInput, loadSearchHistoryList, runSearch, searchSource, searchText])
+  }, [forceDismissSearchInput, loadSearchHistoryList, runSearch, searchResultType, searchSource, searchText])
   const handleBeginSearchInputEdit = useCallback(() => {
     setSearchInputEditing(true)
     const keyword = searchText.trim()
@@ -352,6 +391,32 @@ export default function SearchPage({
       isMove: false,
     })
   }, [])
+  const handleOpenSonglistDetail = useCallback((item: SearchSonglistItem) => {
+    global.app_event.openPlaylistDetail({
+      type: 'onlineSonglist',
+      id: item.id,
+      source: item.source,
+      name: item.name,
+      author: item.author,
+      img: item.img ?? null,
+      desc: item.desc,
+      play_count: item.play_count,
+    })
+  }, [])
+  const handleSearchResultTypeChange = useCallback((nextValue: string) => {
+    if (nextValue !== 'music' && nextValue !== 'songlist') return
+    if (nextValue === searchResultType) return
+
+    setSearchResultType(nextValue)
+
+    if (isSearchInputEditing || !searchKeyword) return
+
+    const normalizedKeyword = searchKeyword.trim().toLowerCase()
+    const requestKey = `${nextValue}__${searchSource ?? 'all'}__${normalizedKeyword}`
+    if (searchLoadedKeyRef.current[nextValue] === requestKey) return
+
+    void runSearch(searchKeyword, searchSource ?? 'all', nextValue)
+  }, [isSearchInputEditing, runSearch, searchKeyword, searchResultType, searchSource])
 
   const initializeFromRequest = useCallback((payload: SearchPageRequest) => {
     const nextKeyword = payload.keyword?.trim() ?? ''
@@ -362,23 +427,26 @@ export default function SearchPage({
     setSearchTipLoading(false)
     setSearchTipList([])
     setSearchText(nextKeyword)
+    setSearchResultType('music')
+    setMusicSearchResults([])
+    setSonglistSearchResults([])
+    searchLoadedKeyRef.current.music = ''
+    searchLoadedKeyRef.current.songlist = ''
 
     if (payload.submit && nextKeyword) {
       setSearchInputEditing(false)
       setSearchKeyword(nextKeyword)
-      setSearchResults([])
       global.app_event.verticalSearchStateUpdated({
         keyword: nextKeyword,
         source: searchSource ?? 'all',
       })
       void addHistoryWord(nextKeyword)
-      void runSearch(nextKeyword, searchSource ?? 'all')
+      void runSearch(nextKeyword, searchSource ?? 'all', 'music')
       forceDismissSearchInput()
       return
     }
 
     setSearchKeyword('')
-    setSearchResults([])
     setSearchInputEditing(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
@@ -403,6 +471,30 @@ export default function SearchPage({
     return true
   }, [handleClose, visible]))
 
+  const searchTypeItems = useMemo(() => ([
+    {
+      key: 'music',
+      accessibilityLabel: t('search_type_music'),
+      renderIcon: (active: boolean) => (
+        <MaterialCommunityIcon
+          name="music-note-outline"
+          size={18}
+          color={active ? '#232733' : '#7b8494'}
+        />
+      ),
+    },
+    {
+      key: 'songlist',
+      accessibilityLabel: t('search_type_songlist'),
+      renderIcon: (active: boolean) => (
+        <MaterialCommunityIcon
+          name="playlist-music-outline"
+          size={18}
+          color={active ? '#232733' : '#7b8494'}
+        />
+      ),
+    },
+  ]), [t])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     const sourceTagColor = getSourceTagColor(item.source)
@@ -426,7 +518,7 @@ export default function SearchPage({
           <Text size={11} color="#9ca3af" style={styles.searchSongInterval}>{item.interval ?? '--:--'}</Text>
           <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { void handleToggleSearchLoved(item) }}>
             {isLoved
-              ? <Text size={17} color="#ef4444" style={styles.searchLoveFilled}>{'\u2665'}</Text>
+              ? <MaterialCommunityIcon name="heart" size={18} color="#ef4444" />
               : <Icon name="love" rawSize={17} color="#9ca3af" />}
           </TouchableOpacity>
           <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { handleShowMusicAddModal(item) }}>
@@ -436,12 +528,44 @@ export default function SearchPage({
       </View>
     )
   }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap])
+  const renderSonglistResultItem: ListRenderItem<SearchSonglistItem> = useCallback(({ item }) => {
+    const sourceTagColor = getSourceTagColor(item.source)
+    const primaryMetaText = [item.author?.trim(), item.play_count?.trim()].filter(Boolean).join(' / ')
+    const fallbackMetaText = item.desc?.trim()
+    const metaText = primaryMetaText.length ? primaryMetaText : (fallbackMetaText?.length ? fallbackMetaText : '--')
+    return (
+      <View style={styles.songlistItem}>
+        <TouchableOpacity
+          style={styles.songMain}
+          activeOpacity={0.82}
+          onPress={() => { handleOpenSonglistDetail(item) }}
+        >
+          <Image style={styles.songlistPic} url={item.img ?? null} />
+          <View style={styles.songlistInfo}>
+            <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
+            <View style={styles.songMetaRow}>
+              <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
+              <Text size={11} color="#6b7280" numberOfLines={1} style={styles.songlistMetaText}>{metaText}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.songActionBtn}
+          activeOpacity={0.8}
+          onPress={() => { handleOpenSonglistDetail(item) }}
+        >
+          <MaterialCommunityIcon name="chevron-right" size={18} color="#9ca3af" />
+        </TouchableOpacity>
+      </View>
+    )
+  }, [handleOpenSonglistDetail])
 
   const searchAssistKeyword = searchText.trim()
   const searchAssistList = useMemo(() => {
     return searchAssistKeyword ? searchTipList : searchHistoryList
   }, [searchAssistKeyword, searchHistoryList, searchTipList])
   const showInitialPage = isSearchInputEditing || !searchKeyword
+  const searchResultTitle = searchResultType === 'songlist' ? t('search_result_songlist_title') : t('search_result_music_title')
 
   const searchHeader = useMemo(() => {
     return (
@@ -513,9 +637,28 @@ export default function SearchPage({
             </View>
           </View>
         </View>
+        {!showInitialPage
+          ? <View style={styles.searchTypeBar}>
+              <Text size={22} color="#1a1c1e" style={styles.searchTypeTitle}>{searchResultTitle}</Text>
+              <SegmentedIconSwitch
+                value={searchResultType}
+                items={searchTypeItems}
+                onChange={handleSearchResultTypeChange}
+                style={styles.searchTypeSwitch}
+                itemWidth={42}
+                itemHeight={30}
+                padding={3}
+                backgroundColor="#dfe6f3"
+                borderColor="#d4ddeb"
+                thumbColor="#ffffff"
+                thumbBorderColor="#edf2f8"
+                thumbShadowColor="#687189"
+              />
+            </View>
+          : null}
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchText, shouldUseSearchBlur, statusBarHeight, t])
+  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, shouldUseSearchBlur, showInitialPage, statusBarHeight, t])
 
   const panelTranslateX = useMemo(() => pageAnim.interpolate({
     inputRange: [0, 1],
@@ -525,7 +668,7 @@ export default function SearchPage({
     inputRange: [0, 1],
     outputRange: [0.86, 1],
   }), [pageAnim])
-  const searchHeaderHeight = statusBarHeight + 18 + 44 + 16
+  const searchHeaderHeight = statusBarHeight + 18 + 44 + SEARCH_HEADER_BOTTOM_GAP + (showInitialPage ? 0 : SEARCH_TYPE_BAR_GAP + SEARCH_TYPE_BAR_HEIGHT)
   const renderInitialItem = useCallback((keyword: string, index: number) => {
     const isSuggestion = Boolean(searchAssistKeyword)
     return (
@@ -629,32 +772,59 @@ export default function SearchPage({
         </View>
         {showInitialPage
           ? initialView
-          : <FlatList
-              style={styles.searchResultList}
-              contentContainerStyle={[
-                styles.searchResultContent,
-                { paddingTop: searchHeaderHeight, paddingBottom: 16 + BOTTOM_DOCK_BASE_HEIGHT },
-              ]}
-              data={searchResults}
-              renderItem={renderSearchResultItem}
-              keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-              ListEmptyComponent={(
-                <View style={styles.searchResultStatus}>
-                  <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
-                    {searchLoading ? t('me_searching') : t('me_search_no_match')}
-                  </Text>
-                </View>
-              )}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              removeClippedSubviews={false}
-              initialNumToRender={12}
-              windowSize={8}
-              maxToRenderPerBatch={12}
-              bounces={false}
-              alwaysBounceVertical={false}
-              overScrollMode="never"
-            />}
+          : searchResultType === 'songlist'
+            ? <FlatList
+                style={styles.searchResultList}
+                contentContainerStyle={[
+                  styles.searchResultContent,
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + BOTTOM_DOCK_BASE_HEIGHT },
+                ]}
+                data={songlistSearchResults}
+                renderItem={renderSonglistResultItem}
+                keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
+                ListEmptyComponent={(
+                  <View style={styles.searchResultStatus}>
+                    <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
+                      {searchLoading ? t('me_searching') : t('me_search_no_match')}
+                    </Text>
+                  </View>
+                )}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={false}
+                initialNumToRender={12}
+                windowSize={8}
+                maxToRenderPerBatch={12}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+              />
+            : <FlatList
+                style={styles.searchResultList}
+                contentContainerStyle={[
+                  styles.searchResultContent,
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + BOTTOM_DOCK_BASE_HEIGHT },
+                ]}
+                data={musicSearchResults}
+                renderItem={renderSearchResultItem}
+                keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
+                ListEmptyComponent={(
+                  <View style={styles.searchResultStatus}>
+                    <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
+                      {searchLoading ? t('me_searching') : t('me_search_no_match')}
+                    </Text>
+                  </View>
+                )}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={false}
+                initialNumToRender={12}
+                windowSize={8}
+                maxToRenderPerBatch={12}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+              />}
       </View>
       <MusicAddModal ref={musicAddModalRef} />
     </Animated.View>
@@ -676,6 +846,7 @@ const styles = createStyle({
     position: 'relative',
     overflow: 'visible',
     paddingHorizontal: 18,
+    paddingBottom: SEARCH_HEADER_BOTTOM_GAP,
   },
   searchResultHeaderFloating: {
     position: 'absolute',
@@ -689,6 +860,22 @@ const styles = createStyle({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  searchTypeBar: {
+    minHeight: SEARCH_TYPE_BAR_HEIGHT,
+    marginTop: SEARCH_TYPE_BAR_GAP,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchTypeTitle: {
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    paddingRight: 12,
+    flexShrink: 1,
+  },
+  searchTypeSwitch: {
+    marginLeft: 12,
   },
   searchResultList: {
     flex: 1,
@@ -935,7 +1122,29 @@ const styles = createStyle({
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
+  songlistItem: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    marginBottom: 1,
+  },
+  songlistPic: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    shadowColor: '#747b8f',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+  },
   songInfo: {
+    flex: 1,
+    marginLeft: 13,
+    marginRight: 12,
+  },
+  songlistInfo: {
     flex: 1,
     marginLeft: 13,
     marginRight: 12,
@@ -943,6 +1152,9 @@ const styles = createStyle({
   songMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  songlistMetaText: {
+    flex: 1,
   },
   songSource: {
     borderRadius: 10,
@@ -976,10 +1188,6 @@ const styles = createStyle({
     backgroundColor: 'rgba(255,255,255,0.52)',
     borderWidth: 1,
     borderColor: 'rgba(230,234,243,0.92)',
-  },
-  searchLoveFilled: {
-    lineHeight: 18,
-    fontWeight: '700',
   },
   searchAddText: {
     lineHeight: 19,

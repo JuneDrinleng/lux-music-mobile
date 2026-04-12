@@ -283,6 +283,8 @@
   "search_hot_search": "熱門搜尋",
   "search_type_music": "歌曲",
   "search_type_songlist": "歌單",
+  "search_result_music_title": "歌曲搜尋結果",
+  "search_result_songlist_title": "歌單搜尋結果",
   "setting__other_dislike_list": "「不喜歡的歌曲」規則",
   "setting__other_dislike_list_label": "規則數量：{num}",
   "setting__other_dislike_list_saved_tip": "已儲存",

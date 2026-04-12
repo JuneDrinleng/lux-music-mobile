@@ -53,7 +53,7 @@ const openPlaylistDetail = (listId: string | null | undefined) => {
 
 const getQueueSourceListId = (queueMetaId: string | null | undefined) => {
   if (!isPlayQueueMetaId(queueMetaId)) return null
-  const queueBody = queueMetaId.slice('play_queue__'.length)
+  const queueBody = (queueMetaId ?? '').slice('play_queue__'.length)
   const timestampSeparatorIndex = queueBody.lastIndexOf('_')
   if (timestampSeparatorIndex < 0) return queueBody
   return queueBody.slice(0, timestampSeparatorIndex)

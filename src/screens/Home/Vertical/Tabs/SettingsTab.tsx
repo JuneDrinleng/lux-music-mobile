@@ -76,11 +76,11 @@ export default () => {
   }, [activeLangId])
   const searchSourceOptions = useMemo(() => [
     { value: 'all', label: t('setting_search_source_all') },
-    { value: 'kw', label: 'Kuwo' },
-    { value: 'kg', label: 'KuGou' },
-    { value: 'tx', label: 'QQ Music' },
-    { value: 'wy', label: 'NetEase' },
-    { value: 'mg', label: 'Migu' },
+    { value: 'kw', label: t('source_real_kw') },
+    { value: 'kg', label: t('source_real_kg') },
+    { value: 'tx', label: t('source_real_tx') },
+    { value: 'wy', label: t('source_real_wy') },
+    { value: 'mg', label: t('source_real_mg') },
   ] as const, [t])
   const genderOptions = useMemo(() => [
     { value: 'male', label: t('setting_profile_gender_male') },

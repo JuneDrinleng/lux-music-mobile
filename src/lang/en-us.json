@@ -283,6 +283,8 @@
   "search_hot_search": "Top Searches",
   "search_type_music": "Song",
   "search_type_songlist": "Playlist",
+  "search_result_music_title": "Song Results",
+  "search_result_songlist_title": "Playlist Results",
   "setting__other_dislike_list": "Dislike Song Rule",
   "setting__other_dislike_list_label": "Number of rules: {num}",
   "setting__other_dislike_list_saved_tip": "Saved",

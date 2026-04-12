@@ -21,6 +21,23 @@ export interface VerticalSearchStatePayload {
 export interface SettingsSearchStatePayload {
   keyword: string
 }
+export interface LocalPlaylistDetailPayload {
+  type: 'local'
+  listId: string
+}
+export interface OnlinePlaylistDetailPayload {
+  type: 'onlineSonglist'
+  id: string
+  source: LX.OnlineSource
+  name: string
+  author?: string
+  img?: string | null
+  desc?: string
+  play_count?: string
+}
+export type PlaylistDetailPayload =
+  | LocalPlaylistDetailPayload
+  | OnlinePlaylistDetailPayload
 
 
 // {
@@ -204,8 +221,13 @@ export class AppEvent extends Event {
     this.emit('changeLoveListVisible', visible)
   }
 
-  openPlaylistDetail(listId: string) {
-    this.emit('openPlaylistDetail', listId)
+  openPlaylistDetail(payload: string | PlaylistDetailPayload) {
+    this.emit('openPlaylistDetail', typeof payload == 'string'
+      ? {
+          type: 'local',
+          listId: payload,
+        }
+      : payload)
   }
 
   togglePlayQueuePanel() {

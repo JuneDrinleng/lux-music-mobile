@@ -7,6 +7,7 @@ import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
 import { APP_LAYER_INDEX, type NAV_ID_Type } from '@/config/constant'
+import { type PlaylistDetailPayload } from '@/event/appEvent'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
 import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
@@ -37,12 +38,12 @@ const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId] ?? 0)
   const searchRequestTokenRef = useRef(0)
-  const playlistDetailIdRef = useRef<string | null>(null)
+  const playlistDetailRequestRef = useRef<PlaylistDetailPayload | null>(null)
   const [activeNavId, setActiveNavId] = useState<'nav_search' | 'nav_love' | 'nav_setting'>(normalizeNavId(commonState.navActiveId))
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
-  const [playlistDetailId, setPlaylistDetailId] = useState<string | null>(null)
+  const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -58,12 +59,12 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
-    playlistDetailIdRef.current = playlistDetailId
-  }, [playlistDetailId])
+    playlistDetailRequestRef.current = playlistDetailRequest
+  }, [playlistDetailRequest])
 
   useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
-      if (playlistDetailIdRef.current) setPlaylistDetailId(null)
+      if (playlistDetailRequestRef.current) setPlaylistDetailRequest(null)
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -81,7 +82,7 @@ const Main = () => {
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
-      if (playlistDetailIdRef.current) setPlaylistDetailId(null)
+      if (playlistDetailRequestRef.current) setPlaylistDetailRequest(null)
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -102,9 +103,8 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
-    const handleOpenPlaylistDetail = (listId: string) => {
-      setSearchPageVisible(false)
-      setPlaylistDetailId(listId)
+    const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
+      setPlaylistDetailRequest(payload)
     }
 
     global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
@@ -122,7 +122,7 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  const playlistDetailVisible = Boolean(playlistDetailId)
+  const playlistDetailVisible = Boolean(playlistDetailRequest)
   const sharedTopBarVisible = !searchPageVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
@@ -157,18 +157,18 @@ const Main = () => {
         request={searchPageRequest}
         onClose={() => { setSearchPageVisible(false) }}
       />
-      {playlistDetailId
+      {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.overlayLayer}>
             <View style={styles.playlistDetailOverlay}>
               <PlaylistTab
-                standaloneListId={playlistDetailId}
-                onStandaloneClose={() => { setPlaylistDetailId(null) }}
+                standaloneDetail={playlistDetailRequest}
+                onStandaloneClose={() => { setPlaylistDetailRequest(null) }}
               />
             </View>
           </View>
         : null}
     </View>
-  ), [activeNavId, onPageSelected, playlistDetailId, playlistDetailVisible, searchPageRequest, searchPageVisible, sharedTopBarVisible])
+  ), [activeNavId, onPageSelected, playlistDetailRequest, playlistDetailVisible, searchPageRequest, searchPageVisible, sharedTopBarVisible])
 
   return component
 }
