@@ -290,6 +290,10 @@ export class AppEvent extends Event {
     this.emit('closeVerticalSearchPage')
   }
 
+  closePlaylistDetail() {
+    this.emit('closePlaylistDetail')
+  }
+
   settingsSearchStateUpdated(payload: SettingsSearchStatePayload) {
     this.emit('settingsSearchStateUpdated', payload)
   }

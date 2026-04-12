@@ -6,30 +6,44 @@ import { useI18n } from '@/lang'
 import { createUserList } from '@/core/list'
 import listState from '@/store/list/state'
 
-export default ({ isEdit, onHide }: {
+export default ({ isEdit, onHide, defaultName, onCreated }: {
   isEdit: boolean
   onHide: () => void
+  defaultName?: string
+  onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
 }) => {
   const [text, setText] = useState('')
   const inputRef = useRef<InputType>(null)
+  const isSubmittingRef = useRef(false)
   const t = useI18n()
 
   useEffect(() => {
     if (isEdit) {
-      setText('')
+      setText(defaultName ?? '')
       requestAnimationFrame(() => {
         inputRef.current?.focus()
       })
     }
-  }, [isEdit])
+  }, [defaultName, isEdit])
 
   const handleSubmitEditing = async() => {
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
     onHide()
     const name = text.trim()
     if (!name.length || (listState.userList.some(l => l.name == name) && !(await confirmDialog({
       message: global.i18n.t('list_duplicate_tip'),
-    })))) return
-    void createUserList(listState.userList.length, [{ id: `userlist_${Date.now()}`, name, locationUpdateTime: null }])
+    })))) {
+      isSubmittingRef.current = false
+      return
+    }
+    const listInfo = { id: `userlist_${Date.now()}`, name, locationUpdateTime: null }
+    try {
+      await createUserList(listState.userList.length, [listInfo])
+      await onCreated?.(listInfo)
+    } finally {
+      isSubmittingRef.current = false
+    }
   }
 
   return isEdit

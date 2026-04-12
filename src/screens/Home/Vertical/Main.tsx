@@ -179,8 +179,8 @@ const styles = createStyle({
   },
   overlayLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls + 8,
-    elevation: APP_LAYER_INDEX.controls + 8,
+    zIndex: APP_LAYER_INDEX.controls - 1,
+    elevation: APP_LAYER_INDEX.controls - 1,
   },
   playlistDetailOverlay: {
     flex: 1,

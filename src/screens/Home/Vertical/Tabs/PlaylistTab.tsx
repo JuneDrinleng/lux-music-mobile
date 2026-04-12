@@ -30,6 +30,7 @@ import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
+import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -257,6 +258,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   const searchInputRef = useRef<TextInput>(null)
   const sourceMenuVisibleRef = useRef(false)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
+  const musicMultiAddModalRef = useRef<MusicMultiAddModalType>(null)
   const createListDialogRef = useRef<PromptDialogType>(null)
   const renameListDialogRef = useRef<PromptDialogType>(null)
   const removeListDialogRef = useRef<PromptDialogType>(null)
@@ -773,6 +775,16 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     if (standaloneDetail.type == 'local') void loadLocalDetailSongs(standaloneDetail.listId, !cachedStandalone)
     else void loadOnlineDetailSongs(standaloneDetail, !cachedStandalone)
   }, [animateDetailScene, detailSceneAnim, isStandaloneDetail, loadLocalDetailSongs, loadOnlineDetailSongs, resetSongDragState, standaloneDetail])
+  useEffect(() => {
+    if (!isStandaloneDetail) return
+    const handleCloseStandaloneDetail = () => {
+      handleCloseDetail()
+    }
+    global.app_event.on('closePlaylistDetail', handleCloseStandaloneDetail)
+    return () => {
+      global.app_event.off('closePlaylistDetail', handleCloseStandaloneDetail)
+    }
+  }, [handleCloseDetail, isStandaloneDetail])
   const handleFinishSongDrag = useCallback(async() => {
     if (!dragStateRef.current.active) return
     const { listId, song, fromIndex, toIndex } = dragStateRef.current
@@ -1091,6 +1103,15 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     : t('me_songs_count', { num: detailSongCount })
   const detailHeroSourceTone = selectedOnlineDetail ? getSourceTagColor(selectedOnlineDetail.source) : null
   const detailHeroSourceLabel = selectedOnlineDetail ? t(`source_real_${selectedOnlineDetail.source}`) : ''
+  const handleShowPlaylistTransferModal = useCallback(() => {
+    if (!selectedOnlineDetail || detailLoading || !detailSongs.length) return
+    musicMultiAddModalRef.current?.show({
+      selectedList: [...detailSongs],
+      listId: '',
+      isMove: false,
+      defaultNewListName: detailHeroName,
+    })
+  }, [detailHeroName, detailLoading, detailSongs, selectedOnlineDetail])
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
   const loadImportCandidates = useCallback(async(targetListId: string) => {
     const requestId = ++importRequestIdRef.current
@@ -1284,16 +1305,34 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_songs')}</Text>
-            {selectedListId
-              ? <TouchableOpacity activeOpacity={0.8} onPress={handleOpenImportDrawer}>
-                  <Text size={13} color="#111827" style={styles.sectionTag}>{`+ ${t('list_import')}`}</Text>
+            {selectedOnlineDetail
+              ? <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleShowPlaylistTransferModal}
+                  disabled={detailLoading || !detailSongs.length}
+                  style={[
+                    styles.detailActionBtn,
+                    detailLoading || !detailSongs.length ? styles.detailActionBtnDisabled : null,
+                  ]}
+                >
+                  <Text
+                    size={13}
+                    color={detailLoading || !detailSongs.length ? '#9ca3af' : '#111827'}
+                    style={styles.detailActionBtnText}
+                  >
+                    {t('playlist_transfer_all')}
+                  </Text>
                 </TouchableOpacity>
-              : null}
+              : selectedListId
+                ? <TouchableOpacity activeOpacity={0.8} onPress={handleOpenImportDrawer}>
+                    <Text size={13} color="#111827" style={styles.sectionTag}>{`+ ${t('list_import')}`}</Text>
+                  </TouchableOpacity>
+                : null}
           </View>
         </View>
       </>
     )
-  }, [canRenameSelectedList, detailHeroCover, detailHeroMetaText, detailHeroName, detailHeroSourceLabel, detailHeroSourceTone, handleCloseDetail, handleOpenImportDrawer, handleShowRemoveListModal, handleShowRenameListModal, selectedListId, selectedListInfo, selectedOnlineDetail, statusBarHeight, t])
+  }, [canRenameSelectedList, detailHeroCover, detailHeroMetaText, detailHeroName, detailHeroSourceLabel, detailHeroSourceTone, detailLoading, detailSongs.length, handleCloseDetail, handleOpenImportDrawer, handleShowPlaylistTransferModal, handleShowRemoveListModal, handleShowRenameListModal, selectedListId, selectedListInfo, selectedOnlineDetail, statusBarHeight, t])
   const renderImportCandidateItem: ListRenderItem<ImportCandidate> = useCallback(({ item }) => {
     const sourceTagColor = getSourceTagColor(item.musicInfo.source)
     const isSelected = Boolean(importSelectedMap[item.id])
@@ -2243,6 +2282,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
               {renderDetailScene()}
             </Animated.View>
           : null}
+        <MusicMultiAddModal ref={musicMultiAddModalRef} />
       </View>
     )
   }
@@ -2279,6 +2319,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
             </Animated.View>
           </>
         : null}
+      <MusicMultiAddModal ref={musicMultiAddModalRef} />
     </View>
   )
 }
@@ -2819,6 +2860,23 @@ const styles = createStyle({
   },
   sectionTag: {
     fontWeight: '500',
+  },
+  detailActionBtn: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e3e8f3',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailActionBtnDisabled: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#edf2f7',
+  },
+  detailActionBtnText: {
+    fontWeight: '600',
   },
   listGrid: {
     flexDirection: 'row',

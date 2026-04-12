@@ -24,8 +24,10 @@ const styles = createStyle({
 const MIN_WIDTH = scaleSizeW(140)
 const PADDING = styles.list.paddingLeft + styles.list.paddingRight
 
-const EditListItem = ({ itemWidth }: {
+const EditListItem = ({ itemWidth, defaultNewListName, onCreated }: {
   itemWidth: number
+  defaultNewListName?: string
+  onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
 }) => {
   const [isEdit, setEdit] = useState(false)
   const theme = useTheme()
@@ -41,16 +43,23 @@ const EditListItem = ({ itemWidth }: {
       </TouchableOpacity>
       {
         isEdit
-          ? <CreateUserList isEdit={isEdit} onHide={() => { setEdit(false) }} />
+          ? <CreateUserList
+              isEdit={isEdit}
+              onHide={() => { setEdit(false) }}
+              defaultName={defaultNewListName}
+              onCreated={onCreated}
+            />
           : null
       }
     </View>
   )
 }
 
-export default ({ listId, onPress }: {
+export default ({ listId, onPress, defaultNewListName, onCreated }: {
   listId: string
   onPress: (listInfo: LX.List.MyListInfo) => void
+  defaultNewListName?: string
+  onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
 }) => {
   const windowSize = useWindowSize()
   const allList = useMyList().filter(l => l.id != listId)
@@ -65,7 +74,7 @@ export default ({ listId, onPress }: {
     <ScrollView style={{ flexGrow: 0 }}>
       <View style={{ ...styles.list }} onStartShouldSetResponder={() => true}>
         { allList.map(info => <ListItem key={info.id} listInfo={info} onPress={onPress} width={itemWidth} />) }
-        <EditListItem itemWidth={itemWidth} />
+        <EditListItem itemWidth={itemWidth} defaultNewListName={defaultNewListName} onCreated={onCreated} />
       </View>
     </ScrollView>
   )

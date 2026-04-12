@@ -11,9 +11,10 @@ export interface SelectInfo {
   selectedList: LX.Music.MusicInfo[]
   listId: string
   isMove: boolean
+  defaultNewListName?: string
   // single: boolean
 }
-const initSelectInfo = { selectedList: [], listId: '', isMove: false }
+const initSelectInfo = { selectedList: [], listId: '', isMove: false, defaultNewListName: '' }
 
 export interface MusicMultiAddModalProps {
   onAdded?: () => void
@@ -44,7 +45,7 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
 
   const handleHide = () => {
     requestAnimationFrame(() => {
-      setSelectInfo({ ...selectInfo, selectedList: [] })
+      setSelectInfo({ ...selectInfo, selectedList: [], defaultNewListName: '' })
     })
   }
 
@@ -72,6 +73,19 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
       })
     }
   }
+  const handleCreated = async(listInfo: LX.List.UserListInfo) => {
+    dialogRef.current?.setVisible(false)
+    try {
+      await addListMusics(listInfo.id,
+        [...selectInfo.selectedList],
+        settingState.setting['list.addMusicLocationType'],
+      )
+      onAdded?.()
+      toast(t('list_edit_action_tip_add_success'))
+    } catch {
+      toast(t('list_edit_action_tip_add_failed'))
+    }
+  }
 
   return (
     <Dialog ref={dialogRef} onHide={handleHide}>
@@ -79,7 +93,12 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
         selectInfo.selectedList.length
           ? (<>
               <Title selectedList={selectInfo.selectedList} isMove={selectInfo.isMove} />
-              <List listId={selectInfo.listId} onPress={handleSelect} />
+              <List
+                listId={selectInfo.listId}
+                onPress={handleSelect}
+                defaultNewListName={selectInfo.defaultNewListName}
+                onCreated={selectInfo.isMove ? undefined : handleCreated}
+              />
             </>)
           : null
       }

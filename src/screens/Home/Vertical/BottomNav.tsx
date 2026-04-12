@@ -122,6 +122,10 @@ export default memo(
 
     const handlePress = (id: TabId) => {
       if (isSearchPageVisible) global.app_event.closeVerticalSearchPage();
+      if (id === "nav_search" && activeId === id) {
+        global.app_event.closePlaylistDetail();
+        return;
+      }
       if (activeId === id) return;
       setNavActiveId(id);
     };

@@ -17,6 +17,7 @@
   "close": "Close",
   "collect": "Collect",
   "collect_songlist": "Collect",
+  "playlist_transfer_all": "Transfer All",
   "collect_success": "Successfully collected",
   "collect_toplist": "Collect Top playlist",
   "comment_hide_text": "Fold",
