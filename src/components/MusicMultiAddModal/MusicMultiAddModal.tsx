@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
-import PlaylistPickerDialog from '@/components/PlaylistPicker/PlaylistPickerDialog'
 import { toast } from '@/utils/tools'
+import Title from './Title'
+import List from './List'
 import { useI18n } from '@/lang'
 import { addListMusics, moveListMusics } from '@/core/list'
 import settingState from '@/store/setting/state'
@@ -87,27 +88,18 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
   }
 
   return (
-    <Dialog ref={dialogRef} onHide={handleHide} title={t(selectInfo.isMove ? 'list_add_title_first_move' : 'add_to')} height="72%">
+    <Dialog ref={dialogRef} onHide={handleHide}>
       {
         selectInfo.selectedList.length
-          ? (
-            <PlaylistPickerDialog
-              summaryTitle={
-                selectInfo.selectedList.length === 1
-                  ? selectInfo.selectedList[0].name
-                  : `${selectInfo.selectedList.length} ${t('me_songs')}`
-              }
-              summarySubtitle={`${t(selectInfo.isMove ? 'list_multi_add_title_first_move' : 'list_multi_add_title_first_add')} ${selectInfo.selectedList.length} ${t('list_multi_add_title_last')}`}
-              summaryNote={selectInfo.defaultNewListName ? `${t('list_create')}: ${selectInfo.defaultNewListName}` : undefined}
-              coverUrl={selectInfo.selectedList[0]?.meta.picUrl ?? null}
-              count={selectInfo.selectedList.length}
-              listId={selectInfo.listId}
-              actionLabel={t(selectInfo.isMove ? 'list_add_title_first_move' : 'list_add_title_first_add')}
-              defaultNewListName={selectInfo.defaultNewListName}
-              onSelect={handleSelect}
-              onCreated={selectInfo.isMove ? undefined : handleCreated}
-            />
-            )
+          ? (<>
+              <Title selectedList={selectInfo.selectedList} isMove={selectInfo.isMove} />
+              <List
+                listId={selectInfo.listId}
+                onPress={handleSelect}
+                defaultNewListName={selectInfo.defaultNewListName}
+                onCreated={selectInfo.isMove ? undefined : handleCreated}
+              />
+            </>)
           : null
       }
     </Dialog>

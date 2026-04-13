@@ -1,4 +1,4 @@
-import { useRef, useImperativeHandle, forwardRef } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useState } from 'react'
 import Modal, { type MusicAddModalType as ModalType, type MusicAddModalProps as ModalProps, type SelectInfo } from './MusicAddModal'
 
 export interface MusicAddModalProps {
@@ -10,12 +10,23 @@ export interface MusicAddModalType {
 
 export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, ref) => {
   const musicAddModalRef = useRef<ModalType>(null)
+  const [visible, setVisible] = useState(false)
 
   useImperativeHandle(ref, () => ({
     show(listInfo) {
-      musicAddModalRef.current?.show(listInfo)
+      if (visible) musicAddModalRef.current?.show(listInfo)
+      else {
+        setVisible(true)
+        requestAnimationFrame(() => {
+          musicAddModalRef.current?.show(listInfo)
+        })
+      }
     },
   }))
 
-  return <Modal ref={musicAddModalRef} onAdded={onAdded} />
+  return (
+    visible
+      ? <Modal ref={musicAddModalRef} onAdded={onAdded} />
+      : null
+  )
 })

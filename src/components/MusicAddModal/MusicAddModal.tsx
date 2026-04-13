@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
-import PlaylistPickerDialog from '@/components/PlaylistPicker/PlaylistPickerDialog'
 import { toast } from '@/utils/tools'
+import Title from './Title'
+import List from './List'
 import { useI18n } from '@/lang'
 import { addListMusics, moveListMusics } from '@/core/list'
 import settingState from '@/store/setting/state'
@@ -73,21 +74,13 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, r
   }
 
   return (
-    <Dialog ref={dialogRef} onHide={handleHide} title={t(selectInfo.isMove ? 'list_add_title_first_move' : 'add_to')} height="72%">
+    <Dialog ref={dialogRef} onHide={handleHide}>
       {
         selectInfo.musicInfo
-          ? (
-            <PlaylistPickerDialog
-              summaryTitle={selectInfo.musicInfo.name}
-              summarySubtitle={selectInfo.musicInfo.singer}
-              summaryNote={`${t(selectInfo.isMove ? 'list_add_title_first_move' : 'list_add_title_first_add')} ${t('list_add_title_last')}`}
-              coverUrl={selectInfo.musicInfo.meta.picUrl ?? null}
-              listId={selectInfo.listId}
-              actionLabel={t(selectInfo.isMove ? 'list_add_title_first_move' : 'list_add_title_first_add')}
-              musicInfo={selectInfo.musicInfo}
-              onSelect={handleSelect}
-            />
-            )
+          ? (<>
+              <Title musicInfo={selectInfo.musicInfo} isMove={selectInfo.isMove} />
+              <List musicInfo={selectInfo.musicInfo} onPress={handleSelect} />
+            </>)
           : null
       }
     </Dialog>
