@@ -2,7 +2,7 @@
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, Switch, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
@@ -22,7 +22,6 @@ import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 
-const SHOW_ADVANCED_SWITCHES = false
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const currentVer = process.versions.app
 const languageOptions = [
@@ -32,13 +31,6 @@ const languageOptions = [
 ] as const
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 const genderOptionValues = ['male', 'female', 'unknown'] as const
-
-const settingItems = [
-  { title: 'App Theme', subtitle: 'Light Mode', icon: 'setting', enabled: true },
-  { title: 'High Quality Streaming', subtitle: 'Use better audio quality on Wi-Fi', icon: 'play', enabled: true },
-  { title: 'Download over Cellular', subtitle: 'Allow mobile data download', icon: 'download-2', enabled: false },
-  { title: 'Show Notifications', subtitle: 'Mini controls on lock screen', icon: 'menu', enabled: true },
-]
 
 export default () => {
   const t = useI18n()
@@ -574,26 +566,6 @@ export default () => {
             : null}
         </View>
 
-        {
-          SHOW_ADVANCED_SWITCHES ? (
-            <View style={styles.list}>
-              {settingItems.map(item => (
-                <View key={item.title} style={styles.item}>
-                  <View style={styles.left}>
-                    <View style={styles.iconBox}>
-                      <Icon name={item.icon} rawSize={18} color="#111827" />
-                    </View>
-                    <View style={styles.textWrap}>
-                      <Text size={14} color="#111827" style={styles.itemTitle}>{item.title}</Text>
-                      <Text size={11} color="#6b7280">{item.subtitle}</Text>
-                    </View>
-                  </View>
-                  <Switch value={item.enabled} trackColor={{ false: '#d1d5db', true: '#9ca3af' }} thumbColor={item.enabled ? '#111827' : '#f9fafb'} />
-                </View>
-              ))}
-            </View>
-          ) : null
-        }
       </ScrollView>
       <FileSelect ref={avatarFileRef} />
       <Animated.View

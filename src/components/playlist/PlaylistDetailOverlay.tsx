@@ -22,7 +22,8 @@ import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { playList, playListAsQueue } from '@/core/player/player'
 import { getListDetailAll } from '@/core/songlist'
-import { type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/event/appEvent'
+import { getListDetailAll as getLeaderboardListDetailAll } from '@/core/leaderboard'
+import { type LeaderboardDetailPayload, type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/event/appEvent'
 import { useI18n } from '@/lang'
 import settingState from '@/store/setting/state'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -52,6 +53,7 @@ const playlistSnapshotCache = new Map<string, {
 }>()
 
 const getOnlinePlaylistDetailKey = (detail: OnlinePlaylistDetailPayload) => `online_songlist__${detail.source}__${detail.id}`
+const getLbCacheKey = (detail: LeaderboardDetailPayload) => `leaderboard__${detail.source}__${detail.boardId}`
 
 const pickCover = (list: LX.Music.MusicInfo[]) => {
   for (const song of list) {
@@ -166,21 +168,25 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
   const selectedListId = detail.type == 'local' ? detail.listId : null
   const selectedOnlineDetail = detail.type == 'onlineSonglist' ? detail : null
-  const selectedDetailCacheKey = selectedListId ?? (selectedOnlineDetail ? getOnlinePlaylistDetailKey(selectedOnlineDetail) : null)
+  const selectedLeaderboardDetail = detail.type == 'leaderboard' ? detail : null
+  const selectedOnlineOrLeaderboard = selectedOnlineDetail ?? selectedLeaderboardDetail
+  const selectedDetailCacheKey = selectedListId ??
+    (selectedOnlineDetail ? getOnlinePlaylistDetailKey(selectedOnlineDetail) : null) ??
+    (selectedLeaderboardDetail ? getLbCacheKey(selectedLeaderboardDetail) : null)
   const selectedListInfo = selectedListId ? playlists.find(list => list.id === selectedListId) ?? null : null
   const selectedDetailSnapshot = selectedDetailCacheKey ? playlistSnapshotCache.get(selectedDetailCacheKey) ?? null : null
   const selectedListMeta = selectedListInfo ? selectedDetailSnapshot : null
   const canRenameSelectedList = isUserListInfo(selectedListInfo)
-  const detailHeroName = selectedOnlineDetail?.name ?? selectedListInfo?.name ?? ''
+  const detailHeroName = selectedOnlineOrLeaderboard?.name ?? selectedListInfo?.name ?? ''
   const detailHeroCover = selectedOnlineDetail?.img ?? selectedListMeta?.pic ?? selectedDetailSnapshot?.pic ?? null
-  const detailHeroSongCount = selectedOnlineDetail
+  const detailHeroSongCount = selectedOnlineOrLeaderboard
     ? selectedDetailSnapshot?.count ?? detailSongs.length
     : selectedListMeta?.count ?? selectedDetailSnapshot?.count ?? detailSongs.length
-  const detailHeroMetaText = selectedOnlineDetail
-    ? [selectedOnlineDetail.author, selectedOnlineDetail.play_count, t('me_songs_count', { num: detailHeroSongCount })].filter(Boolean).join(' · ')
+  const detailHeroMetaText = selectedOnlineOrLeaderboard
+    ? [selectedOnlineDetail?.author, selectedOnlineDetail?.play_count, t('me_songs_count', { num: detailHeroSongCount })].filter(Boolean).join(' · ')
     : t('me_songs_count', { num: detailHeroSongCount })
-  const detailHeroSourceTone = selectedOnlineDetail ? getSourceTone(selectedOnlineDetail.source) : null
-  const detailHeroSourceLabel = selectedOnlineDetail ? t(`source_real_${selectedOnlineDetail.source}`) : ''
+  const detailHeroSourceTone = selectedOnlineOrLeaderboard ? getSourceTone(selectedOnlineOrLeaderboard.source) : null
+  const detailHeroSourceLabel = selectedOnlineOrLeaderboard ? t(`source_real_${selectedOnlineOrLeaderboard.source}`) : ''
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [detailSceneWidth, 0],
@@ -231,6 +237,16 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
     )
     if (requestId !== detailRequestIdRef.current) return
     cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), list, onlineDetail.img ?? null)
+    setDetailSongs([...list])
+    if (showLoading) setDetailLoading(false)
+  }, [])
+
+  const loadLeaderboardSongs = useCallback(async(lbDetail: LeaderboardDetailPayload, showLoading = false) => {
+    const requestId = ++detailRequestIdRef.current
+    if (showLoading) setDetailLoading(true)
+    const list = applyMusicCoverFallback(await getLeaderboardListDetailAll(lbDetail.boardId), null)
+    if (requestId !== detailRequestIdRef.current) return
+    cachePlaylistSnapshot(getLbCacheKey(lbDetail), list, null)
     setDetailSongs([...list])
     if (showLoading) setDetailLoading(false)
   }, [])
@@ -534,6 +550,21 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
     await playList(LIST_IDS.TEMP, targetIndex)
   }, [detailHeroCover, selectedOnlineDetail])
 
+  const handlePlayLeaderboardSong = useCallback(async(song: LX.Music.MusicInfo, fallbackIndex: number) => {
+    if (!selectedLeaderboardDetail) return
+    let latestList = applyMusicCoverFallback(detailSongsRef.current, null)
+    if (!latestList.length) {
+      latestList = applyMusicCoverFallback(await getLeaderboardListDetailAll(selectedLeaderboardDetail.boardId), null)
+    }
+    if (!latestList.length) return
+    let targetIndex = latestList.findIndex(item => item.id === song.id && item.source === song.source)
+    if (targetIndex < 0) targetIndex = latestList.findIndex(item => item.id === song.id)
+    if (targetIndex < 0) targetIndex = fallbackIndex
+    if (targetIndex < 0) return
+    await setTempList(getLbCacheKey(selectedLeaderboardDetail), latestList)
+    await playList(LIST_IDS.TEMP, targetIndex)
+  }, [selectedLeaderboardDetail])
+
   const handleShowRenameListModal = useCallback(() => {
     if (!isUserListInfo(selectedListInfo)) return
     renameListDialogRef.current?.show(selectedListInfo.name)
@@ -688,20 +719,24 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
             void handlePlaySong(selectedListId, item, index)
             return
           }
+          if (selectedLeaderboardDetail) {
+            void handlePlayLeaderboardSong(item, index)
+            return
+          }
           void handlePlayOnlineDetailSong(item, index)
         }}
         onRemove={canEditSongs ? () => { handleShowRemoveSongModal(item) } : undefined}
       />
     )
-  }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedListId])
+  }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayLeaderboardSong, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedLeaderboardDetail, selectedListId])
 
   const detailHeader = useMemo(() => {
-    const detailActionLabel = selectedOnlineDetail
+    const detailActionLabel = selectedOnlineOrLeaderboard
       ? t('playlist_transfer_all')
       : selectedListId
         ? t('list_import')
         : null
-    const detailActionDisabled = selectedOnlineDetail
+    const detailActionDisabled = selectedOnlineOrLeaderboard
       ? detailLoading || !detailSongs.length
       : false
     return (
@@ -711,7 +746,7 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
         name={detailHeroName}
         metaText={detailHeroMetaText}
         sectionTitle={t('me_songs')}
-        sourceCode={selectedOnlineDetail?.source}
+        sourceCode={selectedOnlineOrLeaderboard?.source}
         sourceLabel={detailHeroSourceLabel}
         sourceTone={detailHeroSourceTone}
         canRename={canRenameSelectedList}
@@ -720,10 +755,10 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
         onBack={handleCloseDetail}
         onRename={handleShowRenameListModal}
         onRemove={handleShowRemoveListModal}
-        onActionPress={selectedOnlineDetail ? handleShowPlaylistTransferModal : handleOpenImportDrawer}
+        onActionPress={selectedOnlineOrLeaderboard ? handleShowPlaylistTransferModal : handleOpenImportDrawer}
       />
     )
-  }, [canRenameSelectedList, detailHeroCover, detailHeroMetaText, detailHeroName, detailHeroSourceLabel, detailHeroSourceTone, detailLoading, detailSongs.length, handleCloseDetail, handleOpenImportDrawer, handleShowPlaylistTransferModal, handleShowRemoveListModal, handleShowRenameListModal, selectedListId, selectedOnlineDetail, statusBarHeight, t])
+  }, [canRenameSelectedList, detailHeroCover, detailHeroMetaText, detailHeroName, detailHeroSourceLabel, detailHeroSourceTone, detailLoading, detailSongs.length, handleCloseDetail, handleOpenImportDrawer, handleShowPlaylistTransferModal, handleShowRemoveListModal, handleShowRenameListModal, selectedListId, selectedOnlineOrLeaderboard, statusBarHeight, t])
 
   useEffect(() => {
     detailSongsRef.current = detailSongs
@@ -766,6 +801,15 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
       void loadOnlineDetailSongs(selectedOnlineDetail, !cached)
     }
   }, [loadLocalDetailSongs, loadOnlineDetailSongs, resetSongDragState, selectedListId, selectedOnlineDetail])
+
+  useEffect(() => {
+    if (!selectedLeaderboardDetail) return
+    const key = getLbCacheKey(selectedLeaderboardDetail)
+    const cached = playlistSnapshotCache.get(key)
+    setDetailSongs(cached ? [...cached.songs] : [])
+    setDetailLoading(!cached)
+    void loadLeaderboardSongs(selectedLeaderboardDetail, !cached)
+  }, [loadLeaderboardSongs, selectedLeaderboardDetail])
 
   useEffect(() => {
     if (!selectedListId) return

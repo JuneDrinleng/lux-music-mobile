@@ -1,5 +1,37 @@
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
+## v0.2.9
+
+本次更新聚焦首页交互性能与排行榜详情能力，大幅优化 HomeTab 各 clip 的切换流畅度，并支持从榜单直接进入歌单详情页。
+
+### 新增
+
+- 排行榜歌单详情：HomeTab 榜单页「查看全部」按钮现可进入 `PlaylistDetailOverlay`，支持播放、导入整张榜单，与在线歌单详情体验统一（新增 `LeaderboardDetailPayload` 类型及对应加载逻辑）。
+
+### 性能优化
+
+- **HomeTab clip 切换零卡顿**：将 all / new+trending+top / other 三块内容提取为独立 `memo` 子组件（`AllContent`、`LbContent`、`OtherContent`），以 `display: none` 保活替代每次切换时的卸载/挂载，切换后 scroll 位置和 source 选择均保留；filter 按键改为先淡出（80 ms）再通过 `startTransition` 更新状态，彻底消除点击后的卡顿感。
+- **Tab 切换提速**：`PagerView` 新增 `offscreenPageLimit={1}` 使相邻页面常驻内存；移除 Main.tsx 中每次状态变化都重建整棵渲染树的 `component = useMemo(...)` 反模式；`handleCloseSearchPage` / `handleClosePlaylistDetail` 改用 `useCallback` 稳定引用。
+- **BottomNav 响应更快**：`TabItem` 用 `React.memo` 包裹，`handlePress` / `handleItemLayout` 加 `useCallback`，Tab 切换时不再全量重渲染。
+
+### 清理
+
+- 删除 `RankingsTab.tsx`：含硬编码 mock 数据的占位组件，整个项目无任何引用。
+- 移除 `PlaylistTab` 中永久禁用的听歌统计功能（`SHOW_LISTENING_STATISTICS = false` 相关代码及样式）。
+- 移除 `SettingsTab` 中永久禁用的高级开关区块（`SHOW_ADVANCED_SWITCHES = false` 相关代码）。
+- 清理导航层大量已注释的废弃 screen 注册、screen name 常量及工具函数。
+- 删除 `HomeTab.tsx` 中遗留的 16 个搜索栏时代残留样式（`topBar`、`searchDock` 等）。
+
+### 修复
+
+- 修复 `navigation.ts` 末尾孤立 `*/` 导致 Babel 解析报 `Unexpected token`、Metro 打包失败的问题。
+
+### 构建
+
+- 版本号更新到 0.2.9（package.json）。
+- Android versionCode 升级到 100。
+- 修复 `beta-pack.yml`：补充 GitHub Pre-release 发布步骤（`prerelease: true`，tag `v{version}-beta`），并修正 MD5 校验路径。
+
 ## v0.2.8
 
 本次更新聚焦歌曲封面图的加载健壮性与展示质量，建立跨渠道封面降级、失败重试与播放时回写的完整缓存闭环，并修复滚动列表底部被播放栏遮挡的布局问题。

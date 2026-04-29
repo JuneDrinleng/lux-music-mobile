@@ -164,10 +164,3 @@ export const showSyncModeModal = () => {
   })
 }
 
-// export const showToast = (text) => {
-//   Navigation.showOverlay({
-//     component: {
-//       name: TOAST_SCREEN,
-//     },
-//   })
-// }

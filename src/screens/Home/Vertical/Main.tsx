@@ -1,6 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react'
 import { StyleSheet, View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import commonState from '@/store/common/state'
@@ -15,16 +15,8 @@ import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
 import PlaylistDetailOverlay from '@/components/playlist/PlaylistDetailOverlay'
 
-const normalizeNavId = (id: NAV_ID_Type): 'nav_search' | 'nav_love' | 'nav_setting' => {
-  if (id === 'nav_setting') return 'nav_setting'
-  if (id === 'nav_search') return 'nav_search'
-  return 'nav_love'
-}
-
 const viewMap: Record<NAV_ID_Type, number> = {
   nav_search: 0,
-  nav_songlist: 1,
-  nav_top: 1,
   nav_love: 1,
   nav_setting: 2,
 }
@@ -40,7 +32,7 @@ const Main = () => {
   const activeIndexRef = useRef(viewMap[commonState.navActiveId] ?? 0)
   const searchRequestTokenRef = useRef(0)
   const playlistDetailRequestRef = useRef<PlaylistDetailPayload | null>(null)
-  const [activeNavId, setActiveNavId] = useState<'nav_search' | 'nav_love' | 'nav_setting'>(normalizeNavId(commonState.navActiveId))
+  const [activeNavId, setActiveNavId] = useState<NAV_ID_Type>(commonState.navActiveId)
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
@@ -54,12 +46,6 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
-    const normalized = normalizeNavId(commonState.navActiveId)
-    if (normalized === commonState.navActiveId) return
-    setNavActiveId(normalized)
-  }, [])
-
-  useEffect(() => {
     playlistDetailRequestRef.current = playlistDetailRequest
   }, [playlistDetailRequest])
 
@@ -70,9 +56,7 @@ const Main = () => {
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
       pagerViewRef.current?.setPage(index)
-      const normalized = normalizeNavId(id)
-      setActiveNavId(normalized)
-      if (normalized !== id) setNavActiveId(normalized)
+      setActiveNavId(id)
     }
 
     global.state_event.on('navActiveIdUpdated', handleNavUpdate)
@@ -130,7 +114,15 @@ const Main = () => {
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
   )
 
-  const component = useMemo(() => (
+  const handleCloseSearchPage = useCallback(() => {
+    setSearchPageVisible(false)
+  }, [])
+
+  const handleClosePlaylistDetail = useCallback(() => {
+    setPlaylistDetailRequest(null)
+  }, [])
+
+  return (
     <View style={styles.root}>
       <SharedTopBar
         visible={sharedTopBarVisible}
@@ -141,6 +133,7 @@ const Main = () => {
         initialPage={activeIndexRef.current}
         onPageSelected={onPageSelected}
         scrollEnabled={!searchPageVisible && !playlistDetailVisible}
+        offscreenPageLimit={1}
         style={styles.pagerView}
       >
         <View collapsable={false} key="nav_search" style={styles.pageStyle}>
@@ -156,22 +149,20 @@ const Main = () => {
       <SearchPage
         visible={searchPageVisible}
         request={searchPageRequest}
-        onClose={() => { setSearchPageVisible(false) }}
+        onClose={handleCloseSearchPage}
       />
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.overlayLayer}>
             <View style={styles.playlistDetailOverlay}>
               <PlaylistDetailOverlay
                 detail={playlistDetailRequest}
-                onClose={() => { setPlaylistDetailRequest(null) }}
+                onClose={handleClosePlaylistDetail}
               />
             </View>
           </View>
         : null}
     </View>
-  ), [activeNavId, onPageSelected, playlistDetailRequest, playlistDetailVisible, searchPageRequest, searchPageVisible, sharedTopBarVisible])
-
-  return component
+  )
 }
 
 const styles = createStyle({

@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -43,7 +43,7 @@ const ACTIVE_ICON_SHIFT_X = -3;
 
 type TabId = InitState["navActiveId"];
 
-const TabItem = ({
+const TabItem = memo(({
   id,
   icon: Icon,
   label,
@@ -99,7 +99,7 @@ const TabItem = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 export default memo(
   ({
@@ -120,7 +120,7 @@ export default memo(
     const indicatorOpacity = useRef(new Animated.Value(0)).current;
     const hasAnimatedRef = useRef(false);
 
-    const handlePress = (id: TabId) => {
+    const handlePress = useCallback((id: TabId) => {
       if (isSearchPageVisible) global.app_event.closeVerticalSearchPage();
       if (id === "nav_search" && activeId === id) {
         global.app_event.closePlaylistDetail();
@@ -128,8 +128,8 @@ export default memo(
       }
       if (activeId === id) return;
       setNavActiveId(id);
-    };
-    const handleItemLayout = (id: TabId, x: number, width: number) => {
+    }, [isSearchPageVisible, activeId]);
+    const handleItemLayout = useCallback((id: TabId, x: number, width: number) => {
       setItemLayouts((prev) => {
         const current = prev[id];
         if (current && current.x === x && current.width === width) return prev;
@@ -138,7 +138,7 @@ export default memo(
           [id]: { x, width },
         };
       });
-    };
+    }, []);
     const hasIndicator =
       !inCard && !isSearchPageVisible && Boolean(itemLayouts[activeId]);
 

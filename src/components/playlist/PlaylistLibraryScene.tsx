@@ -35,8 +35,6 @@ export interface PlaylistLibrarySceneProps {
   isSourceMenuVisible: boolean
   sourceMenuBackdropOpacity: Animated.AnimatedInterpolation<number>
   createListDialogRef: RefObject<PromptDialogType>
-  stats: Array<{ day: string, height: `${number}%`, active?: boolean }>
-  showListeningStatistics: boolean
   getPlaylistCardTone: (index: number) => { surface: string, accent: string, ink: string }
   isPlaylistCurrent: (listId: string | null | undefined) => boolean
   onCloseSourceMenu: () => void
@@ -65,8 +63,6 @@ export default ({
   isSourceMenuVisible,
   sourceMenuBackdropOpacity,
   createListDialogRef,
-  stats,
-  showListeningStatistics,
   getPlaylistCardTone,
   isPlaylistCurrent,
   onCloseSourceMenu,
@@ -213,26 +209,6 @@ export default ({
           </View>
         </View>
 
-        {showListeningStatistics
-          ? <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text size={18} color="#111827" style={styles.sectionTitle}>Listening Statistics</Text>
-                <Text size={11} color="#111827" style={styles.sectionTag}>Last 7 Days</Text>
-              </View>
-              <View style={styles.statsCard}>
-                {stats.map(item => (
-                  <View key={item.day} style={styles.statsCol}>
-                    <View style={styles.statsBarBg}>
-                      <View style={[styles.statsBar, { height: item.height, opacity: item.active ? 1 : 0.45 }]} />
-                    </View>
-                    <Text size={10} color={item.active ? '#111827' : '#9ca3af'} style={item.active ? styles.dayActive : styles.day}>
-                      {item.day}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          : null}
       </ScrollView>
       <PromptDialog
         ref={createListDialogRef}

@@ -35,9 +35,16 @@ export interface OnlinePlaylistDetailPayload {
   desc?: string
   play_count?: string
 }
+export interface LeaderboardDetailPayload {
+  type: 'leaderboard'
+  boardId: string
+  source: LX.OnlineSource
+  name: string
+}
 export type PlaylistDetailPayload =
   | LocalPlaylistDetailPayload
   | OnlinePlaylistDetailPayload
+  | LeaderboardDetailPayload
 
 
 // {

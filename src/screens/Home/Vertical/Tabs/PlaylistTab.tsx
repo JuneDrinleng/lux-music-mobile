@@ -55,7 +55,6 @@ import { debounce } from '@/utils'
 import { updateSetting } from '@/core/common'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
-const SHOW_LISTENING_STATISTICS = false
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const SOURCE_MENU_PANEL_WIDTH = 156
 const SOURCE_MENU_ROW_HEIGHT = 44
@@ -154,15 +153,6 @@ const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.Lis
 }
 const getOnlinePlaylistDetailKey = (detail: OnlinePlaylistDetailPayload) => `online_songlist__${detail.source}__${detail.id}`
 
-const stats: Array<{ day: string, height: `${number}%`, active?: boolean }> = [
-  { day: 'Mon', height: '40%' },
-  { day: 'Tue', height: '65%' },
-  { day: 'Wed', height: '85%' },
-  { day: 'Thu', height: '50%', active: true },
-  { day: 'Fri', height: '70%' },
-  { day: 'Sat', height: '95%' },
-  { day: 'Sun', height: '30%' },
-]
 const SONG_DRAG_ROW_GAP = 10
 const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
 const SONG_DRAG_AUTO_SCROLL_EDGE = 96
@@ -1580,8 +1570,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       isSourceMenuVisible={isSourceMenuVisible}
       sourceMenuBackdropOpacity={sourceMenuBackdropOpacity}
       createListDialogRef={createListDialogRef}
-      stats={stats}
-      showListeningStatistics={SHOW_LISTENING_STATISTICS}
       getPlaylistCardTone={getPlaylistCardTone}
       isPlaylistCurrent={isPlaylistCurrent}
       onCloseSourceMenu={closeSourceMenu}
@@ -2186,48 +2174,6 @@ const styles = createStyle({
   },
   listPanel: {
     width: '100%',
-  },
-  statsCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-    padding: 12,
-    height: 184,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  statsCol: {
-    flex: 1,
-    alignItems: 'center',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  statsBarBg: {
-    width: '74%',
-    flex: 1,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    backgroundColor: '#e5e7eb',
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-  },
-  statsBar: {
-    width: '100%',
-    backgroundColor: '#111827',
-  },
-  day: {
-    marginTop: 8,
-  },
-  dayActive: {
-    marginTop: 8,
-    fontWeight: '700',
   },
   listItem: {
     width: '48.4%',
