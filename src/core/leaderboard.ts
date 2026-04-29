@@ -30,14 +30,26 @@ interface PageCache { data: ListDetailInfo, sourcePage: number }
 type CacheValue = Map<string, PageCache | ListDetailInfo['list']>
 
 const cache = new Map<string, CacheValue>()
+const boardsInflight = new Map<LX.OnlineSource, Promise<Board['list']>>()
+const listDetailInflight = new Map<string, Promise<ListDetailInfo>>()
 const LIST_LOAD_LIMIT = 30
 
 export const getBoardsList = async(source: LX.OnlineSource) => {
   // const source = (await getLeaderboardSetting()).source as LX.OnlineSource
   if (leaderboardState.boards[source]) return leaderboardState.boards[source].list
-  const board = await (musicSdk[source]?.leaderboard.getBoards() as Promise<Board>)
-  setBoard(board, source)
-  return leaderboardState.boards[source]!.list
+  const inflight = boardsInflight.get(source)
+  if (inflight) return inflight
+
+  const task = (musicSdk[source]?.leaderboard.getBoards() as Promise<Board> | undefined)
+    ?.then(board => {
+      setBoard(board, source)
+      return leaderboardState.boards[source]!.list
+    }).finally(() => {
+      boardsInflight.delete(source)
+    }) ?? Promise.reject(new Error('source not found'))
+
+  boardsInflight.set(source, task)
+  return task
 }
 
 /**
@@ -119,7 +131,14 @@ export const getListDetail = async(id: string, page: number, isRefresh = false):
   let pageCache = listCache.get(pageKey) as PageCache
   if (pageCache) return pageCache.data
 
-  return getListLimit(source, bangId, page)
+  const inflight = listDetailInflight.get(pageKey)
+  if (!isRefresh && inflight) return inflight
+
+  const task = getListLimit(source, bangId, page).finally(() => {
+    if (listDetailInflight.get(pageKey) === task) listDetailInflight.delete(pageKey)
+  })
+  listDetailInflight.set(pageKey, task)
+  return task
 }
 
 /**

@@ -1,8 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
-import { memo, useCallback, startTransition, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, ScrollView, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent } from 'react-native'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ActivityIndicator, Animated, Easing, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import { Disc3, Ellipsis, Heart, Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
@@ -23,8 +23,13 @@ import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboa
 import { pickMusicCover } from '@/utils/musicCover'
 import { getPicUrl } from '@/core/music/online'
 import { getCachedImageUri } from '@/utils/imageCache'
+import { getData, saveData } from '@/plugins/storage'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
+const OTHER_BOARD_PAGE_SIZE = 4
+const OTHER_BOARD_DETAIL_CONCURRENCY = 2
+const COVER_PREWARM_LIMIT = 6
+const LEADERBOARD_HOME_CACHE_KEY = '@leaderboard_home_cache_v1'
 
 const defaultFilterBoardKeywords: Record<'new' | 'trending' | 'top', string[]> = {
   new: ['新歌'],
@@ -57,12 +62,31 @@ interface LbSourceState {
   boardName: string
   songs: LX.Music.MusicInfoOnline[]
   loading: boolean
+  loaded: boolean
+  error: boolean
 }
 interface LbOtherBoardState {
   boardId: string
   boardName: string
   songs: LX.Music.MusicInfoOnline[]
   loading: boolean
+  loaded: boolean
+  error: boolean
+}
+interface LbOtherSourceState {
+  entries: LbOtherBoardState[]
+  boards: BoardItem[]
+  nextIndex: number
+  loading: boolean
+  loadingMore: boolean
+  done: boolean
+  loaded: boolean
+  error: boolean
+}
+interface LeaderboardHomeCache {
+  lbAllData?: LbAllData
+  lbOtherData?: LbOtherData
+  updatedAt: number
 }
 interface FeaturedCard {
   id: string
@@ -94,6 +118,10 @@ const heroCardTones = [
   { surface: '#f3e6d5', accent: '#6b4b2e', ink: '#22170e', textSoft: '#705640' },
 ] as const
 type FilterId = 'all' | 'new' | 'trending' | 'top' | 'other'
+type LbFilterId = Exclude<FilterId, 'all' | 'other'>
+type LbAllData = Partial<Record<LbFilterId, Partial<Record<LX.OnlineSource, LbSourceState>>>>
+type LbOtherData = Partial<Record<LX.OnlineSource, LbOtherSourceState>>
+const LB_FILTER_IDS: LbFilterId[] = ['new', 'trending', 'top']
 
 const getTone = (index: number) => cardTones[index % cardTones.length]
 
@@ -102,6 +130,112 @@ const pickCover = (list: LX.Music.MusicInfo[]) => {
     if (song.meta.picUrl) return song.meta.picUrl
   }
   return null
+}
+
+const createLbSourceState = (state: Partial<LbSourceState> = {}): LbSourceState => ({
+  boardId: '',
+  boardName: '',
+  songs: [],
+  loading: false,
+  loaded: false,
+  error: false,
+  ...state,
+})
+
+const createLbOtherSourceState = (state: Partial<LbOtherSourceState> = {}): LbOtherSourceState => ({
+  entries: [],
+  boards: [],
+  nextIndex: 0,
+  loading: false,
+  loadingMore: false,
+  done: false,
+  loaded: false,
+  error: false,
+  ...state,
+})
+
+const normalizeCachedLbAllData = (data?: LbAllData): LbAllData => {
+  const next: LbAllData = {}
+  for (const filter of LB_FILTER_IDS) {
+    const filterData = data?.[filter]
+    if (!filterData) continue
+    const nextFilterData: Partial<Record<LX.OnlineSource, LbSourceState>> = {}
+    for (const source of Object.keys(filterData) as LX.OnlineSource[]) {
+      const entry = filterData[source]
+      if (!entry?.boardId) continue
+      nextFilterData[source] = createLbSourceState({
+        ...entry,
+        loading: false,
+        loaded: true,
+        error: false,
+      })
+    }
+    if (Object.keys(nextFilterData).length) next[filter] = nextFilterData
+  }
+  return next
+}
+
+const normalizeCachedLbOtherData = (data?: LbOtherData): LbOtherData => {
+  const next: LbOtherData = {}
+  for (const source of Object.keys(data ?? {}) as LX.OnlineSource[]) {
+    const sourceState = data?.[source]
+    if (!sourceState) continue
+    const entries = sourceState.entries
+      .filter(entry => entry.boardId)
+      .map(entry => ({
+        ...entry,
+        loading: false,
+        loaded: true,
+        error: false,
+      }))
+    next[source] = createLbOtherSourceState({
+      ...sourceState,
+      entries,
+      loading: false,
+      loadingMore: false,
+      loaded: true,
+      error: false,
+    })
+  }
+  return next
+}
+
+const prewarmRuntimeCoverCache = (songs: LX.Music.MusicInfoOnline[]) => {
+  const urls = songs
+    .map(song => song.meta.picUrl)
+    .filter((url): url is string => Boolean(url))
+  if (!urls.length) return
+  void Promise.all(urls.map(async url => getCachedImageUri(url).catch(() => null)))
+}
+
+const prewarmVisibleCovers = (source: LX.OnlineSource, songs: LX.Music.MusicInfoOnline[]) => {
+  const visibleSongs = songs.slice(0, COVER_PREWARM_LIMIT)
+  if (!visibleSongs.length) return
+
+  void InteractionManager.runAfterInteractions(() => {
+    if (source === 'kg') {
+      void Promise.all(visibleSongs.map(async song => getPicUrl({
+        musicInfo: song,
+        isRefresh: false,
+        allowToggleSource: false,
+      }).catch(() => null))).then(() => {
+        prewarmRuntimeCoverCache(visibleSongs)
+      })
+      return
+    }
+    prewarmRuntimeCoverCache(visibleSongs)
+  })
+}
+
+const runWithConcurrency = async<T,>(items: T[], limit: number, handler: (item: T) => Promise<void>) => {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async() => {
+    while (index < items.length) {
+      const item = items[index++]
+      await handler(item)
+    }
+  })
+  await Promise.all(workers)
 }
 
 const openLibrary = () => {
@@ -123,9 +257,101 @@ const filterChips = [
   { id: 'other', key: 'home_tag_other' },
 ] as const
 
-// Pre-defined style objects to ensure stable references for memo comparisons
-const DISPLAY_FLEX = { display: 'flex' as const }
-const DISPLAY_NONE = { display: 'none' as const }
+// ---------- Animation utilities ----------
+
+// Shared pulsing opacity for skeleton placeholders
+const usePulseAnim = (): Animated.Value => {
+  const anim = useRef(new Animated.Value(0.45)).current
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.9, duration: 780, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.45, duration: 780, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    )
+    loop.start()
+    return () => { loop.stop() }
+  }, [anim])
+  return anim
+}
+
+// Fade + slide-up on mount — wraps content that replaces a skeleton
+const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
+  const anim = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [anim])
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+    }}>
+      {children}
+    </Animated.View>
+  )
+})
+
+// Skeleton rows that look like song rows with cover image (for new/trending/top)
+const SKELETON_SONG_WIDTHS = [
+  { title: '70%', sub: '48%' },
+  { title: '58%', sub: '38%' },
+  { title: '74%', sub: '52%' },
+] as const
+const SkeletonSongRows = memo(({ pulse }: { pulse: Animated.Value }) => (
+  <>
+    {SKELETON_SONG_WIDTHS.map((w, i) => (
+      <View key={i} style={[skeletonStyles.songRow, i < 2 ? skeletonStyles.rowSpacing : null]}>
+        <Animated.View style={[skeletonStyles.cover, { opacity: pulse }]} />
+        <View style={skeletonStyles.info}>
+          <Animated.View style={[skeletonStyles.line, { width: w.title, marginBottom: 6, opacity: pulse }]} />
+          <Animated.View style={[skeletonStyles.lineSm, { width: w.sub, opacity: pulse }]} />
+        </View>
+      </View>
+    ))}
+  </>
+))
+
+// Skeleton rows for text-only boards (for "other" clip)
+const SKELETON_TEXT_WIDTHS = [
+  { title: '65%', sub: '44%' },
+  { title: '52%', sub: '36%' },
+  { title: '68%', sub: '48%' },
+] as const
+const SkeletonTextRows = memo(({ pulse }: { pulse: Animated.Value }) => (
+  <>
+    {SKELETON_TEXT_WIDTHS.map((w, i) => (
+      <View key={i} style={[skeletonStyles.textRow, i < 2 ? skeletonStyles.rowSpacing : null]}>
+        <Animated.View style={[skeletonStyles.rankNum, { opacity: pulse }]} />
+        <View style={skeletonStyles.info}>
+          <Animated.View style={[skeletonStyles.line, { width: w.title, marginBottom: 6, opacity: pulse }]} />
+          <Animated.View style={[skeletonStyles.lineSm, { width: w.sub, opacity: pulse }]} />
+        </View>
+      </View>
+    ))}
+  </>
+))
+
+// Skeleton title bar (header of each source section)
+const SkeletonTitle = memo(({ pulse }: { pulse: Animated.Value }) => (
+  <Animated.View style={[skeletonStyles.title, { opacity: pulse }]} />
+))
+
+const skeletonStyles = {
+  songRow: { minHeight: 70, flexDirection: 'row' as const, alignItems: 'center' as const, paddingVertical: 7 },
+  textRow: { minHeight: 52, flexDirection: 'row' as const, alignItems: 'center' as const, paddingVertical: 5 },
+  rowSpacing: { marginBottom: 1 },
+  cover: { width: 58, height: 58, borderRadius: 16, backgroundColor: '#e2e6ef' },
+  info: { flex: 1, marginLeft: 13, marginRight: 12 },
+  line: { height: 13, borderRadius: 6, backgroundColor: '#e2e6ef' },
+  lineSm: { height: 11, borderRadius: 6, backgroundColor: '#e2e6ef' },
+  rankNum: { width: 26, height: 12, borderRadius: 4, backgroundColor: '#e2e6ef', marginRight: 2 },
+  title: { height: 18, width: '55%' as const, borderRadius: 8, backgroundColor: '#e2e6ef' },
+}
 
 // ---------- AllContent ----------
 interface AllContentProps {
@@ -137,7 +363,6 @@ interface AllContentProps {
   handlePlayPlaylistPress: (listId: string | null | undefined) => (event: GestureResponderEvent) => void
   featuredCardWidth: number
   featuredCardGap: number
-  display: 'flex' | 'none'
 }
 
 const AllContent = memo(({
@@ -149,11 +374,10 @@ const AllContent = memo(({
   handlePlayPlaylistPress,
   featuredCardWidth,
   featuredCardGap,
-  display,
 }: AllContentProps) => {
   const t = useI18n()
   return (
-    <View style={{ display }}>
+    <View>
       <ScrollView
         horizontal
         style={styles.featuredScroller}
@@ -281,11 +505,10 @@ const AllContent = memo(({
 
 // ---------- LbContent ----------
 interface LbContentProps {
-  lbAllData: Partial<Record<'new' | 'trending' | 'top', Partial<Record<LX.OnlineSource, LbSourceState>>>>
-  activeFilter: 'new' | 'trending' | 'top'
+  lbAllData: LbAllData
+  activeFilter: LbFilterId
   lbPageWidth: number
   lbTrackWidth: number
-  display: 'flex' | 'none'
 }
 
 const LbContent = memo(({
@@ -293,9 +516,9 @@ const LbContent = memo(({
   activeFilter,
   lbPageWidth,
   lbTrackWidth,
-  display,
 }: LbContentProps) => {
   const t = useI18n()
+  const pulse = usePulseAnim()
   const lbScrollXMapRef = useRef<Partial<Record<LX.OnlineSource, Animated.Value>>>({})
   const getLbScrollX = useCallback((src: LX.OnlineSource): Animated.Value => {
     const existing = lbScrollXMapRef.current[src]
@@ -312,86 +535,106 @@ const LbContent = memo(({
     global.app_event.openPlaylistDetail({ type: 'leaderboard', boardId, source: src, name: boardName })
   }, [])
 
+  const [settledFilter, setSettledFilter] = useState<LbFilterId | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSettledFilter(activeFilter)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [activeFilter])
+
   return (
-    <View style={{ display }}>
+    <View>
       {leaderboardState.sources.map(src => {
         const srcData = lbAllData[activeFilter]?.[src]
         const boardId = srcData?.boardId ?? ''
         const boardName = srcData?.boardName ?? ''
         const songs = srcData?.songs ?? []
         const loading = srcData?.loading ?? true
+        const showLoading = loading && !songs.length
+        // settledFilter 落后于 activeFilter：activeFilter 刚变化时 spinner 在首次渲染立即出现
+        const showSongSkeleton = settledFilter !== activeFilter || showLoading
         const chunks: LX.Music.MusicInfoOnline[][] = []
         for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
 
         return (
           <View key={src} style={styles.lbSourceSection}>
             <View style={styles.sectionHeader}>
-              <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
-                {loading ? '...' : `${t(`source_real_${src}`)}：${boardName || '—'}`}
-              </Text>
-              <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(src, boardId, boardName) }}>
-                <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
-              </TouchableOpacity>
+              {showLoading
+                ? <SkeletonTitle pulse={pulse} />
+                : <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
+                    {`${t(`source_real_${src}`)}：${boardName || '—'}`}
+                  </Text>}
+              {!showLoading
+                ? <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(src, boardId, boardName) }}>
+                    <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
+                  </TouchableOpacity>
+                : null}
             </View>
 
-            {loading
-              ? <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">加载中...</Text></View>
-              : chunks.length
-                ? <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    decelerationRate="fast"
-                    snapToAlignment="start"
-                    snapToInterval={lbPageWidth}
-                    disableIntervalMomentum
-                    scrollEventThrottle={16}
-                    onScroll={Animated.event(
-                      [{ nativeEvent: { contentOffset: { x: getLbScrollX(src) } } }],
-                      { useNativeDriver: false },
-                    )}
-                  >
-                    {chunks.map((chunk, chunkIndex) => (
-                      <View key={chunkIndex} style={{ width: lbPageWidth }}>
-                        {chunk.map((song, songIndex) => {
-                          const absIndex = chunkIndex * 3 + songIndex
-                          const coverUrl = pickMusicCover(song)
-                          return (
-                            <TouchableOpacity
-                              key={song.id}
-                              style={[styles.dailyRow, songIndex < chunk.length - 1 ? styles.dailyRowSpacing : null]}
-                              activeOpacity={0.84}
-                              onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
-                            >
-                              <Text size={15} color="#8a8f9d" style={styles.lbRankNum}>
-                                {absIndex + 1}
-                              </Text>
-                              <View style={styles.dailyCoverWrap}>
-                                {coverUrl
-                                  ? <Image style={styles.dailyCover} url={coverUrl} />
-                                  : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                                      <Disc3 size={20} color="#8a8f9d" strokeWidth={1.9} />
-                                    </View>}
-                              </View>
-                              <View style={styles.dailyInfo}>
-                                <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
-                                <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
-                              </View>
-                              <TouchableOpacity
-                                style={styles.dailyPlayButton}
-                                activeOpacity={0.82}
-                                onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
-                              >
-                                <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
-                              </TouchableOpacity>
-                            </TouchableOpacity>
-                          )
-                        })}
-                      </View>
-                    ))}
-                  </ScrollView>
-                : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+            {showSongSkeleton
+              ? <View style={styles.lbSpinnerArea}>
+                  <ActivityIndicator size="large" color="#8a8f9d" />
+                </View>
+              : <ContentReveal key={`${src}-${activeFilter}`}>
+                  {chunks.length
+                    ? <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        decelerationRate="fast"
+                        snapToAlignment="start"
+                        snapToInterval={lbPageWidth}
+                        disableIntervalMomentum
+                        scrollEventThrottle={16}
+                        onScroll={Animated.event(
+                          [{ nativeEvent: { contentOffset: { x: getLbScrollX(src) } } }],
+                          { useNativeDriver: false },
+                        )}
+                      >
+                        {chunks.map((chunk, chunkIndex) => (
+                          <View key={chunkIndex} style={{ width: lbPageWidth }}>
+                            {chunk.map((song, songIndex) => {
+                              const absIndex = chunkIndex * 3 + songIndex
+                              const coverUrl = pickMusicCover(song)
+                              return (
+                                <TouchableOpacity
+                                  key={song.id}
+                                  style={[styles.dailyRow, songIndex < chunk.length - 1 ? styles.dailyRowSpacing : null]}
+                                  activeOpacity={0.84}
+                                  onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
+                                >
+                                  <Text size={15} color="#8a8f9d" style={styles.lbRankNum}>
+                                    {absIndex + 1}
+                                  </Text>
+                                  <View style={styles.dailyCoverWrap}>
+                                    {coverUrl
+                                      ? <Image style={styles.dailyCover} url={coverUrl} />
+                                      : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
+                                          <Disc3 size={20} color="#8a8f9d" strokeWidth={1.9} />
+                                        </View>}
+                                  </View>
+                                  <View style={styles.dailyInfo}>
+                                    <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
+                                    <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
+                                  </View>
+                                  <TouchableOpacity
+                                    style={styles.dailyPlayButton}
+                                    activeOpacity={0.82}
+                                    onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
+                                  >
+                                    <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                  </TouchableOpacity>
+                                </TouchableOpacity>
+                              )
+                            })}
+                          </View>
+                        ))}
+                      </ScrollView>
+                    : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+                </ContentReveal>}
 
-            {!loading && chunks.length > 1
+            {!showSongSkeleton && chunks.length > 1
               ? <View style={styles.lbScrollTrack}>
                   <Animated.View
                     style={[
@@ -419,20 +662,22 @@ const LbContent = memo(({
 
 // ---------- OtherContent ----------
 interface OtherContentProps {
-  lbOtherData: Partial<Record<LX.OnlineSource, LbOtherBoardState[]>>
+  lbOtherData: LbOtherData
+  selectedOtherSource: LX.OnlineSource
+  onSourceChange: (source: LX.OnlineSource) => void
   lbPageWidth: number
   lbTrackWidth: number
-  display: 'flex' | 'none'
 }
 
 const OtherContent = memo(({
   lbOtherData,
+  selectedOtherSource,
+  onSourceChange,
   lbPageWidth,
   lbTrackWidth,
-  display,
 }: OtherContentProps) => {
   const t = useI18n()
-  const [selectedOtherSource, setSelectedOtherSource] = useState<LX.OnlineSource>(leaderboardState.sources[0] ?? 'kw')
+  const pulse = usePulseAnim()
   const lbOtherScrollXMapRef = useRef<Record<string, Animated.Value>>({})
   const getOtherScrollX = useCallback((boardId: string): Animated.Value => {
     const existing = lbOtherScrollXMapRef.current[boardId]
@@ -449,89 +694,143 @@ const OtherContent = memo(({
     global.app_event.openPlaylistDetail({ type: 'leaderboard', boardId, source: src, name: boardName })
   }, [])
 
+  const [isSwitching, setIsSwitching] = useState(true)
+  const switchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevSourceRef = useRef(selectedOtherSource)
+
+  // 挂载时立刻显示 spinner，200ms 后清除
+  useEffect(() => {
+    switchTimerRef.current = setTimeout(() => {
+      setIsSwitching(false)
+      switchTimerRef.current = null
+    }, 200)
+    return () => {
+      if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (prevSourceRef.current === selectedOtherSource) return
+    prevSourceRef.current = selectedOtherSource
+    setIsSwitching(true)
+    if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
+    switchTimerRef.current = setTimeout(() => {
+      setIsSwitching(false)
+      switchTimerRef.current = null
+    }, 200)
+  }, [selectedOtherSource])
+
   return (
-    <View style={{ display }}>
+    <View>
       <View style={styles.sourceRow}>
         {leaderboardState.sources.map(src => (
-          <TouchableOpacity
+          <Pressable
             key={src}
             style={[styles.filterChip, selectedOtherSource === src ? styles.filterChipActive : null]}
-            activeOpacity={0.85}
-            onPress={() => { setSelectedOtherSource(src) }}
+            android_ripple={{ color: 'rgba(217,239,98,0.5)', foreground: true, borderless: false }}
+            onPressIn={() => {
+              if (src === selectedOtherSource) return
+              setIsSwitching(true)
+              if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
+              switchTimerRef.current = setTimeout(() => {
+                setIsSwitching(false)
+                switchTimerRef.current = null
+              }, 400)
+            }}
+            onPress={() => { onSourceChange(src) }}
           >
             <Text size={12} color={selectedOtherSource === src ? '#31351b' : '#5d6271'} style={styles.filterChipText}>
               {SOURCE_SHORT_LABELS[src] ?? src}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
       {(() => {
-        const srcBoards = lbOtherData[selectedOtherSource]
-        if (!srcBoards) return <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">加载中...</Text></View>
-        if (!srcBoards.length) return <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>
-        return <>{srcBoards.map(entry => {
+        const srcState = lbOtherData[selectedOtherSource]
+        const srcBoards = !srcState || (srcState.loading && !srcState.entries.length) ? undefined : srcState.entries
+
+        if (isSwitching || !srcBoards) {
+          return (
+            <View style={styles.spinnerContainer}>
+              <ActivityIndicator size="large" color="#8a8f9d" />
+            </View>
+          )
+        }
+        if (!srcBoards.length) {
+          return <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>
+        }
+        return (
+          <ContentReveal key={selectedOtherSource}>
+            {srcBoards.map(entry => {
           const { boardId, boardName, songs, loading } = entry
+          const showLoading = loading && !songs.length
           const chunks: LX.Music.MusicInfoOnline[][] = []
           for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
           return (
             <View key={boardId} style={styles.lbSourceSection}>
               <View style={styles.sectionHeader}>
-                <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
-                  {loading ? '...' : (boardName || '—')}
-                </Text>
-                <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(selectedOtherSource, boardId, boardName) }}>
-                  <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
-                </TouchableOpacity>
+                {showLoading
+                  ? <SkeletonTitle pulse={pulse} />
+                  : <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
+                      {boardName || '—'}
+                    </Text>}
+                {!showLoading
+                  ? <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(selectedOtherSource, boardId, boardName) }}>
+                      <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
+                    </TouchableOpacity>
+                  : null}
               </View>
 
-              {loading
-                ? <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">加载中...</Text></View>
-                : chunks.length
-                  ? <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      decelerationRate="fast"
-                      snapToAlignment="start"
-                      snapToInterval={lbPageWidth}
-                      disableIntervalMomentum
-                      scrollEventThrottle={16}
-                      onScroll={Animated.event(
-                        [{ nativeEvent: { contentOffset: { x: getOtherScrollX(boardId) } } }],
-                        { useNativeDriver: false },
-                      )}
-                    >
-                      {chunks.map((chunk, chunkIndex) => (
-                        <View key={chunkIndex} style={{ width: lbPageWidth }}>
-                          {chunk.map((song, songIndex) => {
-                            const absIndex = chunkIndex * 3 + songIndex
-                            return (
-                              <TouchableOpacity
-                                key={song.id}
-                                style={[styles.otherRow, songIndex < chunk.length - 1 ? styles.dailyRowSpacing : null]}
-                                activeOpacity={0.84}
-                                onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
-                              >
-                                <Text size={14} color="#8a8f9d" style={styles.lbRankNum}>{absIndex + 1}</Text>
-                                <View style={styles.dailyInfo}>
-                                  <Text size={14} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
-                                  <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
-                                </View>
-                                <TouchableOpacity
-                                  style={styles.dailyPlayButton}
-                                  activeOpacity={0.82}
-                                  onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
-                                >
-                                  <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
-                                </TouchableOpacity>
-                              </TouchableOpacity>
-                            )
-                          })}
-                        </View>
-                      ))}
-                    </ScrollView>
-                  : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+              {showLoading
+                ? <SkeletonTextRows pulse={pulse} />
+                : <ContentReveal key={boardId}>
+                    {chunks.length
+                      ? <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          decelerationRate="fast"
+                          snapToAlignment="start"
+                          snapToInterval={lbPageWidth}
+                          disableIntervalMomentum
+                          scrollEventThrottle={16}
+                          onScroll={Animated.event(
+                            [{ nativeEvent: { contentOffset: { x: getOtherScrollX(boardId) } } }],
+                            { useNativeDriver: false },
+                          )}
+                        >
+                          {chunks.map((chunk, chunkIndex) => (
+                            <View key={chunkIndex} style={{ width: lbPageWidth }}>
+                              {chunk.map((song, songIndex) => {
+                                const absIndex = chunkIndex * 3 + songIndex
+                                return (
+                                  <TouchableOpacity
+                                    key={song.id}
+                                    style={[styles.otherRow, songIndex < chunk.length - 1 ? styles.dailyRowSpacing : null]}
+                                    activeOpacity={0.84}
+                                    onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
+                                  >
+                                    <Text size={14} color="#8a8f9d" style={styles.lbRankNum}>{absIndex + 1}</Text>
+                                    <View style={styles.dailyInfo}>
+                                      <Text size={14} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
+                                      <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                      style={styles.dailyPlayButton}
+                                      activeOpacity={0.82}
+                                      onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
+                                    >
+                                      <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                    </TouchableOpacity>
+                                  </TouchableOpacity>
+                                )
+                              })}
+                            </View>
+                          ))}
+                        </ScrollView>
+                      : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+                  </ContentReveal>}
 
-              {!loading && chunks.length > 1
+              {!showLoading && chunks.length > 1
                 ? <View style={styles.lbScrollTrack}>
                     <Animated.View
                       style={[
@@ -552,7 +851,9 @@ const OtherContent = memo(({
                 : null}
             </View>
           )
-        })}</>
+        })}
+          </ContentReveal>
+        )
       })()}
     </View>
   )
@@ -574,10 +875,26 @@ export default memo(() => {
   const playlistMetaRequestRef = useRef(0)
   const topPadding = statusBarHeight + 18 + 44 + 16
   const gestureInsetBottom = useSystemGestureInsetBottom()
-  const [lbAllData, setLbAllData] = useState<Partial<Record<'new' | 'trending' | 'top', Partial<Record<LX.OnlineSource, LbSourceState>>>>>({})
-  const [lbOtherData, setLbOtherData] = useState<Partial<Record<LX.OnlineSource, LbOtherBoardState[]>>>({})
-  const lbTokensRef = useRef<Record<'new' | 'trending' | 'top' | 'other', number>>({ new: 0, trending: 0, top: 0, other: 0 })
-  const filterContentAnim = useRef(new Animated.Value(1)).current
+  const [lbAllData, setLbAllData] = useState<LbAllData>({})
+  const [lbOtherData, setLbOtherData] = useState<LbOtherData>({})
+  const [selectedOtherSource, setSelectedOtherSource] = useState<LX.OnlineSource>(leaderboardState.sources[0] ?? 'kw')
+  const lbOtherDataRef = useRef<LbOtherData>({})
+  const lbTokensRef = useRef<Record<LbFilterId, number>>({ new: 0, trending: 0, top: 0 })
+  const lbOtherTokensRef = useRef<Partial<Record<LX.OnlineSource, number>>>({})
+  const lbFilterLoadedRef = useRef<Partial<Record<LbFilterId, boolean>>>({})
+  const lbFilterLoadingRef = useRef<Partial<Record<LbFilterId, boolean>>>({})
+  const lbOtherSourceLoadedRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
+  const lbOtherSourceLoadingRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
+  const leaderboardHomeCacheReadyRef = useRef(false)
+  const activeFilterRef = useRef<FilterId>(activeFilter)
+  const chipAnimsRef = useRef<Record<FilterId, Animated.Value>>({
+    all: new Animated.Value(1),
+    new: new Animated.Value(0),
+    trending: new Animated.Value(0),
+    top: new Animated.Value(0),
+    other: new Animated.Value(0),
+  })
+  const prevActiveFilterRef = useRef<FilterId>('all')
 
   useEffect(() => {
     let isUnmounted = false
@@ -597,6 +914,48 @@ export default memo(() => {
       global.app_event.off('userNameUpdated', handleUserNameUpdated)
     }
   }, [])
+
+  const updateLbOtherData = useCallback((updater: (prev: LbOtherData) => LbOtherData) => {
+    setLbOtherData(prev => {
+      const next = updater(prev)
+      lbOtherDataRef.current = next
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    let isUnmounted = false
+
+    void getData<LeaderboardHomeCache>(LEADERBOARD_HOME_CACHE_KEY).then(cache => {
+      if (isUnmounted || !cache) return
+      const cachedAllData = normalizeCachedLbAllData(cache.lbAllData)
+      const cachedOtherData = normalizeCachedLbOtherData(cache.lbOtherData)
+      if (Object.keys(cachedAllData).length) setLbAllData(cachedAllData)
+      if (Object.keys(cachedOtherData).length) {
+        lbOtherDataRef.current = cachedOtherData
+        setLbOtherData(cachedOtherData)
+      }
+    }).finally(() => {
+      if (!isUnmounted) leaderboardHomeCacheReadyRef.current = true
+    })
+
+    return () => {
+      isUnmounted = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!leaderboardHomeCacheReadyRef.current) return
+    const cachedAllData = normalizeCachedLbAllData(lbAllData)
+    const cachedOtherData = normalizeCachedLbOtherData(lbOtherData)
+    if (!Object.keys(cachedAllData).length && !Object.keys(cachedOtherData).length) return
+    const cacheData: LeaderboardHomeCache = {
+      lbAllData: cachedAllData,
+      lbOtherData: cachedOtherData,
+      updatedAt: Date.now(),
+    }
+    void saveData(LEADERBOARD_HOME_CACHE_KEY, cacheData).catch(() => {})
+  }, [lbAllData, lbOtherData])
 
   const libraryItems = useMemo(() => {
     const lovePlaylist = playlists.find(list => list.id === LIST_IDS.LOVE)
@@ -683,130 +1042,274 @@ export default memo(() => {
     void refreshPlaylistMeta()
   }, [activeNavId, refreshPlaylistMeta])
 
-  // Fade-in after filter switch (triggered after state update in handleFilterPress callback)
-  useEffect(() => {
-    Animated.timing(filterContentAnim, {
-      toValue: 1,
-      duration: 180,
-      useNativeDriver: true,
-    }).start()
-  }, [activeFilter, filterContentAnim])
-
-  const loadOneFilter = useCallback(async(filter: 'new' | 'trending' | 'top') => {
+  const loadOneFilter = useCallback(async(filter: LbFilterId) => {
+    if (lbFilterLoadedRef.current[filter] === true) return
+    if (lbFilterLoadingRef.current[filter] === true) return
+    lbFilterLoadingRef.current[filter] = true
     const token = ++lbTokensRef.current[filter]
     const sources = leaderboardState.sources
+
     setLbAllData(prev => ({
       ...prev,
-      [filter]: Object.fromEntries(sources.map(src => [src, { boardId: '', boardName: '', songs: [], loading: true }])),
+      [filter]: Object.fromEntries(sources.map(src => [
+        src,
+        createLbSourceState({
+          ...prev[filter]?.[src],
+          loading: true,
+        }),
+      ])),
     }))
-    sources.forEach(async(src) => {
+
+    await Promise.all(sources.map(async(src) => {
       try {
         const boards = await getBoardsList(src)
         if (lbTokensRef.current[filter] !== token) return
         if (!boards.length) {
-          setLbAllData(prev => ({ ...prev, [filter]: { ...prev[filter], [src]: { boardId: '', boardName: '', songs: [], loading: false } } }))
+          setLbAllData(prev => ({
+            ...prev,
+            [filter]: {
+              ...prev[filter],
+              [src]: createLbSourceState({
+                ...prev[filter]?.[src],
+                loading: false,
+                loaded: true,
+              }),
+            },
+          }))
           return
         }
         const board = findBoardForFilter(boards, filter, src)
         const detail = await getListDetail(board.id, 1)
         if (lbTokensRef.current[filter] !== token) return
         const songs = detail.list
-        setLbAllData(prev => ({ ...prev, [filter]: { ...prev[filter], [src]: { boardId: board.id, boardName: board.name, songs, loading: false } } }))
-        const prewarm = () => {
-          void Promise.all(songs.flatMap(s => s.meta.picUrl ? [s.meta.picUrl] : []).map(async url => getCachedImageUri(url).catch(() => null)))
-        }
-        if (src === 'kg' && songs.length) {
-          void Promise.all(songs.map(async(song) => getPicUrl({ musicInfo: song, isRefresh: false }).catch(() => null))).then(prewarm)
-        } else {
-          prewarm()
-        }
+        setLbAllData(prev => ({
+          ...prev,
+          [filter]: {
+            ...prev[filter],
+            [src]: createLbSourceState({
+              boardId: board.id,
+              boardName: board.name,
+              songs,
+              loading: false,
+              loaded: true,
+            }),
+          },
+        }))
+        prewarmVisibleCovers(src, songs)
       } catch {
         if (lbTokensRef.current[filter] === token) {
-          setLbAllData(prev => ({ ...prev, [filter]: { ...prev[filter], [src]: { boardId: '', boardName: '', songs: [], loading: false } } }))
+          setLbAllData(prev => ({
+            ...prev,
+            [filter]: {
+              ...prev[filter],
+              [src]: createLbSourceState({
+                ...prev[filter]?.[src],
+                loading: false,
+                loaded: true,
+                error: true,
+              }),
+            },
+          }))
         }
       }
-    })
+    }))
+
+    if (lbTokensRef.current[filter] === token) {
+      lbFilterLoadedRef.current[filter] = true
+      lbFilterLoadingRef.current[filter] = false
+    }
   }, [])
 
-  const loadOtherFilter = useCallback(async() => {
-    const token = ++lbTokensRef.current.other
-    setLbOtherData({})
-    const sources = leaderboardState.sources
-    sources.forEach(async(src) => {
-      try {
-        const boards = await getBoardsList(src)
-        if (lbTokensRef.current.other !== token) return
-        const usedIds = new Set(
-          (['new', 'trending', 'top'] as const).map(f => findBoardForFilter(boards, f, src).id),
-        )
-        const otherBoards = boards.filter(b => !usedIds.has(b.id))
-        if (!otherBoards.length) {
-          setLbOtherData(prev => ({ ...prev, [src]: [] }))
-          return
-        }
-        setLbOtherData(prev => ({
+  const loadOtherSource = useCallback(async(source: LX.OnlineSource) => {
+    if (lbOtherSourceLoadingRef.current[source]) return
+    const currentState = lbOtherDataRef.current[source]
+    if (lbOtherSourceLoadedRef.current[source] && currentState?.done) return
+
+    lbOtherSourceLoadingRef.current[source] = true
+    const token = (lbOtherTokensRef.current[source] ?? 0) + 1
+    lbOtherTokensRef.current[source] = token
+
+    try {
+      let sourceState = lbOtherDataRef.current[source]
+      const shouldRefreshVisibleBatch = !lbOtherSourceLoadedRef.current[source]
+      if (!sourceState?.loaded || shouldRefreshVisibleBatch) {
+        updateLbOtherData(prev => ({
           ...prev,
-          [src]: otherBoards.map(b => ({ boardId: b.id, boardName: b.name, songs: [], loading: true })),
+          [source]: createLbOtherSourceState({
+            ...prev[source],
+            loading: true,
+          }),
         }))
-        otherBoards.forEach(async(board) => {
-          try {
-            const detail = await getListDetail(board.id, 1)
-            if (lbTokensRef.current.other !== token) return
-            const songs = detail.list
-            setLbOtherData(prev => ({
+
+        const boards = await getBoardsList(source)
+        if (lbOtherTokensRef.current[source] !== token) return
+        const usedIds = new Set(LB_FILTER_IDS.map(filter => findBoardForFilter(boards, filter, source).id))
+        const otherBoards = boards.filter(board => !usedIds.has(board.id))
+        const entries = sourceState?.entries ?? []
+        updateLbOtherData(prev => ({
+          ...prev,
+          [source]: createLbOtherSourceState({
+            ...prev[source],
+            entries,
+            boards: otherBoards,
+            nextIndex: shouldRefreshVisibleBatch && entries.length ? Math.min(entries.length, otherBoards.length) : 0,
+            loading: false,
+            loaded: true,
+            done: !otherBoards.length,
+          }),
+        }))
+      }
+
+      sourceState = lbOtherDataRef.current[source]
+      if (!sourceState || sourceState.done) return
+
+      const refreshSize = shouldRefreshVisibleBatch && sourceState.entries.length
+        ? Math.min(sourceState.entries.length, OTHER_BOARD_PAGE_SIZE)
+        : OTHER_BOARD_PAGE_SIZE
+      const startIndex = shouldRefreshVisibleBatch && sourceState.entries.length ? 0 : sourceState.nextIndex
+      const batch = sourceState.boards.slice(startIndex, startIndex + refreshSize)
+      if (!batch.length) {
+        updateLbOtherData(prev => ({
+          ...prev,
+          [source]: createLbOtherSourceState({
+            ...prev[source],
+            loading: false,
+            loadingMore: false,
+            done: true,
+          }),
+        }))
+        return
+      }
+
+      const batchIds = new Set(batch.map(board => board.id))
+      const nextIndex = shouldRefreshVisibleBatch && sourceState.entries.length
+        ? Math.max(sourceState.nextIndex, batch.length)
+        : startIndex + batch.length
+
+      updateLbOtherData(prev => {
+        const prevState = createLbOtherSourceState(prev[source])
+        const batchEntries = batch.map(board => createLbSourceState({
+          boardId: board.id,
+          boardName: board.name,
+          loading: true,
+        }))
+        const refreshedEntries = prevState.entries.map(entry => batchIds.has(entry.boardId) ? { ...entry, loading: true } : entry)
+        const refreshedEntryIds = new Set(refreshedEntries.map(entry => entry.boardId))
+        const entries = shouldRefreshVisibleBatch && prevState.entries.length
+          ? [...refreshedEntries, ...batchEntries.filter(entry => !refreshedEntryIds.has(entry.boardId))]
+          : [...prevState.entries, ...batchEntries]
+        return {
+          ...prev,
+          [source]: createLbOtherSourceState({
+            ...prevState,
+            entries,
+            nextIndex,
+            loading: false,
+            loadingMore: true,
+            loaded: true,
+          }),
+        }
+      })
+
+      await runWithConcurrency(batch, OTHER_BOARD_DETAIL_CONCURRENCY, async(board) => {
+        try {
+          const detail = await getListDetail(board.id, 1)
+          if (lbOtherTokensRef.current[source] !== token) return
+          updateLbOtherData(prev => {
+            const prevState = createLbOtherSourceState(prev[source])
+            return {
               ...prev,
-              [src]: (prev[src] ?? []).map(e => e.boardId === board.id ? { ...e, songs, loading: false } : e),
-            }))
-          } catch {
-            if (lbTokensRef.current.other === token) {
-              setLbOtherData(prev => ({
-                ...prev,
-                [src]: (prev[src] ?? []).map(e => e.boardId === board.id ? { ...e, loading: false } : e),
-              }))
+              [source]: createLbOtherSourceState({
+                ...prevState,
+                entries: prevState.entries.map(entry => entry.boardId === board.id
+                  ? {
+                      ...entry,
+                      songs: detail.list,
+                      loading: false,
+                      loaded: true,
+                      error: false,
+                    }
+                  : entry),
+              }),
             }
+          })
+        } catch {
+          if (lbOtherTokensRef.current[source] !== token) return
+          updateLbOtherData(prev => {
+            const prevState = createLbOtherSourceState(prev[source])
+            return {
+              ...prev,
+              [source]: createLbOtherSourceState({
+                ...prevState,
+                entries: prevState.entries.map(entry => entry.boardId === board.id
+                  ? {
+                      ...entry,
+                      loading: false,
+                      loaded: true,
+                      error: true,
+                    }
+                  : entry),
+              }),
+            }
+          })
+        }
+      })
+
+      if (lbOtherTokensRef.current[source] === token) {
+        lbOtherSourceLoadedRef.current[source] = true
+        updateLbOtherData(prev => {
+          const prevState = createLbOtherSourceState(prev[source])
+          return {
+            ...prev,
+            [source]: createLbOtherSourceState({
+              ...prevState,
+              loading: false,
+              loadingMore: false,
+              done: prevState.nextIndex >= prevState.boards.length,
+            }),
           }
         })
-      } catch {
-        if (lbTokensRef.current.other === token) {
-          setLbOtherData(prev => ({ ...prev, [src]: [] }))
-        }
       }
-    })
-  }, [])
+    } catch {
+      if (lbOtherTokensRef.current[source] === token) {
+        updateLbOtherData(prev => ({
+          ...prev,
+          [source]: createLbOtherSourceState({
+            ...prev[source],
+            loading: false,
+            loadingMore: false,
+            loaded: true,
+            done: true,
+            error: true,
+          }),
+        }))
+      }
+    } finally {
+      if (lbOtherTokensRef.current[source] === token) lbOtherSourceLoadingRef.current[source] = false
+    }
+  }, [updateLbOtherData])
 
+  // Load filter data on demand when user switches — mirrors the upstream pattern.
+  // lbFilterLoadedRef prevents re-fetching if data is already loaded/loading.
   useEffect(() => {
-    void loadOneFilter('new')
-    void loadOneFilter('trending')
-    void loadOneFilter('top')
-    void loadOtherFilter()
-  }, [loadOneFilter, loadOtherFilter])
+    if (activeFilter === 'all') return
+    if (activeFilter === 'other') {
+      void loadOtherSource(selectedOtherSource)
+      return
+    }
+    void loadOneFilter(activeFilter)
+  }, [activeFilter, loadOneFilter, loadOtherSource, selectedOtherSource])
 
   const greetingName = displayName.trim() || DEFAULT_USER_NAME
 
   const lbPageWidth = width - 36
   const lbTrackWidth = lbPageWidth - 58
 
-  const rankedItems = useMemo(() => {
-    const items = [...libraryItems]
-    switch (activeFilter) {
-      case 'new':
-        return items.reverse()
-      case 'top':
-        return items.sort((a, b) => (playlistMetaMap[b.id]?.count ?? 0) - (playlistMetaMap[a.id]?.count ?? 0))
-      case 'trending':
-        return items.sort((a, b) => {
-          const scoreA = Number(a.id === LIST_IDS.LOVE) * 3 + Number(a.id === LIST_IDS.DEFAULT)
-          const scoreB = Number(b.id === LIST_IDS.LOVE) * 3 + Number(b.id === LIST_IDS.DEFAULT)
-          return scoreB - scoreA
-        })
-      default:
-        return items
-    }
-  }, [activeFilter, libraryItems, playlistMetaMap])
+  const rankedItems = useMemo(() => [...libraryItems], [libraryItems])
   const featuredItem = rankedItems[0] ?? null
   const featuredCardWidth = Math.min(Math.max(width - 76, 300), 344)
   const featuredCardGap = 12
-  const dailyLists = rankedItems.slice(0, 3)
+  const dailyLists = useMemo(() => rankedItems.slice(0, 3), [rankedItems])
   const currentMusic = playMusicInfo.musicInfo
   const currentMusicInfo = currentMusic
     ? 'metadata' in currentMusic
@@ -860,19 +1363,37 @@ export default memo(() => {
     void handlePlayPlaylist(listId)
   }, [handlePlayPlaylist])
 
-  // Fade-out first, then swap content, then fade-in (via useEffect above)
+  const animateChipTo = useCallback((id: FilterId) => {
+    const anims = chipAnimsRef.current
+    const prev = prevActiveFilterRef.current
+    prevActiveFilterRef.current = id
+    if (prev !== id) {
+      Animated.timing(anims[prev], { toValue: 0, duration: 80, easing: Easing.out(Easing.ease), useNativeDriver: true }).start()
+    }
+    Animated.timing(anims[id], { toValue: 1, duration: 80, easing: Easing.out(Easing.ease), useNativeDriver: true }).start()
+  }, [])
+
+  const handleFilterPressIn = useCallback((id: FilterId) => {
+    animateChipTo(id)
+  }, [animateChipTo])
+
   const handleFilterPress = useCallback((id: FilterId) => {
-    Animated.timing(filterContentAnim, {
-      toValue: 0,
-      duration: 80,
-      useNativeDriver: true,
-    }).start(() => {
-      startTransition(() => { setActiveFilter(id) })
-    })
-  }, [filterContentAnim])
+    setActiveFilter(id)
+  }, [])
+
+  const handleOtherSourceChange = useCallback((source: LX.OnlineSource) => {
+    setSelectedOtherSource(source)
+  }, [])
+
+  const handleContentScroll = useCallback(({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (activeFilter !== 'other') return
+    const distanceToBottom = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - nativeEvent.contentOffset.y
+    if (distanceToBottom > 180) return
+    void loadOtherSource(selectedOtherSource)
+  }, [activeFilter, loadOtherSource, selectedOtherSource])
 
   const isLbFilter = activeFilter === 'new' || activeFilter === 'trending' || activeFilter === 'top'
-  const lbActiveFilter: 'new' | 'trending' | 'top' = isLbFilter ? activeFilter as 'new' | 'trending' | 'top' : 'new'
+  const lbActiveFilter: LbFilterId = isLbFilter ? activeFilter : 'new'
 
   return (
     <View style={styles.container}>
@@ -883,53 +1404,61 @@ export default memo(() => {
         bounces={false}
         alwaysBounceVertical={false}
         overScrollMode="never"
+        scrollEventThrottle={120}
+        onScroll={handleContentScroll}
       >
         <View style={styles.greetingBlock}>
           <Text size={30} color="#16181f" style={styles.greetingTitle}>{`${t('home_greeting_short')}, ${greetingName}`}</Text>
         </View>
 
         <View style={styles.filterRow}>
-          {filterChips.map(({ id, key }) => {
-            const active = activeFilter === id
-            return (
-              <TouchableOpacity
-                key={id}
-                style={[styles.filterChip, active ? styles.filterChipActive : null]}
-                activeOpacity={0.85}
-                onPress={() => { handleFilterPress(id) }}
-              >
-                <Text size={12} color={active ? '#31351b' : '#5d6271'} style={styles.filterChipText}>{t(key)}</Text>
-              </TouchableOpacity>
-            )
-          })}
+          {filterChips.map(({ id, key }) => (
+            <Pressable
+              key={id}
+              style={styles.filterChip}
+              android_ripple={{ color: 'rgba(217,239,98,0.5)', foreground: true, borderless: false }}
+              onPressIn={() => { handleFilterPressIn(id) }}
+              onPress={() => { handleFilterPress(id) }}
+            >
+              <Animated.View style={[styles.filterChipActiveOverlay, { opacity: chipAnimsRef.current[id] }]} />
+              <Text size={12} color={activeFilter === id ? '#31351b' : '#5d6271'} style={styles.filterChipText}>{t(key)}</Text>
+            </Pressable>
+          ))}
         </View>
 
-        <Animated.View style={{ opacity: filterContentAnim, transform: [{ translateY: filterContentAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>
-          <AllContent
-            featuredCards={featuredCards}
-            dailyLists={dailyLists}
-            playlistMetaMap={playlistMetaMap}
-            isPlay={isPlay}
-            isPlaylistCurrent={isPlaylistCurrent}
-            handlePlayPlaylistPress={handlePlayPlaylistPress}
-            featuredCardWidth={featuredCardWidth}
-            featuredCardGap={featuredCardGap}
-            display={activeFilter === 'all' ? DISPLAY_FLEX.display : DISPLAY_NONE.display}
-          />
-          <LbContent
-            lbAllData={lbAllData}
-            activeFilter={lbActiveFilter}
-            lbPageWidth={lbPageWidth}
-            lbTrackWidth={lbTrackWidth}
-            display={isLbFilter ? DISPLAY_FLEX.display : DISPLAY_NONE.display}
-          />
-          <OtherContent
-            lbOtherData={lbOtherData}
-            lbPageWidth={lbPageWidth}
-            lbTrackWidth={lbTrackWidth}
-            display={activeFilter === 'other' ? DISPLAY_FLEX.display : DISPLAY_NONE.display}
-          />
-        </Animated.View>
+        <View>
+          {activeFilter === 'all' && (
+            <ContentReveal>
+              <AllContent
+                featuredCards={featuredCards}
+                dailyLists={dailyLists}
+                playlistMetaMap={playlistMetaMap}
+                isPlay={isPlay}
+                isPlaylistCurrent={isPlaylistCurrent}
+                handlePlayPlaylistPress={handlePlayPlaylistPress}
+                featuredCardWidth={featuredCardWidth}
+                featuredCardGap={featuredCardGap}
+              />
+            </ContentReveal>
+          )}
+          {isLbFilter && (
+            <LbContent
+              lbAllData={lbAllData}
+              activeFilter={lbActiveFilter}
+              lbPageWidth={lbPageWidth}
+              lbTrackWidth={lbTrackWidth}
+            />
+          )}
+          {activeFilter === 'other' && (
+            <OtherContent
+              lbOtherData={lbOtherData}
+              selectedOtherSource={selectedOtherSource}
+              onSourceChange={handleOtherSourceChange}
+              lbPageWidth={lbPageWidth}
+              lbTrackWidth={lbTrackWidth}
+            />
+          )}
+        </View>
       </ScrollView>
     </View>
   )
@@ -964,12 +1493,28 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
+    overflow: 'hidden',
   },
   filterChipActive: {
     backgroundColor: '#d9ef62',
   },
+  filterChipActiveOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+    backgroundColor: '#d9ef62',
+  },
   filterChipText: {
     fontWeight: '600',
+  },
+  spinnerContainer: {
+    minHeight: 200,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  lbSpinnerArea: {
+    minHeight: 160,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   featuredCard: {
     overflow: 'hidden',
