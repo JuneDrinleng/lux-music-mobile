@@ -7,23 +7,22 @@ import {
   Easing,
   FlatList,
   Keyboard,
-  Platform,
   ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  UIManager,
   View,
   useWindowDimensions,
   type ListRenderItem,
 } from 'react-native'
-import { BlurView } from '@react-native-community/blur'
 import { Search, X } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
-import Image from '@/components/common/Image'
 import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
+import GlassSearchField from '@/components/search/GlassSearchField'
+import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
+import SearchSonglistResultRow from '@/components/search/SearchSonglistResultRow'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { addListMusics, getListMusics, removeListMusics } from '@/core/list'
 import { addMusicToQueueAndPlay } from '@/core/player/player'
@@ -48,23 +47,10 @@ const BOTTOM_DOCK_BASE_HEIGHT = 112
 const SEARCH_TYPE_BAR_HEIGHT = 36
 const SEARCH_TYPE_BAR_GAP = 14
 const SEARCH_HEADER_BOTTOM_GAP = 16
-const sourceTagColorMap: Record<string, { text: string, background: string }> = {
-  tx: { text: '#31c27c', background: '#ecfdf3' },
-  wy: { text: '#d81e06', background: '#fef2f2' },
-  kg: { text: '#2f88ff', background: '#eff6ff' },
-  kw: { text: '#f59e0b', background: '#fffbeb' },
-  mg: { text: '#e11d8d', background: '#fdf2f8' },
-}
-const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
-
 type SearchResultItem = LX.Music.MusicInfoOnline
 type SearchResultType = 'music' | 'songlist'
 export interface SearchPageRequest extends VerticalSearchPagePayload {
   token: number
-}
-
-const getSourceTagColor = (source: string) => {
-  return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
 }
 
 export default function SearchPage({
@@ -80,7 +66,6 @@ export default function SearchPage({
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
   const searchSource = useSettingValue('search.defaultSource')
-  const shouldUseSearchBlur = hasNativeBlurView
   const [searchText, setSearchText] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchResultType, setSearchResultType] = useState<SearchResultType>('music')
@@ -497,66 +482,22 @@ export default function SearchPage({
   ]), [t])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
-    const sourceTagColor = getSourceTagColor(item.source)
     return (
-      <View style={styles.songItem}>
-        <TouchableOpacity
-          style={styles.songMain}
-          activeOpacity={0.8}
-          onPress={() => { void handlePlaySearchSong(item) }}
-        >
-          <Image style={styles.songPic} url={item.meta.picUrl ?? null} />
-          <View style={styles.songInfo}>
-            <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.songMetaRow}>
-              <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-        <View style={styles.searchSongActions}>
-          <Text size={11} color="#9ca3af" style={styles.searchSongInterval}>{item.interval ?? '--:--'}</Text>
-          <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { void handleToggleSearchLoved(item) }}>
-            {isLoved
-              ? <MaterialCommunityIcon name="heart" size={18} color="#ef4444" />
-              : <Icon name="love" rawSize={17} color="#9ca3af" />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { handleShowMusicAddModal(item) }}>
-            <Text size={18} color="#9ca3af" style={styles.searchAddText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <SearchMusicResultRow
+        item={item}
+        isLoved={isLoved}
+        onPress={() => { void handlePlaySearchSong(item) }}
+        onToggleLoved={() => { void handleToggleSearchLoved(item) }}
+        onAdd={() => { handleShowMusicAddModal(item) }}
+      />
     )
   }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap])
   const renderSonglistResultItem: ListRenderItem<SearchSonglistItem> = useCallback(({ item }) => {
-    const sourceTagColor = getSourceTagColor(item.source)
-    const primaryMetaText = [item.author?.trim(), item.play_count?.trim()].filter(Boolean).join(' / ')
-    const fallbackMetaText = item.desc?.trim()
-    const metaText = primaryMetaText.length ? primaryMetaText : (fallbackMetaText?.length ? fallbackMetaText : '--')
     return (
-      <View style={styles.songlistItem}>
-        <TouchableOpacity
-          style={styles.songMain}
-          activeOpacity={0.82}
-          onPress={() => { handleOpenSonglistDetail(item) }}
-        >
-          <Image style={styles.songlistPic} url={item.img ?? null} />
-          <View style={styles.songlistInfo}>
-            <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.songMetaRow}>
-              <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
-              <Text size={11} color="#6b7280" numberOfLines={1} style={styles.songlistMetaText}>{metaText}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.songActionBtn}
-          activeOpacity={0.8}
-          onPress={() => { handleOpenSonglistDetail(item) }}
-        >
-          <MaterialCommunityIcon name="chevron-right" size={18} color="#9ca3af" />
-        </TouchableOpacity>
-      </View>
+      <SearchSonglistResultRow
+        item={item}
+        onPress={() => { handleOpenSonglistDetail(item) }}
+      />
     )
   }, [handleOpenSonglistDetail])
 
@@ -579,23 +520,7 @@ export default function SearchPage({
             </View>
           </TouchableOpacity>
           <View style={styles.searchDock}>
-            <View style={styles.searchField}>
-              {shouldUseSearchBlur
-                ? <>
-                    <BlurView
-                      style={StyleSheet.absoluteFillObject}
-                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
-                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
-                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-                    />
-                    <View style={styles.searchGlassTint} pointerEvents="none" />
-                  </>
-                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
-              <View style={styles.searchGlassRim} pointerEvents="none" />
-              <View style={styles.searchContent}>
+            <GlassSearchField style={styles.searchField} contentStyle={styles.searchContent}>
                 <Search size={17} color="#666d7b" strokeWidth={2.1} />
                 {isSearchInputEditing
                   ? <View style={styles.searchInputSlot}>
@@ -633,8 +558,7 @@ export default function SearchPage({
                     strokeWidth={2.2}
                   />
                 </TouchableOpacity>
-              </View>
-            </View>
+            </GlassSearchField>
           </View>
         </View>
         {!showInitialPage
@@ -658,7 +582,7 @@ export default function SearchPage({
           : null}
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, shouldUseSearchBlur, showInitialPage, statusBarHeight, t])
+  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, showInitialPage, statusBarHeight, t])
 
   const panelTranslateX = useMemo(() => pageAnim.interpolate({
     inputRange: [0, 1],

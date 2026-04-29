@@ -460,6 +460,50 @@ export const getOnlineOtherSourceLyricInfo = async({ musicInfos, onToggleSource,
   })
 }
 
+let altCoverInflight = 0
+const altCoverQueue: Array<() => void> = []
+const MAX_ALT_COVER_CONCURRENCY = 3
+
+const acquireAltCoverSlot = (): Promise<void> => {
+  if (altCoverInflight < MAX_ALT_COVER_CONCURRENCY) {
+    altCoverInflight++
+    return Promise.resolve()
+  }
+  return new Promise(resolve => {
+    altCoverQueue.push(() => { altCoverInflight++; resolve() })
+  })
+}
+
+const releaseAltCoverSlot = () => {
+  altCoverInflight = Math.max(0, altCoverInflight - 1)
+  altCoverQueue.shift()?.()
+}
+
+/**
+ * 依次尝试本渠道和其他渠道封面 API，返回第一个成功的 URL。
+ * 最多允许 MAX_ALT_COVER_CONCURRENCY 个并发请求，防止列表批量失败时的请求风暴。
+ */
+export const fetchAltCoverUrl = async(musicInfo: LX.Music.MusicInfoOnline): Promise<string | null> => {
+  await acquireAltCoverSlot()
+  try {
+    try {
+      const url = await (musicSdk[musicInfo.source].getPic(toOldMusicInfo(musicInfo)) as Promise<string>)
+      if (url && typeof url === 'string' && url.trim()) return url
+    } catch {}
+
+    const others = await getOtherSource(musicInfo).catch(() => [] as LX.Music.MusicInfoOnline[])
+    for (const alt of others) {
+      try {
+        const url = await (musicSdk[alt.source].getPic(toOldMusicInfo(alt)) as Promise<string>)
+        if (url && typeof url === 'string' && url.trim()) return url
+      } catch {}
+    }
+  } finally {
+    releaseAltCoverSlot()
+  }
+  return null
+}
+
 /**
  * 获取在线歌词信息
  */

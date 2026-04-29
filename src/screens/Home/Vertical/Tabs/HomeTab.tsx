@@ -6,18 +6,19 @@ import { ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, ty
 import { Disc3, Ellipsis, Heart, Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
+import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import { LIST_IDS } from '@/config/constant'
 import { setNavActiveId } from '@/core/common'
-import { isPlayQueueMetaId, pause, play, playListAsQueue } from '@/core/player/player'
+import { pause, play, playListAsQueue } from '@/core/player/player'
 import { useI18n } from '@/lang'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import listState from '@/store/list/state'
 import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
 import { createStyle } from '@/utils/tools'
 import { DEFAULT_USER_NAME, getListMusics, getUserName } from '@/utils/data'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 112
+const BOTTOM_DOCK_BASE_HEIGHT = 164
 const cardTones = [
   { surface: '#f2d6e6', accent: '#cf4f8f', ink: '#4f2340', soft: '#f9edf4' },
   { surface: '#e7ecfa', accent: '#5f76d9', ink: '#26355f', soft: '#f2f5fd' },
@@ -51,14 +52,6 @@ const openPlaylistDetail = (listId: string | null | undefined) => {
   global.app_event.openPlaylistDetail(listId)
 }
 
-const getQueueSourceListId = (queueMetaId: string | null | undefined) => {
-  if (!isPlayQueueMetaId(queueMetaId)) return null
-  const queueBody = (queueMetaId ?? '').slice('play_queue__'.length)
-  const timestampSeparatorIndex = queueBody.lastIndexOf('_')
-  if (timestampSeparatorIndex < 0) return queueBody
-  return queueBody.slice(0, timestampSeparatorIndex)
-}
-
 export default () => {
   const t = useI18n()
   const { width } = useWindowDimensions()
@@ -67,12 +60,13 @@ export default () => {
   const playlists = useMyList()
   const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
+  const linkedPlaylistId = useLinkedPlaylistId()
   const [displayName, setDisplayName] = useState(DEFAULT_USER_NAME)
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>({})
-  const [linkedPlaylistId, setLinkedPlaylistId] = useState<string | null>(null)
   const playlistMetaRequestRef = useRef(0)
   const topPadding = statusBarHeight + 18 + 44 + 16
+  const gestureInsetBottom = useSystemGestureInsetBottom()
 
   useEffect(() => {
     let isUnmounted = false
@@ -207,7 +201,6 @@ export default () => {
   const featuredCardWidth = Math.min(Math.max(width - 76, 300), 344)
   const featuredCardGap = 12
   const dailyLists = rankedItems.slice(0, 3)
-  const currentQueueMetaId = playMusicInfo.listId === LIST_IDS.TEMP ? listState.tempListMeta.id : null
   const currentMusic = playMusicInfo.musicInfo
   const currentMusicInfo = currentMusic
     ? 'metadata' in currentMusic
@@ -261,64 +254,11 @@ export default () => {
     void handlePlayPlaylist(listId)
   }
 
-  useEffect(() => {
-    let cancelled = false
-
-    const syncLinkedPlaylist = async() => {
-      const currentListId = playMusicInfo.listId
-      if (!currentListId || !playMusicInfo.musicInfo) {
-        if (!cancelled) setLinkedPlaylistId(null)
-        return
-      }
-
-      if (currentListId !== LIST_IDS.TEMP) {
-        if (!cancelled) setLinkedPlaylistId(currentListId)
-        return
-      }
-
-      const sourceListId = getQueueSourceListId(currentQueueMetaId)
-      if (!sourceListId) {
-        if (!cancelled) setLinkedPlaylistId(null)
-        return
-      }
-
-      const [tempList, sourceList] = await Promise.all([
-        getListMusics(LIST_IDS.TEMP),
-        getListMusics(sourceListId),
-      ])
-      const isSameList = tempList.length === sourceList.length && tempList.every((music, index) => {
-        const sourceMusic = sourceList[index]
-        return sourceMusic != null && sourceMusic.id === music.id && sourceMusic.source === music.source
-      })
-
-      if (!cancelled) {
-        setLinkedPlaylistId(isSameList ? sourceListId : null)
-      }
-    }
-
-    const handleListUpdate = (ids: string[]) => {
-      if (!playMusicInfo.listId) return
-      if (playMusicInfo.listId !== LIST_IDS.TEMP) return
-
-      const sourceListId = getQueueSourceListId(currentQueueMetaId)
-      if (!ids.includes(LIST_IDS.TEMP) && (!sourceListId || !ids.includes(sourceListId))) return
-      void syncLinkedPlaylist()
-    }
-
-    void syncLinkedPlaylist()
-    global.app_event.on('myListMusicUpdate', handleListUpdate)
-
-    return () => {
-      cancelled = true
-      global.app_event.off('myListMusicUpdate', handleListUpdate)
-    }
-  }, [currentQueueMetaId, playMusicInfo.listId, playMusicInfo.musicInfo])
-
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 24 + BOTTOM_DOCK_BASE_HEIGHT }]}
+        contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 24 + BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}

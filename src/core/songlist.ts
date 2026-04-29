@@ -1,6 +1,7 @@
 import songlistState, { type TagInfo, type ListDetailInfo, type ListInfo } from '@/store/songlist/state'
 import songlistActions from '@/store/songlist/action'
 import { deduplicationList, toNewMusicInfo } from '@/utils'
+import { applyMusicCoverFallback } from '@/utils/musicCover'
 import musicSdk from '@/utils/musicSdk'
 
 
@@ -10,7 +11,6 @@ type CacheValue = LimitDetailCache | ListInfo
 
 const cache = new Map<string, CacheValue>()
 const LIST_LOAD_LIMIT = 30
-
 
 /**
  * 获取排序列表
@@ -108,7 +108,10 @@ const getListDetailLimit = async(source: LX.OnlineSource, id: string, page: numb
 
   return musicSdk[source]?.songList.getListDetail(id, sourcePage + 1).then((result: ListDetailInfo) => {
     if (listCache !== cache.get(listKey)) return
-    result.list = deduplicationList(result.list.map(m => toNewMusicInfo(m)) as LX.Music.MusicInfoOnline[])
+    result.list = applyMusicCoverFallback(
+      deduplicationList(result.list.map(m => toNewMusicInfo(m)) as LX.Music.MusicInfoOnline[]),
+      result.info.img,
+    )
     let p = page
     const tempList = listCache.get(tempListKey) as ListDetailInfo['list']
     if (tempList) {

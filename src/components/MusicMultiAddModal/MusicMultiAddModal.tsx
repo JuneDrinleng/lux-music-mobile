@@ -88,7 +88,12 @@ export default forwardRef<MusicMultiAddModalType, MusicMultiAddModalProps>(({ on
   }
 
   return (
-    <Dialog ref={dialogRef} onHide={handleHide}>
+    <Dialog
+      ref={dialogRef}
+      onHide={handleHide}
+      title={t(selectInfo.isMove ? 'list_add_title_first_move' : 'list_add_title_first_add')}
+      height="78%"
+    >
       {
         selectInfo.selectedList.length
           ? (<>

@@ -16,6 +16,43 @@ import settingState from '@/store/setting/state'
 import { checkUpdate, initVersionLifecycle } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
 import { cheatTip } from '@/utils/tools'
+import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailureStale } from '@/utils/coverFailureRegistry'
+import { fetchAltCoverUrl } from '@/core/music/utils'
+import { getListMusics, updateListMusics } from '@/core/list'
+import listState from '@/store/list/state'
+import BackgroundTimer from 'react-native-background-timer'
+
+const retryStaleCoverFailures = async() => {
+  const entries = await getFailedEntries()
+  if (!entries.length) return
+
+  const failedKeySet = new Set(entries.map(e => `${e.source}_${e.id}`))
+  const allListIds = listState.allList.map(l => l.id)
+
+  for (const listId of allListIds) {
+    const songs = await getListMusics(listId)
+    const toUpdate: Array<{ id: string, musicInfo: LX.Music.MusicInfo }> = []
+
+    for (const song of songs) {
+      if (song.source === 'local') continue
+      const onlineSong = song as LX.Music.MusicInfoOnline
+      const key = `${onlineSong.source}_${onlineSong.id}`
+      if (!failedKeySet.has(key)) continue
+      if (!await isCoverFailureStale(onlineSong)) continue
+
+      const altUrl = await fetchAltCoverUrl(onlineSong)
+      if (altUrl) {
+        onlineSong.meta.picUrl = altUrl
+        toUpdate.push({ id: listId, musicInfo: onlineSong })
+        void clearCoverFailure(onlineSong)
+      } else {
+        void recordCoverFailure(onlineSong)
+      }
+    }
+
+    if (toUpdate.length) void updateListMusics(toUpdate)
+  }
+}
 
 let isFirstPush = true
 const handlePushedHomeScreen = async() => {
@@ -59,6 +96,8 @@ export default async() => {
   bootLog('Player inited.')
   await dataInit(setting)
   bootLog('Data inited.')
+  void retryStaleCoverFailures()
+  BackgroundTimer.setInterval(() => { void retryStaleCoverFailures() }, 30 * 60 * 1000)
   await initCommonState(setting)
   bootLog('Common State inited.')
   initVersionLifecycle()

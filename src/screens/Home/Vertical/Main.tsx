@@ -13,6 +13,7 @@ import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
 import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
+import PlaylistDetailOverlay from '@/components/playlist/PlaylistDetailOverlay'
 
 const normalizeNavId = (id: NAV_ID_Type): 'nav_search' | 'nav_love' | 'nav_setting' => {
   if (id === 'nav_setting') return 'nav_setting'
@@ -123,7 +124,7 @@ const Main = () => {
   }, [activeNavId])
 
   const playlistDetailVisible = Boolean(playlistDetailRequest)
-  const sharedTopBarVisible = !searchPageVisible && (
+  const sharedTopBarVisible = !searchPageVisible && !playlistDetailVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
@@ -160,9 +161,9 @@ const Main = () => {
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.overlayLayer}>
             <View style={styles.playlistDetailOverlay}>
-              <PlaylistTab
-                standaloneDetail={playlistDetailRequest}
-                onStandaloneClose={() => { setPlaylistDetailRequest(null) }}
+              <PlaylistDetailOverlay
+                detail={playlistDetailRequest}
+                onClose={() => { setPlaylistDetailRequest(null) }}
               />
             </View>
           </View>

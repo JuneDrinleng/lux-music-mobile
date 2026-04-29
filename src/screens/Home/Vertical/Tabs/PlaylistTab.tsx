@@ -6,37 +6,36 @@ import {
   Animated,
   Dimensions,
   Easing,
-  FlatList,
   Keyboard,
   LayoutAnimation,
-  Modal,
   PanResponder,
   Platform,
-  ScrollView,
   StyleSheet,
-  TextInput,
-  TouchableOpacity,
   UIManager,
   View,
+  type FlatList,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   type ListRenderItem,
+  type TextInput,
 } from 'react-native'
-import { BlurView } from '@react-native-community/blur'
-import { Play } from 'lucide-react-native'
-import SegmentedIconSwitch, { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
-import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
-import Image from '@/components/common/Image'
-import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
-import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
+import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
+import { type PromptDialogType } from '@/components/common/PromptDialog'
+import { type MusicAddModalType } from '@/components/MusicAddModal'
+import { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
+import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
+import PlaylistDetailHeader from '@/components/playlist/PlaylistDetailHeader'
+import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem'
+import PlaylistDetailScene from '@/components/playlist/PlaylistDetailScene'
+import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
+import PlaylistSearchScene from '@/components/playlist/PlaylistSearchScene'
+import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
-import { addMusicToQueueAndPlay, isPlayQueueMetaId, pause, play, playList, playListAsQueue } from '@/core/player/player'
+import { addMusicToQueueAndPlay, pause, play, playList, playListAsQueue } from '@/core/player/player'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { search as searchOnlineMusic } from '@/core/search/music'
 import { getListDetailAll } from '@/core/songlist'
@@ -44,18 +43,20 @@ import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord }
 import settingState from '@/store/setting/state'
 import { useSettingValue } from '@/store/setting/hook'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
-import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
+import { useIsPlay } from '@/store/player/hook'
 import { useI18n } from '@/lang'
 import { type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/event/appEvent'
 import listState from '@/store/list/state'
 import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { applyMusicCoverFallback, pickMusicCover } from '@/utils/musicCover'
 import musicSdk from '@/utils/musicSdk'
 import { debounce } from '@/utils'
 import { updateSetting } from '@/core/common'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
 const SHOW_LISTENING_STATISTICS = false
-const BOTTOM_DOCK_BASE_HEIGHT = 112
+const BOTTOM_DOCK_BASE_HEIGHT = 164
 const SOURCE_MENU_PANEL_WIDTH = 156
 const SOURCE_MENU_ROW_HEIGHT = 44
 const SOURCE_MENU_EXPAND_DURATION = 132
@@ -85,8 +86,6 @@ const playlistCardTones = [
   { surface: '#e4e8f1', accent: '#556b96', ink: '#293548' },
   { surface: '#ece6f2', accent: '#7f5da5', ink: '#413052' },
 ] as const
-const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
-
 const getSourceTagColor = (source: string) => {
   return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
 }
@@ -140,14 +139,6 @@ const getPlaylistSortTime = (listInfo: LX.List.UserListInfo): number => {
     (listInfo.locationUpdateTime ?? 0)
 }
 
-const getQueueSourceListId = (queueMetaId: string | null | undefined) => {
-  if (!isPlayQueueMetaId(queueMetaId)) return null
-  const queueBody = (queueMetaId ?? '').slice('play_queue__'.length)
-  const timestampSeparatorIndex = queueBody.lastIndexOf('_')
-  if (timestampSeparatorIndex < 0) return queueBody
-  return queueBody.slice(0, timestampSeparatorIndex)
-}
-
 type SourceMenu = typeof sourceMenus[number]
 type SearchResultItem = LX.Music.MusicInfoOnline
 interface ImportCandidate {
@@ -157,8 +148,6 @@ interface ImportCandidate {
 }
 interface PlaylistTabProps {
   onSharedTopBarVisibleChange?: (visible: boolean) => void
-  standaloneDetail?: PlaylistDetailPayload | null
-  onStandaloneClose?: () => void
 }
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
@@ -194,14 +183,13 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
-export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStandaloneClose }: PlaylistTabProps) => {
+export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
-  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
+  const gestureInsetBottom = useSystemGestureInsetBottom()
+  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
-  const isStandaloneDetail = Boolean(standaloneDetail)
-  const shouldUseSearchBlur = hasNativeBlurView
   const modalBottomInset = useMemo(() => {
     const screenHeight = Dimensions.get('screen').height
     const windowHeight = Dimensions.get('window').height
@@ -211,12 +199,8 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     return extraInset
   }, [statusBarHeight])
   const playlists = useMyList()
-  const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
   const detailSceneWidth = Dimensions.get('window').width
-  const initialStandaloneCache = standaloneDetail
-    ? playlistSnapshotCache.get(standaloneDetail.type == 'local' ? standaloneDetail.listId : getOnlinePlaylistDetailKey(standaloneDetail)) ?? null
-    : null
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>(() => {
     const next: Record<string, { count: number, pic: string | null }> = {}
     for (const [id, value] of playlistSnapshotCache) {
@@ -227,9 +211,9 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     }
     return next
   })
-  const [selectedDetail, setSelectedDetail] = useState<PlaylistDetailPayload | null>(standaloneDetail)
-  const [detailSongs, setDetailSongs] = useState<LX.Music.MusicInfo[]>(() => initialStandaloneCache ? [...initialStandaloneCache.songs] : [])
-  const [detailLoading, setDetailLoading] = useState(Boolean(standaloneDetail && !initialStandaloneCache))
+  const [selectedDetail, setSelectedDetail] = useState<PlaylistDetailPayload | null>(null)
+  const [detailSongs, setDetailSongs] = useState<LX.Music.MusicInfo[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [searchSource, setSearchSource] = useState<SourceMenu['action']>('all')
   const [isSourceMenuVisible, setSourceMenuVisible] = useState(false)
@@ -248,7 +232,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
   const [isDetailTransitioning, setDetailTransitioning] = useState(false)
-  const [linkedPlaylistId, setLinkedPlaylistId] = useState<string | null>(null)
+  const linkedPlaylistId = useLinkedPlaylistId()
   const playlistSortMode = useSettingValue('list.playlistSortMode')
   const [playlistDisplayMode, setPlaylistDisplayMode] = useState<'grid' | 'list'>('grid')
   const detailRequestIdRef = useRef(0)
@@ -291,7 +275,7 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   const dragTop = useRef(new Animated.Value(0)).current
   const dragScale = useRef(new Animated.Value(1)).current
   const dragOpacity = useRef(new Animated.Value(0)).current
-  const detailSceneAnim = useRef(new Animated.Value(isStandaloneDetail ? 0 : 0)).current
+  const detailSceneAnim = useRef(new Animated.Value(0)).current
   const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
   const sourceMenuListAnim = useRef(new Animated.Value(0)).current
   const detailTransitionTokenRef = useRef(0)
@@ -358,7 +342,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
 
     return cards
   }, [defaultPlaylist, defaultSongsCount, likedSongsCount, lovePlaylist, playlistMetaMap, t])
-  const currentQueueMetaId = playMusicInfo.listId === LIST_IDS.TEMP ? listState.tempListMeta.id : null
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-ascending' : 'sort-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
@@ -412,58 +395,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     }
   }, [isSearchMode, onSharedTopBarVisibleChange, selectedDetail])
   useEffect(() => {
-    let cancelled = false
-
-    const syncLinkedPlaylist = async() => {
-      const currentListId = playMusicInfo.listId
-      if (!currentListId || !playMusicInfo.musicInfo) {
-        if (!cancelled) setLinkedPlaylistId(null)
-        return
-      }
-
-      if (currentListId !== LIST_IDS.TEMP) {
-        if (!cancelled) setLinkedPlaylistId(currentListId)
-        return
-      }
-
-      const sourceListId = getQueueSourceListId(currentQueueMetaId)
-      if (!sourceListId) {
-        if (!cancelled) setLinkedPlaylistId(null)
-        return
-      }
-
-      const [tempList, sourceList] = await Promise.all([
-        getListMusics(LIST_IDS.TEMP),
-        getListMusics(sourceListId),
-      ])
-      const isSameList = tempList.length === sourceList.length && tempList.every((music, index) => {
-        const sourceMusic = sourceList[index]
-        return sourceMusic != null && sourceMusic.id === music.id && sourceMusic.source === music.source
-      })
-
-      if (!cancelled) {
-        setLinkedPlaylistId(isSameList ? sourceListId : null)
-      }
-    }
-
-    const handleListUpdate = (ids: string[]) => {
-      if (!playMusicInfo.listId) return
-      if (playMusicInfo.listId !== LIST_IDS.TEMP) return
-
-      const sourceListId = getQueueSourceListId(currentQueueMetaId)
-      if (!ids.includes(LIST_IDS.TEMP) && (!sourceListId || !ids.includes(sourceListId))) return
-      void syncLinkedPlaylist()
-    }
-
-    void syncLinkedPlaylist()
-    global.app_event.on('myListMusicUpdate', handleListUpdate)
-
-    return () => {
-      cancelled = true
-      global.app_event.off('myListMusicUpdate', handleListUpdate)
-    }
-  }, [currentQueueMetaId, playMusicInfo.listId, playMusicInfo.musicInfo])
-  useEffect(() => {
     detailSongsRef.current = detailSongs
   }, [detailSongs])
   useEffect(() => {
@@ -481,7 +412,8 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
 
   const pickCover = (list: LX.Music.MusicInfo[]) => {
     for (const song of list) {
-      if (song.meta.picUrl) return song.meta.picUrl
+      const cover = pickMusicCover(song)
+      if (cover) return cover
     }
     return null
   }
@@ -535,15 +467,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     setDetailSongs([...list])
     if (showLoading) setDetailLoading(false)
   }, [cachePlaylistSnapshot])
-  const loadOnlineDetailSongs = useCallback(async(detail: OnlinePlaylistDetailPayload, showLoading = false) => {
-    const requestId = ++detailRequestIdRef.current
-    if (showLoading) setDetailLoading(true)
-    const list = await getListDetailAll(detail.source, detail.id)
-    if (requestId !== detailRequestIdRef.current) return
-    cachePlaylistSnapshot(getOnlinePlaylistDetailKey(detail), list, detail.img ?? null)
-    setDetailSongs([...list])
-    if (showLoading) setDetailLoading(false)
-  }, [cachePlaylistSnapshot])
   const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
     const token = ++detailTransitionTokenRef.current
     setDetailTransitioning(true)
@@ -594,10 +517,9 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   useEffect(() => {
     void updatePlaylistMeta(playlists.map(list => list.id))
     if (selectedListId && !playlists.some(list => list.id === selectedListId)) {
-      if (isStandaloneDetail) onStandaloneClose?.()
-      else clearDetailSelection(true)
+      clearDetailSelection(true)
     }
-  }, [clearDetailSelection, isStandaloneDetail, onStandaloneClose, playlists, selectedListId, updatePlaylistMeta])
+  }, [clearDetailSelection, playlists, selectedListId, updatePlaylistMeta])
 
   useEffect(() => {
     void refreshLovedSongMap()
@@ -742,49 +664,8 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, resetDragRowShifts])
   const handleCloseDetail = useCallback((immediate = false) => {
     resetSongDragState()
-    if (isStandaloneDetail) {
-      const finish = () => {
-        onStandaloneClose?.()
-      }
-      if (immediate) {
-        detailTransitionTokenRef.current += 1
-        detailSceneAnim.stopAnimation()
-        detailSceneAnim.setValue(0)
-        setDetailTransitioning(false)
-        finish()
-        return
-      }
-      animateDetailScene(0, finish)
-      return
-    }
     clearDetailSelection(immediate)
-  }, [animateDetailScene, clearDetailSelection, detailSceneAnim, isStandaloneDetail, onStandaloneClose, resetSongDragState])
-  useEffect(() => {
-    if (!isStandaloneDetail || !standaloneDetail) return
-    const cacheKey = standaloneDetail.type == 'local' ? standaloneDetail.listId : getOnlinePlaylistDetailKey(standaloneDetail)
-    const cachedStandalone = playlistSnapshotCache.get(cacheKey) ?? null
-    resetSongDragState()
-    detailTransitionTokenRef.current += 1
-    detailSceneAnim.stopAnimation()
-    detailSceneAnim.setValue(0)
-    setDetailTransitioning(false)
-    setSelectedDetail(standaloneDetail)
-    setDetailSongs(cachedStandalone ? [...cachedStandalone.songs] : [])
-    setDetailLoading(!cachedStandalone)
-    animateDetailScene(1)
-    if (standaloneDetail.type == 'local') void loadLocalDetailSongs(standaloneDetail.listId, !cachedStandalone)
-    else void loadOnlineDetailSongs(standaloneDetail, !cachedStandalone)
-  }, [animateDetailScene, detailSceneAnim, isStandaloneDetail, loadLocalDetailSongs, loadOnlineDetailSongs, resetSongDragState, standaloneDetail])
-  useEffect(() => {
-    if (!isStandaloneDetail) return
-    const handleCloseStandaloneDetail = () => {
-      handleCloseDetail()
-    }
-    global.app_event.on('closePlaylistDetail', handleCloseStandaloneDetail)
-    return () => {
-      global.app_event.off('closePlaylistDetail', handleCloseStandaloneDetail)
-    }
-  }, [handleCloseDetail, isStandaloneDetail])
+  }, [clearDetailSelection, resetSongDragState])
   const handleFinishSongDrag = useCallback(async() => {
     if (!dragStateRef.current.active) return
     const { listId, song, fromIndex, toIndex } = dragStateRef.current
@@ -983,8 +864,14 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   }, [])
   const handlePlayOnlineDetailSong = useCallback(async(song: LX.Music.MusicInfo, fallbackIndex: number) => {
     if (!selectedOnlineDetail) return
-    let latestList = detailSongsRef.current
-    if (!latestList.length) latestList = await getListDetailAll(selectedOnlineDetail.source, selectedOnlineDetail.id)
+    const fallbackCover = selectedOnlineDetail.img ?? null
+    let latestList = applyMusicCoverFallback(detailSongsRef.current, fallbackCover)
+    if (!latestList.length) {
+      latestList = applyMusicCoverFallback(
+        await getListDetailAll(selectedOnlineDetail.source, selectedOnlineDetail.id),
+        fallbackCover,
+      )
+    }
     if (!latestList.length) return
     let targetIndex = latestList.findIndex(item => item.id === song.id && item.source === song.source)
     if (targetIndex < 0) targetIndex = latestList.findIndex(item => item.id === song.id)
@@ -1105,14 +992,18 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   const detailHeroSourceLabel = selectedOnlineDetail ? t(`source_real_${selectedOnlineDetail.source}`) : ''
   const handleShowPlaylistTransferModal = useCallback(() => {
     if (!selectedOnlineDetail || detailLoading || !detailSongs.length) return
+    const transferSongs = applyMusicCoverFallback(detailSongs, detailHeroCover)
     musicMultiAddModalRef.current?.show({
-      selectedList: [...detailSongs],
+      selectedList: [...transferSongs],
       listId: '',
       isMove: false,
       defaultNewListName: detailHeroName,
     })
-  }, [detailHeroName, detailLoading, detailSongs, selectedOnlineDetail])
+  }, [detailHeroCover, detailHeroName, detailLoading, detailSongs, selectedOnlineDetail])
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
+  const areAllImportSongsSelected = useMemo(() => {
+    return importCandidates.length > 0 && importCandidates.every(candidate => importSelectedMap[candidate.id])
+  }, [importCandidates, importSelectedMap])
   const loadImportCandidates = useCallback(async(targetListId: string) => {
     const requestId = ++importRequestIdRef.current
     setImportLoading(true)
@@ -1163,6 +1054,15 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
       return next
     })
   }, [])
+  const handleToggleSelectAllImportSongs = useCallback(() => {
+    if (!importCandidates.length) return
+    setImportSelectedMap(() => {
+      if (areAllImportSongsSelected) return {}
+      const next: Record<string, true> = {}
+      for (const candidate of importCandidates) next[candidate.id] = true
+      return next
+    })
+  }, [areAllImportSongsSelected, importCandidates])
   const handleImportSelectedSongs = useCallback(async() => {
     if (!selectedListId || importSubmitting) return
     const selectedSongs = importCandidates
@@ -1197,159 +1097,65 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     const sourceTagColor = getSourceTagColor(item.source)
     const canEditSongs = Boolean(selectedListId)
     return (
-      <View
+      <PlaylistDetailSongItem
+        song={item}
+        sourceTone={sourceTagColor}
+        shiftAnim={shiftAnim}
+        fallbackCover={detailHeroCover}
+        listId={selectedListId}
+        isGhost={isDraggingRow}
+        canEdit={canEditSongs}
         onLayout={(event) => { handleSongRowLayout(item, index, event) }}
-        style={styles.songItemWrap}
-      >
-        <Animated.View
-          style={[
-            styles.songItem,
-            isDraggingRow ? styles.songItemGhost : null,
-            { transform: [{ translateY: shiftAnim }] },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.songMain}
-            activeOpacity={0.8}
-            delayLongPress={canEditSongs ? 180 : undefined}
-            onLongPress={canEditSongs ? (event) => { handleStartSongDrag(item, index, event) } : undefined}
-            onPress={() => {
-              if (skipNextSongPressRef.current) {
-                if (dragStateRef.current.active) {
-                  void handleFinishSongDrag()
-                } else {
-                  clearDragPressGuard()
-                }
-                return
-              }
-              if (selectedListId) {
-                void handlePlaySong(selectedListId, item, index)
-                return
-              }
-              void handlePlayOnlineDetailSong(item, index)
-            }}
-          >
-            <Image style={styles.songPic} url={item.meta.picUrl ?? null} />
-            <View style={styles.songInfo}>
-              <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-              <View style={styles.songMetaRow}>
-                <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
-                <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.songActions}>
-            <Text size={11} color="#9ca3af" style={styles.songInterval}>{item.interval ?? '--:--'}</Text>
-            {canEditSongs
-              ? <TouchableOpacity
-                  style={styles.songActionBtn}
-                  activeOpacity={0.75}
-                  onPress={() => { handleShowRemoveSongModal(item) }}
-                >
-                  <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
-                </TouchableOpacity>
-              : null}
-          </View>
-        </Animated.View>
-      </View>
+        onLongPress={canEditSongs ? (event) => { handleStartSongDrag(item, index, event) } : undefined}
+        onPress={() => {
+          if (skipNextSongPressRef.current) {
+            if (dragStateRef.current.active) {
+              void handleFinishSongDrag()
+            } else {
+              clearDragPressGuard()
+            }
+            return
+          }
+          if (selectedListId) {
+            void handlePlaySong(selectedListId, item, index)
+            return
+          }
+          void handlePlayOnlineDetailSong(item, index)
+        }}
+        onRemove={canEditSongs ? () => { handleShowRemoveSongModal(item) } : undefined}
+      />
     )
-  }, [clearDragPressGuard, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedDetail, selectedListId])
+  }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedDetail, selectedListId])
   const detailHeader = useMemo(() => {
     if (!selectedOnlineDetail && !selectedListInfo) return null
+    const detailActionLabel = selectedOnlineDetail
+      ? t('playlist_transfer_all')
+      : selectedListId
+        ? t('list_import')
+        : null
+    const detailActionDisabled = selectedOnlineDetail
+      ? detailLoading || !detailSongs.length
+      : false
     return (
-      <>
-        <View style={[styles.header, { paddingTop: statusBarHeight + 18 }]}>
-          <View style={styles.topBar}>
-            <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.82} onPress={() => { handleCloseDetail() }}>
-              <View style={styles.detailBackBtnInner}>
-                <Icon name="chevron-left" rawSize={20} color="#232733" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.detailHeroCard}>
-          <View style={styles.detailHero}>
-          <Image style={styles.detailHeroCover} url={detailHeroCover} />
-          <View style={styles.detailHeroText}>
-            <View style={styles.detailHeroNameRow}>
-              <Text size={22} color="#111827" style={styles.detailHeroName} numberOfLines={1}>{detailHeroName}</Text>
-              {canRenameSelectedList
-                ? <View style={styles.detailHeroActions}>
-                    <TouchableOpacity style={styles.detailHeroIconBtn} activeOpacity={0.8} onPress={handleShowRenameListModal}>
-                      <MaterialCommunityIcon name="pencil-outline" size={16} color="#111827" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.detailHeroIconBtn, styles.detailHeroDeleteBtn]} activeOpacity={0.8} onPress={handleShowRemoveListModal}>
-                      <MaterialCommunityIcon name="trash-can-outline" size={16} color="#dc2626" />
-                    </TouchableOpacity>
-                  </View>
-                : null}
-            </View>
-            <Text size={12} color="#6b7280" style={styles.detailHeroMeta}>{detailHeroMetaText}</Text>
-            {selectedOnlineDetail && detailHeroSourceTone
-              ? <View style={styles.detailHeroSourceRow}>
-                  <Text
-                    size={10}
-                    color={detailHeroSourceTone.text}
-                    style={[styles.songSource, styles.detailHeroSourceBadge, { backgroundColor: detailHeroSourceTone.background }]}
-                  >
-                    {selectedOnlineDetail.source.toUpperCase()}
-                  </Text>
-                  <Text size={11} color="#7b8494" numberOfLines={1} style={styles.detailHeroSourceText}>{detailHeroSourceLabel}</Text>
-                </View>
-              : null}
-          </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text size={18} color="#111827" style={styles.sectionTitle}>{t('me_songs')}</Text>
-            {selectedOnlineDetail
-              ? <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handleShowPlaylistTransferModal}
-                  disabled={detailLoading || !detailSongs.length}
-                  style={[
-                    styles.detailActionBtn,
-                    detailLoading || !detailSongs.length ? styles.detailActionBtnDisabled : null,
-                  ]}
-                >
-                  <Text
-                    size={13}
-                    color={detailLoading || !detailSongs.length ? '#9ca3af' : '#111827'}
-                    style={styles.detailActionBtnText}
-                  >
-                    {t('playlist_transfer_all')}
-                  </Text>
-                </TouchableOpacity>
-              : selectedListId
-                ? <TouchableOpacity activeOpacity={0.8} onPress={handleOpenImportDrawer}>
-                    <Text size={13} color="#111827" style={styles.sectionTag}>{`+ ${t('list_import')}`}</Text>
-                  </TouchableOpacity>
-                : null}
-          </View>
-        </View>
-      </>
+      <PlaylistDetailHeader
+        statusBarHeight={statusBarHeight}
+        cover={detailHeroCover}
+        name={detailHeroName}
+        metaText={detailHeroMetaText}
+        sectionTitle={t('me_songs')}
+        sourceCode={selectedOnlineDetail?.source}
+        sourceLabel={detailHeroSourceLabel}
+        sourceTone={detailHeroSourceTone}
+        canRename={canRenameSelectedList}
+        actionLabel={detailActionLabel}
+        actionDisabled={detailActionDisabled}
+        onBack={handleCloseDetail}
+        onRename={handleShowRenameListModal}
+        onRemove={handleShowRemoveListModal}
+        onActionPress={selectedOnlineDetail ? handleShowPlaylistTransferModal : handleOpenImportDrawer}
+      />
     )
   }, [canRenameSelectedList, detailHeroCover, detailHeroMetaText, detailHeroName, detailHeroSourceLabel, detailHeroSourceTone, detailLoading, detailSongs.length, handleCloseDetail, handleOpenImportDrawer, handleShowPlaylistTransferModal, handleShowRemoveListModal, handleShowRenameListModal, selectedListId, selectedListInfo, selectedOnlineDetail, statusBarHeight, t])
-  const renderImportCandidateItem: ListRenderItem<ImportCandidate> = useCallback(({ item }) => {
-    const sourceTagColor = getSourceTagColor(item.musicInfo.source)
-    const isSelected = Boolean(importSelectedMap[item.id])
-    return (
-      <TouchableOpacity style={styles.importSongItem} activeOpacity={0.85} onPress={() => { handleToggleImportSong(item.id) }}>
-        <Icon name={isSelected ? 'checkbox-marked' : 'checkbox-blank-outline'} rawSize={22} color={isSelected ? '#111827' : '#9ca3af'} />
-        <View style={styles.importSongMain}>
-          <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.musicInfo.name}</Text>
-          <View style={styles.songMetaRow}>
-            <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.musicInfo.source.toUpperCase()}</Text>
-            <Text size={11} color="#6b7280" numberOfLines={1}>{item.musicInfo.singer}</Text>
-          </View>
-          <Text size={10} color="#9ca3af" numberOfLines={1}>{item.fromListName}</Text>
-        </View>
-      </TouchableOpacity>
-    )
-  }, [handleToggleImportSong, importSelectedMap])
 
   const openSourceMenu = useCallback(() => {
     sourceMenuVisibleRef.current = true
@@ -1574,17 +1380,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     forceDismissSearchInput()
   }, [closeSourceMenu, forceDismissSearchInput])
   useBackHandler(useCallback(() => {
-    if (isStandaloneDetail) {
-      if (isImportDrawerVisible && !importSubmitting) {
-        setImportDrawerVisible(false)
-        return true
-      }
-      if (standaloneDetail) {
-        handleCloseDetail()
-        return true
-      }
-      return false
-    }
     if (Object.keys(commonState.componentIds).length != 1) return false
     if (commonState.navActiveId != 'nav_love') return false
     if (isImportDrawerVisible && !importSubmitting) {
@@ -1610,14 +1405,12 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
     handleExitSearch,
     importSubmitting,
     isImportDrawerVisible,
-    isStandaloneDetail,
     isSearchInputEditing,
     isSearchMode,
     isSourceMenuVisible,
     closeSourceMenu,
     handleCloseDetail,
     selectedDetail,
-    standaloneDetail,
   ]))
 
   useEffect(() => {
@@ -1657,635 +1450,150 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
   }, [])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
-    const sourceTagColor = getSourceTagColor(item.source)
     return (
-      <View style={styles.songItem}>
-        <TouchableOpacity
-          style={styles.songMain}
-          activeOpacity={0.8}
-          onPress={() => { void handlePlaySearchSong(item) }}
-        >
-          <Image style={styles.songPic} url={item.meta.picUrl ?? null} />
-          <View style={styles.songInfo}>
-            <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={styles.songMetaRow}>
-              <Text size={10} color={sourceTagColor.text} style={[styles.songSource, { backgroundColor: sourceTagColor.background }]}>{item.source.toUpperCase()}</Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-        <View style={styles.searchSongActions}>
-          <Text size={11} color="#9ca3af" style={styles.searchSongInterval}>{item.interval ?? '--:--'}</Text>
-          <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { void handleToggleSearchLoved(item) }}>
-            {isLoved
-              ? <Text size={17} color="#ef4444" style={styles.searchLoveFilled}>{'\u2665'}</Text>
-              : <Icon name="love" rawSize={17} color="#9ca3af" />}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={() => { handleShowMusicAddModal(item) }}>
-            <Text size={18} color="#9ca3af" style={styles.searchAddText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <SearchMusicResultRow
+        item={item}
+        isLoved={isLoved}
+        onPress={() => { void handlePlaySearchSong(item) }}
+        onToggleLoved={() => { void handleToggleSearchLoved(item) }}
+        onAdd={() => { handleShowMusicAddModal(item) }}
+      />
     )
   }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap])
   const searchAssistKeyword = searchText.trim()
   const searchAssistList = useMemo(() => {
     return searchAssistKeyword ? searchTipList : searchHistoryList
   }, [searchAssistKeyword, searchHistoryList, searchTipList])
-  const renderSourceMenuControl = useCallback(({
-    textColor,
-    iconColor,
-    iconSize,
-    onPress,
-  }: {
-    textColor: string
-    iconColor: string
-    iconSize: number
-    onPress: () => void
-  }) => {
-    return (
-      <View style={styles.sourceMenuAnchor}>
-        <Animated.View
-          style={[
-            styles.sourceMenuSheet,
-            {
-              width: sourceMenuWidth,
-              height: sourceMenuHeight,
-              borderRadius: sourceMenuRadius,
-            },
-          ]}
-        >
-          <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.sourceMenuHeadBtn}>
-            <View style={styles.sourceMenuSheetHead}>
-              <Text size={12} color={textColor} style={styles.sourceText}>{searchSourceLabel}</Text>
-              <Animated.View style={[styles.sourceChevronWrap, { transform: [{ rotate: sourceChevronRotate }] }]}>
-                <Icon name="chevron-right-2" rawSize={iconSize} color={iconColor} />
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-          <Animated.View
-            pointerEvents={isSourceMenuVisible ? 'auto' : 'none'}
-            style={[
-              styles.sourceMenuSheetList,
-              {
-                opacity: sourceMenuListOpacity,
-                transform: [{ translateY: sourceMenuListTranslateY }],
-              },
-            ]}
-          >
-            {sourceMenus.map((menu, index) => {
-              const isActive = menu.action === searchSource
-              const tone = menu.action === 'all'
-                ? { text: '#6b7280', background: '#f3f4f6' }
-                : getSourceTagColor(menu.action)
-              return (
-                <TouchableOpacity
-                  key={menu.action}
-                  activeOpacity={0.78}
-                  style={[
-                    styles.sourcePanelItem,
-                    isActive ? styles.sourcePanelItemActive : null,
-                    index < sourceMenus.length - 1 ? styles.sourcePanelItemBorder : null,
-                  ]}
-                  onPress={() => { handleSelectSource(menu.action) }}
-                >
-                  <View style={[styles.sourcePanelBadge, { backgroundColor: tone.background }]}>
-                    <Text size={10} color={tone.text} style={styles.sourcePanelBadgeText}>
-                      {menu.action == 'all' ? 'ALL' : menu.action.toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text size={13} color="#111827" style={styles.sourcePanelLabel}>
-                    {getSourceMenuLabel(menu.action)}
-                  </Text>
-                  <View style={styles.sourcePanelCheck}>
-                    {isActive ? <MaterialCommunityIcon name="check" size={16} color="#111827" /> : null}
-                  </View>
-                </TouchableOpacity>
-              )
-            })}
-          </Animated.View>
-        </Animated.View>
-      </View>
-    )
-  }, [handleSelectSource, isSourceMenuVisible, searchSource, searchSourceLabel, sourceChevronRotate, sourceMenuHeight, sourceMenuListOpacity, sourceMenuListTranslateY, sourceMenuRadius, sourceMenuWidth])
-
-  const searchHeader = useMemo(() => {
-    return (
-      <View style={[styles.searchResultHeader, { paddingTop: statusBarHeight + 18 }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={handleExitSearch}>
-            <View style={styles.detailBackBtnInner}>
-              <Icon name="chevron-left" rawSize={20} color="#232733" />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.searchResultSearchWrap}>
-            <View style={styles.searchWrap}>
-              {shouldUseSearchBlur
-                ? <>
-                    <BlurView
-                      style={StyleSheet.absoluteFillObject}
-                      blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-                      blurAmount={Platform.OS === 'ios' ? 34 : 24}
-                      blurRadius={Platform.OS === 'android' ? 24 : undefined}
-                      downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-                    />
-                    <View style={styles.searchGlassTint} pointerEvents="none" />
-                  </>
-                : <View style={styles.searchGlassFallback} pointerEvents="none" />}
-              <View style={styles.searchGlassRim} pointerEvents="none" />
-              <View style={styles.searchContent}>
-                <Icon name="search-2" rawSize={18} color="#666d7b" />
-                {isSearchInputEditing
-                  ? <TextInput
-                      ref={searchInputRef}
-                      style={styles.searchInput}
-                      value={searchText}
-                      onChangeText={handleSearchTextChange}
-                      disableFullscreenUI
-                      blurOnSubmit
-                      autoFocus
-                      onBlur={handleSearchInputBlur}
-                      onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
-                      returnKeyType="search"
-                      placeholder={t('me_search_placeholder')}
-                      placeholderTextColor="#9aa1ae"
-                    />
-                  : <TouchableOpacity style={styles.searchInputDisplay} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
-                      <Text size={13} color={searchText ? '#232733' : '#9aa1ae'} numberOfLines={1} style={styles.searchInputText}>
-                        {searchText || t('me_search_placeholder')}
-                      </Text>
-                    </TouchableOpacity>}
-                {renderSourceMenuControl({
-                  textColor: '#666d7b',
-                  iconColor: '#666d7b',
-                  iconSize: 13,
-                  onPress: handleToggleSearchSourceMenu,
-                })}
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-    )
-  }, [handleBeginSearchInputEdit, handleExitSearch, handleSearchInputBlur, handleSearchTextChange, handleSubmitSearch, handleToggleSearchSourceMenu, isSearchInputEditing, renderSourceMenuControl, searchText, shouldUseSearchBlur, statusBarHeight, t])
-
   if (isSearchMode) {
-    const searchHeaderHeight = statusBarHeight + 18 + 44 + 16
     return (
-      <>
-        <View style={styles.searchModeRoot}>
-          {isSourceMenuVisible
-            ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
-                <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={closeSourceMenu} />
-              </Animated.View>
-            : null}
-          <View style={styles.searchResultHeaderFloating}>
-            {searchHeader}
-          </View>
-          {isSearchInputEditing
-            ? <View style={[styles.searchAssistPanel, { top: searchHeaderHeight }]}>
-                {!searchAssistKeyword
-                  ? <View style={styles.searchAssistTitleRow}>
-                      <Text size={13} color="#6b7280">{t('search_history_search')}</Text>
-                      {searchHistoryList.length
-                        ? (
-                            <TouchableOpacity
-                              style={styles.searchAssistClearBtn}
-                              activeOpacity={0.8}
-                              onPress={handleClearSearchHistoryList}
-                            >
-                              <Icon name="eraser" rawSize={14} color="#9ca3af" />
-                            </TouchableOpacity>
-                          )
-                        : null}
-                    </View>
-                  : null}
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="always"
-                  contentContainerStyle={styles.searchAssistContent}
-                >
-                  {searchAssistList.length
-                    ? searchAssistList.map((keyword, index) => {
-                      return (
-                        <TouchableOpacity
-                          key={`${keyword}_${index}`}
-                          style={styles.searchAssistChip}
-                          activeOpacity={0.82}
-                          onPress={() => { handlePickSearchKeyword(keyword) }}
-                          onLongPress={!searchAssistKeyword ? () => { handleRemoveSearchHistoryItem(keyword) } : undefined}
-                        >
-                          <Text size={13} color="#111827" numberOfLines={1} style={styles.searchAssistChipText}>{keyword}</Text>
-                        </TouchableOpacity>
-                      )
-                    })
-                    : (
-                        <View style={styles.searchAssistEmpty}>
-                          <Text size={13} color="#9ca3af">
-                            {searchAssistKeyword
-                              ? searchTipLoading
-                                ? t('me_searching')
-                                : t('me_search_no_match')
-                              : t('me_search_hint')}
-                          </Text>
-                        </View>
-                      )}
-                </ScrollView>
-              </View>
-            : null}
-          <FlatList
-            style={styles.searchResultList}
-            contentContainerStyle={[
-              styles.detailContent,
-              styles.searchResultContent,
-              { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomDockHeight },
-            ]}
-            data={searchResults}
-            renderItem={renderSearchResultItem}
-            keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-            ListEmptyComponent={(
-              <View style={styles.searchResultStatus}>
-                <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
-                  {searchLoading
-                    ? t('me_searching')
-                    : searchKeyword
-                      ? t('me_search_no_match')
-                      : t('me_search_hint')}
-                </Text>
-              </View>
-            )}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            removeClippedSubviews={false}
-            initialNumToRender={12}
-            windowSize={8}
-            maxToRenderPerBatch={12}
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-          />
-        </View>
-        <MusicAddModal ref={musicAddModalRef} />
-      </>
+      <PlaylistSearchScene
+        styles={styles}
+        t={t}
+        statusBarHeight={statusBarHeight}
+        bottomDockHeight={bottomDockHeight}
+        isSourceMenuVisible={isSourceMenuVisible}
+        sourceMenuBackdropOpacity={sourceMenuBackdropOpacity}
+        sourceMenuWidth={sourceMenuWidth}
+        sourceMenuHeight={sourceMenuHeight}
+        sourceMenuRadius={sourceMenuRadius}
+        sourceMenuListOpacity={sourceMenuListOpacity}
+        sourceMenuListTranslateY={sourceMenuListTranslateY}
+        sourceChevronRotate={sourceChevronRotate}
+        sourceMenus={sourceMenus}
+        searchSource={searchSource}
+        searchSourceLabel={searchSourceLabel}
+        searchInputRef={searchInputRef}
+        isSearchInputEditing={isSearchInputEditing}
+        searchText={searchText}
+        searchKeyword={searchKeyword}
+        searchLoading={searchLoading}
+        searchResults={searchResults}
+        searchAssistKeyword={searchAssistKeyword}
+        searchAssistList={searchAssistList}
+        searchHistoryList={searchHistoryList}
+        searchTipLoading={searchTipLoading}
+        musicAddModalRef={musicAddModalRef}
+        renderSearchResultItem={renderSearchResultItem}
+        getSourceMenuLabel={getSourceMenuLabel}
+        onCloseSourceMenu={closeSourceMenu}
+        onExitSearch={handleExitSearch}
+        onBeginSearchInputEdit={handleBeginSearchInputEdit}
+        onSearchInputBlur={handleSearchInputBlur}
+        onSearchTextChange={handleSearchTextChange}
+        onSubmitSearch={handleSubmitSearch}
+        onToggleSearchSourceMenu={handleToggleSearchSourceMenu}
+        onSelectSource={handleSelectSource}
+        onClearSearchHistoryList={handleClearSearchHistoryList}
+        onPickSearchKeyword={handlePickSearchKeyword}
+        onRemoveSearchHistoryItem={handleRemoveSearchHistoryItem}
+      />
     )
   }
 
   const renderDetailScene = () => {
     if (!selectedOnlineDetail && !selectedListInfo) return null
-    const draggingSourceTagColor = draggingSong ? getSourceTagColor(draggingSong.source) : null
     return (
-      <>
-        <View
-          ref={detailListWrapRef}
-          style={styles.detailListWrap}
-          onLayout={handleDetailWrapLayout}
-          collapsable={false}
-          {...detailListPanResponder.panHandlers}
-        >
-          <FlatList
-            ref={detailListRef}
-            style={styles.container}
-            contentContainerStyle={[styles.detailContent, { paddingBottom: bottomDockHeight }]}
-            data={detailSongs}
-            renderItem={renderSongItem}
-            keyExtractor={(item, index) => getSongRowKey(item, index)}
-            ListHeaderComponent={detailHeader}
-            ListEmptyComponent={(
-              <View style={styles.emptyCard}>
-                <Text size={13} color="#6b7280">{detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
-              </View>
-            )}
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={12}
-            windowSize={isSongDragActive ? 4 : 6}
-            maxToRenderPerBatch={isSongDragActive ? 6 : 8}
-            updateCellsBatchingPeriod={isSongDragActive ? 24 : 16}
-            removeClippedSubviews={false}
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-            onScroll={handleDetailListScroll}
-            onContentSizeChange={handleDetailListContentSizeChange}
-            scrollEventThrottle={16}
-            scrollEnabled={!isSongDragActive}
-          />
-          {draggingSong
-            ? <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.songDragOverlay,
-                  {
-                    transform: [{ translateY: dragTop }, { scale: dragScale }],
-                    opacity: dragOpacity,
-                  },
-                ]}
-              >
-                <View style={[styles.songItem, styles.songDragCard]}>
-                  <View style={styles.songMain}>
-                    <Image style={styles.songPic} url={draggingSong.meta.picUrl ?? null} />
-                    <View style={styles.songInfo}>
-                      <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{draggingSong.name}</Text>
-                      <View style={styles.songMetaRow}>
-                        <Text
-                          size={10}
-                          color={draggingSourceTagColor?.text ?? '#111827'}
-                          style={[
-                            styles.songSource,
-                            { backgroundColor: draggingSourceTagColor?.background ?? '#e5e7eb' },
-                          ]}
-                        >
-                          {draggingSong.source.toUpperCase()}
-                        </Text>
-                        <Text size={11} color="#6b7280" numberOfLines={1}>{draggingSong.singer}</Text>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.songActions}>
-                    <Text size={11} color="#9ca3af" style={styles.songInterval}>{draggingSong.interval ?? '--:--'}</Text>
-                    <View style={styles.songActionBtn}>
-                      <MaterialCommunityIcon name="drag-horizontal-variant" size={16} color="#6b7280" />
-                    </View>
-                  </View>
-                </View>
-              </Animated.View>
-            : null}
-        </View>
-        {selectedListId
-          ? <Modal
-              transparent={true}
-              animationType="slide"
-              statusBarTranslucent={true}
-              presentationStyle="overFullScreen"
-              visible={isImportDrawerVisible}
-              onRequestClose={handleCloseImportDrawer}
-            >
-              <View style={styles.importDrawerMask}>
-                <TouchableOpacity style={styles.importDrawerBackdrop} activeOpacity={1} onPress={handleCloseImportDrawer} />
-                <View style={[styles.importDrawerPanel, { marginBottom: modalBottomInset }]}>
-                  <View style={styles.importDrawerHeader}>
-                    <TouchableOpacity activeOpacity={0.8} onPress={handleCloseImportDrawer}>
-                      <Text size={13} color="#6b7280">{t('cancel')}</Text>
-                    </TouchableOpacity>
-                    <Text size={15} color="#111827" style={styles.importDrawerTitle}>{t('list_import')}</Text>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => { void handleImportSelectedSongs() }}
-                      disabled={importSelectedCount < 1 || importSubmitting}
-                    >
-                      <Text size={13} color={(importSelectedCount < 1 || importSubmitting) ? '#9ca3af' : '#111827'} style={styles.importDrawerConfirm}>
-                        {`${t('list_add_title_first_add')}${importSelectedCount > 0 ? `(${importSelectedCount})` : ''}`}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <FlatList
-                    data={importCandidates}
-                    renderItem={renderImportCandidateItem}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.importDrawerContent}
-                    keyboardShouldPersistTaps="handled"
-                    ListEmptyComponent={(
-                      <View style={styles.emptyCard}>
-                        <Text size={13} color="#6b7280">{importLoading ? t('list_loading') : t('me_no_songs')}</Text>
-                      </View>
-                    )}
-                  />
-                </View>
-              </View>
-            </Modal>
-          : null}
-        {selectedListId
-          ? <>
-              <PromptDialog
-                ref={renameListDialogRef}
-                title={t('list_rename_title')}
-                placeholder={t('list_create_input_placeholder')}
-                confirmText={t('metadata_edit_modal_confirm')}
-                cancelText={t('cancel')}
-                bgHide={false}
-                onConfirm={async(value) => handleRenameList(value)}
-              />
-              <PromptDialog
-                ref={removeListDialogRef}
-                title={t('list_remove_tip', { name: selectedListInfo?.name ?? '' })}
-                confirmText={t('list_remove_tip_button')}
-                cancelText={t('cancel')}
-                showInput={false}
-                bgHide={false}
-                onConfirm={async() => handleRemoveSelectedList()}
-              />
-              <PromptDialog
-                ref={removeSongDialogRef}
-                title={t('list_remove_tip', { name: pendingDeleteSong?.name ?? '' })}
-                confirmText={t('list_remove_tip_button')}
-                cancelText={t('cancel')}
-                showInput={false}
-                bgHide={false}
-                onCancel={handleCancelRemoveSong}
-                onHide={handleCancelRemoveSong}
-                onConfirm={async() => handleConfirmRemoveSong()}
-              />
-            </>
-          : null}
-      </>
+      <PlaylistDetailScene
+        styles={styles}
+        t={t}
+        bottomDockHeight={bottomDockHeight}
+        modalBottomInset={modalBottomInset}
+        selectedListId={selectedListId}
+        selectedListInfo={selectedListInfo}
+        detailSongs={detailSongs}
+        detailHeader={detailHeader}
+        detailLoading={detailLoading}
+        isSongDragActive={isSongDragActive}
+        draggingSong={draggingSong}
+        dragTop={dragTop}
+        dragScale={dragScale}
+        dragOpacity={dragOpacity}
+        detailHeroCover={detailHeroCover}
+        detailListRef={detailListRef}
+        detailListWrapRef={detailListWrapRef}
+        detailListPanHandlers={detailListPanResponder.panHandlers}
+        musicMultiAddModalRef={musicMultiAddModalRef}
+        renameListDialogRef={renameListDialogRef}
+        removeListDialogRef={removeListDialogRef}
+        removeSongDialogRef={removeSongDialogRef}
+        pendingDeleteSong={pendingDeleteSong}
+        isImportDrawerVisible={isImportDrawerVisible}
+        importLoading={importLoading}
+        importSubmitting={importSubmitting}
+        importCandidates={importCandidates}
+        importSelectedMap={importSelectedMap}
+        areAllImportSongsSelected={areAllImportSongsSelected}
+        importSelectedCount={importSelectedCount}
+        renderSongItem={renderSongItem}
+        getSongRowKey={getSongRowKey}
+        getSourceTone={getSourceTagColor}
+        onDetailWrapLayout={handleDetailWrapLayout}
+        onDetailListScroll={handleDetailListScroll}
+        onDetailListContentSizeChange={handleDetailListContentSizeChange}
+        onCloseImportDrawer={handleCloseImportDrawer}
+        onImportSelectedSongs={() => { void handleImportSelectedSongs() }}
+        onToggleSelectAllImportSongs={handleToggleSelectAllImportSongs}
+        onToggleImportSong={handleToggleImportSong}
+        onRenameList={handleRenameList}
+        onRemoveSelectedList={handleRemoveSelectedList}
+        onCancelRemoveSong={handleCancelRemoveSong}
+        onConfirmRemoveSong={handleConfirmRemoveSong}
+      />
     )
   }
 
   const homeScene = (
-    <View style={styles.container}>
-      {isSourceMenuVisible
-        ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
-            <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={closeSourceMenu} />
-          </Animated.View>
-        : null}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: bottomDockHeight }]}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        alwaysBounceVertical={false}
-        overScrollMode="never"
-      >
-        <View style={styles.greetingBlock}>
-          <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
-        </View>
-
-        <View style={styles.quickRow}>
-          {featuredLibraryCards.map((card, index) => {
-            const tone = getPlaylistCardTone(index)
-            return (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.quickCard,
-                  { backgroundColor: tone.surface },
-                  index === featuredLibraryCards.length - 1 ? styles.quickCardLast : null,
-                ]}
-                activeOpacity={0.86}
-                onPress={() => { handleOpenList(card.list) }}
-              >
-                <View style={styles.quickMedia}>
-                  {card.cover
-                    ? <Image style={styles.quickMediaImage} url={card.cover} />
-                    : <View style={[styles.quickMediaImage, styles.listPicFallback, { backgroundColor: tone.surface }]}>
-                        <MaterialCommunityIcon name={card.icon} size={24} color={tone.accent} />
-                      </View>}
-                </View>
-                <View style={styles.quickInfo}>
-                  <Text size={15} color="#1c1c1e" style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
-                  <View style={styles.quickMetaRow}>
-                    <MaterialCommunityIcon name={card.icon} size={12} color={tone.accent} />
-                    <Text size={12} color="#8e8e93" style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
-            <View style={styles.playlistSectionTitleWrap}>
-              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
-            </View>
-            <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
-              <SegmentedIconSwitch
-                value={playlistDisplayMode}
-                items={displaySwitchItems}
-                onChange={value => { setPlaylistDisplayMode(value as 'grid' | 'list') }}
-                style={styles.displaySwitch}
-              />
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
-                onPress={handleTogglePlaylistSort}
-              >
-                <MaterialCommunityIcon name={playlistSortIcon} size={15} color={isPlaylistTimeSort ? '#111827' : '#6b7280'} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.sectionIconBtn}
-                onPress={handleShowCreateListModal}
-              >
-                <MaterialCommunityIcon name="plus" size={16} color="#111827" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={isPlaylistListMode ? styles.listPanel : styles.listGrid}>
-            {displayPlaylists.length
-              ? displayPlaylists.map((item, index) => {
-                const tone = getPlaylistCardTone(index + 2)
-                const playlistCount = playlistMetaMap[item.id]?.count ?? 0
-                const isCurrentPlaylist = isPlaylistCurrent(item.id)
-                return (
-                  isPlaylistListMode
-                    ? <TouchableOpacity key={item.id} style={[styles.listRowItem, index < displayPlaylists.length - 1 ? styles.listRowSpacing : null]} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
-                          <View style={styles.listRowCoverWrap}>
-                            {playlistMetaMap[item.id]?.pic
-                              ? <Image style={styles.listRowCover} url={playlistMetaMap[item.id]?.pic ?? null} />
-                              : <View style={[styles.listRowCover, styles.listPicFallback, { backgroundColor: tone.surface }]}>
-                                  <MaterialCommunityIcon name="music-note-eighth" size={20} color={tone.accent} />
-                                </View>}
-                          </View>
-                          <View style={styles.listRowInfo}>
-                            <Text size={15} color="#171a22" style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
-                            <Text size={12} color="#7d8190" style={styles.listRowSubtitle} numberOfLines={1}>{t('home_daily_tracks', { count: playlistCount })}</Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.listRowPlayButton}
-                            activeOpacity={0.82}
-                            onPress={handlePlayPlaylistPress(item.id)}
-                          >
-                            {isCurrentPlaylist && isPlay
-                              ? <View style={styles.pauseGlyphSmall}>
-                                  <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                                  <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                                </View>
-                              : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
-                          </TouchableOpacity>
-                        </TouchableOpacity>
-                    : <TouchableOpacity key={item.id} style={styles.listItem} activeOpacity={0.84} onPress={() => { handleOpenList(item) }}>
-                        <View style={styles.listPicWrap}>
-                          {playlistMetaMap[item.id]?.pic
-                            ? <Image style={styles.listPic} url={playlistMetaMap[item.id]?.pic ?? null} />
-                            : <View style={[styles.listPic, styles.listPicFallback, { backgroundColor: tone.surface }]}>
-                                <MaterialCommunityIcon name="music-note-eighth" size={24} color={tone.accent} />
-                              </View>}
-                        </View>
-                        <View style={styles.listInfo}>
-                          <Text size={14} color="#19171c" style={styles.listTitle} numberOfLines={2}>{item.name}</Text>
-                          <Text size={11} color="#7a7179">{t('me_songs_count', { num: playlistCount })}</Text>
-                        </View>
-                      </TouchableOpacity>
-                )
-              })
-              : <View style={[styles.emptyCard, styles.emptyPlaylistCard]}>
-                  <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={handleShowCreateListModal}>
-                    <Text size={13} color="#19171c" style={styles.emptyActionText}>{t('me_create_new')}</Text>
-                  </TouchableOpacity>
-                </View>}
-          </View>
-        </View>
-
-        {SHOW_LISTENING_STATISTICS
-          ? <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text size={18} color="#111827" style={styles.sectionTitle}>Listening Statistics</Text>
-                <Text size={11} color="#111827" style={styles.sectionTag}>Last 7 Days</Text>
-              </View>
-              <View style={styles.statsCard}>
-                {stats.map(item => (
-                  <View key={item.day} style={styles.statsCol}>
-                    <View style={styles.statsBarBg}>
-                      <View style={[styles.statsBar, { height: item.height, opacity: item.active ? 1 : 0.45 }]} />
-                    </View>
-                    <Text size={10} color={item.active ? '#111827' : '#9ca3af'} style={item.active ? styles.dayActive : styles.day}>
-                      {item.day}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          : null}
-      </ScrollView>
-      <PromptDialog
-        ref={createListDialogRef}
-        title={t('me_create_new')}
-        placeholder={t('list_create_input_placeholder')}
-        confirmText={t('metadata_edit_modal_confirm')}
-        cancelText={t('cancel')}
-        bgHide={false}
-        onConfirm={async(value) => handleCreateList(value)}
-      />
-    </View>
+    <PlaylistLibraryScene
+      styles={styles}
+      t={t}
+      headerHeight={headerHeight}
+      bottomDockHeight={bottomDockHeight}
+      featuredLibraryCards={featuredLibraryCards}
+      displayPlaylists={displayPlaylists}
+      playlistMetaMap={playlistMetaMap}
+      playlistDisplayMode={playlistDisplayMode}
+      displaySwitchItems={displaySwitchItems}
+      isPlaylistTimeSort={isPlaylistTimeSort}
+      playlistSortIcon={playlistSortIcon}
+      isPlaylistListMode={isPlaylistListMode}
+      isPlay={isPlay}
+      isSourceMenuVisible={isSourceMenuVisible}
+      sourceMenuBackdropOpacity={sourceMenuBackdropOpacity}
+      createListDialogRef={createListDialogRef}
+      stats={stats}
+      showListeningStatistics={SHOW_LISTENING_STATISTICS}
+      getPlaylistCardTone={getPlaylistCardTone}
+      isPlaylistCurrent={isPlaylistCurrent}
+      onCloseSourceMenu={closeSourceMenu}
+      onOpenList={handleOpenList}
+      onPlaylistDisplayModeChange={setPlaylistDisplayMode}
+      onTogglePlaylistSort={handleTogglePlaylistSort}
+      onShowCreateListModal={handleShowCreateListModal}
+      onPlayPlaylistPress={handlePlayPlaylistPress}
+      onCreateList={handleCreateList}
+    />
   )
   const shouldRenderDetailScene = Boolean(selectedOnlineDetail ?? selectedListInfo)
-
-  if (isStandaloneDetail) {
-    return (
-      <View style={[styles.sceneRoot, styles.standaloneRoot]} pointerEvents="box-none">
-        {shouldRenderDetailScene
-          ? <Animated.View
-              renderToHardwareTextureAndroid={isDetailTransitioning}
-              shouldRasterizeIOS={isDetailTransitioning}
-              style={[
-                styles.scene,
-                styles.sceneOverlay,
-                styles.detailScene,
-                styles.standaloneScene,
-                {
-                  transform: [{ translateX: detailSceneTranslateX }],
-                },
-              ]}
-            >
-              {renderDetailScene()}
-            </Animated.View>
-          : null}
-        <MusicMultiAddModal ref={musicMultiAddModalRef} />
-      </View>
-    )
-  }
 
   return (
     <View style={styles.sceneRoot}>
@@ -2319,7 +1627,6 @@ export default ({ onSharedTopBarVisibleChange, standaloneDetail = null, onStanda
             </Animated.View>
           </>
         : null}
-      <MusicMultiAddModal ref={musicMultiAddModalRef} />
     </View>
   )
 }
@@ -2328,9 +1635,6 @@ const styles = createStyle({
   sceneRoot: {
     flex: 1,
     backgroundColor: '#eef0fb',
-  },
-  standaloneRoot: {
-    backgroundColor: 'transparent',
   },
   scene: {
     flex: 1,
@@ -2346,9 +1650,6 @@ const styles = createStyle({
     backgroundColor: '#000000',
   },
   detailScene: {},
-  standaloneScene: {
-    zIndex: 1,
-  },
   container: {
     flex: 1,
     backgroundColor: '#eef0fb',

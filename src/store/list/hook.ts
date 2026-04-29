@@ -2,24 +2,29 @@ import { useEffect, useState } from 'react'
 import state, { type InitState } from './state'
 import { getListMusics } from '@/core/list'
 
+const normalizeMyLists = (lists: InitState['allList']) => {
+  return lists.map((list, index) => {
+    if (index == 0) return { ...list, name: global.i18n.t('list_name_default') }
+    if (index == 1) return { ...list, name: global.i18n.t('list_name_love') }
+    return { ...list }
+  }) as InitState['allList']
+}
+
 export const useMyList = () => {
-  const [lists, setList] = useState(state.allList)
-  lists[0].name = global.i18n.t('list_name_default')
-  lists[1].name = global.i18n.t('list_name_love')
+  const [lists, setList] = useState(() => normalizeMyLists(state.allList))
 
   useEffect(() => {
+    const handleListUpdate = (lists: InitState['allList']) => {
+      setList(normalizeMyLists(lists))
+    }
     const handleConfigUpdate = (keys: Array<keyof LX.AppSetting>) => {
       if (!keys.includes('common.langId')) return
-      setList((lists) => {
-        lists[0].name = global.i18n.t('list_name_default')
-        lists[1].name = global.i18n.t('list_name_love')
-        return [...lists]
-      })
+      setList((lists) => normalizeMyLists(lists))
     }
-    global.state_event.on('mylistUpdated', setList)
+    global.state_event.on('mylistUpdated', handleListUpdate)
     global.state_event.on('configUpdated', handleConfigUpdate)
     return () => {
-      global.state_event.off('mylistUpdated', setList)
+      global.state_event.off('mylistUpdated', handleListUpdate)
       global.state_event.off('configUpdated', handleConfigUpdate)
     }
   }, [])

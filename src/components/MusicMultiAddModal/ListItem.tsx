@@ -1,9 +1,22 @@
 import { View } from 'react-native'
+import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+
 import Button from '@/components/common/Button'
 import Text from '@/components/common/Text'
-import { BorderWidths } from '@/theme'
-import { createStyle } from '@/utils/tools'
+import { LIST_IDS } from '@/config/constant'
 import { useTheme } from '@/store/theme/hook'
+import { createStyle } from '@/utils/tools'
+
+const getListTone = (listId: string) => {
+  switch (listId) {
+    case LIST_IDS.LOVE:
+      return { icon: 'heart', iconColor: '#cf385b', iconBg: '#fce7ef' }
+    case LIST_IDS.DEFAULT:
+      return { icon: 'play-circle', iconColor: '#556b96', iconBg: '#e8eefb' }
+    default:
+      return { icon: 'music-note-eighth', iconColor: '#8a6745', iconBg: '#f5eee3' }
+  }
+}
 
 export default ({ listInfo, onPress, width }: {
   listInfo: LX.List.MyListInfo
@@ -11,18 +24,34 @@ export default ({ listInfo, onPress, width }: {
   width: number
 }) => {
   const theme = useTheme()
-
-  const handlePress = () => {
-    onPress(listInfo)
-  }
+  const tone = getListTone(listInfo.id)
 
   return (
     <View style={{ ...styles.listItem, width }}>
       <Button
-        style={{ ...styles.button, backgroundColor: theme['c-button-background'], borderColor: theme['c-primary-light-200-alpha-700'] }}
-        onPress={handlePress}
+        style={{
+          ...styles.button,
+          backgroundColor: theme['c-main-background'],
+          borderColor: theme['c-primary-light-200-alpha-700'],
+        }}
+        onPress={() => { onPress(listInfo) }}
       >
-        <Text numberOfLines={1} size={14} color={theme['c-button-font']}>{listInfo.name}</Text>
+        <View style={{ ...styles.iconWrap, backgroundColor: tone.iconBg }}>
+          <MaterialCommunityIcon name={tone.icon} size={18} color={tone.iconColor} />
+        </View>
+        <View style={styles.content}>
+          <Text numberOfLines={1} size={14} color={theme['c-font']} style={styles.title}>{listInfo.name}</Text>
+          <Text numberOfLines={1} size={11} color={theme['c-500']}>
+            {listInfo.id === LIST_IDS.LOVE
+              ? global.i18n.t('list_name_love')
+              : listInfo.id === LIST_IDS.DEFAULT
+                ? global.i18n.t('list_name_default')
+                : global.i18n.t('me_playlist_list')}
+          </Text>
+        </View>
+        <View style={styles.actionWrap}>
+          <MaterialCommunityIcon name="plus" size={16} color="#202515" />
+        </View>
       </Button>
     </View>
   )
@@ -30,19 +59,40 @@ export default ({ listInfo, onPress, width }: {
 
 export const styles = createStyle({
   listItem: {
-    // width: '50%',
-    paddingRight: 13,
+    paddingRight: 10,
+    marginBottom: 10,
   },
   button: {
-    height: 36,
-    paddingLeft: 10,
-    paddingRight: 10,
-    marginRight: 10,
-    marginBottom: 10,
-    borderRadius: 4,
+    minHeight: 66,
+    borderRadius: 12,
     width: '100%',
     alignItems: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: BorderWidths.normal1,
+  },
+  content: {
+    flex: 1,
+    marginLeft: 10,
+    marginRight: 10,
+  },
+  title: {
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  actionWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eef4d4',
   },
 })

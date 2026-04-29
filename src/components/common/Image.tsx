@@ -23,10 +23,20 @@ export interface ImageProps extends ViewProps {
 export const defaultHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
 }
+const MAX_REMOTE_IMAGE_RETRY = 2
+
 const getRawUri = (url?: string | number | null) => {
   if (typeof url == 'number') return _Image.resolveAssetSource(url).uri
   if (!url) return ''
   return url.startsWith('/') ? `file://${url}` : url
+}
+
+const appendImageRetryToken = (uri: string, retryIndex: number) => {
+  const hashIndex = uri.indexOf('#')
+  const baseUri = hashIndex < 0 ? uri : uri.substring(0, hashIndex)
+  const hash = hashIndex < 0 ? '' : uri.substring(hashIndex)
+  const separator = baseUri.includes('?') ? '&' : '?'
+  return `${baseUri}${separator}lx_retry=${retryIndex}${hash}`
 }
 
 const EmptyPic = memo(({ style, nativeID }: { style: ImageProps['style'], nativeID: ImageProps['nativeID'] }) => {
@@ -40,6 +50,7 @@ const EmptyPic = memo(({ style, nativeID }: { style: ImageProps['style'], native
 const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
   const [isLoaded, setLoaded] = useState(false)
   const [isError, setError] = useState(false)
+  const [retryIndex, setRetryIndex] = useState(0)
   const [cachedUriState, setCachedUriState] = useState<{ rawUri: string, cachedUri: string } | null>(null)
   const rawUri = getRawUri(url)
   const shouldUseLocalCache = cache !== false && /^https?:\/\//i.test(rawUri)
@@ -53,13 +64,19 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   const handleError = useCallback(() => {
     setLoaded(false)
+    if (shouldUseLocalCache && retryIndex < MAX_REMOTE_IMAGE_RETRY) {
+      setError(false)
+      setRetryIndex(retryIndex + 1)
+      return
+    }
     setError(true)
     onError?.(url!)
-  }, [onError, url])
+  }, [onError, retryIndex, shouldUseLocalCache, url])
 
   useEffect(() => {
     setLoaded(false)
     setError(false)
+    setRetryIndex(0)
     if (!rawUri || !shouldUseLocalCache) return
     if (runtimeCachedUri) {
       setCachedUriState({
@@ -96,26 +113,26 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     }
   }, [rawUri, runtimeCachedUri, shouldUseLocalCache])
 
-  let uri = cachedUri || rawUri
+  const uri = cachedUri || rawUri
 
   if (!uri) return <EmptyPic style={style} nativeID={nativeID} />
 
   const isRemote = /^https?:\/\//i.test(uri)
+  const sourceUri = isRemote && retryIndex > 0 ? appendImageRetryToken(uri, retryIndex) : uri
   const showNetworkImage = !isRemote || (isLoaded && !isError)
-  const shouldShowFallback = showFallback &&
-    isRemote &&
-    isError
+  const shouldShowFallback = showFallback && isRemote
   const shouldHideImageLayer = shouldShowFallback && !showNetworkImage
 
   return (
     <View style={StyleSheet.compose(styles.imageWrap, style)}>
       {shouldShowFallback ? <_Image source={loadFailPic} style={styles.imageLayer} resizeMode="cover" /> : null}
       <_Image
+        key={sourceUri}
         style={StyleSheet.compose(styles.imageLayer, shouldHideImageLayer ? styles.hiddenLayer : undefined)}
         source={{
-          uri,
+          uri: sourceUri,
           headers: isRemote ? defaultHeaders : undefined,
-          cache: isRemote ? (cache === false ? 'reload' : 'force-cache') : undefined,
+          cache: isRemote ? (retryIndex > 0 || cache === false ? 'reload' : 'force-cache') : undefined,
         }}
         onError={handleError}
         onLoad={handleLoad}

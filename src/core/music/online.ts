@@ -4,6 +4,8 @@ import {
   getMusicUrl as getStoreMusicUrl,
 } from '@/utils/data'
 import { updateListMusics } from '@/core/list'
+import { getListMusicSync } from '@/utils/listManage'
+import listState from '@/store/list/state'
 import settingState from '@/store/setting/state'
 
 import {
@@ -63,6 +65,17 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh, allowToggleSou
   })
 }
 
+const persistCoverToUserLists = (musicInfo: LX.Music.MusicInfoOnline, excludeListId?: string | null) => {
+  const toUpdate: Array<{ id: string, musicInfo: LX.Music.MusicInfo }> = []
+  for (const list of listState.allList) {
+    if (list.id === excludeListId) continue
+    const songs = getListMusicSync(list.id)
+    const found = songs.find(s => s.id === musicInfo.id && s.source === musicInfo.source)
+    if (found) toUpdate.push({ id: list.id, musicInfo: found })
+  }
+  if (toUpdate.length) void updateListMusics(toUpdate)
+}
+
 export const getPicUrl = async({ musicInfo, listId, isRefresh, allowToggleSource = true, onToggleSource = () => {} }: {
   musicInfo: LX.Music.MusicInfoOnline
   listId?: string | null
@@ -71,13 +84,10 @@ export const getPicUrl = async({ musicInfo, listId, isRefresh, allowToggleSource
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<string> => {
   if (musicInfo.meta.picUrl && !isRefresh) return musicInfo.meta.picUrl
-  return handleGetOnlinePicUrl({ musicInfo, onToggleSource, isRefresh, allowToggleSource }).then(({ url, musicInfo: targetMusicInfo, isFromCache }) => {
-    // picRequest = null
-    if (listId) {
-      musicInfo.meta.picUrl = url
-      void updateListMusics([{ id: listId, musicInfo }])
-    }
-    // savePic({ musicInfo, url, listId })
+  return handleGetOnlinePicUrl({ musicInfo, onToggleSource, isRefresh, allowToggleSource }).then(({ url }) => {
+    musicInfo.meta.picUrl = url
+    if (listId) void updateListMusics([{ id: listId, musicInfo }])
+    persistCoverToUserLists(musicInfo, listId)
     return url
   })
 }
