@@ -1,5 +1,10 @@
 // import './app_setting'
 
+declare module '*.png' {
+  const value: number
+  export default value
+}
+
 declare namespace LX {
   type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg'
   type Source = OnlineSource | 'local'

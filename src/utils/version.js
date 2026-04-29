@@ -8,6 +8,11 @@ const updateRepo = {
   owner: 'JuneDrinleng',
   name: 'lux-music-mobile',
 }
+const proxyPrefixes = [
+  'https://ghfast.top/',
+  'https://gh-proxy.com/',
+  'https://ghproxy.vip/',
+]
 const defaultBuildInfo = {
   applicationId: 'cn.lux.music.mobile',
   providerAuthority: 'cn.lux.music.mobile.provider',
@@ -29,10 +34,11 @@ const chunkSize = 1024 * 1024
 const chunkRetryCount = 4
 const chunkRetryDelayMs = 1200
 
+const rawVersionUrl = `https://raw.githubusercontent.com/${updateRepo.owner}/${updateRepo.name}/master/publish/version.json`
 const address = [
-  [`https://raw.githubusercontent.com/${updateRepo.owner}/${updateRepo.name}/master/publish/version.json`, 'direct'],
+  ...proxyPrefixes.map(prefix => [`${prefix}${rawVersionUrl}`, 'direct']),
+  [rawVersionUrl, 'direct'],
   [`https://raw.githubusercontent.com/${updateRepo.owner}/${updateRepo.name}/main/publish/version.json`, 'direct'],
-  [`https://cdn.jsdelivr.net/gh/${updateRepo.owner}/${updateRepo.name}/publish/version.json`, 'direct'],
   [`https://fastly.jsdelivr.net/gh/${updateRepo.owner}/${updateRepo.name}/publish/version.json`, 'direct'],
   [`https://gcore.jsdelivr.net/gh/${updateRepo.owner}/${updateRepo.name}/publish/version.json`, 'direct'],
 ]
@@ -296,20 +302,27 @@ export const downloadNewVersion = async(version, onDownload = noop) => {
 
   let lastError = null
   for (const abi of targetAbis) {
-    const url = `https://github.com/${updateRepo.owner}/${updateRepo.name}/releases/download/v${version}/${buildInfo.releaseAssetPrefix}-v${version}-${abi}.apk`
+    const apkFileName = `${buildInfo.releaseAssetPrefix}-v${version}-${abi}.apk`
+    const githubUrl = `https://github.com/${updateRepo.owner}/${updateRepo.name}/releases/download/v${version}/${apkFileName}`
+    const candidateUrls = [
+      ...proxyPrefixes.map(prefix => `${prefix}${githubUrl}`),
+      githubUrl,
+    ]
 
-    for (const savePath of savePaths) {
-      await ensureCleanSavePath(savePath)
-      try {
-        await downloadFromUrl(url, savePath, onDownload)
-      } catch (err) {
-        lastError = new Error(`[${abi}] ${getErrorMessage(err)}`)
-        continue
+    for (const url of candidateUrls) {
+      for (const savePath of savePaths) {
+        await ensureCleanSavePath(savePath)
+        try {
+          await downloadFromUrl(url, savePath, onDownload)
+        } catch (err) {
+          lastError = new Error(`[${abi}][${url}] ${getErrorMessage(err)}`)
+          continue
+        }
+
+        apkSavePath = savePath
+        await updateApp()
+        return
       }
-
-      apkSavePath = savePath
-      await updateApp()
-      return
     }
   }
 

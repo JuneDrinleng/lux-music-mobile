@@ -2,28 +2,45 @@
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Animated, Dimensions, Easing, Image as RNImage, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
-import FileSelect, { type FileSelectType } from '@/components/common/FileSelect'
+import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
-import { createStyle, openUrl } from '@/utils/tools'
+import { createStyle, openUrl, toast } from '@/utils/tools'
 import { sizeFormate } from '@/utils'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { useSystemGestureInsetBottom } from '@/utils/hooks'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
-import Sync, { type SyncType } from '@/screens/Home/Views/Setting/settings/Sync'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature } from '@/utils/data'
+import apiSourceInfo from '@/utils/musicSdk/api-source-info'
+import { useUserApiList, state as userApiState } from '@/store/userApi'
+import { removeUserApi } from '@/core/userApi'
+import settingState from '@/store/setting/state'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory } from '@/utils/data'
+import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
+import { connectServer, disconnectServer } from '@/plugins/sync'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
+import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
+import maleImg from '../../../../../assets/img/male.png'
+import femaleImg from '../../../../../assets/img/female.png'
+import langImg from '../../../../../assets/img/language.png'
+import searchImg from '../../../../../assets/img/search.png'
+import sourceImg from '../../../../../assets/img/source.png'
+import synImg from '../../../../../assets/img/syn.png'
+import formatImg from '../../../../../assets/img/format.png'
+import updateImg from '../../../../../assets/img/update.png'
+import githubImg from '../../../../../assets/img/Github.png'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 112
+const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
+const syncHostRxp = /^https?:\/\/\S+/i
 const languageOptions = [
   { locale: 'zh_cn', label: '\u7b80\u4f53\u4e2d\u6587' },
   { locale: 'zh_tw', label: '\u7e41\u9ad4\u4e2d\u6587' },
@@ -36,13 +53,12 @@ export default () => {
   const t = useI18n()
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
-  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT
+  const gestureInsetBottom = useSystemGestureInsetBottom()
+  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
   const detailSceneWidth = Dimensions.get('window').width
   const sourceRef = useRef<SourceType>(null)
-  const syncRef = useRef<SyncType>(null)
-  const avatarFileRef = useRef<FileSelectType>(null)
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
@@ -56,10 +72,19 @@ export default () => {
   const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const [isProfileDetailVisible, setProfileDetailVisible] = useState(false)
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender'>(null)
+  const [isManagingApiSources, setIsManagingApiSources] = useState(false)
+  const [syncHost, setSyncHostLocal] = useState('')
+  const [syncHostHistory, setSyncHostHistoryLocal] = useState<string[]>([])
+  const [isManagingSyncHosts, setIsManagingSyncHosts] = useState(false)
+  const [isSyncHostModalVisible, setSyncHostModalVisible] = useState(false)
+  const [syncHostDraft, setSyncHostDraft] = useState('')
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat'>(null)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
+  const activeApiSource = useSettingValue('common.apiSource')
+  const isSyncEnabled = useSettingValue('sync.enable')
+  const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
   const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
@@ -85,7 +110,21 @@ export default () => {
   const activeGenderLabel = useMemo(() => {
     return genderOptions.find(item => item.value === gender)?.label ?? t('setting_profile_gender_unknown')
   }, [gender, genderOptions, t])
-  const genderBadgeText = gender === 'male' ? 'M' : gender === 'female' ? 'F' : '?'
+  const activeApiSourceLabel = useMemo(() => {
+    const builtin = apiSourceInfo.find(api => api.id === activeApiSource)
+    if (builtin) {
+      // @ts-expect-error
+      return t(`setting_basic_source_${builtin.id}`) || builtin.name
+    }
+    const userApi = userApiList.find(api => api.id === activeApiSource)
+    if (userApi) return userApi.name
+    return activeApiSource ?? ''
+  }, [activeApiSource, userApiList, t])
+  const activeSyncStatusLabel = useMemo(() => {
+    return isSyncEnabled ? t('setting_sync_status_enabled') : t('sync_status_disabled')
+  }, [isSyncEnabled, t])
+  const genderBadgeText = gender === 'unknown' ? '?' : null
+  const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
   const genderBadgeStyle = gender === 'male'
     ? styles.profileHeroBadgeMale
     : gender === 'female'
@@ -228,14 +267,22 @@ export default () => {
     t('setting_basic_lang'),
     activeLanguageLabel,
   )
-  const showSearchSection = matchesSettingsSearch(
+  const showSearchAndPlayerSection = matchesSettingsSearch(
+    t('setting_search_and_play'),
     t('setting_search'),
     t('setting_search_source'),
     activeSearchSourceLabel,
     ...searchSourceOptions.map((item) => item.label),
+    t('setting_player'),
+    t('setting_basic_source'),
+    activeApiSourceLabel,
   )
-  const showPlayerSection = matchesSettingsSearch(t('setting_player'))
-  const showSyncSection = matchesSettingsSearch(t('setting_sync'))
+  const showSyncSection = matchesSettingsSearch(
+    t('setting_sync'),
+    activeSyncStatusLabel,
+    t('setting_sync_host_title'),
+    t('setting_sync_format'),
+  )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
     'GitHub Releases',
@@ -246,8 +293,7 @@ export default () => {
   const showHeroSection = !normalizedSettingsSearchQuery || showProfileEntry
   const hasSettingSearchResults = showProfileEntry ||
     showAppearanceSection ||
-    showSearchSection ||
-    showPlayerSection ||
+    showSearchAndPlayerSection ||
     showSyncSection ||
     showAboutSection
   const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
@@ -272,7 +318,13 @@ export default () => {
       ? t('setting_search_source')
       : activeOptionDetail === 'gender'
         ? t('setting_profile_gender')
-        : ''
+        : activeOptionDetail === 'player'
+          ? t('setting_custom_source_title')
+          : activeOptionDetail === 'sync'
+            ? t('setting_sync')
+            : activeOptionDetail === 'syncFormat'
+              ? t('setting_sync_format')
+              : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -301,22 +353,73 @@ export default () => {
       useNativeDriver: true,
     }).start()
   }, [activeOptionDetail, optionDetailAnim])
+  useEffect(() => {
+    if (activeOptionDetail !== 'sync') return
+    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
+    void getSyncHostHistory().then(history => { setSyncHostHistoryLocal([...history]) })
+  }, [activeOptionDetail])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
   }
-  const handleAddSyncHost = () => {
-    syncRef.current?.showHostInput()
+  const handleOpenSyncHostModal = () => {
+    setSyncHostDraft(syncHost)
+    setSyncHostModalVisible(true)
+  }
+  const handleCloseSyncHostModal = () => {
+    setSyncHostDraft(syncHost)
+    setSyncHostModalVisible(false)
+  }
+  const handleSaveSyncHost = () => {
+    const host = syncHostDraft.trim()
+    if (!syncHostRxp.test(host)) {
+      toast(t('setting_sync_host_value_error_tip'), 'long')
+      return
+    }
+    void saveSyncHost(host)
+    setSyncHostLocal(host)
+    if (isSyncEnabled) void connectServer(host)
+    setSyncHostModalVisible(false)
+  }
+  const handleSelectSyncHost = (host: string) => {
+    if (isManagingSyncHosts) return
+    if (host === syncHost && isSyncEnabled) {
+      updateSetting({ 'sync.enable': false })
+      void disconnectServer()
+      toast(t('sync_status_disabled'))
+    } else {
+      void saveSyncHost(host)
+      setSyncHostLocal(host)
+      updateSetting({ 'sync.enable': true })
+      void addSyncHostHistory(host)
+      void connectServer(host)
+      toast(t('setting_sync_status_enabled'))
+    }
+  }
+  const handleDeleteSyncHost = (index: number) => {
+    void removeSyncHostHistory(index)
+    setSyncHostHistoryLocal(prev => {
+      const next = [...prev]
+      next.splice(index, 1)
+      return next
+    })
+  }
+  const handleToggleSyncManage = () => {
+    setIsManagingSyncHosts(prev => !prev)
   }
   const handlePickAvatar = () => {
-    avatarFileRef.current?.show({
-      title: t('setting_profile_avatar_picker_title'),
-      dirOnly: false,
-      filter: ['jpg', 'jpeg', 'png', 'webp', 'bmp'],
-    }, (path) => {
-      void saveUserAvatar(path).then((savedPath) => {
+    void ImagePicker.openPicker({
+      width: 400,
+      height: 400,
+      cropping: true,
+      cropperCircleOverlay: true,
+      mediaType: 'photo',
+    }).then(image => {
+      void saveUserAvatar(image.path).then(savedPath => {
         global.app_event.userAvatarUpdated(savedPath)
       })
+    }).catch((err: any) => {
+      if (err?.code !== 'E_PICKER_CANCELLED') toast(String(err?.message ?? err), 'long')
     })
   }
   const handleShowNameModal = () => {
@@ -366,8 +469,44 @@ export default () => {
   const handleOpenGenderDetail = () => {
     setActiveOptionDetail('gender')
   }
+  const handleOpenPlayerDetail = () => {
+    setActiveOptionDetail('player')
+  }
+  const handleOpenSyncDetail = () => {
+    setActiveOptionDetail('sync')
+  }
+  const handleOpenSyncFormatDetail = () => {
+    setActiveOptionDetail('syncFormat')
+  }
+  const handleSelectSyncFormat = (value: string) => {
+    if (value === 'lux') {
+      toast(t('toast_in_development'))
+      return
+    }
+    setActiveOptionDetail(null)
+  }
+  const handleSelectApiSource = (id: string) => {
+    if (isManagingApiSources) return
+    setApiSource(id)
+    setActiveOptionDetail(null)
+  }
+  const handleToggleApiSourceManage = () => {
+    setIsManagingApiSources(prev => !prev)
+  }
+  const handleDeleteApiSource = useCallback((id: string) => {
+    void removeUserApi([id]).finally(() => {
+      if (settingState.setting['common.apiSource'] === id) {
+        const fallback = apiSourceInfo.find(api => !api.disabled)?.id ??
+          userApiState.list.find(api => api.id !== id)?.id ??
+          ''
+        setApiSource(fallback)
+      }
+    })
+  }, [])
   const handleCloseOptionDetail = () => {
     setActiveOptionDetail(null)
+    setIsManagingApiSources(false)
+    setIsManagingSyncHosts(false)
   }
   const handleSelectLanguage = (locale: typeof languageOptions[number]['locale']) => {
     setLanguage(locale)
@@ -403,6 +542,10 @@ export default () => {
       handleCloseSignatureModal()
       return true
     }
+    if (isSyncHostModalVisible) {
+      handleCloseSyncHostModal()
+      return true
+    }
     if (activeOptionDetail) {
       handleCloseOptionDetail()
       return true
@@ -432,7 +575,9 @@ export default () => {
                     <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
-                    <Text size={11} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>
+                    {genderImgSource
+                      ? <RNImage source={genderImgSource} style={styles.genderBadgeImgSmall} />
+                      : <Text size={10} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
                   </View>
                 </View>
                 <View style={styles.profileHeroContent}>
@@ -440,7 +585,7 @@ export default () => {
                   <Text size={13} color="#5f6572" numberOfLines={2}>{signature || defaultSignature}</Text>
                   <View style={styles.profileHeroMetaRow}>
                     <View style={styles.profileHeroMetaPill}>
-                      <Text size={11} color="#4b570d" style={styles.profileHeroMetaText}>{`LX Music ${currentVer}`}</Text>
+                      <Text size={11} color="#4b570d" style={styles.profileHeroMetaText}>{`LUX Music ${currentVer}`}</Text>
                     </View>
                     <View style={styles.profileHeroMetaPillMuted}>
                       <Text size={11} color="#596069" style={styles.profileHeroMetaText}>{activeLanguageLabel}</Text>
@@ -459,8 +604,8 @@ export default () => {
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenLanguageDetail}>
                     <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="setting" rawSize={18} color="#58651b" />
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
+                        <RNImage source={langImg} style={styles.settingRowImg} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
@@ -473,14 +618,14 @@ export default () => {
               </View>
             : null}
 
-          {showSearchSection
+          {showSearchAndPlayerSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search')}</Text>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search_and_play')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSearchSourceDetail}>
                     <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="search-2" rawSize={18} color="#58651b" />
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
+                        <RNImage source={searchImg} style={styles.settingRowImg} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
@@ -489,38 +634,52 @@ export default () => {
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
-                </View>
-              </View>
-            : null}
-
-          {showPlayerSection
-            ? <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_player')}</Text>
-                  <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.82} onPress={handleAddSource}>
-                    <Text size={18} color="#4b570d" style={styles.sectionActionText}>+</Text>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenPlayerDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
+                        <RNImage source={sourceImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{activeApiSourceLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
-                </View>
-                <View style={styles.sectionGroup}>
-                  <View style={styles.groupEmbedWrap}>
-                    <Source ref={sourceRef} embedded />
-                  </View>
                 </View>
               </View>
             : null}
 
           {showSyncSection
             ? <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_sync')}</Text>
-                  <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.82} onPress={handleAddSyncHost}>
-                    <Text size={18} color="#4b570d" style={styles.sectionActionText}>+</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_sync')}</Text>
                 <View style={styles.sectionGroup}>
-                  <View style={styles.groupEmbedWrap}>
-                    <Sync ref={syncRef} embedded />
-                  </View>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <RNImage source={synImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSyncStatusLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncFormatDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <RNImage source={formatImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{'lx music'}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                 </View>
               </View>
             : null}
@@ -531,8 +690,8 @@ export default () => {
                 <View style={styles.sectionGroup}>
                   <View style={styles.groupRow}>
                     <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="music" rawSize={18} color="#58651b" />
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
+                        <RNImage source={updateImg} style={styles.settingRowImg} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
@@ -544,8 +703,8 @@ export default () => {
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
                     <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="download-2" rawSize={18} color="#58651b" />
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
+                        <RNImage source={githubImg} style={styles.settingRowImg} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
@@ -567,7 +726,6 @@ export default () => {
         </View>
 
       </ScrollView>
-      <FileSelect ref={avatarFileRef} />
       <Animated.View
         pointerEvents={isProfileDetailVisible ? 'auto' : 'none'}
         style={[
@@ -575,6 +733,7 @@ export default () => {
           {
             opacity: profileDetailOpacity,
             transform: [{ translateX: profileDetailTranslateX }],
+            elevation: isProfileDetailVisible ? APP_LAYER_INDEX.controls + 4 : 0,
           },
         ]}
       >
@@ -647,7 +806,9 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenGenderDetail}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, genderBadgeStyle]}>
-                    <Text size={13} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>
+                    {genderImgSource
+                      ? <RNImage source={genderImgSource} style={styles.genderBadgeImgLarge} />
+                      : <Text size={12} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
                   </View>
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
@@ -667,6 +828,7 @@ export default () => {
           {
             opacity: optionDetailOpacity,
             transform: [{ translateX: optionDetailTranslateX }],
+            elevation: activeOptionDetail ? APP_LAYER_INDEX.controls + 5 : 0,
           },
         ]}
       >
@@ -743,6 +905,106 @@ export default () => {
                 : null}
             </View>
           </View>
+
+          {activeOptionDetail === 'player'
+            ? <>
+                <View style={styles.hiddenRefHost}>
+                  <Source ref={sourceRef} embedded />
+                </View>
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionGroup}>
+                    {userApiList.map((api) => {
+                      const isActive = activeApiSource === api.id
+                      return (
+                        <View key={api.id}>
+                          <TouchableOpacity
+                            style={styles.optionDetailRow}
+                            activeOpacity={0.84}
+                            onPress={() => { handleSelectApiSource(api.id) }}
+                          >
+                            <Text size={15} color={isActive && !isManagingApiSources ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{api.name}</Text>
+                            {isManagingApiSources
+                              ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteApiSource(api.id) }}>
+                                  <Text size={20} color="#ef4444">{'×'}</Text>
+                                </TouchableOpacity>
+                              : isActive ? <View style={styles.sourceActiveDot} /> : null}
+                          </TouchableOpacity>
+                          <View style={styles.optionDetailDivider} />
+                        </View>
+                      )
+                    })}
+                    <TouchableOpacity
+                      style={styles.optionDetailRow}
+                      activeOpacity={0.84}
+                      onPress={handleAddSource}
+                    >
+                      <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_import_local_source')}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.optionDetailDivider} />
+                    <TouchableOpacity
+                      style={styles.optionDetailRow}
+                      activeOpacity={0.84}
+                      onPress={handleToggleApiSourceManage}
+                    >
+                      <Text size={15} color={isManagingApiSources ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                        {isManagingApiSources ? t('setting_exit_manage') : t('setting_manage_source')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            : null}
+
+          {activeOptionDetail === 'sync'
+            ? <View style={styles.sectionCard}>
+                <View style={styles.sectionGroup}>
+                  {syncHostHistory.map((host, index) => {
+                    const isActive = host === syncHost
+                    return (
+                      <View key={host}>
+                        <TouchableOpacity
+                          style={styles.optionDetailRow}
+                          activeOpacity={0.84}
+                          onPress={() => { handleSelectSyncHost(host) }}
+                        >
+                          <Text size={15} color={isActive && isSyncEnabled && !isManagingSyncHosts ? '#20242d' : '#5f6572'} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
+                          {isManagingSyncHosts
+                            ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteSyncHost(index) }}>
+                                <Text size={20} color="#ef4444">{'×'}</Text>
+                              </TouchableOpacity>
+                            : isActive && isSyncEnabled ? <View style={styles.sourceActiveDot} /> : null}
+                        </TouchableOpacity>
+                        <View style={styles.optionDetailDivider} />
+                      </View>
+                    )
+                  })}
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenSyncHostModal}>
+                    <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_fill_sync_address')}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.optionDetailDivider} />
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleToggleSyncManage}>
+                    <Text size={15} color={isManagingSyncHosts ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                      {isManagingSyncHosts ? t('setting_exit_manage') : t('setting_manage_records')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            : null}
+
+          {activeOptionDetail === 'syncFormat'
+            ? <View style={styles.sectionCard}>
+                <View style={styles.sectionGroup}>
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lx') }}>
+                    <Text size={15} color="#20242d" style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
+                    <View style={styles.languageActiveDot} />
+                  </TouchableOpacity>
+                  <View style={styles.optionDetailDivider} />
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lux') }}>
+                    <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            : null}
         </ScrollView>
       </Animated.View>
       <Modal
@@ -801,6 +1063,40 @@ export default () => {
                     <Text size={14} color="#4b5563">{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSignature} activeOpacity={0.85}>
+                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal
+        visible={isSyncHostModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={handleCloseSyncHostModal}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalCard}>
+                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_host_label')}</Text>
+                <Input
+                  placeholder={t('setting_sync_host_value_tip')}
+                  value={syncHostDraft}
+                  onChangeText={setSyncHostDraft}
+                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  inputMode="url"
+                  autoCapitalize="none"
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSyncHostModal} activeOpacity={0.75}>
+                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSyncHost} activeOpacity={0.85}>
                     <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -951,6 +1247,7 @@ const styles = createStyle({
   },
   profileDetailTitle: {
     fontWeight: '700',
+    flex: 1,
   },
   profileDetailHero: {
     alignItems: 'center',
@@ -987,20 +1284,11 @@ const styles = createStyle({
     lineHeight: 19,
   },
   profileHero: {
-    borderRadius: 24,
-    backgroundColor: '#ffffff',
     paddingHorizontal: 18,
-    paddingVertical: 18,
-    marginBottom: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(231,236,245,0.96)',
+    paddingVertical: 12,
+    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#2d333b',
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
   },
   profileHeroAvatarWrap: {
     width: 80,
@@ -1036,17 +1324,32 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   profileHeroBadgeMale: {
-    backgroundColor: '#4c78d8',
+    backgroundColor: '#bfdbfe',
   },
   profileHeroBadgeFemale: {
-    backgroundColor: '#cb6f9b',
+    backgroundColor: '#fce7f3',
   },
   profileHeroBadgeUnknown: {
-    backgroundColor: '#58651b',
+    backgroundColor: '#e2e8f0',
   },
   profileHeroBadgeText: {
     fontWeight: '700',
     lineHeight: 13,
+  },
+  settingRowImg: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  genderBadgeImgSmall: {
+    width: 12,
+    height: 12,
+    resizeMode: 'contain',
+  },
+  genderBadgeImgLarge: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
   profileHeroContent: {
     flex: 1,
@@ -1161,13 +1464,13 @@ const styles = createStyle({
     fontWeight: '700',
   },
   sectionCard: {
-    marginBottom: 22,
+    marginBottom: 14,
   },
   sectionEyebrow: {
     fontWeight: '700',
     letterSpacing: 1.4,
     textTransform: 'uppercase',
-    marginBottom: 10,
+    marginBottom: 6,
     paddingLeft: 4,
   },
   sectionHeaderRow: {
@@ -1203,17 +1506,14 @@ const styles = createStyle({
     fontWeight: '700',
   },
   sectionGroup: {
-    borderRadius: 20,
-    backgroundColor: '#f1f3fb',
-    overflow: 'hidden',
   },
   groupRow: {
-    minHeight: 78,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 10,
   },
   groupRowLeft: {
     flex: 1,
@@ -1229,7 +1529,12 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    overflow: 'hidden',
   },
+  iconWrapOrange: { backgroundColor: '#ffedd5' },
+  iconWrapGreen: { backgroundColor: '#d1fae5' },
+  iconWrapPurple: { backgroundColor: '#ede9fe' },
+  iconWrapAmber: { backgroundColor: '#fef9c3' },
   groupRowAvatarWrap: {
     overflow: 'hidden',
     backgroundColor: '#ffffff',
@@ -1291,6 +1596,18 @@ const styles = createStyle({
   groupEmbedWrap: {
     paddingHorizontal: 18,
     paddingVertical: 10,
+  },
+  hiddenRefHost: {
+    height: 0,
+    overflow: 'hidden',
+  },
+  emptyApiSourceText: {
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  syncHostText: {
+    flex: 1,
+    marginRight: 10,
   },
   addBtn: {
     width: 30,
@@ -1377,10 +1694,16 @@ const styles = createStyle({
     fontWeight: '600',
   },
   languageActiveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#58651b',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#c8e600',
+  },
+  sourceActiveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#c8e600',
   },
   aboutInfoWrap: {
     borderRadius: 18,
@@ -1495,7 +1818,7 @@ const styles = createStyle({
     backgroundColor: '#f1f4fb',
   },
   modalBtnPrimary: {
-    backgroundColor: '#d9ef62',
+    backgroundColor: '#c8e600',
   },
   modalBtnPrimaryText: {
     fontWeight: '600',

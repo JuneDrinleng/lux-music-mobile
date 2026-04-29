@@ -1,7 +1,7 @@
 {
   "name": "lx-music-mobile",
-  "version": "0.2.9",
-  "versionCode": 100,
+  "version": "0.2.10",
+  "versionCode": 101,
   "private": true,
   "scripts": {
     "postinstall": "node dependencies-patch.js",
@@ -71,6 +71,7 @@
     "react-native-file-system": "github:lyswhut/react-native-file-system#fcb0e6f55af684ac60598c720c77cfe0502f2c65",
     "react-native-fs": "^2.20.0",
     "react-native-image-colors": "^1.5.2",
+    "react-native-image-crop-picker": "^0.51.1",
     "react-native-local-media-metadata": "github:lyswhut/react-native-local-media-metadata#1b5be310d112afce0df598d3e9c7521c3311049c",
     "react-native-navigation": "7.39.2",
     "react-native-pager-view": "6.7.1",
