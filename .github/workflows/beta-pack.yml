@@ -13,8 +13,33 @@ jobs:
       - name: Check out git repository
         uses: actions/checkout@v4
 
-      - name: Setup Env
-        uses: ./.github/actions/setup
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup Java Env (no Gradle cache to avoid stale mirror URLs)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          check-latest: true
+
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        shell: bash
+        run: echo "cachedir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.cachedir }}
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-cache-
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Build Packages
         env:
