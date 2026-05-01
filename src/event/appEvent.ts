@@ -301,6 +301,10 @@ export class AppEvent extends Event {
     this.emit('closePlaylistDetail')
   }
 
+  openSettingsProfileDetail() {
+    this.emit('openSettingsProfileDetail')
+  }
+
   settingsSearchStateUpdated(payload: SettingsSearchStatePayload) {
     this.emit('settingsSearchStateUpdated', payload)
   }

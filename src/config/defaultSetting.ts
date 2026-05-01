@@ -70,6 +70,7 @@ const defaultSetting: LX.AppSetting = {
   'list.isSaveScrollLocation': true,
   'list.addMusicLocationType': 'top',
   'list.playlistSortMode': 'default',
+  'list.playlistCustomOrder': '',
 
   'download.fileName': '歌名 - 歌手',
 

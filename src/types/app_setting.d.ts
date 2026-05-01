@@ -351,7 +351,12 @@ declare global {
       /**
        * 鎴戠殑姝屽崟鎺掑簭鏂瑰紡
        */
-      'list.playlistSortMode': 'default' | 'time'
+      'list.playlistSortMode': 'default' | 'time' | 'custom'
+
+      /**
+       * 歌单自定义排序（JSON string of playlist ID array）
+       */
+      'list.playlistCustomOrder': string
 
       /**
        * 文件命名方式

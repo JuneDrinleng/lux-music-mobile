@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Image,
   PixelRatio,
   Platform,
   StyleSheet,
@@ -13,17 +14,15 @@ import {
   View,
 } from "react-native";
 import { BlurView } from "@react-native-community/blur";
-import {
-  House,
-  ListMusic,
-  Settings2,
-  type LucideIcon,
-} from "lucide-react-native";
 import { useNavActiveId } from "@/store/common/hook";
 import { createStyle } from "@/utils/tools";
 import { setNavActiveId } from "@/core/common";
 import type { InitState } from "@/store/common/state";
 import { useI18n } from "@/lang";
+
+const homeIcon = require("../../../../assets/img/home.png");
+const folderMusicIcon = require("../../../../assets/img/folder-music.png");
+const settingsIcon = require("../../../../assets/img/settings.png");
 
 const hasNativeBlurView = Boolean(
   UIManager.getViewManagerConfig?.(
@@ -32,20 +31,19 @@ const hasNativeBlurView = Boolean(
 );
 
 const tabs = [
-  { id: "nav_search", icon: House, labelKey: "nav_search" },
-  { id: "nav_love", icon: ListMusic, labelKey: "nav_love" },
-  { id: "nav_setting", icon: Settings2, labelKey: "nav_setting" },
+  { id: "nav_search", icon: homeIcon, labelKey: "nav_search" },
+  { id: "nav_love", icon: folderMusicIcon, labelKey: "nav_love" },
+  { id: "nav_setting", icon: settingsIcon, labelKey: "nav_setting" },
 ] as const;
 const ACTIVE_ORB_SIZE = 52;
-const BASE_ICON_SIZE = 20;
-const COMPACT_ICON_SIZE = 18;
+const BASE_ICON_SIZE = 24;
 const ACTIVE_ICON_SHIFT_X = -3;
 
 type TabId = InitState["navActiveId"];
 
 const TabItem = memo(({
   id,
-  icon: Icon,
+  icon,
   label,
   active,
   compact = false,
@@ -53,7 +51,7 @@ const TabItem = memo(({
   onLayout,
 }: {
   id: TabId;
-  icon: LucideIcon;
+  icon: number;
   label: string;
   active: boolean;
   compact?: boolean;
@@ -90,10 +88,12 @@ const TabItem = memo(({
             active ? styles.iconGlyphWrapActive : null,
           ]}
         >
-          <Icon
-            size={compact ? COMPACT_ICON_SIZE : BASE_ICON_SIZE}
-            color={active ? "#2a311c" : "#5f6574"}
-            strokeWidth={2}
+          <Image
+            source={icon}
+            style={[
+              styles.iconImg,
+              { tintColor: active ? "#2a311c" : "#5f6574" },
+            ]}
           />
         </View>
       </View>
@@ -377,6 +377,11 @@ const styles = createStyle({
     width: 36,
     height: 36,
     borderRadius: 18,
+  },
+  iconImg: {
+    width: BASE_ICON_SIZE,
+    height: BASE_ICON_SIZE,
+    resizeMode: "contain",
   },
   iconGlyphWrap: {
     width: 24,

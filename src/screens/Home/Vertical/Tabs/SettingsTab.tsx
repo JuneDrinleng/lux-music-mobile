@@ -250,18 +250,6 @@ export default () => {
     if (!normalizedSettingsSearchQuery) return true
     return values.some((value) => value?.toLowerCase().includes(normalizedSettingsSearchQuery))
   }, [normalizedSettingsSearchQuery])
-  const showProfileEntry = matchesSettingsSearch(
-    t('setting_profile'),
-    t('setting_profile_avatar'),
-    t('setting_profile_nickname'),
-    t('setting_profile_signature'),
-    t('setting_profile_gender'),
-    activeGenderLabel,
-    nickname,
-    signature || defaultSignature,
-    'JPEG',
-    'PNG',
-  )
   const showAppearanceSection = matchesSettingsSearch(
     t('setting_appearance'),
     t('setting_basic_lang'),
@@ -290,9 +278,7 @@ export default () => {
     currentVer,
     t('version_label_current_ver'),
   )
-  const showHeroSection = !normalizedSettingsSearchQuery || showProfileEntry
-  const hasSettingSearchResults = showProfileEntry ||
-    showAppearanceSection ||
+  const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
     showSyncSection ||
     showAboutSection
@@ -557,6 +543,13 @@ export default () => {
     return false
   })
 
+  useEffect(() => {
+    global.app_event.on('openSettingsProfileDetail', handleOpenProfileDetail)
+    return () => {
+      global.app_event.off('openSettingsProfileDetail', handleOpenProfileDetail)
+    }
+  }, [handleOpenProfileDetail])
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -567,36 +560,27 @@ export default () => {
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
+        <View style={styles.greetingBlock}>
+          <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('nav_setting')}</Text>
+        </View>
         <View style={styles.list}>
-          {showHeroSection
-            ? <TouchableOpacity style={styles.profileHero} activeOpacity={0.88} onPress={handleOpenProfileDetail}>
-                <View style={styles.profileHeroAvatarWrap}>
-                  <View style={styles.profileHeroAvatarInner}>
-                    <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
+          <View style={styles.sectionCard}>
+            <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
+            <View style={styles.sectionGroup}>
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenProfileDetail}>
+                <View style={styles.groupRowLeft}>
+                  <View style={[styles.groupRowIconWrap, styles.groupRowAvatarWrap]}>
+                    <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
-                  <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
-                    {genderImgSource
-                      ? <RNImage source={genderImgSource} style={styles.genderBadgeImgSmall} />
-                      : <Text size={10} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
-                  </View>
-                </View>
-                <View style={styles.profileHeroContent}>
-                  <Text size={24} color="#1a1c1e" style={styles.profileHeroName}>{nickname}</Text>
-                  <Text size={13} color="#5f6572" numberOfLines={2}>{signature || defaultSignature}</Text>
-                  <View style={styles.profileHeroMetaRow}>
-                    <View style={styles.profileHeroMetaPill}>
-                      <Text size={11} color="#4b570d" style={styles.profileHeroMetaText}>{`LUX Music ${currentVer}`}</Text>
-                    </View>
-                    <View style={styles.profileHeroMetaPillMuted}>
-                      <Text size={11} color="#596069" style={styles.profileHeroMetaText}>{activeLanguageLabel}</Text>
-                    </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
                   </View>
                 </View>
-                <View style={styles.profileHeroArrow}>
-                  <Icon name="chevron-right-2" rawSize={16} color="#8f96a2" />
-                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
               </TouchableOpacity>
-            : null}
+            </View>
+          </View>
 
           {showAppearanceSection
             ? <View style={styles.sectionCard}>
@@ -1120,6 +1104,12 @@ const styles = createStyle({
   },
   scroll: {
     flex: 1,
+  },
+  greetingBlock: {
+    marginBottom: 18,
+  },
+  greetingTitle: {
+    fontWeight: '700',
   },
   header: {
     paddingHorizontal: 18,

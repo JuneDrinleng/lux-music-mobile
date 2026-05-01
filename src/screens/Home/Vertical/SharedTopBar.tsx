@@ -23,12 +23,13 @@ import { APP_LAYER_INDEX } from '@/config/constant'
 
 type SharedTopBarMode = 'music' | 'settings'
 
-export default function SharedTopBar({ visible, mode }: { visible: boolean, mode: SharedTopBarMode }) {
+export default function SharedTopBar({ visible, mode, hideAvatar = false }: { visible: boolean, mode: SharedTopBarMode, hideAvatar?: boolean }) {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const searchSource = useSettingValue('search.defaultSource')
   const topBarWidth = Math.max(0, Dimensions.get('window').width - 36)
   const modeAnim = useRef(new Animated.Value(mode === 'settings' ? 1 : 0)).current
+  const hideAvatarAnim = useRef(new Animated.Value(hideAvatar ? 1 : 0)).current
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [musicSearchQuery, setMusicSearchQuery] = useState('')
@@ -91,6 +92,14 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
     }).start()
   }, [mode, modeAnim])
 
+  useEffect(() => {
+    Animated.timing(hideAvatarAnim, {
+      toValue: hideAvatar ? 1 : 0,
+      duration: 188,
+      useNativeDriver: false,
+    }).start()
+  }, [hideAvatar, hideAvatarAnim])
+
   const handleOpenSearchPage = useCallback(() => {
     global.app_event.openVerticalSearchPage({
       keyword: musicSearchQuery.trim(),
@@ -116,26 +125,26 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
     handleSettingsSearchChange('')
   }, [handleSettingsSearchChange])
 
-  const avatarTranslateX = useMemo(() => modeAnim.interpolate({
+  const avatarTranslateX = useMemo(() => hideAvatarAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -10],
-  }), [modeAnim])
-  const avatarOpacity = useMemo(() => modeAnim.interpolate({
+  }), [hideAvatarAnim])
+  const avatarOpacity = useMemo(() => hideAvatarAnim.interpolate({
     inputRange: [0, 0.6, 1],
     outputRange: [1, 0.12, 0],
-  }), [modeAnim])
-  const avatarScale = useMemo(() => modeAnim.interpolate({
+  }), [hideAvatarAnim])
+  const avatarScale = useMemo(() => hideAvatarAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 0.9],
-  }), [modeAnim])
-  const searchDockWidth = useMemo(() => modeAnim.interpolate({
+  }), [hideAvatarAnim])
+  const searchDockWidth = useMemo(() => hideAvatarAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [Math.max(0, topBarWidth - 56), topBarWidth],
-  }), [modeAnim, topBarWidth])
-  const searchDockTranslateX = useMemo(() => modeAnim.interpolate({
+  }), [hideAvatarAnim, topBarWidth])
+  const searchDockTranslateX = useMemo(() => hideAvatarAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [56, 0],
-  }), [modeAnim])
+  }), [hideAvatarAnim])
   const searchTextOpacity = useMemo(() => modeAnim.interpolate({
     inputRange: [0, 0.4, 1],
     outputRange: [1, 0.78, 1],
@@ -157,7 +166,7 @@ export default function SharedTopBar({ visible, mode }: { visible: boolean, mode
     <View style={[styles.headerFloating, { paddingTop: statusBarHeight + 18 }]}>
       <View style={styles.topBar}>
         <Animated.View
-          pointerEvents={mode === 'settings' ? 'none' : 'auto'}
+          pointerEvents={hideAvatar ? 'none' : 'auto'}
           style={[
             styles.avatarSlot,
             {

@@ -127,6 +127,7 @@ const Main = () => {
       <SharedTopBar
         visible={sharedTopBarVisible}
         mode={activeNavId === 'nav_setting' ? 'settings' : 'music'}
+        hideAvatar={activeNavId !== 'nav_search'}
       />
       <PagerView
         ref={pagerViewRef}
