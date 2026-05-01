@@ -9,6 +9,9 @@ import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
 import { createStyle, openUrl, toast } from '@/utils/tools'
+import { useStatus } from '@/store/sync/hook'
+import { SYNC_CODE } from '@/plugins/sync/constants'
+import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { useSystemGestureInsetBottom } from '@/utils/hooks'
@@ -35,8 +38,10 @@ import searchImg from '../../../../../assets/img/search.png'
 import sourceImg from '../../../../../assets/img/source.png'
 import synImg from '../../../../../assets/img/syn.png'
 import formatImg from '../../../../../assets/img/format.png'
+import versionImg from '../../../../../assets/img/version.png'
 import updateImg from '../../../../../assets/img/update.png'
 import githubImg from '../../../../../assets/img/Github.png'
+import { checkUpdate } from '@/core/version'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -78,12 +83,15 @@ export default () => {
   const [isManagingSyncHosts, setIsManagingSyncHosts] = useState(false)
   const [isSyncHostModalVisible, setSyncHostModalVisible] = useState(false)
   const [syncHostDraft, setSyncHostDraft] = useState('')
+  const [authCode, setAuthCode] = useState('')
+  const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
   const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat'>(null)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
   const activeApiSource = useSettingValue('common.apiSource')
   const isSyncEnabled = useSettingValue('sync.enable')
+  const syncStatus = useStatus()
   const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
   const versionProgress = useVersionDownloadProgressUpdated()
@@ -121,8 +129,18 @@ export default () => {
     return activeApiSource ?? ''
   }, [activeApiSource, userApiList, t])
   const activeSyncStatusLabel = useMemo(() => {
-    return isSyncEnabled ? t('setting_sync_status_enabled') : t('sync_status_disabled')
-  }, [isSyncEnabled, t])
+    if (!isSyncEnabled) return t('sync_status_disabled')
+    if (syncStatus.status) return t('setting_sync_status_enabled')
+    switch (syncStatus.message) {
+      case SYNC_CODE.missingAuthCode:
+      case SYNC_CODE.authFailed:
+        return t('setting_sync_code_fail')
+      case SYNC_CODE.msgBlockedIp:
+        return t('setting_sync_code_blocked_ip')
+      default:
+        return syncStatus.message || t('sync_status_disabled')
+    }
+  }, [isSyncEnabled, syncStatus, t])
   const genderBadgeText = gender === 'unknown' ? '?' : null
   const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
   const genderBadgeStyle = gender === 'male'
@@ -277,6 +295,7 @@ export default () => {
     aboutStatusText,
     currentVer,
     t('version_label_current_ver'),
+    t('version_btn_check_update'),
   )
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
@@ -345,15 +364,30 @@ export default () => {
     void getSyncHostHistory().then(history => { setSyncHostHistoryLocal([...history]) })
   }, [activeOptionDetail])
 
+  useEffect(() => {
+    switch (syncStatus.message) {
+      case SYNC_CODE.authFailed:
+        toast(t('setting_sync_code_fail'))
+      case SYNC_CODE.missingAuthCode:
+        setAuthCodeModalVisible(true)
+        break
+      case SYNC_CODE.msgBlockedIp:
+        toast(t('setting_sync_code_blocked_ip'))
+        break
+      default:
+        break
+    }
+  }, [syncStatus.message, t])
+
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
   }
   const handleOpenSyncHostModal = () => {
-    setSyncHostDraft(syncHost)
+    setSyncHostDraft('')
     setSyncHostModalVisible(true)
   }
   const handleCloseSyncHostModal = () => {
-    setSyncHostDraft(syncHost)
+    setSyncHostDraft('')
     setSyncHostModalVisible(false)
   }
   const handleSaveSyncHost = () => {
@@ -363,9 +397,28 @@ export default () => {
       return
     }
     void saveSyncHost(host)
+    void addSyncHostHistory(host)
     setSyncHostLocal(host)
-    if (isSyncEnabled) void connectServer(host)
+    setSyncHostHistoryLocal(prev => {
+      const next = prev.filter(h => h !== host)
+      next.unshift(host)
+      return next
+    })
+    updateSetting({ 'sync.enable': true })
+    void connectServer(host)
     setSyncHostModalVisible(false)
+  }
+  const handleCancelSetCode = useCallback(() => {
+    setSyncMessage('')
+    setAuthCodeModalVisible(false)
+  }, [])
+  const handleSetCode = useCallback(() => {
+    void connectServer(syncHost, authCode)
+    setAuthCode('')
+    setAuthCodeModalVisible(false)
+  }, [syncHost, authCode])
+  const handleCloseAuthCodeModal = () => {
+    handleCancelSetCode()
   }
   const handleSelectSyncHost = (host: string) => {
     if (isManagingSyncHosts) return
@@ -379,16 +432,22 @@ export default () => {
       updateSetting({ 'sync.enable': true })
       void addSyncHostHistory(host)
       void connectServer(host)
-      toast(t('setting_sync_status_enabled'))
     }
   }
   const handleDeleteSyncHost = (index: number) => {
+    const host = syncHostHistory[index]
     void removeSyncHostHistory(index)
     setSyncHostHistoryLocal(prev => {
       const next = [...prev]
       next.splice(index, 1)
       return next
     })
+    if (host === syncHost) {
+      updateSetting({ 'sync.enable': false })
+      void disconnectServer()
+      void saveSyncHost('')
+      setSyncHostLocal('')
+    }
   }
   const handleToggleSyncManage = () => {
     setIsManagingSyncHosts(prev => !prev)
@@ -509,6 +568,9 @@ export default () => {
       setActiveOptionDetail(null)
     })
   }
+  const handleCheckUpdate = () => {
+    void checkUpdate()
+  }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
   }
@@ -530,6 +592,10 @@ export default () => {
     }
     if (isSyncHostModalVisible) {
       handleCloseSyncHostModal()
+      return true
+    }
+    if (isAuthCodeModalVisible) {
+      handleCloseAuthCodeModal()
       return true
     }
     if (activeOptionDetail) {
@@ -675,15 +741,27 @@ export default () => {
                   <View style={styles.groupRow}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                        <RNImage source={versionImg} style={styles.settingRowImg} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{currentVer}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleCheckUpdate}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
+                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
                         <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
                       </View>
                     </View>
-                    <Text size={12} color="#8d838c" style={styles.aboutVersionValue}>{currentVer}</Text>
-                  </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
                     <View style={styles.groupRowLeft}>
@@ -692,7 +770,6 @@ export default () => {
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -951,12 +1028,14 @@ export default () => {
                           activeOpacity={0.84}
                           onPress={() => { handleSelectSyncHost(host) }}
                         >
-                          <Text size={15} color={isActive && isSyncEnabled && !isManagingSyncHosts ? '#20242d' : '#5f6572'} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
+                          <Text size={15} color={isActive && !isManagingSyncHosts ? '#20242d' : '#5f6572'} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
                           {isManagingSyncHosts
                             ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteSyncHost(index) }}>
                                 <Text size={20} color="#ef4444">{'×'}</Text>
                               </TouchableOpacity>
-                            : isActive && isSyncEnabled ? <View style={styles.sourceActiveDot} /> : null}
+                            : isActive
+                              ? <View style={syncStatus.status ? styles.sourceActiveDot : styles.sourceErrorDot} />
+                              : null}
                         </TouchableOpacity>
                         <View style={styles.optionDetailDivider} />
                       </View>
@@ -1081,6 +1160,38 @@ export default () => {
                     <Text size={14} color="#4b5563">{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSyncHost} activeOpacity={0.85}>
+                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal
+        visible={isAuthCodeModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={handleCloseAuthCodeModal}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalCard}>
+                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_code_label')}</Text>
+                <Input
+                  placeholder={t('setting_sync_code_input_tip')}
+                  value={authCode}
+                  onChangeText={setAuthCode}
+                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancelSetCode} activeOpacity={0.75}>
+                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSetCode} activeOpacity={0.85}>
                     <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -1695,6 +1806,12 @@ const styles = createStyle({
     borderRadius: 5,
     backgroundColor: '#c8e600',
   },
+  sourceErrorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ef4444',
+  },
   aboutInfoWrap: {
     borderRadius: 18,
     borderWidth: 1,
@@ -1709,10 +1826,6 @@ const styles = createStyle({
     minHeight: 104,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  aboutVersionValue: {
-    marginLeft: 12,
-    fontWeight: '700',
   },
   emptySearchTitle: {
     fontWeight: '700',

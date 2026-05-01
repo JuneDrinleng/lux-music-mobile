@@ -1,8 +1,8 @@
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
-## v0.2.11
+## v0.2.12
 
-本次更新聚焦用户主页体验升级，新增个人资料卡片、快捷操作栏与歌单拖拽排序能力，优化设置页信息层级并统一图标资源。
+本次更新聚焦用户主页体验升级与网络安全强化，新增个人资料卡片、快捷操作栏与歌单拖拽排序能力，优化设置页信息层级并统一图标资源，并为 OkHttp 启用 DNS-over-HTTPS 以提升 DNS 解析安全性。
 
 ### 新增
 
@@ -13,6 +13,7 @@
 - 新增 `list.playlistCustomOrder` 配置项，存储歌单自定义排序的 ID 顺序。
 - 新增 `openSettingsProfileDetail` 全局事件，支持从用户主页直接跳转至设置页个人资料详情。
 - 新增 `hideAvatar` 属性到 SharedTopBar，非首页 Tab 时自动隐藏头像，搜索栏撑满顶栏宽度。
+- OkHttp 启用 DNS-over-HTTPS（DOH），使用阿里云 DNS（`https://dns.alidns.com/dns-query`）进行安全 DNS 解析，React Native 网络层通过 `OkHttpClientProvider` 统一配置。
 
 ### 调整
 
@@ -25,5 +26,5 @@
 
 ### 构建
 
-- 版本号更新到 0.2.11。
-- Android versionCode 升级到 102。
+- 版本号更新到 0.2.12。
+- Android versionCode 升级到 103。

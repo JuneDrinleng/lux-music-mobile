@@ -365,7 +365,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const lovePlaylist = useMemo(() => playlists.find(list => list.id === LIST_IDS.LOVE) ?? null, [playlists])
   const displayPlaylists = useMemo(() => {
     const userPlaylists = playlists.filter((list): list is LX.List.UserListInfo => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT)
-    if (playlistSortMode === 'default') return userPlaylists
     if (playlistSortMode === 'custom') {
       const effectiveOrder = pendingPlaylistOrder ?? playlistCustomOrder
       const orderMap = new Map(effectiveOrder.map((id, i) => [id, i]))
@@ -385,7 +384,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         time: getPlaylistSortTime(list),
       }))
       .sort((a, b) => {
-        const diff = b.time - a.time
+        const diff = playlistSortMode === 'default' ? (b.time - a.time) : (a.time - b.time)
         if (diff) return diff
         return a.index - b.index
       })
