@@ -4,10 +4,6 @@ package cn.lux.music.mobile;
 
 import com.facebook.react.PackageList;
 import com.facebook.react.flipper.ReactNativeFlipper;
-import com.facebook.react.modules.network.OkHttpClientProvider;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.dnsoverhttps.DnsOverHttps;
 import com.reactnativenavigation.NavigationApplication;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
@@ -68,16 +64,6 @@ public class MainApplication extends NavigationApplication {
   @Override
   public void onCreate() {
     super.onCreate();
-
-    OkHttpClientProvider.setOkHttpClientFactory(() -> {
-      OkHttpClient dohClient = new OkHttpClient.Builder().build();
-      return OkHttpClientProvider.createClientBuilder()
-        .dns(new DnsOverHttps.Builder()
-          .client(dohClient)
-          .url(HttpUrl.get("https://dns.alidns.com/dns-query"))
-          .build())
-        .build();
-    });
 
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
