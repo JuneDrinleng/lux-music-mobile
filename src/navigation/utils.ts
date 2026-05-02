@@ -4,6 +4,7 @@ import { Navigation } from 'react-native-navigation'
 import {
   VERSION_MODAL,
   PACT_MODAL,
+  AGREEMENT_SCREEN,
   SYNC_MODE_MODAL,
 } from './screenNames'
 import themeState from '@/store/theme/state'
@@ -61,6 +62,37 @@ export const showPactModal = () => {
         //     },
         //   },
         // },
+      },
+    },
+  })
+}
+
+export const showAgreementModal = () => {
+  const theme = themeState.theme
+
+  void Navigation.showOverlay({
+    component: {
+      name: AGREEMENT_SCREEN,
+      passProps: {
+        mode: 'overlay',
+      },
+      options: {
+        layout: {
+          componentBackgroundColor: theme['c-content-background'],
+        },
+        overlay: {
+          interceptTouchOutside: true,
+        },
+        statusBar: {
+          drawBehind: true,
+          visible: true,
+          style: getStatusBarStyle(theme.isDark),
+          backgroundColor: 'transparent',
+        },
+        navigationBar: {
+          drawBehind: true,
+          backgroundColor: 'transparent',
+        },
       },
     },
   })

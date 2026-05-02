@@ -5,15 +5,14 @@ import { BackHandler, View } from 'react-native'
 import { Navigation } from 'react-native-navigation'
 
 import Button from '@/components/common/Button'
-import { createStyle, openUrl, tipDialog } from '@/utils/tools'
+import { createStyle } from '@/utils/tools'
 import { useSettingValue } from '@/store/setting/hook'
 import Text from '@/components/common/Text'
 import { exitApp } from '@/utils/nativeModules/utils'
 import { updateSetting } from '@/core/common'
 import { checkUpdate } from '@/core/version'
 import { initDeeplink } from '@/core/init/deeplink'
-
-const PACT_URL = 'https://github.com/lyswhut/lx-music-mobile#%E9%A1%B9%E7%9B%AE%E5%8D%8F%E8%AE%AE'
+import { showAgreementModal } from '@/navigation'
 
 const PactModal = ({ componentId }: { componentId: string }) => {
   const isAgreePact = useSettingValue('common.isAgreePact')
@@ -24,20 +23,12 @@ const PactModal = ({ componentId }: { componentId: string }) => {
 
   const handleAccept = () => {
     const wasAgreed = isAgreePact
-    if (!wasAgreed) updateSetting({ 'common.isAgreePact': true })
-    void Navigation.dismissOverlay(componentId)
-
     if (!wasAgreed) {
-      void tipDialog({
-        title: '',
-        message: Buffer.from('e69cace8bdafe4bbb6e5ae8ce585a8e5858de8b4b9e4b894e5bc80e6ba90efbc8ce5a682e69e9ce4bda0e698afe88ab1e992b1e8b4ade4b9b0e79a84efbc8ce8afb7e79bb4e68ea5e7bb99e5b7aee8af84efbc810a0a5468697320736f667477617265206973206672656520616e64206f70656e20736f757263652e', 'hex').toString(),
-        btnText: Buffer.from('e5a5bde79a8420284f4b29', 'hex').toString(),
-        bgClose: false,
-      }).then(() => {
-        void checkUpdate()
-        void initDeeplink()
-      })
+      updateSetting({ 'common.isAgreePact': true })
+      void checkUpdate()
+      void initDeeplink()
     }
+    void Navigation.dismissOverlay(componentId)
   }
 
   const handleClose = () => {
@@ -80,7 +71,7 @@ const PactModal = ({ componentId }: { componentId: string }) => {
                 </Button>
               )}
 
-          <Button style={[styles.btn, styles.btnGhost]} onPress={() => { void openUrl(PACT_URL) }}>
+          <Button style={[styles.btn, styles.btnGhost]} onPress={() => { void Navigation.dismissOverlay(componentId); showAgreementModal() }}>
             <Text color="#4b5563">许可协议</Text>
           </Button>
 

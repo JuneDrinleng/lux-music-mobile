@@ -6,6 +6,8 @@ import { Navigation } from 'react-native-navigation'
 
 import {
   Launch,
+  Login,
+  Agreement,
   Home,
   PlayDetail,
   SonglistDetail,
@@ -16,6 +18,8 @@ import { Provider } from '@/store/Provider'
 
 import {
   LAUNCH_SCREEN,
+  LOGIN_SCREEN,
+  AGREEMENT_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
   SONGLIST_DETAIL_SCREEN,
@@ -45,6 +49,8 @@ function WrappedComponent(Component: any) {
 
 export default () => {
   Navigation.registerComponent(LAUNCH_SCREEN, () => WrappedComponent(Launch))
+  Navigation.registerComponent(LOGIN_SCREEN, () => WrappedComponent(Login))
+  Navigation.registerComponent(AGREEMENT_SCREEN, () => WrappedComponent(Agreement))
   Navigation.registerComponent(HOME_SCREEN, () => WrappedComponent(Home))
   Navigation.registerComponent(PLAY_DETAIL_SCREEN, () => WrappedComponent(PlayDetail))
   Navigation.registerComponent(SONGLIST_DETAIL_SCREEN, () => WrappedComponent(SonglistDetail))

@@ -121,6 +121,14 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
     global.app_event.settingsSearchStateUpdated({ keyword })
   }, [])
 
+  const handleSettingsSearchFocus = useCallback(() => {
+    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
+  }, [])
+
+  const handleSettingsSearchBlur = useCallback(() => {
+    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
+  }, [])
+
   const handleSettingsSearchClear = useCallback(() => {
     handleSettingsSearchChange('')
   }, [handleSettingsSearchChange])
@@ -204,6 +212,8 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
                 ? <TextInput
                     value={settingsSearchQuery}
                     onChangeText={handleSettingsSearchChange}
+                    onFocus={handleSettingsSearchFocus}
+                    onBlur={handleSettingsSearchBlur}
                     placeholder={placeholder}
                     placeholderTextColor="#9aa1ae"
                     style={styles.searchInput}

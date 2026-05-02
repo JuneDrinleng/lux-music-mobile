@@ -9,6 +9,8 @@ import { exitApp } from './utils/nativeModules/utils'
 import { windowSizeTools } from './utils/windowSizeTools'
 import { listenLaunchEvent } from './navigation/regLaunchedEvent'
 import { tipDialog } from './utils/tools'
+import { getData } from '@/plugins/storage'
+import { storageDataPrefix } from '@/config/constant'
 
 console.log('starting app...')
 listenLaunchEvent()
@@ -76,9 +78,26 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
     if (!isLaunchScreenShown) return
     await handleInit()
     if (!isInited) return
+
+    // 首次启动：展示登录页，合并勾选所有启动时弹窗
+    const hasSeenCheatTip = await getData<boolean>(storageDataPrefix.cheatTip)
+    if (!hasSeenCheatTip) {
+      global.lx._onLoginConfirmed = handlePushedHomeScreen
+      await navigations.pushLoginScreen().catch((err: any) => {
+        void tipDialog({
+          title: 'Error',
+          message: err.message,
+          btnText: 'Exit',
+          bgClose: false,
+        }).then(() => {
+          exitApp()
+        })
+      })
+      return
+    }
+
     const remainDuration = LAUNCH_SCREEN_MIN_DURATION - (Date.now() - launchStartedAt)
     if (remainDuration > 0) await delay(remainDuration)
-    // import('@/utils/nativeModules/cryptoTest')
 
     await navigations.pushHomeScreen().then(() => {
       global.lx.isShowingLaunchScreen = false

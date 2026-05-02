@@ -590,24 +590,6 @@ export const getRowInfo = (type: RowInfoType = 'full'): RowInfo => {
 export const toMD5 = stringMd5
 
 
-export const cheatTip = async() => {
-  const isRead = await getData<boolean>(storageDataPrefix.cheatTip)
-  if (isRead) return
-
-  return tipDialog({
-    title: '安全提醒',
-    message: `1. 本项目没有任何“官方社群”或“收费解锁”渠道，请注意甄别，谨防受骗。
-
-2. 如果你在使用过程中看到广告、引流或要求付费升级，通常说明你当前使用的是第三方修改版本。
-
-3. 项目主要发布渠道为 GitHub，其他来源请自行判断可信度。`,
-    btnText: '我知道了 (Close)',
-    bgClose: true,
-  }).then(() => {
-    void saveData(storageDataPrefix.cheatTip, true)
-  })
-}
-
 export const remoteLyricTip = async() => {
   const isRead = await getData<boolean>(storageDataPrefix.remoteLyricTip)
   if (isRead) return

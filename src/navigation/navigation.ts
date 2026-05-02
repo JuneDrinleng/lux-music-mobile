@@ -5,6 +5,8 @@ import { Navigation } from 'react-native-navigation'
 
 import {
   LAUNCH_SCREEN,
+  LOGIN_SCREEN,
+  AGREEMENT_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
   SONGLIST_DETAIL_SCREEN,
@@ -53,6 +55,76 @@ export async function pushLaunchScreen() {
         }],
       },
     },
+  })
+}
+
+export async function pushLoginScreen() {
+  const theme = themeState.theme
+
+  return Navigation.setRoot({
+    root: {
+      stack: {
+        children: [{
+          component: {
+            name: LOGIN_SCREEN,
+            options: {
+              topBar: {
+                visible: false,
+                height: 0,
+                drawBehind: false,
+              },
+              statusBar: {
+                drawBehind: true,
+                visible: true,
+                style: getStatusBarStyle(theme.isDark),
+                backgroundColor: 'transparent',
+              },
+              navigationBar: {
+                backgroundColor: 'transparent',
+              },
+              layout: {
+                componentBackgroundColor: theme['c-content-background'],
+              },
+            },
+          },
+        }],
+      },
+    },
+  })
+}
+
+export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'cheat-tip') {
+  const theme = themeState.theme
+
+  requestAnimationFrame(() => {
+    void Navigation.push(componentId, {
+      component: {
+        name: AGREEMENT_SCREEN,
+        passProps: {
+          docType: docType ?? 'pact',
+        },
+        options: {
+          topBar: {
+            visible: false,
+            height: 0,
+            drawBehind: false,
+          },
+          statusBar: {
+            drawBehind: true,
+            visible: true,
+            style: getStatusBarStyle(theme.isDark),
+            backgroundColor: 'transparent',
+          },
+          navigationBar: {
+            drawBehind: true,
+            backgroundColor: 'transparent',
+          },
+          layout: {
+            componentBackgroundColor: theme['c-content-background'],
+          },
+        },
+      },
+    })
   })
 }
 

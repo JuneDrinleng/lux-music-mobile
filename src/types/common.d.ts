@@ -5,6 +5,11 @@ declare module '*.png' {
   export default value
 }
 
+declare module '*.gif' {
+  const value: number
+  export default value
+}
+
 declare namespace LX {
   type OnlineSource = 'kw' | 'kg' | 'tx' | 'wy' | 'mg'
   type Source = OnlineSource | 'local'

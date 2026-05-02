@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  Image,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,8 @@ import {
   type ListRenderItem,
 } from 'react-native'
 import { Search, X } from 'lucide-react-native'
+import songsIcon from '../../../../assets/img/songs.png'
+import playlistsIcon from '../../../../assets/img/playlists.png'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
@@ -137,6 +140,7 @@ export default function SearchPage({
 
   useEffect(() => {
     if (visible) {
+      Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
       setShouldRender(true)
       Animated.timing(pageAnim, {
         toValue: 1,
@@ -147,6 +151,7 @@ export default function SearchPage({
       return
     }
 
+    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
     resetSearchPageState()
     Animated.timing(pageAnim, {
       toValue: 0,
@@ -461,10 +466,9 @@ export default function SearchPage({
       key: 'music',
       accessibilityLabel: t('search_type_music'),
       renderIcon: (active: boolean) => (
-        <MaterialCommunityIcon
-          name="music-note-outline"
-          size={18}
-          color={active ? '#232733' : '#7b8494'}
+        <Image
+          source={songsIcon}
+          style={[styles.searchTypeIcon, styles.searchTypeIconMusic, !active && styles.searchTypeIconInactive]}
         />
       ),
     },
@@ -472,34 +476,36 @@ export default function SearchPage({
       key: 'songlist',
       accessibilityLabel: t('search_type_songlist'),
       renderIcon: (active: boolean) => (
-        <MaterialCommunityIcon
-          name="playlist-music-outline"
-          size={18}
-          color={active ? '#232733' : '#7b8494'}
+        <Image
+          source={playlistsIcon}
+          style={[styles.searchTypeIcon, !active && styles.searchTypeIconInactive]}
         />
       ),
     },
   ]), [t])
-  const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
+  const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item, index }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     return (
       <SearchMusicResultRow
         item={item}
+        index={index}
+        keyword={searchKeyword}
         isLoved={isLoved}
         onPress={() => { void handlePlaySearchSong(item) }}
         onToggleLoved={() => { void handleToggleSearchLoved(item) }}
         onAdd={() => { handleShowMusicAddModal(item) }}
       />
     )
-  }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap])
+  }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap, searchKeyword])
   const renderSonglistResultItem: ListRenderItem<SearchSonglistItem> = useCallback(({ item }) => {
     return (
       <SearchSonglistResultRow
         item={item}
+        keyword={searchKeyword}
         onPress={() => { handleOpenSonglistDetail(item) }}
       />
     )
-  }, [handleOpenSonglistDetail])
+  }, [handleOpenSonglistDetail, searchKeyword])
 
   const searchAssistKeyword = searchText.trim()
   const searchAssistList = useMemo(() => {
@@ -574,8 +580,8 @@ export default function SearchPage({
                 padding={3}
                 backgroundColor="#dfe6f3"
                 borderColor="#d4ddeb"
-                thumbColor="#ffffff"
-                thumbBorderColor="#edf2f8"
+                thumbColor="#c8e600"
+                thumbBorderColor="#ddf27a"
                 thumbShadowColor="#687189"
               />
             </View>
@@ -759,7 +765,6 @@ const styles = createStyle({
   overlayRoot: {
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls - 1,
-    elevation: APP_LAYER_INDEX.controls - 1,
     backgroundColor: '#eef0fb',
   },
   searchModeRoot: {
@@ -800,6 +805,18 @@ const styles = createStyle({
   },
   searchTypeSwitch: {
     marginLeft: 12,
+  },
+  searchTypeIcon: {
+    width: 20,
+    height: 20,
+    opacity: 1,
+  },
+  searchTypeIconMusic: {
+    width: 16,
+    height: 16,
+  },
+  searchTypeIconInactive: {
+    opacity: 0.45,
   },
   searchResultList: {
     flex: 1,

@@ -5,13 +5,16 @@ import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
 import { createStyle } from '@/utils/tools'
 import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
+import HighlightText from './HighlightText'
 import { getSourceTone } from './sourceTone'
 
 export default ({
   item,
+  keyword,
   onPress,
 }: {
   item: SearchSonglistItem
+  keyword: string
   onPress: () => void
 }) => {
   const sourceTone = getSourceTone(item.source)
@@ -28,7 +31,7 @@ export default ({
       >
         <Image style={styles.songlistPic} url={item.img ?? null} />
         <View style={styles.songlistInfo}>
-          <Text size={14} color="#111827" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
+          <HighlightText text={item.name} keyword={keyword} size={14} color="#111827" style={styles.listTitle} numberOfLines={1} />
           <View style={styles.songMetaRow}>
             <Text size={10} color={sourceTone.text} style={[styles.songSource, { backgroundColor: sourceTone.background }]}>{item.source.toUpperCase()}</Text>
             <Text size={11} color="#6b7280" numberOfLines={1} style={styles.songlistMetaText}>{metaText}</Text>

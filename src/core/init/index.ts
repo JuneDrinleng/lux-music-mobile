@@ -15,7 +15,6 @@ import commonActions from '@/store/common/action'
 import settingState from '@/store/setting/state'
 import { checkUpdate, initVersionLifecycle } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
-import { cheatTip } from '@/utils/tools'
 import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailureStale } from '@/utils/coverFailureRegistry'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { getListMusics, updateListMusics } from '@/core/list'
@@ -56,7 +55,6 @@ const retryStaleCoverFailures = async() => {
 
 let isFirstPush = true
 const handlePushedHomeScreen = async() => {
-  await cheatTip()
   if (settingState.setting['common.isAgreePact']) {
     if (isFirstPush) {
       isFirstPush = false

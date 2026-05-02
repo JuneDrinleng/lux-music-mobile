@@ -5,7 +5,7 @@ import { createStyle } from '@/utils/tools'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
 import { type ComponentProps, memo, useCallback, useEffect, useState } from 'react'
 import { View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
-import loadFailPic from '../../../assets/img/loadfail.png'
+import loadFailPic from '../../../assets/img/loadfail.gif'
 
 export type OnLoadEvent = NativeSyntheticEvent<ImageLoadEventData>
 
@@ -16,6 +16,8 @@ export interface ImageProps extends ViewProps {
   resizeMode?: ComponentProps<typeof _Image>['resizeMode']
   blurRadius?: number
   showFallback?: boolean
+  placeholder?: number
+  placeholderStyle?: ComponentProps<typeof _Image>['style']
   onError?: (url: string | number) => void
 }
 
@@ -39,15 +41,15 @@ const appendImageRetryToken = (uri: string, retryIndex: number) => {
   return `${baseUri}${separator}lx_retry=${retryIndex}${hash}`
 }
 
-const EmptyPic = memo(({ style, nativeID }: { style: ImageProps['style'], nativeID: ImageProps['nativeID'] }) => {
+const EmptyPic = memo(({ style, nativeID, placeholder, placeholderStyle }: { style: ImageProps['style'], nativeID: ImageProps['nativeID'], placeholder?: number, placeholderStyle?: ImageProps['placeholderStyle'] }) => {
   return (
     <View style={StyleSheet.compose(styles.emptyPicWrap, style)} nativeID={nativeID}>
-      <_Image source={loadFailPic} style={styles.emptyPicImage} resizeMode="cover" />
+      <_Image source={placeholder ?? loadFailPic} style={[styles.emptyPicImage, placeholderStyle]} resizeMode="contain" />
     </View>
   )
 })
 
-const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
+const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, placeholder, placeholderStyle, style, onError, nativeID }: ImageProps) => {
   const [isLoaded, setLoaded] = useState(false)
   const [isError, setError] = useState(false)
   const [retryIndex, setRetryIndex] = useState(0)
@@ -115,7 +117,7 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   const uri = cachedUri || rawUri
 
-  if (!uri) return <EmptyPic style={style} nativeID={nativeID} />
+  if (!uri) return <EmptyPic style={style} nativeID={nativeID} placeholder={placeholder} placeholderStyle={placeholderStyle} />
 
   const isRemote = /^https?:\/\//i.test(uri)
   const sourceUri = isRemote && retryIndex > 0 ? appendImageRetryToken(uri, retryIndex) : uri
@@ -125,7 +127,11 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   return (
     <View style={StyleSheet.compose(styles.imageWrap, style)}>
-      {shouldShowFallback ? <_Image source={loadFailPic} style={styles.imageLayer} resizeMode="cover" /> : null}
+      {shouldShowFallback ? (
+        <View style={[styles.imageLayer, styles.fallbackCenterWrap]}>
+          <_Image source={placeholder ?? loadFailPic} style={placeholderStyle} resizeMode="contain" />
+        </View>
+      ) : null}
       <_Image
         key={sourceUri}
         style={StyleSheet.compose(styles.imageLayer, shouldHideImageLayer ? styles.hiddenLayer : undefined)}
@@ -149,7 +155,9 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     prevProps.cache == nextProps.cache &&
     prevProps.resizeMode == nextProps.resizeMode &&
     prevProps.blurRadius == nextProps.blurRadius &&
-    prevProps.showFallback == nextProps.showFallback
+    prevProps.showFallback == nextProps.showFallback &&
+    prevProps.placeholder == nextProps.placeholder &&
+    prevProps.placeholderStyle == nextProps.placeholderStyle
 })
 
 export const getSize = (uri: string, success: (width: number, height: number) => void, failure?: (error: any) => void) => {
@@ -164,6 +172,8 @@ const styles = createStyle({
   emptyPicWrap: {
     borderRadius: BorderRadius.normal,
     overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyPicImage: {
     width: '100%',
@@ -176,6 +186,10 @@ const styles = createStyle({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+  },
+  fallbackCenterWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hiddenLayer: {
     opacity: 0,

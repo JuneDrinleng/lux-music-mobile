@@ -41,7 +41,6 @@ export default memo(() => {
             styles.mark,
             {
               backgroundColor: theme['c-main-background'],
-              borderColor: theme['c-border-background'],
             },
           ]}
         >
@@ -83,7 +82,6 @@ const styles = StyleSheet.create({
     width: scaleSizeW(92),
     height: scaleSizeW(92),
     borderRadius: scaleSizeW(18),
-    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

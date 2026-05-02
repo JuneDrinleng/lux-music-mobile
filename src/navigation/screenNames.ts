@@ -1,6 +1,8 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 export const LAUNCH_SCREEN = 'lxm.LaunchScreen'
+export const LOGIN_SCREEN = 'lxm.LoginScreen'
+export const AGREEMENT_SCREEN = 'lxm.AgreementScreen'
 export const HOME_SCREEN = 'lxm.HomeScreen'
 export const PLAY_DETAIL_SCREEN = 'lxm.PlayDetailScreen'
 export const SONGLIST_DETAIL_SCREEN = 'lxm.SonglistDetailScreen'
