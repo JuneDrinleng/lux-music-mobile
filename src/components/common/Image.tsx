@@ -5,7 +5,7 @@ import { createStyle } from '@/utils/tools'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
 import { type ComponentProps, memo, useCallback, useEffect, useState } from 'react'
 import { View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
-import loadFailPic from '../../../assets/img/loadfail.gif'
+import defaultPic from '../../../assets/img/disk.png'
 
 export type OnLoadEvent = NativeSyntheticEvent<ImageLoadEventData>
 
@@ -44,7 +44,7 @@ const appendImageRetryToken = (uri: string, retryIndex: number) => {
 const EmptyPic = memo(({ style, nativeID, placeholder, placeholderStyle }: { style: ImageProps['style'], nativeID: ImageProps['nativeID'], placeholder?: number, placeholderStyle?: ImageProps['placeholderStyle'] }) => {
   return (
     <View style={StyleSheet.compose(styles.emptyPicWrap, style)} nativeID={nativeID}>
-      <_Image source={placeholder ?? loadFailPic} style={[styles.emptyPicImage, placeholderStyle]} resizeMode="contain" />
+      <_Image source={placeholder ?? defaultPic} style={[styles.emptyPicImage, placeholderStyle]} resizeMode="contain" />
     </View>
   )
 })
@@ -129,7 +129,7 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     <View style={StyleSheet.compose(styles.imageWrap, style)}>
       {shouldShowFallback ? (
         <View style={[styles.imageLayer, styles.fallbackCenterWrap]}>
-          <_Image source={placeholder ?? loadFailPic} style={placeholderStyle} resizeMode="contain" />
+          <_Image source={placeholder ?? defaultPic} style={placeholderStyle} resizeMode="contain" />
         </View>
       ) : null}
       <_Image

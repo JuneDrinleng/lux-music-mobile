@@ -1,6 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useEffect, useRef } from 'react'
+import { InteractionManager, View } from 'react-native'
 
 import MusicList, { type MusicListType } from './MusicList'
 import PageContent from '@/components/PageContent'
@@ -11,7 +12,6 @@ import { type ListInfoItem } from '@/store/songlist/state'
 import PlayerBar from '@/components/player/PlayerBar'
 import { ListInfoContext } from './state'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
-import { View } from 'react-native'
 
 
 export default ({ componentId, info }: { componentId: string, info: ListInfoItem }) => {
@@ -24,11 +24,14 @@ export default ({ componentId, info }: { componentId: string, info: ListInfoItem
 
     isUnmountedRef.current = false
 
-    musicListRef.current?.loadList(info.source, info.id)
-
+    const interactionHandle = InteractionManager.runAfterInteractions(() => {
+      if (isUnmountedRef.current) return
+      musicListRef.current?.loadList(info.source, info.id)
+    })
 
     return () => {
       isUnmountedRef.current = true
+      interactionHandle.cancel()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

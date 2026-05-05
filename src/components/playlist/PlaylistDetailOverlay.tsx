@@ -4,6 +4,7 @@ import {
   Dimensions,
   Easing,
   FlatList,
+  InteractionManager,
   LayoutAnimation,
   PanResponder,
   Platform,
@@ -40,8 +41,8 @@ import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const DETAIL_TRANSITION_FORWARD_DURATION = 268
 const DETAIL_TRANSITION_BACKWARD_DURATION = 220
-const SONG_DRAG_ROW_GAP = 10
-const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
+const SONG_DRAG_ROW_GAP = 2
+const SONG_DRAG_ROW_FALLBACK_HEIGHT = 64
 const SONG_DRAG_AUTO_SCROLL_EDGE = 96
 const SONG_DRAG_AUTO_SCROLL_SPEED = 16
 const SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS = 240
@@ -310,11 +311,11 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
       anim.setValue(value)
       return
     }
-    Animated.timing(anim, {
+    Animated.spring(anim, {
       toValue: value,
-      duration: 120,
-      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
+      speed: 22,
+      bounciness: 8,
     }).start()
   }, [getSongShiftAnim])
 
@@ -328,37 +329,48 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
   }, [])
 
   const updateDragRowShifts = useCallback((sourceIndex: number, previousTarget: number, nextTarget: number, rowOffset: number) => {
-    if (previousTarget === nextTarget) return
-    detailSongsRef.current.forEach((song, index) => {
-      const songKey = getSongRowKey(song, index)
-      const shift = getDragShiftForIndex(index, sourceIndex, nextTarget, rowOffset)
+    if (sourceIndex < 0) return
+    const maxIndex = detailSongsRef.current.length - 1
+    if (maxIndex < 0) return
+    const rangeFrom = Math.max(0, Math.min(sourceIndex, previousTarget, nextTarget))
+    const rangeTo = Math.min(maxIndex, Math.max(sourceIndex, previousTarget, nextTarget))
+    for (let i = rangeFrom; i <= rangeTo; i++) {
+      const song = detailSongsRef.current[i]
+      if (!song) continue
+      const songKey = getSongRowKey(song, i)
+      const shift = getDragShiftForIndex(i, sourceIndex, nextTarget, rowOffset)
       setSongShiftTarget(songKey, shift)
-    })
+    }
   }, [getDragShiftForIndex, getSongRowKey, setSongShiftTarget])
 
   const resetDragRowShifts = useCallback((immediate = false) => {
-    for (const songKey of songShiftAnimMapRef.current.keys()) {
+    for (const [songKey, value] of songShiftTargetMapRef.current) {
+      if (!value) continue
       setSongShiftTarget(songKey, 0, immediate)
     }
   }, [setSongShiftTarget])
 
   const resetSongDragState = useCallback(() => {
+    resetDragRowShifts(true)
     dragStateRef.current.active = false
-    dragStateRef.current.listId = null
+    setSongDragActive(false)
     dragStateRef.current.song = null
     dragStateRef.current.songKey = null
+    dragStateRef.current.listId = null
     dragStateRef.current.fromIndex = -1
     dragStateRef.current.toIndex = -1
-    setSongDragActive(false)
-    setDraggingSong(null)
-    setDraggingSongKey(null)
-    resetDragRowShifts(true)
+    dragStateRef.current.startVisualTop = 0
+    dragStateRef.current.startScrollOffset = 0
+    dragTop.stopAnimation()
     dragScale.stopAnimation()
     dragOpacity.stopAnimation()
+    dragTop.setValue(0)
     dragScale.setValue(1)
     dragOpacity.setValue(0)
-    clearDragPressGuard(160)
-  }, [clearDragPressGuard, dragOpacity, dragScale, resetDragRowShifts])
+    setDraggingSong(null)
+    setDraggingSongKey(null)
+    clearDragPressGuard()
+  }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, resetDragRowShifts])
 
   const handleCloseDetail = useCallback(() => {
     detailRequestIdRef.current += 1
@@ -368,114 +380,109 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
   }, [animateDetailScene, onClose, resetSongDragState])
 
   const handleFinishSongDrag = useCallback(async() => {
-    const state = dragStateRef.current
-    if (!state.active || !state.listId || !state.song) {
-      resetSongDragState()
-      return
-    }
-    const fromIndex = state.fromIndex
-    const toIndex = state.toIndex
-    const targetSong = state.song
-    const targetListId = state.listId
-    state.active = false
+    if (!dragStateRef.current.active) return
+    const { listId, song, fromIndex, toIndex } = dragStateRef.current
+    dragStateRef.current.active = false
     setSongDragActive(false)
-    resetDragRowShifts()
+    resetDragRowShifts(true)
+    if (fromIndex !== toIndex && detailSongsRef.current.length <= SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS) {
+      LayoutAnimation.configureNext({
+        duration: 120,
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+      })
+    }
+    if (fromIndex !== toIndex) {
+      const previousSongs = detailSongsRef.current
+      const nextSongs = moveArrayItem(previousSongs, fromIndex, toIndex)
+      detailSongsRef.current = nextSongs
+      setDetailSongs(nextSongs)
+    }
     Animated.parallel([
-      Animated.timing(dragScale, {
-        toValue: 0.98,
-        duration: 90,
-        easing: Easing.out(Easing.cubic),
+      Animated.spring(dragScale, {
+        toValue: 1,
         useNativeDriver: true,
+        speed: 30,
+        bounciness: 2,
       }),
       Animated.timing(dragOpacity, {
         toValue: 0,
-        duration: 120,
-        easing: Easing.out(Easing.cubic),
+        duration: 140,
         useNativeDriver: true,
       }),
     ]).start(() => {
       setDraggingSong(null)
       setDraggingSongKey(null)
-      dragScale.setValue(1)
+      clearDragPressGuard(120)
     })
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
-      clearDragPressGuard(160)
-      return
-    }
-    const previousSongs = detailSongsRef.current
-    const nextSongs = moveArrayItem(previousSongs, fromIndex, toIndex)
-    if (nextSongs === previousSongs) return
-    detailSongsRef.current = nextSongs
-    setDetailSongs(nextSongs)
-    if (nextSongs.length <= SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    }
+    if (!listId || !song || fromIndex === toIndex) return
     try {
-      await updateListMusicPosition(targetListId, toIndex, [targetSong.id])
-      cachePlaylistSnapshot(targetListId, nextSongs)
+      await updateListMusicPosition(listId, toIndex, [song.id])
+      cachePlaylistSnapshot(listId, detailSongsRef.current)
     } catch {
-      void loadLocalDetailSongs(targetListId)
-    } finally {
-      clearDragPressGuard(160)
+      void loadLocalDetailSongs(listId)
     }
-  }, [clearDragPressGuard, dragOpacity, dragScale, loadLocalDetailSongs, resetDragRowShifts, resetSongDragState])
+  }, [clearDragPressGuard, dragOpacity, dragScale, loadLocalDetailSongs, resetDragRowShifts])
 
   const handleStartSongDrag = useCallback((item: LX.Music.MusicInfo, index: number, event: GestureResponderEvent) => {
-    if (!selectedListId || isSongDragActive) return
-    const rowHeight = songRowLayoutRef.current.get(getSongRowKey(item, index)) ?? SONG_DRAG_ROW_FALLBACK_HEIGHT
-    const rowStep = rowHeight + SONG_DRAG_ROW_GAP
-    const startScrollOffset = detailScrollOffsetRef.current
-    const listPageY = detailListPageYRef.current
-    const pressOffsetY = Math.max(0, event.nativeEvent.pageY - listPageY)
-    const startVisualTop = pressOffsetY - Math.min(rowHeight / 2, 36)
-    dragStateRef.current = {
-      active: true,
-      listId: selectedListId,
-      song: item,
-      songKey: getSongRowKey(item, index),
-      fromIndex: index,
-      toIndex: index,
-      rowHeight,
-      rowStep,
-      startVisualTop,
-      startScrollOffset,
-      pressOffsetY,
-    }
+    if (!selectedListId || detailSongsRef.current.length < 2) return
+    if (dragStateRef.current.active) return
+    resetDragRowShifts(true)
     skipNextSongPressRef.current = true
-    clearDragPressGuard()
-    setDraggingSong(item)
-    setDraggingSongKey(getSongRowKey(item, index))
+    const songKey = getSongRowKey(item, index)
+    const rowHeight = songRowLayoutRef.current.get(songKey) ?? SONG_DRAG_ROW_FALLBACK_HEIGHT
+    const rowStep = rowHeight + SONG_DRAG_ROW_GAP
+    const pressOffsetY = event.nativeEvent.locationY
+    const visualTop = event.nativeEvent.pageY - detailListPageYRef.current - pressOffsetY
+    const startScrollOffset = detailScrollOffsetRef.current
+    dragStateRef.current.active = true
+    dragStateRef.current.listId = selectedListId
+    dragStateRef.current.song = item
+    dragStateRef.current.songKey = songKey
+    dragStateRef.current.fromIndex = index
+    dragStateRef.current.toIndex = index
+    dragStateRef.current.rowHeight = rowHeight
+    dragStateRef.current.rowStep = rowStep
+    dragStateRef.current.startVisualTop = visualTop
+    dragStateRef.current.startScrollOffset = startScrollOffset
+    dragStateRef.current.pressOffsetY = pressOffsetY
     setSongDragActive(true)
-    dragTop.setValue(startVisualTop)
-    dragScale.setValue(0.98)
+    setDraggingSong(item)
+    setDraggingSongKey(songKey)
+    dragScale.setValue(1)
     dragOpacity.setValue(0)
+    dragTop.setValue(visualTop)
     Animated.parallel([
-      Animated.timing(dragScale, {
-        toValue: 1.02,
-        duration: 120,
-        easing: Easing.out(Easing.cubic),
+      Animated.spring(dragScale, {
+        toValue: 1.06,
         useNativeDriver: true,
+        speed: 16,
+        bounciness: 8,
       }),
       Animated.timing(dragOpacity, {
         toValue: 1,
-        duration: 90,
-        easing: Easing.out(Easing.cubic),
+        duration: 120,
         useNativeDriver: true,
       }),
     ]).start()
-  }, [clearDragPressGuard, dragOpacity, dragScale, dragTop, getSongRowKey, isSongDragActive, selectedListId])
+  }, [dragOpacity, dragScale, dragTop, getSongRowKey, resetDragRowShifts, selectedListId])
 
   const handleShowRemoveSongModal = useCallback((song: LX.Music.MusicInfo) => {
+    if (!selectedListId || dragStateRef.current.active) return
     setPendingDeleteSong(song)
     removeSongDialogRef.current?.show('')
-  }, [])
+  }, [selectedListId])
 
   const handleCancelRemoveSong = useCallback(() => {
     setPendingDeleteSong(null)
   }, [])
 
   const handleConfirmRemoveSong = useCallback(async() => {
-    if (!selectedListId || !pendingDeleteSong) return false
+    if (!selectedListId || !pendingDeleteSong || dragStateRef.current.active) {
+      setPendingDeleteSong(null)
+      return true
+    }
     await removeListMusics(selectedListId, [String(pendingDeleteSong.id)])
     setPendingDeleteSong(null)
     await loadLocalDetailSongs(selectedListId)
@@ -483,32 +490,38 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
   }, [loadLocalDetailSongs, pendingDeleteSong, selectedListId])
 
   const detailListPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponder: () => dragStateRef.current.active,
     onMoveShouldSetPanResponder: () => dragStateRef.current.active,
+    onStartShouldSetPanResponderCapture: () => dragStateRef.current.active,
+    onMoveShouldSetPanResponderCapture: () => dragStateRef.current.active,
     onPanResponderMove: (_event, gestureState) => {
-      const state = dragStateRef.current
-      if (!state.active) return
-      const listHeight = detailListHeightRef.current
-      const contentHeight = detailListContentHeightRef.current
-      const currentOffset = detailScrollOffsetRef.current
-      let nextTop = state.startVisualTop + gestureState.dy
-      const pointerY = state.pressOffsetY + gestureState.dy
-      if (pointerY < SONG_DRAG_AUTO_SCROLL_EDGE && currentOffset > 0) {
-        const nextOffset = Math.max(0, currentOffset - SONG_DRAG_AUTO_SCROLL_SPEED)
-        detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
-        nextTop -= currentOffset - nextOffset
-      } else if (pointerY > listHeight - SONG_DRAG_AUTO_SCROLL_EDGE && currentOffset + listHeight < contentHeight) {
-        const nextOffset = Math.min(contentHeight - listHeight, currentOffset + SONG_DRAG_AUTO_SCROLL_SPEED)
-        detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
-        nextTop += nextOffset - currentOffset
+      if (!dragStateRef.current.active) return
+      const visibleTop = gestureState.moveY - detailListPageYRef.current - dragStateRef.current.pressOffsetY
+      dragTop.setValue(visibleTop)
+      const pointerY = gestureState.moveY - detailListPageYRef.current
+      const maxScrollOffset = Math.max(0, detailListContentHeightRef.current - detailListHeightRef.current)
+      if (pointerY < SONG_DRAG_AUTO_SCROLL_EDGE) {
+        const nextOffset = Math.max(0, detailScrollOffsetRef.current - SONG_DRAG_AUTO_SCROLL_SPEED)
+        if (nextOffset !== detailScrollOffsetRef.current) {
+          detailScrollOffsetRef.current = nextOffset
+          detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
+        }
+      } else if (pointerY > detailListHeightRef.current - SONG_DRAG_AUTO_SCROLL_EDGE) {
+        const nextOffset = Math.min(maxScrollOffset, detailScrollOffsetRef.current + SONG_DRAG_AUTO_SCROLL_SPEED)
+        if (nextOffset !== detailScrollOffsetRef.current) {
+          detailScrollOffsetRef.current = nextOffset
+          detailListRef.current?.scrollToOffset({ offset: nextOffset, animated: false })
+        }
       }
-      dragTop.setValue(nextTop)
-      const rawTargetIndex = state.fromIndex + Math.round((nextTop - state.startVisualTop + detailScrollOffsetRef.current - state.startScrollOffset) / state.rowStep)
-      const nextTargetIndex = clampIndex(rawTargetIndex, detailSongsRef.current.length - 1)
-      if (nextTargetIndex === state.toIndex) return
-      const previousTarget = state.toIndex
-      state.toIndex = nextTargetIndex
-      updateDragRowShifts(state.fromIndex, previousTarget, nextTargetIndex, state.rowStep)
+      const contentDelta =
+        (visibleTop - dragStateRef.current.startVisualTop) +
+        (detailScrollOffsetRef.current - dragStateRef.current.startScrollOffset)
+      const roughIndex = dragStateRef.current.fromIndex + Math.round(contentDelta / dragStateRef.current.rowStep)
+      const targetIndex = clampIndex(roughIndex, Math.max(detailSongsRef.current.length - 1, 0))
+      if (targetIndex === dragStateRef.current.toIndex) return
+      const prevTarget = dragStateRef.current.toIndex
+      dragStateRef.current.toIndex = targetIndex
+      updateDragRowShifts(dragStateRef.current.fromIndex, prevTarget, targetIndex, dragStateRef.current.rowStep)
     },
     onPanResponderRelease: () => {
       void handleFinishSongDrag()
@@ -705,7 +718,7 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
         isGhost={isDraggingRow}
         canEdit={canEditSongs}
         onLayout={(event) => { handleSongRowLayout(item, index, event) }}
-        onLongPress={canEditSongs ? (event) => { handleStartSongDrag(item, index, event) } : undefined}
+        onDragPressIn={canEditSongs ? (event) => { handleStartSongDrag(item, index, event) } : undefined}
         onPress={() => {
           if (skipNextSongPressRef.current) {
             if (dragStateRef.current.active) {
@@ -791,14 +804,23 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
       const cached = playlistSnapshotCache.get(selectedListId)
       setDetailSongs(cached ? [...cached.songs] : [])
       setDetailLoading(!cached)
-      void loadLocalDetailSongs(selectedListId, !cached)
-      return
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void loadLocalDetailSongs(selectedListId, !cached)
+      })
+      return () => {
+        handle.cancel()
+      }
     }
     if (selectedOnlineDetail) {
       const cached = playlistSnapshotCache.get(getOnlinePlaylistDetailKey(selectedOnlineDetail))
       setDetailSongs(cached ? [...cached.songs] : [])
       setDetailLoading(!cached)
-      void loadOnlineDetailSongs(selectedOnlineDetail, !cached)
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void loadOnlineDetailSongs(selectedOnlineDetail, !cached)
+      })
+      return () => {
+        handle.cancel()
+      }
     }
   }, [loadLocalDetailSongs, loadOnlineDetailSongs, resetSongDragState, selectedListId, selectedOnlineDetail])
 
@@ -808,7 +830,12 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
     const cached = playlistSnapshotCache.get(key)
     setDetailSongs(cached ? [...cached.songs] : [])
     setDetailLoading(!cached)
-    void loadLeaderboardSongs(selectedLeaderboardDetail, !cached)
+    const handle = InteractionManager.runAfterInteractions(() => {
+      void loadLeaderboardSongs(selectedLeaderboardDetail, !cached)
+    })
+    return () => {
+      handle.cancel()
+    }
   }, [loadLeaderboardSongs, selectedLeaderboardDetail])
 
   useEffect(() => {

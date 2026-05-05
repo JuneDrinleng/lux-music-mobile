@@ -15,7 +15,6 @@ import {
 } from './screenNames'
 
 import themeState from '@/store/theme/state'
-import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { getStatusBarStyle } from './utils'
 import { windowSizeTools } from '@/utils/windowSizeTools'
 import { type ListInfoItem } from '@/store/songlist/state'
@@ -318,105 +317,53 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
 export function pushSonglistDetailScreen(componentId: string, info: ListInfoItem) {
   const theme = themeState.theme
 
-  requestAnimationFrame(() => {
-    void Navigation.push(componentId, {
-      component: {
-        name: SONGLIST_DETAIL_SCREEN,
-        passProps: {
-          info,
+  void Navigation.push(componentId, {
+    component: {
+      name: SONGLIST_DETAIL_SCREEN,
+      passProps: {
+        info,
+      },
+      options: {
+        topBar: {
+          visible: false,
+          height: 0,
+          drawBehind: false,
         },
-        options: {
-          topBar: {
-            visible: false,
-            height: 0,
-            drawBehind: false,
-          },
-          statusBar: {
-            drawBehind: true,
-            visible: true,
-            style: getStatusBarStyle(theme.isDark),
-            backgroundColor: 'transparent',
-          },
-          navigationBar: {
-            drawBehind: true,
-            backgroundColor: 'transparent',
-          },
-          layout: {
-            componentBackgroundColor: theme['c-content-background'],
-          },
-          animations: {
-            push: {
-              sharedElementTransitions: [
-                {
-                  fromId: `${NAV_SHEAR_NATIVE_IDS.songlistDetail_pic}_from_${info.id}`,
-                  toId: `${NAV_SHEAR_NATIVE_IDS.songlistDetail_pic}_to_${info.id}`,
-                  interpolation: { type: 'spring' },
-                },
-              ],
-              elementTransitions: [
-                {
-                  id: NAV_SHEAR_NATIVE_IDS.songlistDetail_title,
-                  alpha: {
-                    from: 0, // We don't declare 'to' value as that is the element's current alpha value, here we're essentially animating from 0 to 1
-                    duration: 300,
-                  },
-                  translationX: {
-                    from: 16, // Animate translationX from 16dp to 0dp
-                    duration: 300,
-                  },
-                },
-              ],
-              // content: {
-              //   scaleX: {
-              //     from: 1.2,
-              //     to: 1,
-              //     duration: 200,
-              //   },
-              //   scaleY: {
-              //     from: 1.2,
-              //     to: 1,
-              //     duration: 200,
-              //   },
-              //   alpha: {
-              //     from: 0,
-              //     to: 1,
-              //     duration: 200,
-              //   },
-              // },
+        statusBar: {
+          drawBehind: true,
+          visible: true,
+          style: getStatusBarStyle(theme.isDark),
+          backgroundColor: 'transparent',
+        },
+        navigationBar: {
+          drawBehind: true,
+          backgroundColor: 'transparent',
+        },
+        layout: {
+          componentBackgroundColor: theme['c-content-background'],
+        },
+        animations: {
+          push: {
+            content: {
+              translationX: {
+                from: windowSizeTools.getSize().width,
+                to: 0,
+                duration: 300,
+              },
             },
-            pop: {
-              sharedElementTransitions: [
-                {
-                  fromId: `${NAV_SHEAR_NATIVE_IDS.songlistDetail_pic}_to_${info.id}`,
-                  toId: `${NAV_SHEAR_NATIVE_IDS.songlistDetail_pic}_from_${info.id}`,
-                  interpolation: { type: 'spring' },
-                },
-              ],
-              elementTransitions: [
-                {
-                  id: NAV_SHEAR_NATIVE_IDS.songlistDetail_title,
-                  alpha: {
-                    to: 0, // We don't declare 'to' value as that is the element's current alpha value, here we're essentially animating from 0 to 1
-                    duration: 300,
-                  },
-                  translationX: {
-                    to: 16, // Animate translationX from 16dp to 0dp
-                    duration: 300,
-                  },
-                },
-              ],
-              // content: {
-              //   alpha: {
-              //     from: 1,
-              //     to: 0,
-              //     duration: 200,
-              //   },
-              // },
+          },
+          pop: {
+            content: {
+              translationX: {
+                from: 0,
+                to: windowSizeTools.getSize().width,
+                duration: 300,
+              },
             },
           },
         },
       },
-    })
+    },
   })
 }
 export function pushCommentScreen(componentId: string) {

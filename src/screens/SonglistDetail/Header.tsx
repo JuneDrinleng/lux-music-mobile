@@ -75,7 +75,12 @@ export default forwardRef<HeaderType, HeaderProps>(({ componentId }: { component
   const statusBarHeight = useStatusbarHeight()
   const theme = useTheme()
   const info = useListInfo()
-  const [detailInfo, setDetailInfo] = useState<DetailInfo>({ name: '', desc: '', playCount: '', imgUrl: info.img })
+  const [detailInfo, setDetailInfo] = useState<DetailInfo>({
+    name: info.name ?? '',
+    desc: info.desc ?? '',
+    playCount: info.play_count ?? '',
+    imgUrl: info.img,
+  })
 
   useImperativeHandle(ref, () => ({
     setInfo(info) {

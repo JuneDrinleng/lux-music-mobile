@@ -108,7 +108,7 @@ const Main = () => {
   }, [activeNavId])
 
   const playlistDetailVisible = Boolean(playlistDetailRequest)
-  const sharedTopBarVisible = !searchPageVisible && !playlistDetailVisible && (
+  const sharedTopBarVisible = !searchPageVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
@@ -172,8 +172,8 @@ const styles = createStyle({
   },
   overlayLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls - 1,
-    elevation: APP_LAYER_INDEX.controls - 1,
+    zIndex: APP_LAYER_INDEX.playDetail,
+    elevation: APP_LAYER_INDEX.playDetail,
   },
   playlistDetailOverlay: {
     flex: 1,

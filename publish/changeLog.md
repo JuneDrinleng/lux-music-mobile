@@ -1,36 +1,40 @@
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
-## v0.2.13
+## v0.2.14
 
-本次更新聚焦首次启动体验优化与播放控制细节打磨，新增 Login 引导页统一承载安全提醒与协议确认，优化封面占位图资源与加载失败兜底表现，并修复搜索结果页封面不自动刷新的问题。
+本次更新聚焦歌单详情页视觉与交互全面升级，重做歌单英雄 Banner 与拖拽排序体验，优化页面过渡动画与加载性能，并修复拖拽排序多项交互缺陷。
 
 ### 新增
 
-- 首次启动新增 Login 登录引导页，合并展示安全提醒、许可协议与免费开源声明，需逐条勾选确认后方可进入应用。
-- Image 组件新增 `placeholder` 和 `placeholderStyle` 属性，支持自定义占位图资源及其样式。
-- 新增 `disk.png` 磁盘图标资源，作为歌曲封面及歌单卡片的默认占位图。
-- 新增 `.gif` 模块类型声明（`src/types/common.d.ts`）。
+- PlaylistDetailHeader 新增全幅封面英雄 Banner 与 SVG 渐变遮罩，有封面时以歌曲封面为背景展示歌单信息，无封面时使用深色背景 + 渐变遮罩。
+- PlaylistDetailSongItem 新增独立拖拽手柄按钮（`drag-reorder.png`），长按手柄触发排序拖拽，操作路径更明确。
+- 新增歌单详情操作图标资源（`edit.png`、`delete.png`、`import.png`、`drag-reorder.png`），替换矢量图标为位图资源。
 
 ### 调整
 
-- 安全提醒从独立弹窗（cheatTip）迁移至 Login 页面统一展示，首次启动体验更一致。
-- PactModal 简化：移除首次同意协议后的编码消息弹窗，直接进入更新检查与深度链接初始化流程。
-- 播放栏封面占位图从纯色圆形容器改为 `disk.png` 磁盘图标，视觉更自然。
-- HomeTab 推荐 / 榜单中 Disc3 矢量图标替换为 `disk.png` 位图资源，统一占位图风格。
-- 封面加载失败占位图资源从 `loadfail.png` 切换为 `loadfail.gif`。
-- 封面占位图及空状态组件的 `resizeMode` 统一改为 `contain`，并新增居中对齐。
+- 歌单详情导航动画从共享元素过渡改为水平滑入/滑出动画，过渡更流畅稳定，并移除 `requestAnimationFrame` 包裹。
+- 歌单拖拽排序交互动画从 `Animated.timing` 全面改为 `Animated.spring`，物理手感更自然。
+- PlaylistDetailSongItem 卡片样式简化：移除边框与阴影，背景色统一为 `#eef0fb`，卡片间距由 10 收紧为 2。
+- 歌单详情页、在线歌单详情页、排行榜详情页数据加载改为 `InteractionManager.runAfterInteractions` 延迟执行，减少页面过渡时的卡顿。
+- Image 组件默认占位图从 `loadfail.gif` 回退到 `disk.png`，统一全局占位图资源。
+- PlaylistTab 中 SharedTopBar 在歌单详情浮层可见时保持显示，提升导航一致性。
+- 歌单详情打开方式统一通过 `global.app_event.openPlaylistDetail` 全局事件触发。
 
 ### 修复
 
-- 修复搜索结果页封面在播放器异步获取到封面后不自动刷新的问题：`SearchMusicResultRow` 订阅 `picUpdated` 事件，匹配当前播放歌曲后实时更新封面。
+- 修复歌单拖拽排序时 shift 计算仅覆盖 sourceIndex 到 targetIndex 之间的歌曲，解决旧逻辑遍历全部歌曲的性能浪费与动画遗漏。
+- 修复拖拽位置计算使用绝对 pageY 导致列表有滚动偏移时定位偏差的问题，改为基于列表容器的 pageY 相对坐标。
+- 修复 PanResponder 在拖拽激活时未设置 Capture 导致手势被子组件拦截的问题。
+- 修复删除歌曲与拖拽排序可能并发执行的冲突，增加拖拽状态互斥检查。
+- 修复 SonglistDetail 页面初始化时 `name`/`desc`/`playCount` 字段缺失导致的空值渲染问题。
 
 ### 移除
 
-- 移除 `Pic.tsx` 播放栏封面独立组件，逻辑内聚至 PlayerBar 主组件。
-- 移除 `cheatTip` 工具函数（`src/utils/tools.ts`）及对应启动时调用。
-- 移除启动页图标容器的 `borderWidth` / `borderColor` 边框样式。
+- 移除歌单详情页导航的 `sharedElementTransitions` 共享元素过渡动画及 `elementTransitions` 配置。
+- 移除 SonglistDetail/MusicList 中重复的 `headerRef.setInfo` 调用及注释代码。
+- 移除 navigation.ts 中 `NAV_SHEAR_NATIVE_IDS` 常量引用。
 
 ### 构建
 
-- 版本号更新到 0.2.13。
-- Android versionCode 升级到 104。
+- 版本号更新到 0.2.14。
+- Android versionCode 升级到 105。

@@ -1,4 +1,4 @@
-import { Animated, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
+import { Animated, Image as RNImage, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -9,6 +9,7 @@ import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
 import { updateListMusics } from '@/core/list'
+import dragReorderIcon from '../../../assets/img/drag-reorder.png'
 
 interface SourceTone {
   text: string
@@ -25,7 +26,7 @@ interface PlaylistDetailSongItemProps {
   canEdit?: boolean
   onLayout: (event: LayoutChangeEvent) => void
   onPress: () => void
-  onLongPress?: (event: GestureResponderEvent) => void
+  onDragPressIn?: (event: GestureResponderEvent) => void
   onRemove?: () => void
 }
 
@@ -39,7 +40,7 @@ export default ({
   canEdit = false,
   onLayout,
   onPress,
-  onLongPress,
+  onDragPressIn,
   onRemove,
 }: PlaylistDetailSongItemProps) => {
   const [displayCoverUrl, setDisplayCoverUrl] = useState<string | null>(() => pickMusicCover(song, fallbackCover))
@@ -74,8 +75,6 @@ export default ({
         <TouchableOpacity
           style={styles.main}
           activeOpacity={0.8}
-          delayLongPress={canEdit ? 180 : undefined}
-          onLongPress={canEdit ? onLongPress : undefined}
           onPress={onPress}
         >
           <Image style={styles.cover} url={displayCoverUrl} onError={handleCoverError} />
@@ -93,9 +92,19 @@ export default ({
           <Text size={11} color="#9ca3af" style={styles.interval}>{song.interval ?? '--:--'}</Text>
           {canEdit
             ? (
-                <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
-                  <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
+                    <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dragButton}
+                    activeOpacity={0.75}
+                    delayLongPress={0}
+                    onLongPress={onDragPressIn}
+                  >
+                    <RNImage source={dragReorderIcon} style={styles.dragIcon} />
+                  </TouchableOpacity>
+                </>
               )
             : null}
         </View>
@@ -110,18 +119,11 @@ const styles = createStyle({
   },
   card: {
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#ffffff',
-    shadowColor: '#76809b',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-    padding: 12,
+    backgroundColor: '#eef0fb',
+    padding: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 2,
   },
   ghostCard: {
     opacity: 0,
@@ -169,6 +171,18 @@ const styles = createStyle({
     marginRight: 4,
     minWidth: 40,
     textAlign: 'right',
+  },
+  dragButton: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
+  },
+  dragIcon: {
+    width: 16,
+    height: 16,
+    resizeMode: 'contain',
   },
   actionButton: {
     width: 30,

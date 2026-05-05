@@ -40,13 +40,6 @@ export default forwardRef<MusicListType, MusicListProps>(({ componentId }, ref) 
         listRef.current?.setStatus('loading')
         const page = 1
         setListDetailInfo(info.source, info.id)
-        headerRef.current?.setInfo({
-          name: (info.name || listDetailInfo.info.name) ?? '',
-          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-          desc: listDetailInfo.info.desc || info.desc || '',
-          playCount: (info.play_count ?? listDetailInfo.info.play_count) ?? '',
-          imgUrl: info.img ?? listDetailInfo.info.img,
-        })
         return getListDetail(id, source, page).then((listDetail) => {
           const result = setListDetail(listDetail, id, page)
           if (isUnmountedRef.current) return
@@ -79,7 +72,6 @@ export default forwardRef<MusicListType, MusicListProps>(({ componentId }, ref) 
 
   const handlePlayList: OnlineListProps['onPlayList'] = (index) => {
     const listDetailInfo = songlistState.listDetailInfo
-    // console.log(songlistState.listDetailInfo)
     void handlePlay(listDetailInfo.id, listDetailInfo.source, listDetailInfo.list, index)
   }
   const handleRefresh: OnlineListProps['onRefresh'] = () => {
@@ -118,7 +110,5 @@ export default forwardRef<MusicListType, MusicListProps>(({ componentId }, ref) 
     onRefresh={handleRefresh}
     onLoadMore={handleLoadMore}
     ListHeaderComponent={header}
-    // progressViewOffset={}
    />
 })
-

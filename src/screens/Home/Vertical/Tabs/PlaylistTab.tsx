@@ -518,11 +518,11 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     }
   }, [])
   useEffect(() => {
-    onSharedTopBarVisibleChange?.(!(isSearchMode || Boolean(selectedDetail)))
+    onSharedTopBarVisibleChange?.(!isSearchMode)
     return () => {
       onSharedTopBarVisibleChange?.(true)
     }
-  }, [isSearchMode, onSharedTopBarVisibleChange, selectedDetail])
+  }, [isSearchMode, onSharedTopBarVisibleChange])
   useEffect(() => {
     detailSongsRef.current = detailSongs
   }, [detailSongs])
@@ -1233,15 +1233,8 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
 
   const handleOpenList = useCallback((list: LX.List.MyListInfo) => {
     resetSongDragState()
-    setSelectedDetail({
-      type: 'local',
-      listId: list.id,
-    })
-    setDetailSongs([])
-    setDetailLoading(true)
-    animateDetailScene(1)
-    void loadLocalDetailSongs(list.id, true)
-  }, [animateDetailScene, loadLocalDetailSongs, resetSongDragState])
+    global.app_event.openPlaylistDetail({ type: 'local', listId: list.id })
+  }, [resetSongDragState])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
