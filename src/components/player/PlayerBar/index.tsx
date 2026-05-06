@@ -9,7 +9,8 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import Image from '@/components/common/Image'
 import diskPic from '../../../../assets/img/disk.png'
-import likePic from '../../../../assets/img/like.png'
+import emptyHeartPic from '../../../../assets/img/empty-heart.png'
+import fillInHeartPic from '../../../../assets/img/fill-in-heart.png'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -230,13 +231,13 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
         </TouchableOpacity>
         <View style={[styles.actions, inCard ? styles.actionsInCard : null]}>
           <TouchableOpacity
-            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null, shouldUseGlass ? styles.iconBtnGlass : null]}
+            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null]}
             activeOpacity={0.8}
             onPress={handleToggleLoved}
           >
             {isLoved
-              ? <Text size={inCard ? 20 : 18} color="#ef4444" style={[styles.loveFilled, inCard ? styles.loveFilledInCard : null]}>{'\u2665'}</Text>
-              : <RNImage source={likePic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />}
+              ? <RNImage source={fillInHeartPic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />
+              : <RNImage source={emptyHeartPic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.playBtn, inCard ? styles.playBtnInCard : null, shouldUseGlass ? styles.playBtnGlass : null]}
@@ -246,7 +247,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             <Icon name={isPlay ? 'pause' : 'play'} rawSize={inCard ? 21 : 18} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null, shouldUseGlass ? styles.iconBtnGlass : null]}
+            style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null]}
             activeOpacity={0.8}
             onPress={handleMenuPress}
           >
@@ -408,21 +409,13 @@ const styles = createStyle({
     height: 36,
     borderRadius: 18,
   },
-  loveFilled: {
-    lineHeight: 22,
-    fontWeight: '700',
-  },
-  loveFilledInCard: {
-    lineHeight: 24,
-  },
   loveIcon: {
-    width: 18,
-    height: 18,
-    tintColor: '#9ca3af',
-  },
-  loveIconInCard: {
     width: 20,
     height: 20,
+  },
+  loveIconInCard: {
+    width: 22,
+    height: 22,
   },
   playBtn: {
     width: 40,

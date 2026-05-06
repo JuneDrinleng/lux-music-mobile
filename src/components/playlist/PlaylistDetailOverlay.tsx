@@ -19,7 +19,7 @@ import {
 import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import Text from '@/components/common/Text'
-import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
+import { LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { playList, playListAsQueue } from '@/core/player/player'
 import { getListDetail, getListDetailAll } from '@/core/songlist'
@@ -1084,8 +1084,8 @@ const styles = createStyle({
   },
   scene: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls,
-    elevation: APP_LAYER_INDEX.controls,
+    zIndex: 0,
+    elevation: 0,
     backgroundColor: '#eef0fb',
   },
   container: {

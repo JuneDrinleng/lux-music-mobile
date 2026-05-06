@@ -1,19 +1,17 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
-import { APP_LAYER_INDEX, type NAV_ID_Type } from '@/config/constant'
-import { type PlaylistDetailPayload } from '@/event/appEvent'
+import { type NAV_ID_Type } from '@/config/constant'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
 import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
 import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
-import PlaylistDetailOverlay from '@/components/playlist/PlaylistDetailOverlay'
 
 const viewMap: Record<NAV_ID_Type, number> = {
   nav_search: 0,
@@ -31,12 +29,11 @@ const Main = () => {
   const pagerViewRef = useRef<ComponentRef<typeof PagerView>>(null)
   const activeIndexRef = useRef(viewMap[commonState.navActiveId] ?? 0)
   const searchRequestTokenRef = useRef(0)
-  const playlistDetailRequestRef = useRef<PlaylistDetailPayload | null>(null)
   const [activeNavId, setActiveNavId] = useState<NAV_ID_Type>(commonState.navActiveId)
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
-  const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
+  const [playlistDetailVisible, setPlaylistDetailVisible] = useState(false)
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -46,12 +43,8 @@ const Main = () => {
   }, [])
 
   useEffect(() => {
-    playlistDetailRequestRef.current = playlistDetailRequest
-  }, [playlistDetailRequest])
-
-  useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
-      if (playlistDetailRequestRef.current) setPlaylistDetailRequest(null)
+      if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -63,11 +56,11 @@ const Main = () => {
     return () => {
       global.state_event.off('navActiveIdUpdated', handleNavUpdate)
     }
-  }, [])
+  }, [playlistDetailVisible])
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
-      if (playlistDetailRequestRef.current) setPlaylistDetailRequest(null)
+      if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -85,16 +78,17 @@ const Main = () => {
       global.app_event.off('openVerticalSearchPage', handleOpenSearchPage)
       global.app_event.off('closeVerticalSearchPage', handleCloseSearchPage)
     }
-  }, [])
+  }, [playlistDetailVisible])
 
   useEffect(() => {
-    const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
-      setPlaylistDetailRequest(payload)
-    }
+    const handleOpen = () => { setPlaylistDetailVisible(true) }
+    const handleClose = () => { setPlaylistDetailVisible(false) }
 
-    global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
+    global.app_event.on('openPlaylistDetail', handleOpen)
+    global.app_event.on('closePlaylistDetail', handleClose)
     return () => {
-      global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
+      global.app_event.off('openPlaylistDetail', handleOpen)
+      global.app_event.off('closePlaylistDetail', handleClose)
     }
   }, [])
 
@@ -107,8 +101,7 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  const playlistDetailVisible = Boolean(playlistDetailRequest)
-  const sharedTopBarVisible = !searchPageVisible && (
+  const sharedTopBarVisible = !playlistDetailVisible && !searchPageVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
@@ -116,10 +109,6 @@ const Main = () => {
 
   const handleCloseSearchPage = useCallback(() => {
     setSearchPageVisible(false)
-  }, [])
-
-  const handleClosePlaylistDetail = useCallback(() => {
-    setPlaylistDetailRequest(null)
   }, [])
 
   return (
@@ -152,30 +141,12 @@ const Main = () => {
         request={searchPageRequest}
         onClose={handleCloseSearchPage}
       />
-      {playlistDetailRequest
-        ? <View pointerEvents="box-none" style={styles.overlayLayer}>
-            <View style={styles.playlistDetailOverlay}>
-              <PlaylistDetailOverlay
-                detail={playlistDetailRequest}
-                onClose={handleClosePlaylistDetail}
-              />
-            </View>
-          </View>
-        : null}
     </View>
   )
 }
 
 const styles = createStyle({
   root: {
-    flex: 1,
-  },
-  overlayLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls + 7,
-    elevation: APP_LAYER_INDEX.controls,
-  },
-  playlistDetailOverlay: {
     flex: 1,
   },
   pagerView: {
