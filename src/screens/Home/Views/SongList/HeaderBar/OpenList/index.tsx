@@ -7,8 +7,6 @@ import { type Source } from '@/store/songlist/state'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { useI18n } from '@/lang'
-import { navigations } from '@/navigation'
-import commonState from '@/store/common/state'
 
 // export interface OpenListProps {
 //   onTagChange: (name: string, id: string) => void
@@ -30,15 +28,11 @@ export default forwardRef<OpenListType, {}>((props, ref) => {
   }))
 
   const handleOpenSonglist = (id: string) => {
-    // console.log(id, songlistInfoRef.current.source)
-    navigations.pushSonglistDetailScreen(commonState.componentIds.home!, {
-      play_count: undefined,
+    global.app_event.openPlaylistDetail({
+      type: 'onlineSonglist',
       id,
-      author: '',
-      name: '',
-      img: undefined,
-      desc: undefined,
       source: songlistInfoRef.current.source,
+      name: '',
     })
   }
 

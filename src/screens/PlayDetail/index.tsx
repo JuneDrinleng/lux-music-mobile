@@ -23,7 +23,6 @@ export default ({ componentId }: { componentId: string }) => {
   const bottomInset = useSystemGestureInsetBottom()
 
   useBackHandler(useCallback(() => {
-    if (commonState.componentIds.comment) return false
     if (commonState.componentIds.playDetail !== componentId) return false
     void pop(componentId)
     return true

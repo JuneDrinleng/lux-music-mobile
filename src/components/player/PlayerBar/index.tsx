@@ -1,7 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Platform, StyleSheet, TouchableOpacity, UIManager, View } from 'react-native'
+import { Platform, StyleSheet, TouchableOpacity, UIManager, View, Image as RNImage } from 'react-native'
 import { BlurView } from '@react-native-community/blur'
 import Svg, { Circle } from 'react-native-svg'
 import { useKeyboard } from '@/utils/hooks'
@@ -9,6 +9,7 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import Image from '@/components/common/Image'
 import diskPic from '../../../../assets/img/disk.png'
+import likePic from '../../../../assets/img/like.png'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -235,7 +236,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
           >
             {isLoved
               ? <Text size={inCard ? 20 : 18} color="#ef4444" style={[styles.loveFilled, inCard ? styles.loveFilledInCard : null]}>{'\u2665'}</Text>
-              : <Icon name="love" rawSize={inCard ? 20 : 18} color="#9ca3af" />}
+              : <RNImage source={likePic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.playBtn, inCard ? styles.playBtnInCard : null, shouldUseGlass ? styles.playBtnGlass : null]}
@@ -413,6 +414,15 @@ const styles = createStyle({
   },
   loveFilledInCard: {
     lineHeight: 24,
+  },
+  loveIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#9ca3af',
+  },
+  loveIconInCard: {
+    width: 20,
+    height: 20,
   },
   playBtn: {
     width: 40,

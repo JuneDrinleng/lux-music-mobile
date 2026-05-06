@@ -1,8 +1,9 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View, type FlatListProps } from 'react-native'
+import { FlatList, TouchableOpacity, View, Image as RNImage, type FlatListProps } from 'react-native'
 import { pop } from '@/navigation'
+import shareIcon from '../../../../assets/img/share.png'
 import commonState from '@/store/common/state'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -213,7 +214,7 @@ export default ({ active }: { active: boolean }) => {
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleShare}>
-          <Icon name="share" rawSize={20} color="#0f172a" />
+          <RNImage source={shareIcon} style={styles.headerShareIcon} />
         </TouchableOpacity>
       </View>
 
@@ -321,6 +322,11 @@ const styles = createStyle({
   },
   backIcon: {
     transform: [{ rotate: '-90deg' }],
+  },
+  headerShareIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#0f172a',
   },
   headerCenter: {
     flex: 1,

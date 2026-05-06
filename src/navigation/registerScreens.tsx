@@ -10,7 +10,6 @@ import {
   Agreement,
   Home,
   PlayDetail,
-  SonglistDetail,
   Comment,
   LeaderboardDetail,
 } from '@/screens'
@@ -22,7 +21,6 @@ import {
   AGREEMENT_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
-  SONGLIST_DETAIL_SCREEN,
   COMMENT_SCREEN,
   LEADERBOARD_DETAIL_SCREEN,
   VERSION_MODAL,
@@ -53,7 +51,6 @@ export default () => {
   Navigation.registerComponent(AGREEMENT_SCREEN, () => WrappedComponent(Agreement))
   Navigation.registerComponent(HOME_SCREEN, () => WrappedComponent(Home))
   Navigation.registerComponent(PLAY_DETAIL_SCREEN, () => WrappedComponent(PlayDetail))
-  Navigation.registerComponent(SONGLIST_DETAIL_SCREEN, () => WrappedComponent(SonglistDetail))
   Navigation.registerComponent(COMMENT_SCREEN, () => WrappedComponent(Comment))
   Navigation.registerComponent(LEADERBOARD_DETAIL_SCREEN, () => WrappedComponent(LeaderboardDetail))
   Navigation.registerComponent(VERSION_MODAL, () => WrappedComponent(VersionModal))

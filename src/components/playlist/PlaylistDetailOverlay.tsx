@@ -22,8 +22,8 @@ import Text from '@/components/common/Text'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { playList, playListAsQueue } from '@/core/player/player'
-import { getListDetailAll } from '@/core/songlist'
-import { getListDetailAll as getLeaderboardListDetailAll } from '@/core/leaderboard'
+import { getListDetail, getListDetailAll } from '@/core/songlist'
+import { getListDetail as getLeaderboardListDetail, getListDetailAll as getLeaderboardListDetailAll } from '@/core/leaderboard'
 import { type LeaderboardDetailPayload, type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/event/appEvent'
 import { useI18n } from '@/lang'
 import settingState from '@/store/setting/state'
@@ -31,6 +31,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { applyMusicCoverFallback, pickMusicCover } from '@/utils/musicCover'
+import { getListMusicSync } from '@/utils/listManage'
 import { createStyle } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
 import PlaylistDetailHeader from './PlaylistDetailHeader'
@@ -232,24 +233,71 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
   const loadOnlineDetailSongs = useCallback(async(onlineDetail: OnlinePlaylistDetailPayload, showLoading = false) => {
     const requestId = ++detailRequestIdRef.current
     if (showLoading) setDetailLoading(true)
-    const list = applyMusicCoverFallback(
-      await getListDetailAll(onlineDetail.source, onlineDetail.id),
-      onlineDetail.img ?? null,
-    )
-    if (requestId !== detailRequestIdRef.current) return
-    cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), list, onlineDetail.img ?? null)
-    setDetailSongs([...list])
-    if (showLoading) setDetailLoading(false)
+    try {
+      if (!showLoading) {
+        const list = applyMusicCoverFallback(
+          await getListDetailAll(onlineDetail.source, onlineDetail.id),
+          onlineDetail.img ?? null,
+        )
+        if (requestId !== detailRequestIdRef.current) return
+        cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), list, onlineDetail.img ?? null)
+        setDetailSongs([...list])
+        return
+      }
+      const firstPage = await getListDetail(onlineDetail.id, onlineDetail.source, 1)
+      if (requestId !== detailRequestIdRef.current) return
+      const firstPageList = applyMusicCoverFallback(firstPage.list ?? [], onlineDetail.img ?? null)
+      if (firstPage.total <= firstPage.limit) {
+        cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), firstPageList, onlineDetail.img ?? null)
+        setDetailSongs(firstPageList)
+        setDetailLoading(false)
+        return
+      }
+      setDetailSongs(firstPageList)
+      setDetailLoading(false)
+      const fullList = applyMusicCoverFallback(
+        await getListDetailAll(onlineDetail.source, onlineDetail.id),
+        onlineDetail.img ?? null,
+      )
+      if (requestId !== detailRequestIdRef.current) return
+      cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), fullList, onlineDetail.img ?? null)
+      setDetailSongs([...fullList])
+    } catch {
+      if (requestId !== detailRequestIdRef.current) return
+      if (showLoading) setDetailLoading(false)
+    }
   }, [])
 
   const loadLeaderboardSongs = useCallback(async(lbDetail: LeaderboardDetailPayload, showLoading = false) => {
     const requestId = ++detailRequestIdRef.current
     if (showLoading) setDetailLoading(true)
-    const list = applyMusicCoverFallback(await getLeaderboardListDetailAll(lbDetail.boardId), null)
-    if (requestId !== detailRequestIdRef.current) return
-    cachePlaylistSnapshot(getLbCacheKey(lbDetail), list, null)
-    setDetailSongs([...list])
-    if (showLoading) setDetailLoading(false)
+    try {
+      if (!showLoading) {
+        const list = applyMusicCoverFallback(await getLeaderboardListDetailAll(lbDetail.boardId), null)
+        if (requestId !== detailRequestIdRef.current) return
+        cachePlaylistSnapshot(getLbCacheKey(lbDetail), list, null)
+        setDetailSongs([...list])
+        return
+      }
+      const firstPage = await getLeaderboardListDetail(lbDetail.boardId, 1)
+      if (requestId !== detailRequestIdRef.current) return
+      const firstPageList = applyMusicCoverFallback(firstPage.list ?? [], null)
+      if (firstPage.total <= firstPage.limit) {
+        cachePlaylistSnapshot(getLbCacheKey(lbDetail), firstPageList, null)
+        setDetailSongs(firstPageList)
+        setDetailLoading(false)
+        return
+      }
+      setDetailSongs(firstPageList)
+      setDetailLoading(false)
+      const fullList = applyMusicCoverFallback(await getLeaderboardListDetailAll(lbDetail.boardId), null)
+      if (requestId !== detailRequestIdRef.current) return
+      cachePlaylistSnapshot(getLbCacheKey(lbDetail), fullList, null)
+      setDetailSongs([...fullList])
+    } catch {
+      if (requestId !== detailRequestIdRef.current) return
+      if (showLoading) setDetailLoading(false)
+    }
   }, [])
 
   const getSongRowKey = useCallback((song: LX.Music.MusicInfo, fallbackIndex = 0) => {
@@ -802,14 +850,29 @@ export default function PlaylistDetailOverlay({ detail, onClose }: PlaylistDetai
     setImportSelectedMap({})
     if (selectedListId) {
       const cached = playlistSnapshotCache.get(selectedListId)
-      setDetailSongs(cached ? [...cached.songs] : [])
-      setDetailLoading(!cached)
-      const handle = InteractionManager.runAfterInteractions(() => {
-        void loadLocalDetailSongs(selectedListId, !cached)
-      })
-      return () => {
-        handle.cancel()
+      if (cached) {
+        setDetailSongs([...cached.songs])
+        setDetailLoading(false)
+        const handle = InteractionManager.runAfterInteractions(() => {
+          void loadLocalDetailSongs(selectedListId, false)
+        })
+        return () => {
+          handle.cancel()
+        }
       }
+      const memorySongs = getListMusicSync(selectedListId)
+      if (memorySongs.length) {
+        setDetailSongs([...memorySongs])
+        setDetailLoading(false)
+        const handle = InteractionManager.runAfterInteractions(() => {
+          void loadLocalDetailSongs(selectedListId, false)
+        })
+        return () => {
+          handle.cancel()
+        }
+      }
+      setDetailLoading(true)
+      void loadLocalDetailSongs(selectedListId, true)
     }
     if (selectedOnlineDetail) {
       const cached = playlistSnapshotCache.get(getOnlinePlaylistDetailKey(selectedOnlineDetail))
@@ -1021,8 +1084,8 @@ const styles = createStyle({
   },
   scene: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls + 4,
-    elevation: APP_LAYER_INDEX.controls + 4,
+    zIndex: APP_LAYER_INDEX.controls,
+    elevation: APP_LAYER_INDEX.controls,
     backgroundColor: '#eef0fb',
   },
   container: {

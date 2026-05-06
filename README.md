@@ -8,6 +8,8 @@
 
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
+**注意：这只是一个播放器，不具备具备自动检索音乐来源以及破解付费墙的能力。音乐来源需依赖用户自行解决，与本项目无关。**
+
 ## 项目简介
 
 `Lux Music` 是在 `LX Music Mobile` 基础上演进的一个 UI 重构版本。

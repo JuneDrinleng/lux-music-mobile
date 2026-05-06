@@ -11,7 +11,7 @@ const MAX_IMAGE_HEIGHT = scaleSizeH(260)
 
 
 export default ({ url, maxWidth }: { url: string, maxWidth: number }) => {
-  const [show, setShow] = useState(false)
+  const [show] = useState(true)
   const [wh, setWH] = useState({ width: 0, height: 0 })
   const theme = useTheme()
 
@@ -48,7 +48,7 @@ export default ({ url, maxWidth }: { url: string, maxWidth: number }) => {
         {
           show ? (<Image
             url={url}
-            style={{ height: wh.height, width: wh.width, borderWidth: BorderWidths.normal, borderColor: theme['c-border-background'] }}
+            style={{ height: wh.height, width: wh.width }}
           />) : (
             <TouchableOpacity style={{ ...styles.defaultPic, borderColor: theme['c-border-background'], backgroundColor: theme['c-primary-light-200-alpha-900'] }} onPress={() => { setShow(true) }}>
               <Text size={13} color={theme['c-primary-font-hover']}>{global.i18n.t('comment_show_image')}</Text>

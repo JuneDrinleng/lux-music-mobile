@@ -4,9 +4,10 @@ import music from '@/utils/musicSdk'
 import List, { type ListType } from './components/List'
 const limit = 15
 
-export default ({ musicInfo, onUpdateTotal }: {
+export default ({ musicInfo, onUpdateTotal, refreshKey = 0 }: {
   musicInfo: LX.Music.MusicInfoOnline
   onUpdateTotal: (total: number) => void
+  refreshKey?: number
 }) => {
   // const [isLoading, setIsLoading] = useState(false)
   const listRef = useRef<ListType>(null)
@@ -65,6 +66,22 @@ export default ({ musicInfo, onUpdateTotal }: {
     }).finally(updateStatus)
   }
 
+  const handleSilentRefresh = () => {
+    if (listInfo.current.isLoading) return
+    listInfo.current.isLoading = true
+    void handleGetComment(musicInfo, 1).then(({ comments, maxPage, total }) => {
+      listInfo.current.total = total
+      listInfo.current.maxPage = maxPage
+      onUpdateTotal(total)
+      let isEnd = maxPage === 1
+      if (listInfo.current.isEnd != isEnd) listInfo.current.isEnd = isEnd
+      listRef.current?.setList(filterList(comments))
+    }).finally(() => {
+      listInfo.current.isLoading = false
+      updateStatus()
+    })
+  }
+
   const handleShowComment = (musicInfo: LX.Music.MusicInfoOnline) => {
     if (!musicInfo.id || !music[musicInfo.source].comment) return
     listInfo.current.page = 1
@@ -92,6 +109,11 @@ export default ({ musicInfo, onUpdateTotal }: {
     handleShowComment(musicInfo)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicInfo.id])
+
+  useEffect(() => {
+    if (refreshKey > 0) handleSilentRefresh()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
 
   return (

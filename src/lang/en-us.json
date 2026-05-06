@@ -25,6 +25,8 @@
   "comment_refresh": "This is already the comment for \"{name}\"",
   "comment_show_image": "Show Picture",
   "comment_show_text": "Expand",
+  "comment_show_all_replies": "Show Replies",
+  "comment_collapse_replies": "Hide Replies",
   "comment_tab_hot": "Top {total}",
   "comment_tab_new": "Latest {total}",
   "comment_title": "Comments for \"{name}\"",

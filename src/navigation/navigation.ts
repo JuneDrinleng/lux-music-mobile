@@ -9,7 +9,6 @@ import {
   AGREEMENT_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
-  SONGLIST_DETAIL_SCREEN,
   COMMENT_SCREEN,
   LEADERBOARD_DETAIL_SCREEN,
 } from './screenNames'
@@ -17,7 +16,7 @@ import {
 import themeState from '@/store/theme/state'
 import { getStatusBarStyle } from './utils'
 import { windowSizeTools } from '@/utils/windowSizeTools'
-import { type ListInfoItem } from '@/store/songlist/state'
+
 
 // const store = getStore()
 // const getTheme = () => getter('common', 'theme')(store.getState())
@@ -314,58 +313,7 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
     })
   })
 }
-export function pushSonglistDetailScreen(componentId: string, info: ListInfoItem) {
-  const theme = themeState.theme
 
-  void Navigation.push(componentId, {
-    component: {
-      name: SONGLIST_DETAIL_SCREEN,
-      passProps: {
-        info,
-      },
-      options: {
-        topBar: {
-          visible: false,
-          height: 0,
-          drawBehind: false,
-        },
-        statusBar: {
-          drawBehind: true,
-          visible: true,
-          style: getStatusBarStyle(theme.isDark),
-          backgroundColor: 'transparent',
-        },
-        navigationBar: {
-          drawBehind: true,
-          backgroundColor: 'transparent',
-        },
-        layout: {
-          componentBackgroundColor: theme['c-content-background'],
-        },
-        animations: {
-          push: {
-            content: {
-              translationX: {
-                from: windowSizeTools.getSize().width,
-                to: 0,
-                duration: 300,
-              },
-            },
-          },
-          pop: {
-            content: {
-              translationX: {
-                from: 0,
-                to: windowSizeTools.getSize().width,
-                duration: 300,
-              },
-            },
-          },
-        },
-      },
-    },
-  })
-}
 export function pushCommentScreen(componentId: string) {
   /*
     Navigation.setDefaultOptions({

@@ -23,7 +23,7 @@ import leaderboardState, { type BoardItem } from '@/store/leaderboard/state'
 import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboard/listAction'
 import { pickMusicCover } from '@/utils/musicCover'
 import { getPicUrl } from '@/core/music/online'
-import { getCachedImageUri } from '@/utils/imageCache'
+import { cacheImageUri, getCachedImageUri } from '@/utils/imageCache'
 import { getData, saveData } from '@/plugins/storage'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
@@ -1010,6 +1010,13 @@ export default memo(() => {
         count: item.count,
         cover: item.cover,
       }
+    }
+    // Pre-warm runtime image cache so Image components resolve synchronously
+    const coverUrls = Object.values(next)
+      .map(item => item.cover)
+      .filter((url): url is string => Boolean(url))
+    if (coverUrls.length) {
+      await Promise.all(coverUrls.map(url => cacheImageUri(url).catch(() => null)))
     }
     setPlaylistMetaMap(next)
   }, [libraryItems])

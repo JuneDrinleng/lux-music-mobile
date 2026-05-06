@@ -1,7 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, TouchableOpacity, View } from 'react-native'
+import { Animated, Easing, Image as RNImage, TouchableOpacity, View } from 'react-native'
 import { pop } from '@/navigation'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -18,6 +18,9 @@ import SeekBar from './components/SeekBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
+import likeIcon from '../../../../assets/img/empty-heart.png'
+import likedIcon from '../../../../assets/img/fill-in-heart.png'
+import shareIcon from '../../../../assets/img/share.png'
 
 const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
@@ -50,7 +53,7 @@ const getSourceTrackColor = (color: string) => {
   return '#e5e7eb'
 }
 
-export default ({ componentId, active }: { componentId: string, active: boolean }) => {
+export default ({ componentId, active, onCommentPress }: { componentId: string, active: boolean, onCommentPress?: () => void }) => {
   const statusBarHeight = useStatusbarHeight()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
@@ -368,7 +371,7 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={handleShare}>
-          <Icon name="share" rawSize={20} color="#111827" />
+          <RNImage source={shareIcon} style={styles.headerShareIcon} />
         </TouchableOpacity>
       </View>
 
@@ -491,7 +494,7 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
       <View style={styles.bottomPanel}>
         <View style={styles.songInfo}>
           <View style={styles.titleRow}>
-            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={() => { onCommentPress?.() }}>
               <Icon name="comment" rawSize={20} color="#9ca3af" />
             </TouchableOpacity>
             <Text size={24} color="#111827" numberOfLines={1} style={styles.songTitle}>
@@ -499,8 +502,8 @@ export default ({ componentId, active }: { componentId: string, active: boolean 
             </Text>
             <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
               {isLoved
-                ? <Text size={20} color="#ef4444" style={styles.loveFilled}>{'\u2665'}</Text>
-                : <Icon name="love" rawSize={20} color="#9ca3af" />}
+                ? <RNImage source={likedIcon} style={styles.likedIcon} />
+                : <RNImage source={likeIcon} style={styles.sideActionIcon} />}
             </TouchableOpacity>
           </View>
           <Text size={18} color={sourceAccentColor} numberOfLines={1} style={styles.singer}>
@@ -590,6 +593,11 @@ const styles = createStyle({
   },
   backIcon: {
     transform: [{ rotate: '-90deg' }],
+  },
+  headerShareIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#111827',
   },
   headerCenter: {
     flex: 1,
@@ -745,9 +753,14 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loveFilled: {
-    lineHeight: 24,
-    fontWeight: '700',
+  sideActionIcon: {
+    width: 20,
+    height: 20,
+    tintColor: '#9ca3af',
+  },
+  likedIcon: {
+    width: 20,
+    height: 20,
   },
   songTitle: {
     flex: 1,

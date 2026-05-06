@@ -33,7 +33,6 @@ export const LIST_IDS = {
 export enum COMPONENT_IDS {
   home = 'home',
   playDetail = 'playDetail',
-  songlistDetail = 'songlistDetail',
   comment = 'comment',
 }
 
@@ -42,8 +41,6 @@ export enum NAV_SHEAR_NATIVE_IDS {
   playDetail_header = 'playDetail_header',
   // playDetail_pageIndicator = 'playDetail_pageIndicator',
   playDetail_player = 'playDetail_player',
-  songlistDetail_pic = 'songlistDetail_pic',
-  songlistDetail_title = 'songlistDetail_title',
 }
 
 

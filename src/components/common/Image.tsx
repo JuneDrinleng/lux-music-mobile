@@ -129,7 +129,7 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     <View style={StyleSheet.compose(styles.imageWrap, style)}>
       {shouldShowFallback ? (
         <View style={[styles.imageLayer, styles.fallbackCenterWrap]}>
-          <_Image source={placeholder ?? defaultPic} style={placeholderStyle} resizeMode="contain" />
+          <_Image source={placeholder ?? defaultPic} style={[styles.placeholderImage, placeholderStyle]} resizeMode="contain" />
         </View>
       ) : null}
       <_Image
@@ -176,6 +176,10 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   emptyPicImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
     width: '100%',
     height: '100%',
   },

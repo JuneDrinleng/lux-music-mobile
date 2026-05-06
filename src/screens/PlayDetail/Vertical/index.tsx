@@ -1,12 +1,13 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AppState, View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import Lyric from './Lyric'
 import Pic from './Pic'
-import commonState, { type InitState as CommonState } from '@/store/common/state'
+import Comment from '@/screens/Comment'
 import { createStyle } from '@/utils/tools'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 
 export default memo(({
@@ -14,34 +15,50 @@ export default memo(({
 }: {
   componentId: string
 }) => {
-  const [pageIndex, setPageIndex] = useState(0)
+  const [pageIndex, setPageIndex] = useState(1)
+  const [commentRefreshKey, setCommentRefreshKey] = useState(0)
   const showLyricRef = useRef(false)
+  const pagerViewRef = useRef<PagerView>(null)
+
+  const triggerCommentRefresh = useCallback(() => {
+    setCommentRefreshKey(k => k + 1)
+  }, [])
+
+  const onCommentBack = useCallback(() => {
+    pagerViewRef.current?.setPage(1)
+  }, [])
+
+  const onPicCommentPress = useCallback(() => {
+    pagerViewRef.current?.setPage(0)
+  }, [])
 
   const onPageSelected = ({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
-    setPageIndex(nativeEvent.position)
-    showLyricRef.current = nativeEvent.position === 1
+    const position = nativeEvent.position
+    setPageIndex(position)
+    showLyricRef.current = position === 2
     if (showLyricRef.current) screenkeepAwake()
     else screenUnkeepAwake()
+    if (position === 0) triggerCommentRefresh()
   }
+
+  useBackHandler(useCallback(() => {
+    if (pageIndex === 0) {
+      pagerViewRef.current?.setPage(1)
+      return true
+    }
+    return false
+  }, [pageIndex]))
 
   useEffect(() => {
     const appstateListener = AppState.addEventListener('change', state => {
       if (state === 'active') {
-        if (showLyricRef.current && !commonState.componentIds.comment) screenkeepAwake()
+        if (showLyricRef.current) screenkeepAwake()
       } else if (state === 'background') {
         screenUnkeepAwake()
       }
     })
 
-    const handleComponentIdsChange = (ids: CommonState['componentIds']) => {
-      if (ids.comment) screenUnkeepAwake()
-      else if (showLyricRef.current && AppState.currentState === 'active') screenkeepAwake()
-    }
-
-    global.state_event.on('componentIdsUpdated', handleComponentIdsChange)
-
     return () => {
-      global.state_event.off('componentIdsUpdated', handleComponentIdsChange)
       appstateListener.remove()
       screenUnkeepAwake()
     }
@@ -49,12 +66,15 @@ export default memo(({
 
   return (
     <View style={styles.container}>
-      <PagerView onPageSelected={onPageSelected} style={styles.pagerView}>
+      <PagerView ref={pagerViewRef} initialPage={1} onPageSelected={onPageSelected} style={styles.pagerView}>
         <View collapsable={false}>
-          <Pic componentId={componentId} active={pageIndex === 0} />
+          <Comment embedded onBack={onCommentBack} refreshKey={commentRefreshKey} />
         </View>
         <View collapsable={false}>
-          <Lyric active={pageIndex === 1} />
+          <Pic componentId={componentId} active={pageIndex === 1} onCommentPress={onPicCommentPress} />
+        </View>
+        <View collapsable={false}>
+          <Lyric active={pageIndex === 2} />
         </View>
       </PagerView>
     </View>
