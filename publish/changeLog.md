@@ -1,16 +1,18 @@
-## v0.2.16
+## v0.2.17
 
-本次更新聚焦歌单详情页层级架构重构与播放控件交互优化，解决歌单详情浮层覆盖底部导航与迷你播放栏的问题，并统一喜欢按钮图标表达。
+本次更新聚焦歌单详情页性能优化，将 PlaylistDetailOverlay 从单体组件重构为可复用 hook 架构，大幅提升首次打开流畅度。
 
-### 调整
+### 性能优化
 
-- 歌单详情浮层（PlaylistDetailOverlay）架构重构：渲染挂载点从 Main.tsx（Content 内部）移至 Vertical/index.tsx（Content 同级），实现与底部控件的层级解耦。
-- 歌单详情页底部控件保持可见：底部导航栏（BottomNav）与迷你播放栏（PlayerBar）在歌单详情打开时浮于详情之上，支持直接切换 Tab 和控制播放。
-- 歌单详情页顶部栏自动隐藏：打开歌单详情时 SharedTopBar 不再显示，避免与底部控件层级联动调整时一并浮现。
-- PlaylistDetailOverlay 内部场景层（scene）的 `zIndex` 与 `elevation` 收敛为 0，由外层容器 `playlistDetailLayer` 统一管理层级（zIndex: `controls`）。
-- PlayerBar 喜欢按钮图标更换：未喜欢态从 `like.png` 替换为 `empty-heart.png`，已喜欢态从 `♥` 文字字符替换为 `fill-in-heart.png` 位图图标，移除对应的文字样式。
+- PlaylistDetailOverlay 组件化重构：从 ~1100 行单体组件拆分为 usePlaylistDetailData / useSongDragReorder / usePlaylistImport 三个独立 hook，减少首帧 reconciliation 负担。
+- renderSongItem 回调稳定化：使用 ref 替代 state 依赖，回调依赖从 14 项精简为 11 项全部稳定引用，避免拖拽排序期间不必要的行重渲染。
+- PlaylistDetailSongItem 添加 React.memo 包裹及自定义比较函数，阻止未变更行在父组件更新时的无效重渲染。
+- PlaylistDetailOverlay 添加 React.memo 及自定义比较函数，避免播放栏等父组件状态变化触发冗余渲染。
+- MusicMultiAddModal 按需挂载：仅在线歌单/榜单详情时才渲染，本地歌单打开不再加载该重型组件。
+- 歌单详情 Hero 封面预加载：detailHeroCover 确定后立即调用 Image.prefetch，减少封面白屏时间。
+- 歌单详情入场动画延迟一帧启动：首帧先完成布局渲染，再通过 requestAnimationFrame 触发滑动动画，减少首帧卡顿。
 
 ### 构建
 
-- 版本号更新到 0.2.16。
-- Android versionCode 升级到 107。
+- 版本号更新到 0.2.17。
+- Android versionCode 升级到 108。

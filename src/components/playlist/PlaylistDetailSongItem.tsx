@@ -1,6 +1,6 @@
+import { memo, useCallback, useEffect, useState } from 'react'
 import { Animated, Image as RNImage, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
-import { useCallback, useEffect, useState } from 'react'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
@@ -30,7 +30,7 @@ interface PlaylistDetailSongItemProps {
   onRemove?: () => void
 }
 
-export default ({
+const PlaylistDetailSongItem = ({
   song,
   sourceTone,
   shiftAnim,
@@ -51,7 +51,7 @@ export default ({
 
   const handleCoverError = useCallback(async(_url: string | number) => {
     if (song.source === 'local') return
-    const onlineSong = song as LX.Music.MusicInfoOnline
+    const onlineSong = song
     const altUrl = await fetchAltCoverUrl(onlineSong)
     if (altUrl) {
       onlineSong.meta.picUrl = altUrl
@@ -190,4 +190,18 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
+})
+
+export default memo(PlaylistDetailSongItem, (prev, next) => {
+  return prev.song === next.song &&
+    prev.sourceTone === next.sourceTone &&
+    prev.shiftAnim === next.shiftAnim &&
+    prev.fallbackCover === next.fallbackCover &&
+    prev.listId === next.listId &&
+    prev.isGhost === next.isGhost &&
+    prev.canEdit === next.canEdit &&
+    prev.onLayout === next.onLayout &&
+    prev.onPress === next.onPress &&
+    prev.onDragPressIn === next.onDragPressIn &&
+    prev.onRemove === next.onRemove
 })
