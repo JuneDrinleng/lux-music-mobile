@@ -175,6 +175,7 @@ export const usePlaylistDetailData = (
       }
       const memorySongs = getListMusicSync(selectedListId)
       if (memorySongs.length) {
+        cachePlaylistSnapshot(selectedListId, memorySongs)
         setDetailSongs([...memorySongs])
         setDetailLoading(false)
         const handle = InteractionManager.runAfterInteractions(() => {
