@@ -7,6 +7,7 @@ import Text from '@/components/common/Text'
 import { type useI18n } from '@/lang'
 import PlaylistImportPanel from './PlaylistImportPanel'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
+import { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 
 interface ImportCandidate {
   id: string
@@ -125,6 +126,11 @@ export default ({
           data={detailSongs}
           renderItem={renderSongItem}
           keyExtractor={(item, index) => getSongRowKey(item, index)}
+          getItemLayout={(_data, index) => ({
+            length: SONG_ITEM_HEIGHT,
+            offset: SONG_ITEM_HEIGHT * index,
+            index,
+          })}
           ListHeaderComponent={detailHeader}
           ListEmptyComponent={(
             <View style={styles.emptyCard}>

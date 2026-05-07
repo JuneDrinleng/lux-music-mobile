@@ -11,6 +11,8 @@ import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegis
 import { updateListMusics } from '@/core/list'
 import dragReorderIcon from '../../../assets/img/drag-reorder.png'
 
+export const SONG_ITEM_HEIGHT = 70
+
 interface SourceTone {
   text: string
   background: string

@@ -113,8 +113,6 @@ export const usePlaylistDetailData = (
         setDetailLoading(false)
         return
       }
-      setDetailSongs(firstPageList)
-      setDetailLoading(false)
       const fullList = applyMusicCoverFallback(
         await getListDetailAll(onlineDetail.source, onlineDetail.id),
         onlineDetail.img ?? null,
@@ -122,6 +120,7 @@ export const usePlaylistDetailData = (
       if (requestId !== detailRequestIdRef.current) return
       cachePlaylistSnapshot(getOnlinePlaylistDetailKey(onlineDetail), fullList, onlineDetail.img ?? null)
       setDetailSongs([...fullList])
+      setDetailLoading(false)
     } catch {
       if (requestId !== detailRequestIdRef.current) return
       if (showLoading) setDetailLoading(false)
@@ -148,12 +147,11 @@ export const usePlaylistDetailData = (
         setDetailLoading(false)
         return
       }
-      setDetailSongs(firstPageList)
-      setDetailLoading(false)
       const fullList = applyMusicCoverFallback(await getLeaderboardListDetailAll(lbDetail.boardId), null)
       if (requestId !== detailRequestIdRef.current) return
       cachePlaylistSnapshot(getLbCacheKey(lbDetail), fullList, null)
       setDetailSongs([...fullList])
+      setDetailLoading(false)
     } catch {
       if (requestId !== detailRequestIdRef.current) return
       if (showLoading) setDetailLoading(false)

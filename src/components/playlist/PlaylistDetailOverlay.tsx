@@ -5,6 +5,7 @@ import {
   Easing,
   FlatList,
   Image as RNImage,
+  InteractionManager,
   Platform,
   StyleSheet,
   View,
@@ -28,7 +29,7 @@ import { applyMusicCoverFallback } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
 import PlaylistDetailHeader from './PlaylistDetailHeader'
-import PlaylistDetailSongItem from './PlaylistDetailSongItem'
+import PlaylistDetailSongItem, { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import PlaylistImportPanel from './PlaylistImportPanel'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
@@ -333,11 +334,12 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   useEffect(() => {
     setKeepPlayBarVisible(false)
     detailSceneAnim.setValue(0)
-    const raf = requestAnimationFrame(() => {
-      animateDetailScene(1)
+    const interactionHandle = InteractionManager.createInteractionHandle()
+    animateDetailScene(1, () => {
+      InteractionManager.clearInteractionHandle(interactionHandle)
     })
     return () => {
-      cancelAnimationFrame(raf)
+      InteractionManager.clearInteractionHandle(interactionHandle)
       setKeepPlayBarVisible(false)
     }
   }, [animateDetailScene, detailSceneAnim, detailData.selectedDetailCacheKey])
@@ -399,6 +401,11 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
             data={detailData.detailSongs}
             renderItem={renderSongItem}
             keyExtractor={(item, index) => drag.getSongRowKey(item, index)}
+            getItemLayout={(_data, index) => ({
+              length: SONG_ITEM_HEIGHT,
+              offset: SONG_ITEM_HEIGHT * index,
+              index,
+            })}
             ListHeaderComponent={detailHeader}
             ListEmptyComponent={(
               <View style={styles.emptyCard}>
