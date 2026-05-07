@@ -29,7 +29,7 @@ import { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
 import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
 import PlaylistDetailHeader from '@/components/playlist/PlaylistDetailHeader'
 import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem'
-import PlaylistDetailScene from '@/components/playlist/PlaylistDetailScene'
+import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
 import PlaylistSearchScene from '@/components/playlist/PlaylistSearchScene'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
@@ -1894,57 +1894,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     )
   }
 
-  const renderDetailScene = () => {
-    if (!selectedOnlineDetail && !selectedListInfo) return null
-    return (
-      <PlaylistDetailScene
-        styles={styles}
-        t={t}
-        bottomDockHeight={bottomDockHeight}
-        modalBottomInset={modalBottomInset}
-        selectedListId={selectedListId}
-        selectedListInfo={selectedListInfo}
-        detailSongs={detailSongs}
-        detailHeader={detailHeader}
-        detailLoading={detailLoading}
-        isSongDragActive={isSongDragActive}
-        draggingSong={draggingSong}
-        dragTop={dragTop}
-        dragScale={dragScale}
-        dragOpacity={dragOpacity}
-        detailHeroCover={detailHeroCover}
-        detailListRef={detailListRef}
-        detailListWrapRef={detailListWrapRef}
-        detailListPanHandlers={detailListPanResponder.panHandlers}
-        musicMultiAddModalRef={musicMultiAddModalRef}
-        renameListDialogRef={renameListDialogRef}
-        removeListDialogRef={removeListDialogRef}
-        removeSongDialogRef={removeSongDialogRef}
-        pendingDeleteSong={pendingDeleteSong}
-        isImportDrawerVisible={isImportDrawerVisible}
-        importLoading={importLoading}
-        importSubmitting={importSubmitting}
-        importCandidates={importCandidates}
-        importSelectedMap={importSelectedMap}
-        areAllImportSongsSelected={areAllImportSongsSelected}
-        importSelectedCount={importSelectedCount}
-        renderSongItem={renderSongItem}
-        getSongRowKey={getSongRowKey}
-        getSourceTone={getSourceTagColor}
-        onDetailWrapLayout={handleDetailWrapLayout}
-        onDetailListScroll={handleDetailListScroll}
-        onDetailListContentSizeChange={handleDetailListContentSizeChange}
-        onCloseImportDrawer={handleCloseImportDrawer}
-        onImportSelectedSongs={() => { void handleImportSelectedSongs() }}
-        onToggleSelectAllImportSongs={handleToggleSelectAllImportSongs}
-        onToggleImportSong={handleToggleImportSong}
-        onRenameList={handleRenameList}
-        onRemoveSelectedList={handleRemoveSelectedList}
-        onCancelRemoveSong={handleCancelRemoveSong}
-        onConfirmRemoveSong={handleConfirmRemoveSong}
-      />
-    )
-  }
 
   const profileHeroCard = (
     <TouchableOpacity style={styles.profileHero} activeOpacity={0.82} onPress={handleOpenProfileDetail}>
@@ -2139,7 +2088,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
                 },
               ]}
             >
-              {renderDetailScene()}
+              <PlaylistDetailView detail={selectedDetail} onClose={handleCloseDetail} bottomPadding={bottomDockHeight} />
             </Animated.View>
           </>
         : null}
@@ -2318,19 +2267,14 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f0f1f6',
     padding: 2,
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
   },
   detailBackBtnInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: '#e8e9f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2339,27 +2283,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  searchGlassTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  searchGlassFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
-  },
-  searchGlassRim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: '#cdd2de',
+    backgroundColor: '#dce0e9',
   },
   searchContent: {
     flex: 1,

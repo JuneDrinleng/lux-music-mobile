@@ -245,6 +245,14 @@ export class AppEvent extends Event {
     this.emit('showPlayQueuePanel')
   }
 
+  showPlayDetail() {
+    this.emit('showPlayDetail')
+  }
+
+  hidePlayDetail() {
+    this.emit('hidePlayDetail')
+  }
+
   hidePlayQueuePanel() {
     this.emit('hidePlayQueuePanel')
   }

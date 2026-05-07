@@ -618,7 +618,7 @@ export default function SearchPage({
             : <MaterialCommunityIcon name="history" size={16} color="#757b85" />}
         </View>
         <View style={styles.initialRowBody}>
-          <Text size={14} color="#1a1c1e" numberOfLines={1} style={styles.initialRowTitle}>{keyword}</Text>
+          <Text size={16} color="#1a1c1e" numberOfLines={1} style={styles.initialRowTitle}>{keyword}</Text>
         </View>
         {isSuggestion
           ? <MaterialCommunityIcon
@@ -857,16 +857,14 @@ const styles = createStyle({
     paddingBottom: 6,
   },
   initialRow: {
-    minHeight: 56,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
+    paddingVertical: 10,
   },
   initialRowSpacing: {
-    marginBottom: 10,
+    marginBottom: 0,
   },
   initialRowIcon: {
     width: 18,
@@ -952,19 +950,14 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f0f1f6',
     padding: 2,
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
   },
   backInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: '#e8e9f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -979,27 +972,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  searchGlassTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  searchGlassFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
-  },
-  searchGlassRim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: '#cdd2de',
+    backgroundColor: '#dce0e9',
   },
   searchContent: {
     flex: 1,

@@ -3,11 +3,13 @@
 import { View } from 'react-native'
 import Aside from './Aside'
 import PlayerBar from '@/components/player/PlayerBar'
+import PlayDetailOverlay from '../Vertical/PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
 import Header from './Header'
 import Main from './Main'
 import { createStyle } from '@/utils/tools'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
+import { useComponentIds } from '@/store/common/hook'
 
 const styles = createStyle({
   container: {
@@ -22,6 +24,7 @@ const styles = createStyle({
 
 export default () => {
   const bottomInset = useSystemGestureInsetBottom()
+  const componentIds = useComponentIds()
 
   return (
     <>
@@ -36,6 +39,7 @@ export default () => {
           </View>
         </View>
       </View>
+      <PlayDetailOverlay componentId={componentIds.home ?? ''} />
     </>
   )
 }

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, Image as RNImage, TouchableOpacity, View } from 'react-native'
-import { pop } from '@/navigation'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { createStyle, shareMusic, toast } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
+import { usePlayDetailClose } from '../context'
 import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useWindowSize } from '@/utils/hooks'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
@@ -55,6 +55,7 @@ const getSourceTrackColor = (color: string) => {
 
 export default ({ componentId, active, onCommentPress }: { componentId: string, active: boolean, onCommentPress?: () => void }) => {
   const statusBarHeight = useStatusbarHeight()
+  const closePlayDetail = usePlayDetailClose()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
   const { nowPlayTimeStr, maxPlayTimeStr, progress, maxPlayTime } = useProgress(active)
@@ -161,7 +162,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
   }), [discSize])
 
   const goBack = () => {
-    void pop(componentId)
+    closePlayDetail()
   }
   const refreshLovedState = useCallback(async(targetId?: string | null) => {
     const musicId = targetId ?? musicInfo.id
@@ -754,13 +755,13 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   sideActionIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     tintColor: '#9ca3af',
   },
   likedIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   songTitle: {
     flex: 1,

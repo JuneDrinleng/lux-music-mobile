@@ -17,8 +17,7 @@ import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/
 import { collectMusic, togglePlay, uncollectMusic } from '@/core/player/player'
 import { getListMusics } from '@/core/list'
 import { useSettingValue } from '@/store/setting/hook'
-import commonState from '@/store/common/state'
-import { navigations } from '@/navigation'
+import { resolveImageUri } from '@/utils/imageCache'
 import { LIST_IDS } from '@/config/constant'
 import { useI18n } from '@/lang'
 
@@ -103,7 +102,12 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
 
   const showPlayDetail = () => {
     if (!musicInfo.id) return
-    navigations.pushPlayDetailScreen(commonState.componentIds.home!)
+    const pic = musicInfo.pic
+    if (pic) {
+      const picUrl = pic.startsWith('/') ? `file://${pic}` : pic
+      void resolveImageUri(picUrl)
+    }
+    global.app_event.showPlayDetail()
   }
   const handleMenuPress = () => {
     if (isHome) {
@@ -410,12 +414,12 @@ const styles = createStyle({
     borderRadius: 18,
   },
   loveIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   loveIconInCard: {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
   },
   playBtn: {
     width: 40,

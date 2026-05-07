@@ -6,8 +6,9 @@ import Content from './Content'
 import PlayerBar from '@/components/player/PlayerBar'
 import BottomNav from './BottomNav'
 import PlayQueueSheet from './PlayQueueSheet'
+import PlayDetailOverlay from './PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
-import PlaylistDetailOverlay from '@/components/playlist/PlaylistDetailOverlay'
+import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
@@ -25,7 +26,7 @@ const styles = createStyle({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: APP_LAYER_INDEX.controls,
+    zIndex: 27,
     elevation: 0,
   },
   bottomLayer: {
@@ -33,7 +34,7 @@ const styles = createStyle({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 21,
+    zIndex: 28,
     elevation: 21,
     backgroundColor: 'transparent',
   },
@@ -73,6 +74,7 @@ export default () => {
 
   const handleClosePlaylistDetail = useCallback(() => {
     setPlaylistDetailRequest(null)
+    global.app_event.closePlaylistDetail()
   }, [])
 
   return (
@@ -81,7 +83,7 @@ export default () => {
       <Content />
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
-            <PlaylistDetailOverlay
+            <PlaylistDetailView
               detail={playlistDetailRequest}
               onClose={handleClosePlaylistDetail}
             />
@@ -96,6 +98,7 @@ export default () => {
         </View>
       </View>
       <PlayQueueSheet systemGestureInsetBottom={bottomInset} enabled={!componentIds.playDetail} />
+      <PlayDetailOverlay componentId={componentIds.home ?? ''} />
     </View>
   )
 }

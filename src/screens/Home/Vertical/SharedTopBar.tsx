@@ -308,8 +308,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    borderColor: '#cdd2de',
+    backgroundColor: '#dce0e9',
   },
   searchContent: {
     paddingRight: 6,

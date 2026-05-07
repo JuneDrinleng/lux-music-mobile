@@ -11,14 +11,16 @@ import { useBgPic } from '@/store/common/hook'
 
 interface Props {
   children: React.ReactNode
+  pic?: string | null
 }
 
 const BLUR_RADIUS = Math.max(scaleSizeAbsHR(18), 10)
 
-export default ({ children }: Props) => {
+export default ({ children, pic: propPic }: Props) => {
   const theme = useTheme()
   const windowSize = useWindowSize()
-  const pic = useBgPic()
+  const globalPic = useBgPic()
+  const pic = propPic !== undefined ? propPic : globalPic
   // const [wh, setWH] = useState<{ width: number | string, height: number | string }>({ width: '100%', height: Dimensions.get('screen').height })
 
   // 固定宽高度 防止弹窗键盘时大小改变导致背景被缩放

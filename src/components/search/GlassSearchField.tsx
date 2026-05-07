@@ -1,10 +1,7 @@
 import { type ReactNode } from 'react'
-import { Animated, Platform, StyleSheet, UIManager, View, type StyleProp, type ViewStyle } from 'react-native'
-import { BlurView } from '@react-native-community/blur'
+import { Animated, View, type StyleProp, type ViewStyle } from 'react-native'
 
 import { createStyle } from '@/utils/tools'
-
-const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 
 export default ({
   children,
@@ -25,21 +22,6 @@ export default ({
 
   return (
     <View style={[styles.field, style]}>
-      {hasNativeBlurView
-        ? <>
-            <BlurView
-              style={StyleSheet.absoluteFillObject}
-              blurType={Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'}
-              blurAmount={Platform.OS === 'ios' ? 34 : 24}
-              blurRadius={Platform.OS === 'android' ? 24 : undefined}
-              downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-              overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-              reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
-            />
-            <View style={styles.glassTint} pointerEvents="none" />
-          </>
-        : <View style={styles.glassFallback} pointerEvents="none" />}
-      <View style={styles.glassRim} pointerEvents="none" />
       {animatedContentStyle
         ? <Animated.View style={content}>{children}</Animated.View>
         : <View style={content}>{children}</View>}
@@ -53,22 +35,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
-  glassTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  glassFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
-  },
-  glassRim: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: '#cdd2de',
+    backgroundColor: '#dce0e9',
   },
   content: {
     flex: 1,
