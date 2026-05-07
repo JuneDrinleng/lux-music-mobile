@@ -1,7 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { type LayoutChangeEvent, View } from 'react-native'
 import Content from './Content'
 import PlayerBar from '@/components/player/PlayerBar'
 import BottomNav from './BottomNav'
@@ -56,6 +56,7 @@ export default () => {
   const bottomInset = useSystemGestureInsetBottom()
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
+  const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
 
   useEffect(() => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
@@ -86,10 +87,15 @@ export default () => {
             <PlaylistDetailView
               detail={playlistDetailRequest}
               onClose={handleClosePlaylistDetail}
+              bottomPadding={bottomLayerHeight}
             />
           </View>
         : null}
-      <View style={styles.bottomLayer} pointerEvents="box-none">
+      <View
+        style={styles.bottomLayer}
+        pointerEvents="box-none"
+        onLayout={(e: LayoutChangeEvent) => { setBottomLayerHeight(e.nativeEvent.layout.height) }}
+      >
         <View style={styles.playerWrap}>
           <PlayerBar isHome systemGestureInsetBottom={bottomInset} />
         </View>

@@ -10,16 +10,16 @@ import importIcon from '../../../assets/img/import.png'
 
 const BOTTOM_FADE_HEIGHT = 280
 
-const BottomFade = () => (
+const BottomFade = ({ color }: { color: string }) => (
   <View style={styles.bottomFade} pointerEvents="none">
     <Svg width="100%" height="100%">
       <Defs>
         <LinearGradient id="bottomFadeGradient" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#eef0fb" stopOpacity="0" />
-          <Stop offset="0.3" stopColor="#eef0fb" stopOpacity="0.2" />
-          <Stop offset="0.55" stopColor="#eef0fb" stopOpacity="0.7" />
-          <Stop offset="0.8" stopColor="#eef0fb" stopOpacity="0.95" />
-          <Stop offset="1" stopColor="#eef0fb" stopOpacity="1" />
+          <Stop offset="0" stopColor={color} stopOpacity="0" />
+          <Stop offset="0.3" stopColor={color} stopOpacity="0.2" />
+          <Stop offset="0.55" stopColor={color} stopOpacity="0.7" />
+          <Stop offset="0.8" stopColor={color} stopOpacity="0.95" />
+          <Stop offset="1" stopColor={color} stopOpacity="1" />
         </LinearGradient>
       </Defs>
       <Rect width="100%" height="100%" fill="url(#bottomFadeGradient)" />
@@ -67,6 +67,8 @@ export default ({
   onRemove,
   onActionPress,
 }: PlaylistDetailHeaderProps) => {
+  const appBg = '#eef0fb'
+
   const heroBody = (
     <View style={styles.heroContent}>
       <Text size={22} color="#111827" style={styles.heroTitle} numberOfLines={2}>{name}</Text>
@@ -94,7 +96,7 @@ export default ({
     <>
       {cover ? (
         <ImageBackground
-          style={styles.heroBanner}
+          style={[styles.heroBanner, { backgroundColor: appBg }]}
           source={{ uri: cover.startsWith('/') ? `file://${cover}` : cover }}
           resizeMode="cover"
         >
@@ -106,7 +108,7 @@ export default ({
               </View>
             </TouchableOpacity>
           </View>
-          <BottomFade />
+          <BottomFade color={appBg} />
           {heroBody}
         </ImageBackground>
       ) : (
@@ -121,14 +123,14 @@ export default ({
             </View>
           </View>
           <View style={styles.heroArea}>
-            <View style={styles.heroBgFallback} />
-            <BottomFade />
+            <View style={[styles.heroBgFallback, { backgroundColor: appBg }]} />
+            <BottomFade color={appBg} />
             {heroBody}
           </View>
         </>
       )}
 
-      <View style={styles.sectionHeader}>
+      <View style={[styles.sectionHeader, { backgroundColor: appBg }]}>
         <Text size={18} color="#111827" style={styles.sectionTitle}>{sectionTitle}</Text>
         <View style={styles.sectionActions}>
           {actionLabel

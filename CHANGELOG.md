@@ -3,6 +3,7 @@
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
+<<<<<<< Updated upstream
 ## [0.2.18](https://github.com/lyswhut/lx-music-mobile/compare/v0.2.17...v0.2.18) - 2026-05-07
 
 ## v0.2.18
@@ -47,6 +48,33 @@
 - 版本号更新到 0.2.18。
 - Android versionCode 升级到 109。
 
+=======
+## [0.2.19](https://github.com/JuneDrinleng/lux-music-mobile/compare/v0.2.18...v0.2.19) - 2026-05-07
+
+## v0.2.19
+
+本次更新聚焦歌单详情页内联化与主题适配，将 PlaylistDetailView 作为内联视图组件替代旧有的 PlaylistDetailOverlay 浮层，并适配主题背景色与底部安全区。
+
+### 新增
+
+- PlaylistDetailView 内联歌单详情组件：作为绝对定位的覆盖层渲染，统一处理本地歌单、在线歌单、排行榜三种详情展示。
+- PlayDetailOverlay 播放详情浮层：在 Vertical 布局中新增播放详情覆盖层，支持从迷你播放栏点击进入。
+- PlaylistDetailView 新增 `bottomPadding` prop：支持外部传入底部留白高度，FlatList 底部内容自动留出空间。
+
+### 调整
+
+- PlaylistTab 歌单详情入口重构：移除内联的 PlaylistDetailScene 渲染分支，统一通过 `global.app_event.openPlaylistDetail` 事件触发详情展示。
+- PlaylistDetailView 背景色适配主题：根容器和 FlatList 背景色使用 `c-app-background` 主题变量，替换硬编码的 `#eef0fb`。
+- PlaylistDetailHeader 主题适配：底部渐变遮罩、Hero 背景 Fallback、Section Header 背景色均使用 `c-app-background` 主题变量。
+- Vertical 布局动态测量底部导航栏 + 迷你播放栏高度，并传入 PlaylistDetailView 的 `bottomPadding`，确保列表末尾歌曲不被遮挡。
+- 移除搜索栏的玻璃拟态效果（GlassSearchField），统一搜索栏视觉风格。
+
+### 构建
+
+- 版本号更新到 0.2.19。
+- Android versionCode 升级到 110。
+- 移除 `.github/workflows/publish-version-info.yml` 工作流。
+>>>>>>> Stashed changes
 
 ## [0.2.17](https://github.com/lyswhut/lx-music-mobile/compare/v0.2.16...v0.2.17) - 2026-05-06
 

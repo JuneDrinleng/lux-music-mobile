@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ## v0.2.18
 
 本次更新聚焦播放详情浮层重构、歌单详情组件提取与 UI 样式统一，将播放详情从原生导航页面改为浮层 overlay 架构，提取 PlaylistDetailView 可复用组件，并统一搜索栏/按钮视觉样式。
@@ -23,9 +24,15 @@
 - PlaylistDetailHeader hero 容器添加 backgroundColor 兜底背景色 #eef0fb。
 - PlayerBar loveIcon 尺寸 20→24、loveIconInCard 22→26，Pic sideActionIcon/likedIcon 20→24，触摸区域更友好。
 - PlayDetail/index.tsx 新增 onClose prop 支持 overlay 模式关闭回调，保留原生 navigation.pop 兼容路径。
+=======
+## v0.2.19
 
-### 性能优化
+本次更新聚焦歌单详情页内联化与主题适配，将 PlaylistDetailView 作为内联视图组件替代旧有的 PlaylistDetailOverlay 浮层，并适配主题背景色与底部安全区。
+>>>>>>> Stashed changes
 
+### 新增
+
+<<<<<<< Updated upstream
 - PlaylistDetailOverlay / PlaylistDetailScene 的 FlatList 添加 getItemLayout 属性，利用固定行高 SONG_ITEM_HEIGHT（70px）加速列表布局计算，减少渲染帧耗时。
 - 歌单详情数据加载策略调整：线上歌单/排行榜全量数据加载完成后再一次性更新列表，避免先展示首页分页数据再替换为全量数据导致的二次渲染与视觉闪烁。
 
@@ -39,3 +46,22 @@
 
 - 版本号更新到 0.2.18。
 - Android versionCode 升级到 109。
+=======
+- PlaylistDetailView 内联歌单详情组件：作为绝对定位的覆盖层渲染，统一处理本地歌单、在线歌单、排行榜三种详情展示。
+- PlayDetailOverlay 播放详情浮层：在 Vertical 布局中新增播放详情覆盖层，支持从迷你播放栏点击进入。
+- PlaylistDetailView 新增 `bottomPadding` prop：支持外部传入底部留白高度，FlatList 底部内容自动留出空间。
+
+### 调整
+
+- PlaylistTab 歌单详情入口重构：移除内联的 PlaylistDetailScene 渲染分支，统一通过 `global.app_event.openPlaylistDetail` 事件触发详情展示。
+- PlaylistDetailView 背景色适配主题：根容器和 FlatList 背景色使用 `c-app-background` 主题变量，替换硬编码的 `#eef0fb`。
+- PlaylistDetailHeader 主题适配：底部渐变遮罩、Hero 背景 Fallback、Section Header 背景色均使用 `c-app-background` 主题变量。
+- Vertical 布局动态测量底部导航栏 + 迷你播放栏高度，并传入 PlaylistDetailView 的 `bottomPadding`，确保列表末尾歌曲不被遮挡。
+- 移除搜索栏的玻璃拟态效果（GlassSearchField），统一搜索栏视觉风格。
+
+### 构建
+
+- 版本号更新到 0.2.19。
+- Android versionCode 升级到 110。
+- 移除 `.github/workflows/publish-version-info.yml` 工作流。
+>>>>>>> Stashed changes

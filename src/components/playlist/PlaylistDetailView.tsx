@@ -55,6 +55,7 @@ const PlaylistDetailViewInner = ({
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
   const t = useI18n()
+  const appBg = '#eef0fb'
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
   const modalBottomInset = useMemo(() => {
@@ -366,7 +367,7 @@ const PlaylistDetailViewInner = ({
   const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source) : null
 
   return (
-    <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }] }]}>
+    <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }], backgroundColor: appBg }]}>
       <View
         ref={drag.detailListWrapRef}
         style={styles.detailListWrap}
@@ -376,7 +377,7 @@ const PlaylistDetailViewInner = ({
       >
         <FlatList
           ref={drag.detailListRef}
-          style={styles.container}
+          style={[styles.container, { backgroundColor: appBg }]}
           contentContainerStyle={[styles.detailContent, { paddingBottom: bottomPadding }]}
           data={detailData.detailSongs}
           renderItem={renderSongItem}
