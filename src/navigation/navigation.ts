@@ -14,8 +14,11 @@ import {
 } from './screenNames'
 
 import themeState from '@/store/theme/state'
+import playerState from '@/store/player/state'
 import { getStatusBarStyle } from './utils'
 import { windowSizeTools } from '@/utils/windowSizeTools'
+import { setBgPic } from '@/core/common'
+import { resolveImageUri } from '@/utils/imageCache'
 
 
 // const store = getStore()
@@ -220,6 +223,14 @@ export async function pushHomeScreen() {
   })
 }
 export function pushPlayDetailScreen(componentId: string, skipAnimation = false) {
+  // 立即设置 bgPic 为当前歌曲封面，避免 PageContent 白底闪烁
+  const pic = playerState.musicInfo.pic
+  if (pic) {
+    const picUrl = pic.startsWith('/') ? `file://${pic}` : pic
+    setBgPic(picUrl)
+    void resolveImageUri(picUrl)
+  }
+
   /*
     Navigation.setDefaultOptions({
       topBar: {
@@ -275,7 +286,8 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
+            // 使用黑色背景避免推入动画过程中的白屏闪烁
+            componentBackgroundColor: '#000000',
           },
           animations: {
             push: skipAnimation ? {} : {

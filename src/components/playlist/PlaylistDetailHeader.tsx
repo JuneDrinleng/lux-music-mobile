@@ -188,6 +188,7 @@ const styles = createStyle({
     marginBottom: 18,
     minHeight: 340,
     justifyContent: 'flex-end',
+    backgroundColor: '#eef0fb',
   },
   topBarPad: {
     position: 'absolute',
@@ -204,11 +205,6 @@ const styles = createStyle({
     borderRadius: 22,
     backgroundColor: '#ffffff',
     padding: 2,
-    shadowColor: '#2d3242',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
   },
   backButtonInner: {
     flex: 1,

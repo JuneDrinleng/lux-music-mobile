@@ -4,16 +4,15 @@ import { memo, useRef, useMemo } from 'react'
 
 import { View, StyleSheet } from 'react-native'
 
-import { pop } from '@/navigation'
 import StatusBar from '@/components/common/StatusBar'
 import { useTheme } from '@/store/theme/hook'
 import { usePlayerMusicInfo } from '@/store/player/hook'
 import Text from '@/components/common/Text'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT as _HEADER_HEIGHT, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
-import commonState from '@/store/common/state'
 import SettingPopup, { type SettingPopupType } from '../../components/SettingPopup'
 import { useStatusbarHeight } from '@/store/common/hook'
+import { usePlayDetailClose } from '../../context'
 import Btn from './Btn'
 import TimeoutExitBtn from './TimeoutExitBtn'
 
@@ -37,9 +36,10 @@ export default memo(() => {
   const popupRef = useRef<SettingPopupType>(null)
   const statusBarHeight = useStatusbarHeight()
   const theme = useTheme()
+  const closePlayDetail = usePlayDetailClose()
 
   const back = () => {
-    void pop(commonState.componentIds.playDetail!)
+    closePlayDetail()
   }
   const showSetting = () => {
     popupRef.current?.show()

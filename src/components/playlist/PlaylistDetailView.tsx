@@ -5,7 +5,6 @@ import {
   Easing,
   FlatList,
   Image as RNImage,
-  InteractionManager,
   Platform,
   StyleSheet,
   View,
@@ -24,8 +23,8 @@ import { type PlaylistDetailPayload } from '@/event/appEvent'
 import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { applyMusicCoverFallback } from '@/utils/musicCover'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { createStyle } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
 import PlaylistDetailHeader from './PlaylistDetailHeader'
@@ -36,20 +35,25 @@ import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from
 import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
-const DETAIL_TRANSITION_FORWARD_DURATION = 268
-const DETAIL_TRANSITION_BACKWARD_DURATION = 220
-
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
 }
 
-export interface PlaylistDetailOverlayProps {
-  detail: PlaylistDetailPayload
-  onClose: () => void
+export interface PlaylistDetailViewProps {
+  /** The playlist to display. Pass null to render nothing. */
+  detail: PlaylistDetailPayload | null
+  /** Called when the user presses the back button in the header. */
+  onClose?: () => void
+  /** Extra bottom padding for the FlatList content (e.g. for dock/player bar). */
+  bottomPadding?: number
 }
 
-const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) => {
+/** Inner component — always receives a non-null detail so hooks can be called unconditionally. */
+const PlaylistDetailViewInner = ({
+  detail,
+  onClose,
+  bottomPadding = 0,
+}: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
@@ -61,9 +65,6 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     if (Platform.OS == 'android') return Math.max(0, extraInset - statusBarHeight)
     return extraInset
   }, [statusBarHeight])
-  const detailSceneWidth = Dimensions.get('window').width
-  const detailSceneAnim = useRef(new Animated.Value(0)).current
-  const detailTransitionTokenRef = useRef(0)
 
   const detailData = usePlaylistDetailData(detail, playlists)
   const drag = useSongDragReorder({
@@ -93,46 +94,49 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   const removeListDialogRef = useRef<PromptDialogType>(null)
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
-  const [isDetailTransitioning, setDetailTransitioning] = useState(false)
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
+
+  const openAnim = useRef(new Animated.Value(0)).current
+  const openAnimTokenRef = useRef(0)
+  const isClosingRef = useRef(false)
 
   useEffect(() => {
     pendingDeleteSongRef.current = pendingDeleteSong
   }, [pendingDeleteSong])
 
-  const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneAnim, detailSceneWidth])
-
-  const setKeepPlayBarVisible = (visible: boolean) => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
-  }
-
-  const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
-    const token = ++detailTransitionTokenRef.current
-    setDetailTransitioning(true)
-    detailSceneAnim.stopAnimation()
-    Animated.timing(detailSceneAnim, {
-      toValue,
-      duration: toValue ? DETAIL_TRANSITION_FORWARD_DURATION : DETAIL_TRANSITION_BACKWARD_DURATION,
-      easing: toValue
-        ? Easing.bezier(0.36, 0.66, 0.04, 1)
-        : Easing.bezier(0.32, 0.72, 0, 1),
+  useEffect(() => {
+    isClosingRef.current = false
+    const token = ++openAnimTokenRef.current
+    openAnim.stopAnimation()
+    openAnim.setValue(0)
+    Animated.timing(openAnim, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.bezier(0.36, 0.66, 0.04, 1),
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (token !== detailTransitionTokenRef.current) return
-      if (finished) onFinish?.()
-      setDetailTransitioning(false)
+    }).start(() => {
+      if (token !== openAnimTokenRef.current) return
     })
-  }, [detailSceneAnim])
+  }, [openAnim, detailData.selectedDetailCacheKey])
 
   const handleCloseDetail = useCallback(() => {
+    if (isClosingRef.current) return
+    isClosingRef.current = true
     detailData.detailRequestIdRef.current += 1
     drag.resetSongDragState()
     imprt.setImportDrawerVisible(false)
-    animateDetailScene(0, onClose)
-  }, [animateDetailScene, onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef])
+    const token = ++openAnimTokenRef.current
+    openAnim.stopAnimation()
+    Animated.timing(openAnim, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (token !== openAnimTokenRef.current) return
+      if (finished) onClose?.()
+    })
+  }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, openAnim])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
@@ -332,33 +336,10 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   }, [detailData.detailHeroCover])
 
   useEffect(() => {
-    setKeepPlayBarVisible(false)
-    detailSceneAnim.setValue(0)
-    const interactionHandle = InteractionManager.createInteractionHandle()
-    animateDetailScene(1, () => {
-      InteractionManager.clearInteractionHandle(interactionHandle)
-    })
-    return () => {
-      InteractionManager.clearInteractionHandle(interactionHandle)
-      setKeepPlayBarVisible(false)
-    }
-  }, [animateDetailScene, detailSceneAnim, detailData.selectedDetailCacheKey])
-
-  useEffect(() => {
     if (!detailData.selectedListId) return
     if (playlists.some(list => list.id === detailData.selectedListId)) return
     handleCloseDetail()
   }, [handleCloseDetail, playlists, detailData.selectedListId])
-
-  useEffect(() => {
-    const handleClosePlaylistDetail = () => {
-      handleCloseDetail()
-    }
-    global.app_event.on('closePlaylistDetail', handleClosePlaylistDetail)
-    return () => {
-      global.app_event.off('closePlaylistDetail', handleClosePlaylistDetail)
-    }
-  }, [handleCloseDetail])
 
   useEffect(() => {
     drag.measureDetailListWrap()
@@ -373,147 +354,145 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     return true
   }, [handleCloseDetail, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
 
+  const openAnimOpacity = useMemo(() => openAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  }), [openAnim])
+  const openAnimTranslateY = useMemo(() => openAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [24, 0],
+  }), [openAnim])
+
   const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source) : null
 
   return (
-    <View style={styles.root} pointerEvents="box-none">
-      <Animated.View
-        renderToHardwareTextureAndroid={isDetailTransitioning}
-        shouldRasterizeIOS={isDetailTransitioning}
-        style={[
-          styles.scene,
-          {
-            transform: [{ translateX: detailSceneTranslateX }],
-          },
-        ]}
+    <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }] }]}>
+      <View
+        ref={drag.detailListWrapRef}
+        style={styles.detailListWrap}
+        onLayout={drag.handleDetailWrapLayout}
+        collapsable={false}
+        {...drag.detailListPanResponder.panHandlers}
       >
-        <View
-          ref={drag.detailListWrapRef}
-          style={styles.detailListWrap}
-          onLayout={drag.handleDetailWrapLayout}
-          collapsable={false}
-          {...drag.detailListPanResponder.panHandlers}
-        >
-          <FlatList
-            ref={drag.detailListRef}
-            style={styles.container}
-            contentContainerStyle={[styles.detailContent, { paddingBottom: BOTTOM_DOCK_BASE_HEIGHT }]}
-            data={detailData.detailSongs}
-            renderItem={renderSongItem}
-            keyExtractor={(item, index) => drag.getSongRowKey(item, index)}
-            getItemLayout={(_data, index) => ({
-              length: SONG_ITEM_HEIGHT,
-              offset: SONG_ITEM_HEIGHT * index,
-              index,
-            })}
-            ListHeaderComponent={detailHeader}
-            ListEmptyComponent={(
-              <View style={styles.emptyCard}>
-                <Text size={13} color="#6b7280">{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
-              </View>
-            )}
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={12}
-            windowSize={drag.isSongDragActive ? 4 : 6}
-            maxToRenderPerBatch={drag.isSongDragActive ? 6 : 8}
-            updateCellsBatchingPeriod={drag.isSongDragActive ? 24 : 16}
-            removeClippedSubviews={false}
-            bounces={false}
-            alwaysBounceVertical={false}
-            overScrollMode="never"
-            onScroll={drag.handleDetailListScroll}
-            onContentSizeChange={drag.handleDetailListContentSizeChange}
-            scrollEventThrottle={16}
-            scrollEnabled={!drag.isSongDragActive}
-          />
-          {drag.draggingSong && draggingSourceTagColor
-            ? <PlaylistSongDragOverlay
-                song={drag.draggingSong}
-                sourceTone={draggingSourceTagColor}
-                top={drag.dragTop}
-                scale={drag.dragScale}
-                opacity={drag.dragOpacity}
-                fallbackCover={detailData.detailHeroCover}
-              />
-            : null}
-        </View>
-        {detailData.selectedListId
-          ? <PlaylistImportPanel
-              visible={imprt.isImportDrawerVisible}
-              loading={imprt.importLoading}
-              submitting={imprt.importSubmitting}
-              bottomInset={modalBottomInset}
-              targetListName={detailData.selectedListInfo?.name}
-              items={imprt.importCandidates}
-              selectedMap={imprt.importSelectedMap}
-              allSelected={imprt.areAllImportSongsSelected}
-              cancelText={t('cancel')}
-              title={t('list_import')}
-              selectAllText={t('list_select_all')}
-              clearSelectionText={t('list_select_cancel')}
-              loadingText={t('list_loading')}
-              emptyText={t('me_no_songs')}
-              countText={t('me_songs_count', { num: imprt.importCandidates.length })}
-              confirmText={`${t('list_add_title_first_add')}${imprt.importSelectedCount > 0 ? `(${imprt.importSelectedCount})` : ''}`}
-              onClose={imprt.handleCloseImportDrawer}
-              onSubmit={() => { void imprt.handleImportSelectedSongs() }}
-              onToggleSelectAll={imprt.handleToggleSelectAllImportSongs}
-              onToggleItem={imprt.handleToggleImportSong}
-              getSourceTone={getSourceTone}
+        <FlatList
+          ref={drag.detailListRef}
+          style={styles.container}
+          contentContainerStyle={[styles.detailContent, { paddingBottom: bottomPadding }]}
+          data={detailData.detailSongs}
+          renderItem={renderSongItem}
+          keyExtractor={(item, index) => drag.getSongRowKey(item, index)}
+          getItemLayout={(_data, index) => ({
+            length: SONG_ITEM_HEIGHT,
+            offset: SONG_ITEM_HEIGHT * index,
+            index,
+          })}
+          ListHeaderComponent={detailHeader}
+          ListEmptyComponent={(
+            <View style={styles.emptyCard}>
+              <Text size={13} color="#6b7280">{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+            </View>
+          )}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={12}
+          windowSize={drag.isSongDragActive ? 4 : 6}
+          maxToRenderPerBatch={drag.isSongDragActive ? 6 : 8}
+          updateCellsBatchingPeriod={drag.isSongDragActive ? 24 : 16}
+          removeClippedSubviews={false}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+          onScroll={drag.handleDetailListScroll}
+          onContentSizeChange={drag.handleDetailListContentSizeChange}
+          scrollEventThrottle={16}
+          scrollEnabled={!drag.isSongDragActive}
+        />
+        {drag.draggingSong && draggingSourceTagColor
+          ? <PlaylistSongDragOverlay
+              song={drag.draggingSong}
+              sourceTone={draggingSourceTagColor}
+              top={drag.dragTop}
+              scale={drag.dragScale}
+              opacity={drag.dragOpacity}
+              fallbackCover={detailData.detailHeroCover}
             />
           : null}
-        {detailData.selectedListId
-          ? <>
-              <PromptDialog
-                ref={renameListDialogRef}
-                title={t('list_rename_title')}
-                placeholder={t('list_create_input_placeholder')}
-                confirmText={t('metadata_edit_modal_confirm')}
-                cancelText={t('cancel')}
-                bgHide={false}
-                onConfirm={async(value) => handleRenameList(value)}
-              />
-              <PromptDialog
-                ref={removeListDialogRef}
-                title={t('list_remove_tip', { name: detailData.selectedListInfo?.name ?? '' })}
-                confirmText={t('list_remove_tip_button')}
-                cancelText={t('cancel')}
-                showInput={false}
-                bgHide={false}
-                onConfirm={async() => handleRemoveSelectedList()}
-              />
-              <PromptDialog
-                ref={removeSongDialogRef}
-                title={t('list_remove_tip', { name: pendingDeleteSong?.name ?? '' })}
-                confirmText={t('list_remove_tip_button')}
-                cancelText={t('cancel')}
-                showInput={false}
-                bgHide={false}
-                onCancel={handleCancelRemoveSong}
-                onHide={handleCancelRemoveSong}
-                onConfirm={async() => handleConfirmRemoveSong()}
-              />
-            </>
-          : null}
-      </Animated.View>
-      {detailData.selectedOnlineOrLeaderboard ? <MusicMultiAddModal ref={musicMultiAddModalRef} /> : null}
-    </View>
+      </View>
+      {detailData.selectedListId
+        ? <PlaylistImportPanel
+            visible={imprt.isImportDrawerVisible}
+            loading={imprt.importLoading}
+            submitting={imprt.importSubmitting}
+            bottomInset={modalBottomInset}
+            targetListName={detailData.selectedListInfo?.name}
+            items={imprt.importCandidates}
+            selectedMap={imprt.importSelectedMap}
+            allSelected={imprt.areAllImportSongsSelected}
+            cancelText={t('cancel')}
+            title={t('list_import')}
+            selectAllText={t('list_select_all')}
+            clearSelectionText={t('list_select_cancel')}
+            loadingText={t('list_loading')}
+            emptyText={t('me_no_songs')}
+            countText={t('me_songs_count', { num: imprt.importCandidates.length })}
+            confirmText={`${t('list_add_title_first_add')}${imprt.importSelectedCount > 0 ? `(${imprt.importSelectedCount})` : ''}`}
+            onClose={imprt.handleCloseImportDrawer}
+            onSubmit={() => { void imprt.handleImportSelectedSongs() }}
+            onToggleSelectAll={imprt.handleToggleSelectAllImportSongs}
+            onToggleItem={imprt.handleToggleImportSong}
+            getSourceTone={getSourceTone}
+          />
+        : null}
+      {detailData.selectedListId
+        ? <>
+            <PromptDialog
+              ref={renameListDialogRef}
+              title={t('list_rename_title')}
+              placeholder={t('list_create_input_placeholder')}
+              confirmText={t('metadata_edit_modal_confirm')}
+              cancelText={t('cancel')}
+              bgHide={false}
+              onConfirm={async(value) => handleRenameList(value)}
+            />
+            <PromptDialog
+              ref={removeListDialogRef}
+              title={t('list_remove_tip', { name: detailData.selectedListInfo?.name ?? '' })}
+              confirmText={t('list_remove_tip_button')}
+              cancelText={t('cancel')}
+              showInput={false}
+              bgHide={false}
+              onConfirm={async() => handleRemoveSelectedList()}
+            />
+            <PromptDialog
+              ref={removeSongDialogRef}
+              title={t('list_remove_tip', { name: pendingDeleteSong?.name ?? '' })}
+              confirmText={t('list_remove_tip_button')}
+              cancelText={t('cancel')}
+              showInput={false}
+              bgHide={false}
+              onCancel={handleCancelRemoveSong}
+              onHide={handleCancelRemoveSong}
+              onConfirm={async() => handleConfirmRemoveSong()}
+            />
+          </>
+        : null}
+      <MusicMultiAddModal ref={musicMultiAddModalRef} />
+    </Animated.View>
   )
 }
 
-export default memo(PlaylistDetailOverlay, (prev, next) => {
-  return prev.detail === next.detail && prev.onClose === next.onClose
+/** Inline playlist detail view. Handles local, online, and leaderboard playlists. */
+const PlaylistDetailView = ({ detail, onClose, bottomPadding }: PlaylistDetailViewProps) => {
+  if (!detail) return null
+  return <PlaylistDetailViewInner detail={detail} onClose={onClose} bottomPadding={bottomPadding ?? 0} />
+}
+
+export default memo(PlaylistDetailView, (prev, next) => {
+  return prev.detail === next.detail && prev.onClose === next.onClose && prev.bottomPadding === next.bottomPadding
 })
 
 const styles = createStyle({
   root: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-  },
-  scene: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-    elevation: 0,
+    flex: 1,
     backgroundColor: '#eef0fb',
   },
   container: {

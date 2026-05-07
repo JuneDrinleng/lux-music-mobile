@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, TouchableOpacity, View, Image as RNImage, type FlatListProps } from 'react-native'
-import { pop } from '@/navigation'
 import shareIcon from '../../../../assets/img/share.png'
-import commonState from '@/store/common/state'
+import { usePlayDetailClose } from '../context'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
@@ -58,6 +57,7 @@ const defaultLines = [
 
 export default ({ active }: { active: boolean }) => {
   const statusBarHeight = useStatusbarHeight()
+  const closePlayDetail = usePlayDetailClose()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
   const shareType = useSettingValue('common.shareType')
@@ -97,7 +97,7 @@ export default ({ active }: { active: boolean }) => {
   }, [active, line, lines.length])
 
   const handleGoBack = () => {
-    void pop(commonState.componentIds.playDetail!)
+    closePlayDetail()
   }
   const handleShare = () => {
     const currentMusicInfo = playMusicInfo.musicInfo

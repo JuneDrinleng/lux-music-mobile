@@ -101,7 +101,7 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  const sharedTopBarVisible = !playlistDetailVisible && !searchPageVisible && (
+  const sharedTopBarVisible = !searchPageVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
