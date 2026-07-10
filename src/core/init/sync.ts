@@ -1,6 +1,7 @@
-import { connectServer } from '@/plugins/sync'
+import { connectLuxServer, connectServer, pullLuxProfileFromServer } from '@/plugins/sync'
 import { updateSetting } from '@/core/common'
 import { getSyncHost } from '@/plugins/sync/data'
+import { getSyncMode } from '@/utils/data'
 
 
 export default async(setting: LX.AppSetting) => {
@@ -12,5 +13,8 @@ export default async(setting: LX.AppSetting) => {
     updateSetting({ 'sync.enable': false })
     return
   }
-  void connectServer(host)
+  const mode = await getSyncMode()
+  if (mode == 'lux') {
+    void connectLuxServer(host).then(async() => pullLuxProfileFromServer(host)).catch(() => null)
+  } else void connectServer(host)
 }

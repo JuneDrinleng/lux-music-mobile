@@ -1,10 +1,25 @@
 import { request, generateRsaKey } from './utils'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
+import { getLuxAuth, setLuxAuth } from '@/utils/data'
 import log from '../log'
 import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
 import { SYNC_CODE } from '../constants'
+
+export const requestJson = async<T>(url: string, body?: unknown, token?: string): Promise<T> => {
+  const { text, code } = await request(url, {
+    method: body == null ? 'GET' : 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body == null ? undefined : JSON.stringify(body),
+  })
+  const data = text ? JSON.parse(text) as { message?: unknown } : null
+  if (code < 200 || code >= 300) throw new Error(typeof data?.message == 'string' ? data.message : 'Request failed')
+  return data as T
+}
 
 const hello = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/hello`)
   .then(({ text }) => {
@@ -94,6 +109,31 @@ const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string
   const keyInfo = await getSyncAuthKey(serverId)
   if (!keyInfo) throw new Error(SYNC_CODE.missingAuthCode)
   await keyAuth(urlInfo, keyInfo)
+  return keyInfo
+}
+
+const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string) => {
+  const deviceName = await getDeviceName()
+  return requestJson<LX.Sync.KeyInfo>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/sync/key`, {
+    deviceName,
+    platform: 'lux_music_mobile',
+  }, token)
+}
+
+export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
+  console.log('lux connect: ', urlInfo.href, username)
+  if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
+  const serverId = await getServerId(urlInfo)
+  if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
+
+  let authInfo = await getLuxAuth()
+  if (username && password) {
+    authInfo = await requestJson<LX.Sync.LuxAuth>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
+    await setLuxAuth(authInfo)
+  }
+  if (!authInfo?.token) throw new Error(SYNC_CODE.missingAuthCode)
+  const keyInfo = await getLuxSyncKey(urlInfo, authInfo.token)
+  await setSyncAuthKey(serverId, keyInfo)
   return keyInfo
 }
 

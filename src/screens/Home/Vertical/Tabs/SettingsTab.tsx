@@ -8,7 +8,7 @@ import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
-import { createStyle, openUrl, toast } from '@/utils/tools'
+import { confirmDialog, createStyle, openUrl, toast } from '@/utils/tools'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
@@ -22,9 +22,9 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearLuxAuth, clearSyncAuthKey, clearSyncConflictMode, setSyncLoginCompleted } from '@/utils/data'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
-import { connectServer, disconnectServer } from '@/plugins/sync'
+import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
@@ -41,7 +41,9 @@ import formatImg from '../../../../../assets/img/format.png'
 import versionImg from '../../../../../assets/img/version.png'
 import updateImg from '../../../../../assets/img/update.png'
 import githubImg from '../../../../../assets/img/Github.png'
+import logoutImg from '../../../../../assets/img/log-out.png'
 import { checkUpdate } from '@/core/version'
+import { pushSyncLoginScreen } from '@/navigation/navigation'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -85,6 +87,10 @@ export default () => {
   const [syncHostDraft, setSyncHostDraft] = useState('')
   const [authCode, setAuthCode] = useState('')
   const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
+  const [syncMode, setSyncModeLocal] = useState<LX.Sync.Mode>('lx')
+  const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
+  const [luxUsername, setLuxUsername] = useState('')
+  const [luxPassword, setLuxPassword] = useState('')
   const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat'>(null)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
@@ -112,6 +118,10 @@ export default () => {
     { value: 'female', label: t('setting_profile_gender_female') },
     { value: 'unknown', label: t('setting_profile_gender_unknown') },
   ] as const, [t])
+  useEffect(() => {
+    void getSyncMode().then(setSyncModeLocal)
+  }, [])
+
   const activeSearchSourceLabel = useMemo(() => {
     return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
   }, [searchDefaultSource, searchSourceOptions, t])
@@ -405,7 +415,9 @@ export default () => {
       return next
     })
     updateSetting({ 'sync.enable': true })
-    void connectServer(host)
+    if (syncMode == 'lux') {
+      setLuxLoginModalVisible(true)
+    } else void connectServer(host)
     setSyncHostModalVisible(false)
   }
   const handleCancelSetCode = useCallback(() => {
@@ -420,6 +432,25 @@ export default () => {
   const handleCloseAuthCodeModal = () => {
     handleCancelSetCode()
   }
+  const handleCloseLuxLoginModal = () => {
+    setLuxLoginModalVisible(false)
+    setLuxPassword('')
+  }
+  const handleLuxLogin = useCallback(() => {
+    const username = luxUsername.trim()
+    if (!syncHost || !username || !luxPassword) {
+      toast(t('setting_sync_lux_login_missing_tip'), 'long')
+      return
+    }
+    updateSetting({ 'sync.enable': true })
+    void connectLuxServer(syncHost, username, luxPassword).then(() => {
+      void syncLuxProfileOnLogin(syncHost).catch(() => null)
+      setLuxLoginModalVisible(false)
+      setLuxPassword('')
+    }).catch((err: any) => {
+      toast(String(err?.message ?? err), 'long')
+    })
+  }, [syncHost, luxUsername, luxPassword, t])
   const handleSelectSyncHost = (host: string) => {
     if (isManagingSyncHosts) return
     if (host === syncHost && isSyncEnabled) {
@@ -431,7 +462,9 @@ export default () => {
       setSyncHostLocal(host)
       updateSetting({ 'sync.enable': true })
       void addSyncHostHistory(host)
-      void connectServer(host)
+      if (syncMode == 'lux') {
+        setLuxLoginModalVisible(true)
+      } else void connectServer(host)
     }
   }
   const handleDeleteSyncHost = (index: number) => {
@@ -462,6 +495,7 @@ export default () => {
     }).then(image => {
       void saveUserAvatar(image.path).then(savedPath => {
         global.app_event.userAvatarUpdated(savedPath)
+        void getUserAvatarDataUrl().then(async avatar => pushLuxProfileToServer({ avatar })).catch(() => null)
       })
     }).catch((err: any) => {
       if (err?.code !== 'E_PICKER_CANCELLED') toast(String(err?.message ?? err), 'long')
@@ -484,6 +518,7 @@ export default () => {
     void saveUserName(newName).then(() => {
       setNickname(newName)
       global.app_event.userNameUpdated(newName)
+      void pushLuxProfileToServer({ displayName: newName }).catch(() => null)
       setNameModalVisible(false)
     })
   }
@@ -502,6 +537,7 @@ export default () => {
       setSignature(saveValue)
       setSignatureDraft(saveValue || defaultSignature)
       global.app_event.userSignatureUpdated(saveValue)
+      void pushLuxProfileToServer({ signature: saveValue }).catch(() => null)
       setSignatureModalVisible(false)
     })
   }
@@ -524,11 +560,11 @@ export default () => {
     setActiveOptionDetail('syncFormat')
   }
   const handleSelectSyncFormat = (value: string) => {
-    if (value === 'lux') {
-      toast(t('toast_in_development'))
-      return
-    }
+    const mode = value == 'lux' ? 'lux' : 'lx'
+    void setSyncMode(mode)
+    setSyncModeLocal(mode)
     setActiveOptionDetail(null)
+    if (mode == 'lux' && syncHost) setLuxLoginModalVisible(true)
   }
   const handleSelectApiSource = (id: string) => {
     if (isManagingApiSources) return
@@ -565,18 +601,43 @@ export default () => {
     void saveUserGender(nextGender).then(() => {
       setGender(nextGender)
       global.app_event.userGenderUpdated(nextGender)
+      void pushLuxProfileToServer({ gender: nextGender }).catch(() => null)
       setActiveOptionDetail(null)
     })
   }
+  const handleLogoutSyncAccount = useCallback(async() => {
+    const confirmed = await confirmDialog({
+      title: t('setting_sync_logout_title'),
+      message: t('setting_sync_logout_message'),
+      cancelButtonText: t('cancel'),
+      confirmButtonText: t('setting_sync_logout_confirm'),
+    })
+    if (!confirmed) return
+
+    updateSetting({ 'sync.enable': false })
+    await Promise.all([
+      disconnectServer(),
+      clearLuxAuth(),
+      clearSyncAuthKey(),
+      clearSyncConflictMode(),
+      saveSyncHost(''),
+      setSyncLoginCompleted(false),
+    ])
+    setSyncHostLocal('')
+    setLuxUsername('')
+    setLuxPassword('')
+    setAuthCode('')
+    await pushSyncLoginScreen()
+  }, [t])
   const handleCheckUpdate = () => {
     void checkUpdate()
   }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
   }
-  const handleOpenProfileDetail = () => {
+  const handleOpenProfileDetail = useCallback(() => {
     setProfileDetailVisible(true)
-  }
+  }, [])
   const handleCloseProfileDetail = () => {
     setProfileDetailVisible(false)
   }
@@ -596,6 +657,10 @@ export default () => {
     }
     if (isAuthCodeModalVisible) {
       handleCloseAuthCodeModal()
+      return true
+    }
+    if (isLuxLoginModalVisible) {
+      handleCloseLuxLoginModal()
       return true
     }
     if (activeOptionDetail) {
@@ -725,7 +790,7 @@ export default () => {
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{'lx music'}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{syncMode == 'lux' ? 'lux music' : 'lx music'}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -807,8 +872,9 @@ export default () => {
           overScrollMode="never"
         >
           <View style={styles.profileDetailHeaderRow}>
-            <TouchableOpacity style={styles.profileDetailBackBtn} activeOpacity={0.82} onPress={handleCloseProfileDetail}>
+            <TouchableOpacity style={[styles.profileDetailBackBtn, styles.profileDetailBackBtnWithLabel]} activeOpacity={0.82} onPress={handleCloseProfileDetail}>
               <Icon name="chevron-left" rawSize={20} color="#232733" />
+              <Text size={14} color="#232733" style={styles.profileDetailBackText}>{t('back')}</Text>
             </TouchableOpacity>
             <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
           </View>
@@ -874,6 +940,19 @@ export default () => {
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
                     <Text size={12} color="#767d89" numberOfLines={1}>{activeGenderLabel}</Text>
+                  </View>
+                </View>
+                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+              </TouchableOpacity>
+              <View style={styles.groupDivider} />
+              <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleLogoutSyncAccount}>
+                <View style={styles.groupRowLeft}>
+                  <View style={[styles.groupRowIconWrap, styles.iconWrapRed]}>
+                    <RNImage source={logoutImg} style={styles.logoutIcon} />
+                  </View>
+                  <View style={styles.groupRowTextWrap}>
+                    <Text size={15} color="#ef4444" style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>
+                    <Text size={12} color="#767d89" numberOfLines={1}>{t('setting_sync_logout_desc')}</Text>
                   </View>
                 </View>
                 <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -1058,12 +1137,13 @@ export default () => {
             ? <View style={styles.sectionCard}>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lx') }}>
-                    <Text size={15} color="#20242d" style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
-                    <View style={styles.languageActiveDot} />
+                    <Text size={15} color={syncMode == 'lx' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
+                    {syncMode == 'lx' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                   <View style={styles.optionDetailDivider} />
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lux') }}>
-                    <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
+                    <Text size={15} color={syncMode == 'lux' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
+                    {syncMode == 'lux' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1193,6 +1273,46 @@ export default () => {
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSetCode} activeOpacity={0.85}>
                     <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal
+        visible={isLuxLoginModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={handleCloseLuxLoginModal}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalCard}>
+                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_lux_login_title')}</Text>
+                <Input
+                  placeholder={t('setting_sync_lux_username')}
+                  value={luxUsername}
+                  onChangeText={setLuxUsername}
+                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  autoCapitalize="none"
+                />
+                <Input
+                  placeholder={t('setting_sync_lux_password')}
+                  value={luxPassword}
+                  onChangeText={setLuxPassword}
+                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  secureTextEntry
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseLuxLoginModal} activeOpacity={0.75}>
+                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleLuxLogin} activeOpacity={0.85}>
+                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('setting_sync_lux_login_button')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1345,6 +1465,14 @@ const styles = createStyle({
     borderWidth: 1,
     borderColor: 'rgba(231,236,245,0.96)',
     marginRight: 12,
+  },
+  profileDetailBackBtnWithLabel: {
+    width: 82,
+    flexDirection: 'row',
+  },
+  profileDetailBackText: {
+    marginLeft: 2,
+    fontWeight: '600',
   },
   profileDetailTitle: {
     fontWeight: '700',
@@ -1636,6 +1764,11 @@ const styles = createStyle({
   iconWrapGreen: { backgroundColor: '#d1fae5' },
   iconWrapPurple: { backgroundColor: '#ede9fe' },
   iconWrapAmber: { backgroundColor: '#fef9c3' },
+  iconWrapRed: { backgroundColor: '#fee2e2' },
+  logoutIcon: {
+    width: 22,
+    height: 22,
+  },
   groupRowAvatarWrap: {
     overflow: 'hidden',
     backgroundColor: '#ffffff',

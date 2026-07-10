@@ -1,6 +1,30 @@
 declare global {
   namespace LX {
     namespace Sync {
+      type Mode = 'lx' | 'lux'
+
+      interface LuxAuth {
+        token: string
+        user: {
+          id: string
+          username: string
+          displayName?: string
+          avatar?: string
+          gender?: 'male' | 'female' | 'unknown'
+          signature?: string
+          role: 'admin' | 'user'
+          source: string
+          status: string
+        }
+      }
+
+      interface LuxProfile {
+        displayName: string
+        avatar: string
+        gender: 'male' | 'female' | 'unknown'
+        signature: string
+      }
+
       interface Status {
         status: boolean
         message: string

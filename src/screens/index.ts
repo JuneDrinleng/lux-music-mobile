@@ -2,6 +2,7 @@
 
 export { default as Launch } from './Launch'
 export { default as Login } from './Login'
+export { default as SyncLogin } from './SyncLogin'
 export { default as Agreement } from './Agreement'
 export { default as Home } from './Home'
 export { default as PlayDetail } from './PlayDetail'

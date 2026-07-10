@@ -2,6 +2,7 @@
 
 export const LAUNCH_SCREEN = 'lxm.LaunchScreen'
 export const LOGIN_SCREEN = 'lxm.LoginScreen'
+export const SYNC_LOGIN_SCREEN = 'lxm.SyncLoginScreen'
 export const AGREEMENT_SCREEN = 'lxm.AgreementScreen'
 export const HOME_SCREEN = 'lxm.HomeScreen'
 export const PLAY_DETAIL_SCREEN = 'lxm.PlayDetailScreen'

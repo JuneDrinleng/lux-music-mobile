@@ -61,6 +61,10 @@ export const storageDataPrefix = {
   syncAuthKey: '@sync_auth_key',
   syncHost: '@sync_host',
   syncHostHistory: '@sync_host_history',
+  syncMode: '@sync_mode',
+  luxAuth: '@lux_auth',
+  syncLoginCompleted: '@sync_login_completed',
+  syncConflictMode: '@sync_conflict_mode',
 
   openStoragePath: '@open_storage_path',
   selectedManagedFolder: '@selected_managed_folder',

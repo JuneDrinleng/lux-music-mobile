@@ -6,6 +6,7 @@ import { Navigation } from 'react-native-navigation'
 import {
   LAUNCH_SCREEN,
   LOGIN_SCREEN,
+  SYNC_LOGIN_SCREEN,
   AGREEMENT_SCREEN,
   HOME_SCREEN,
   PLAY_DETAIL_SCREEN,
@@ -68,6 +69,41 @@ export async function pushLoginScreen() {
         children: [{
           component: {
             name: LOGIN_SCREEN,
+            options: {
+              topBar: {
+                visible: false,
+                height: 0,
+                drawBehind: false,
+              },
+              statusBar: {
+                drawBehind: true,
+                visible: true,
+                style: getStatusBarStyle(theme.isDark),
+                backgroundColor: 'transparent',
+              },
+              navigationBar: {
+                backgroundColor: 'transparent',
+              },
+              layout: {
+                componentBackgroundColor: theme['c-content-background'],
+              },
+            },
+          },
+        }],
+      },
+    },
+  })
+}
+
+export async function pushSyncLoginScreen() {
+  const theme = themeState.theme
+
+  return Navigation.setRoot({
+    root: {
+      stack: {
+        children: [{
+          component: {
+            name: SYNC_LOGIN_SCREEN,
             options: {
               topBar: {
                 visible: false,

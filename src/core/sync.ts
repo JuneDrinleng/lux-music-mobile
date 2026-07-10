@@ -1,6 +1,7 @@
 import { dismissOverlay, onModalDismissed, showSyncModeModal } from '@/navigation'
 import syncState from '@/store/sync/state'
 import syncActions from '@/store/sync/action'
+import { getSyncConflictMode, setSyncConflictMode } from '@/utils/data'
 
 type RemoveListener = (() => void) | null
 let removeEvent: RemoveListener
@@ -23,36 +24,45 @@ const closeSyncModeModal = () => {
     syncActions.setSyncModeComponentId('')
   }
 }
-export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverName: string, type: T) => new Promise<LX.Sync.ModeTypes[T]>((resolve, reject) => {
-  removeSyncModeEvent()
-  syncActions.setServerInfo(serverName, type)
-  showSyncModeModal()
-
-  const removeListeners = () => {
-    removeListener!()
-    removeListener = null
-    removeEvent = null
-    global.app_event.off('selectSyncMode', handleSelectMode)
+export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverName: string, type: T): Promise<LX.Sync.ModeTypes[T]> => {
+  const savedMode = await getSyncConflictMode()
+  if (savedMode) {
+    const mode = type == 'dislike' ? savedMode.replace(/_full$/, '') : savedMode
+    return mode as LX.Sync.ModeTypes[T]
   }
 
-  const handleSelectMode = ({ mode }: LX.Sync.ModeType) => {
-    removeListeners()
-    closeSyncModeModal()
-    resolve(mode as LX.Sync.ModeTypes[T])
-  }
+  return new Promise<LX.Sync.ModeTypes[T]>((resolve, reject) => {
+    removeSyncModeEvent()
+    syncActions.setServerInfo(serverName, type)
+    showSyncModeModal()
 
-  removeEvent = () => {
-    removeListeners()
-    reject(new Error('cancel'))
-  }
+    const removeListeners = () => {
+      removeListener!()
+      removeListener = null
+      removeEvent = null
+      global.app_event.off('selectSyncMode', handleSelectMode)
+    }
 
-  global.app_event.on('selectSyncMode', handleSelectMode)
+    const handleSelectMode = async({ mode }: LX.Sync.ModeType) => {
+      removeListeners()
+      closeSyncModeModal()
+      if (mode != 'cancel') await setSyncConflictMode(mode as LX.Sync.List.SyncMode)
+      resolve(mode as LX.Sync.ModeTypes[T])
+    }
 
-  let removeListener: RemoveListener = onModalDismissed(syncState.syncModeComponentId, () => {
-    syncActions.setSyncModeComponentId('')
-    removeEvent?.()
+    removeEvent = () => {
+      removeListeners()
+      reject(new Error('cancel'))
+    }
+
+    global.app_event.on('selectSyncMode', handleSelectMode)
+
+    let removeListener: RemoveListener = onModalDismissed(syncState.syncModeComponentId, () => {
+      syncActions.setSyncModeComponentId('')
+      removeEvent?.()
+    })
   })
-})
+}
 
 export const removeSyncModeEvent = () => {
   if (!removeEvent) return

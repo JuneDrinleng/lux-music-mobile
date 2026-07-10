@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import CheckBox from '@/components/common/CheckBox'
+import LanguageSwitch from '@/components/common/LanguageSwitch'
 import StatusBar from '@/components/common/StatusBar'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
@@ -10,36 +11,23 @@ import { saveData } from '@/plugins/storage'
 import { updateSetting } from '@/core/common'
 import { navigations } from '@/navigation'
 import { pushAgreementScreen } from '@/navigation/navigation'
+import { useI18n } from '@/lang'
+import type { Message } from '@/lang'
 
-const ITEMS = [
-  {
-    key: 'cheatTip',
-    label: '我已阅读并了解以上安全提醒',
-    desc: '1. 本项目没有任何"官方社群"或"收费解锁"渠道，请注意甄别，谨防受骗。\n\n2. 如果你在使用过程中看到广告、引流或要求付费升级，通常说明你当前使用的是第三方修改版本。\n\n3. 项目主要发布渠道为 GitHub，其他来源请自行判断可信度。',
-    required: true,
-  },
-  {
-    key: 'pact',
-    label: '我已阅读并完全接受本软件的许可协议',
-    desc: '继续使用前请先阅读并接受许可协议，点击查看完整协议',
-    required: true,
-  },
-  {
-    key: 'freeOpenSource',
-    label: '我已了解本软件为免费开源软件',
-    desc: '本软件完全免费且开源，如果你是花钱购买的，请直接给差评！',
-    required: true,
-  },
-] as const
+const itemKeys = ['cheatTip', 'pact', 'freeOpenSource'] as const
+const getItemLabelKey = (key: typeof itemKeys[number]) => `login_${key}_label` as keyof Message
 
 export default memo(({ componentId }: { componentId: string }) => {
   const theme = useTheme()
+  const t = useI18n()
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [confirming, setConfirming] = useState(false)
 
+  const items = useMemo(() => itemKeys.map(key => ({ key, required: true })), [])
+
   const allRequiredChecked = useMemo(() =>
-    ITEMS.every(item => !item.required || (checked[item.key] ?? false)),
-  [checked])
+    items.every(item => !item.required || (checked[item.key] ?? false)),
+  [checked, items])
 
   const handleToggle = useCallback((key: string) => {
     setChecked(prev => ({ ...prev, [key]: !prev[key] }))
@@ -56,9 +44,7 @@ export default memo(({ componentId }: { componentId: string }) => {
       updateSetting({ 'common.isAgreePact': true })
     }
 
-    await navigations.pushHomeScreen()
-    global.lx.isShowingLaunchScreen = false
-    void global.lx._onLoginConfirmed?.()
+    await navigations.pushSyncLoginScreen()
   }, [allRequiredChecked, confirming, checked])
 
   // 阻止返回键退出登录页
@@ -84,10 +70,13 @@ export default memo(({ componentId }: { componentId: string }) => {
             />
           </View>
           <Text style={styles.title} size={26}>Lux Music</Text>
+          <View style={styles.languageSwitch}>
+            <LanguageSwitch />
+          </View>
         </View>
 
         <View style={styles.checkList}>
-          {ITEMS.map(item => (
+          {items.map(item => (
             <View key={item.key} style={styles.checkItem}>
               <CheckBox
                 check={!!checked[item.key]}
@@ -95,31 +84,31 @@ export default memo(({ componentId }: { componentId: string }) => {
                 need={false}
                 marginBottom={8}
               >
-                <Text size={15}>{item.label}</Text>
+                <Text size={15}>{t(getItemLabelKey(item.key))}</Text>
               </CheckBox>
               {item.key === 'pact' ? (
                 <Text style={styles.checkDesc} color={theme['c-500']} size={12}>
-                  继续使用前请先阅读并接受许可协议，
+                  {t('login_pact_desc_prefix')}
                   <Text
                     style={{ textDecorationLine: 'underline' }}
                     color={theme['c-primary']}
                     size={12}
                     onPress={() => { pushAgreementScreen(componentId, 'pact') }}
-                  >点击查看完整协议</Text>
+                  >{t('login_pact_desc_link')}</Text>
                 </Text>
               ) : item.key === 'cheatTip' ? (
                 <Text style={styles.checkDesc} color={theme['c-500']} size={12}>
-                  使用前请了解安全提醒内容，
+                  {t('login_cheatTip_desc_prefix')}
                   <Text
                     style={{ textDecorationLine: 'underline' }}
                     color={theme['c-primary']}
                     size={12}
                     onPress={() => { pushAgreementScreen(componentId, 'cheat-tip') }}
-                  >点击查看详情</Text>
+                  >{t('login_cheatTip_desc_link')}</Text>
                 </Text>
               ) : (
                 <Text style={styles.checkDesc} color={theme['c-500']} size={12}>
-                  {item.desc}
+                  {t('login_freeOpenSource_desc')}
                 </Text>
               )}
             </View>
@@ -137,7 +126,7 @@ export default memo(({ componentId }: { componentId: string }) => {
           onPress={handleConfirm}
           disabled={!allRequiredChecked || confirming}
         >
-          <Text color="#fff" size={16} style={styles.confirmBtnText}>进入应用</Text>
+          <Text color="#fff" size={16} style={styles.confirmBtnText}>{t('login_next')}</Text>
         </Pressable>
       </View>
     </View>
@@ -176,6 +165,9 @@ const styles = StyleSheet.create({
   title: {
     marginTop: scaleSizeH(18),
     fontWeight: '600',
+  },
+  languageSwitch: {
+    marginTop: scaleSizeH(18),
   },
   checkList: {
     marginTop: scaleSizeH(12),

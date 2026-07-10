@@ -29,6 +29,10 @@ const listPrevSelectIdKey = storageDataPrefix.listPrevSelectId
 const syncAuthKeyPrefix = storageDataPrefix.syncAuthKey
 const syncHostPrefix = storageDataPrefix.syncHost
 const syncHostHistoryPrefix = storageDataPrefix.syncHostHistory
+const syncModePrefix = storageDataPrefix.syncMode
+const luxAuthPrefix = storageDataPrefix.luxAuth
+const syncLoginCompletedPrefix = storageDataPrefix.syncLoginCompleted
+const syncConflictModePrefix = storageDataPrefix.syncConflictMode
 const listPrefix = storageDataPrefix.list
 const dislikeListPrefix = storageDataPrefix.dislikeList
 const userApiPrefix = storageDataPrefix.userApi
@@ -44,7 +48,7 @@ const userAvatarFilePrefix = `${userAvatarFileDir}/avatar`
 const userAvatarLocalExts = ['jpg', 'jpeg', 'png', 'webp', 'bmp'] as const
 const localFileProtocolRxp = /^file:\/\//
 
-export const DEFAULT_USER_AVATAR: number = defaultUserAvatar as number
+export const DEFAULT_USER_AVATAR: number = defaultUserAvatar
 export const DEFAULT_USER_NAME = 'Alex Rivera'
 
 const normalizeLocalFilePath = (path: string) => path.replace(localFileProtocolRxp, '')
@@ -73,6 +77,27 @@ const persistUserAvatarPath = async(path: string) => {
   await writeFile(targetPath, avatarData, 'base64')
   await clearPersistedUserAvatarFiles(targetPath)
   return targetPath
+}
+const getUserAvatarDataUrlMime = (path: string) => {
+  const ext = extname(path).toLowerCase()
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'webp':
+      return 'image/webp'
+    case 'bmp':
+      return 'image/bmp'
+    default:
+      return 'image/png'
+  }
+}
+const parseUserAvatarDataUrl = (dataUrl: string) => {
+  const result = /^data:(image\/(?:png|jpeg|jpg|webp|bmp));base64,(.+)$/i.exec(dataUrl)
+  if (!result) return null
+  const mime = result[1].toLowerCase().replace('image/jpg', 'image/jpeg')
+  const ext = mime == 'image/jpeg' ? 'jpg' : mime.replace('image/', '')
+  return { ext, data: result[2] }
 }
 const resolveUserAvatar = async(path: string | null) => {
   if (!path) return null
@@ -517,6 +542,39 @@ export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => 
   keys[serverId] = info
   await saveData(syncAuthKeyPrefix, keys)
 }
+export const clearSyncAuthKey = async() => {
+  await removeData(syncAuthKeyPrefix)
+}
+
+export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
+  const mode = await getData<LX.Sync.Mode>(syncModePrefix)
+  return mode == 'lux' ? 'lux' : 'lx'
+}
+export const setSyncMode = async(mode: LX.Sync.Mode) => {
+  await saveData(syncModePrefix, mode)
+}
+export const getLuxAuth = async() => getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
+  await saveData(luxAuthPrefix, auth)
+}
+export const clearLuxAuth = async() => {
+  await removeData(luxAuthPrefix)
+}
+export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
+export const setSyncLoginCompleted = async(completed: boolean) => {
+  await saveData(syncLoginCompletedPrefix, completed)
+}
+export const getSyncConflictMode = async() => {
+  const mode = await getData<LX.Sync.List.SyncMode>(syncConflictModePrefix)
+  return mode && mode != 'cancel' ? mode : null
+}
+export const setSyncConflictMode = async(mode: LX.Sync.List.SyncMode) => {
+  if (mode == 'cancel') return
+  await saveData(syncConflictModePrefix, mode)
+}
+export const clearSyncConflictMode = async() => {
+  await removeData(syncConflictModePrefix)
+}
 
 let syncHostInfo: string
 export const getSyncHost = async() => {
@@ -657,7 +715,7 @@ export const getUserAvatar = async() => {
 }
 export const saveUserAvatar = async(path: string | null) => {
   if (path) {
-    userAvatar = await persistUserAvatarPath(path)
+    userAvatar = isLocalFilePath(path) ? await persistUserAvatarPath(path) : path
     await saveData(userAvatarPrefix, userAvatar)
     return userAvatar
   } else {
@@ -666,6 +724,27 @@ export const saveUserAvatar = async(path: string | null) => {
     await removeData(userAvatarPrefix)
     return userAvatar
   }
+}
+export const saveUserAvatarDataUrl = async(dataUrl: string | null) => {
+  if (!dataUrl) return saveUserAvatar(null)
+  const avatar = parseUserAvatarDataUrl(dataUrl)
+  if (!avatar) return saveUserAvatar(dataUrl)
+  await ensureUserAvatarDir()
+  const targetPath = `${userAvatarFilePrefix}.${avatar.ext}`
+  await writeFile(targetPath, avatar.data, 'base64')
+  await clearPersistedUserAvatarFiles(targetPath)
+  userAvatar = targetPath
+  await saveData(userAvatarPrefix, targetPath)
+  return targetPath
+}
+export const getUserAvatarDataUrl = async() => {
+  const avatar = await getUserAvatar()
+  if (!avatar) return ''
+  if (!isLocalFilePath(avatar)) return avatar
+  const sourcePath = normalizeLocalFilePath(avatar)
+  if (!await existsFile(sourcePath)) return ''
+  const data = await readFile(sourcePath, 'base64')
+  return `data:${getUserAvatarDataUrlMime(sourcePath)};base64,${data}`
 }
 
 let userName: string | null = ''

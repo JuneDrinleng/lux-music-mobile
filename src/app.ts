@@ -4,7 +4,7 @@ import '@/utils/errorHandle'
 import { init as initLog } from '@/utils/log'
 import { bootLog, getBootLog } from '@/utils/bootLog'
 import '@/config/globalData'
-import { getFontSize } from '@/utils/data'
+import { getFontSize, getSyncLoginCompleted } from '@/utils/data'
 import { exitApp } from './utils/nativeModules/utils'
 import { windowSizeTools } from './utils/windowSizeTools'
 import { listenLaunchEvent } from './navigation/regLaunchedEvent'
@@ -79,6 +79,20 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
     await handleInit()
     if (!isInited) return
 
+    const pushSyncLoginScreen = async() => {
+      global.lx._onLoginConfirmed = handlePushedHomeScreen
+      await navigations.pushSyncLoginScreen().catch((err: any) => {
+        void tipDialog({
+          title: 'Error',
+          message: err.message,
+          btnText: 'Exit',
+          bgClose: false,
+        }).then(() => {
+          exitApp()
+        })
+      })
+    }
+
     // 首次启动：展示登录页，合并勾选所有启动时弹窗
     const hasSeenCheatTip = await getData<boolean>(storageDataPrefix.cheatTip)
     if (!hasSeenCheatTip) {
@@ -93,6 +107,11 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
           exitApp()
         })
       })
+      return
+    }
+
+    if (!await getSyncLoginCompleted()) {
+      await pushSyncLoginScreen()
       return
     }
 

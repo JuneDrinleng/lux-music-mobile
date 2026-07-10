@@ -3,52 +3,66 @@
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
-<<<<<<< Updated upstream
-## [0.2.18](https://github.com/lyswhut/lx-music-mobile/compare/v0.2.17...v0.2.18) - 2026-05-07
+## [0.3.1](https://github.com/lyswhut/lx-music-mobile/compare/v0.3.0...v0.3.1) - 2026-07-10
 
-## v0.2.18
+## v0.3.1
 
-本次更新聚焦播放详情浮层重构、歌单详情组件提取与 UI 样式统一，将播放详情从原生导航页面改为浮层 overlay 架构，提取 PlaylistDetailView 可复用组件，并统一搜索栏/按钮视觉样式。
+本次更新完善 Lux Music 新同步模式的首次登录、账号资料同步与冲突处理体验，同时保持 LX Music 旧连接码同步协议兼容。
 
 ### 新增
 
-- 新增 PlayDetailOverlay 浮层组件，播放详情从原生导航改为从底部滑入的 overlay，支持黑色遮罩背景与弹性动画（Easing.out(Easing.back(1.05))），通过全局事件 showPlayDetail/hidePlayDetail 控制显隐，横竖屏均已接入。
-- 新增 PlaylistDetailView 可复用组件（525 行），从 PlaylistTab 中提取歌单详情完整渲染逻辑为独立组件，支持本地歌单/在线歌单/排行榜三种类型，自带开合动画、播放/删除/重命名/导入/拖拽排序等完整交互。
-- 新增 PlayDetailContext 上下文（createContext + usePlayDetailClose hook），通过 Context 注入关闭回调，解耦 Pic/Lyric/Header 等子组件对 navigation.pop 的直接依赖。
+- 新增首次同步登录页：可选择 Lux Music 账号密码同步、LX Music 连接码同步或无同步使用。
+- 新增 Lux 个人资料同步：昵称、头像、性别和个性签名会随 Lux 账号在设备间同步。
+- 新增“退出当前账号”入口：退出后清除 Lux 登录态、同步认证和冲突处理策略，回到同步登录页。
+- 新增首次同步冲突策略记忆：选择合并或覆盖方向后会自动复用，退出账号后才会再次询问。
 
 ### 调整
 
-- GlassSearchField 毛玻璃效果简化：移除 @react-native-community/blur BlurView 依赖及 glassTint/glassFallback/glassRim 多层叠加层，改为纯色背景 #dce0e9 + 边框 #cdd2de。
-- 搜索栏/按钮 UI 统一样式：移除 shadowColor/shadowOpacity/shadowRadius/elevation 阴影属性，简化按钮背景色为 #f0f1f6/#e8e9f0。
-- PlayerBar 播放详情入口从 navigations.pushPlayDetailScreen 改为 global.app_event.showPlayDetail，统一 overlay 打开方式并预加载封面图。
-- PlayDetail 导航层优化：pushPlayDetailScreen 提前设置 bgPic 封面图 + 黑色 componentBackgroundColor，避免推入动画过程中的白屏闪烁。
-- SharedTopBar 在歌单详情打开时保持显示（移除 playlistDetailVisible 条件限制），提升导航一致性。
-- 本地歌单详情缓存未命中时同步写入 snapshot 缓存（cachePlaylistSnapshot），避免下次打开重复加载。
-- 关闭歌单详情浮层时发送 closePlaylistDetail 全局事件通知联动组件。
-- Home/Horizontal 横屏主页挂载 PlayDetailOverlay，支持横屏模式下的播放详情浮层。
-- PageContent 新增 pic prop 支持外部注入封面图，play detail overlay 模式下优先使用当前歌曲封面避免白底。
-- SearchPage 搜索历史行样式收紧：行高 56→44，移除白色卡片背景色/圆角/阴影，行间距归零。
-- PlaylistDetailHeader hero 容器添加 backgroundColor 兜底背景色 #eef0fb。
-- PlayerBar loveIcon 尺寸 20→24、loveIconInCard 22→26，Pic sideActionIcon/likedIcon 20→24，触摸区域更友好。
-- PlayDetail/index.tsx 新增 onClose prop 支持 overlay 模式关闭回调，保留原生 navigation.pop 兼容路径。
+- 重做同步冲突处理弹窗，采用 Home/Settings 一致的圆角卡片与分组选项布局，明确展示数据方向和覆盖影响。
+- 首次协议、安全提醒与同步登录页面支持语言切换；系统语言会映射为简体中文、繁体中文或英文。
+- 无同步使用时，昵称会设为本地化的“本地用户 / 本地使用者 / Local User”。
+- 个人资料页补充明确的“返回”按钮；退出账号图标改为位图资源。
 
-### 性能优化
+### 兼容性
 
-- PlaylistDetailOverlay / PlaylistDetailScene 的 FlatList 添加 getItemLayout 属性，利用固定行高 SONG_ITEM_HEIGHT（70px）加速列表布局计算，减少渲染帧耗时。
-- 歌单详情数据加载策略调整：线上歌单/排行榜全量数据加载完成后再一次性更新列表，避免先展示首页分页数据再替换为全量数据导致的二次渲染与视觉闪烁。
-
-### 移除
-
-- 移除 PlaylistTab 中 renderDetailScene 函数及 55 行 props 传递代码，由 PlaylistDetailView 自包含接管。
-- 移除 GlassSearchField 中 BlurView 组件及 hasNativeBlurView UIManager 检测逻辑。
-- 移除 .github/workflows/publish-version-info.yml GitHub Actions 流水线。
+- 现有 `/hello`、`/id`、`/ah` 和 WebSocket 同步协议保持不变。
+- LX Music 连接码同步流程、已保存的旧同步地址与 KeyInfo 不受本次变更影响。
 
 ### 构建
 
-- 版本号更新到 0.2.18。
-- Android versionCode 升级到 109。
+- 版本号更新到 0.3.1。
+- Android versionCode 升级到 112。
 
-=======
+## [0.3.0](https://github.com/JuneDrinleng/lux-music-mobile/compare/v0.2.19...v0.3.0) - 2026-06-30
+
+## v0.3.0
+
+本次更新聚焦新版同步服务配套能力，新增 Lux Music 账号密码同步模式，并保持原有 LX Music 连接码同步模式可继续使用。
+
+### 新增
+
+- 新增 Lux Music 同步格式：移动端可使用服务端 Web 后台统一账号密码登录，并通过新版服务端获取同步 KeyInfo。
+- 新增同步格式持久化配置：支持在 LX Music 连接码同步与 Lux Music 账号密码同步之间切换。
+- 新增 Lux 登录态存储：应用重启后会根据同步格式自动恢复对应同步连接。
+- 设置页新增 Lux 账号登录弹窗，支持填写用户名和密码后登录并启动同步。
+
+### 调整
+
+- 保留 LX Music 连接码同步流程，旧同步地址、连接码与已保存 KeyInfo 不受影响。
+- 启动自动同步时会根据当前同步格式选择 LX 或 Lux 连接方式。
+- 同步格式设置页会显示当前选中的 LX/Lux 格式，避免配置状态不明确。
+- 补充简体中文、繁体中文、英文多语言文案。
+
+### 兼容性
+
+- 现有 /hello、/id、/ah 和 WebSocket 同步协议保持不变。
+- Lux 模式只改变获取 KeyInfo 的方式，歌单与不喜欢规则同步仍复用原同步通道。
+
+### 构建
+
+- 版本号更新到 0.3.0。
+- Android versionCode 升级到 111。
+
 ## [0.2.19](https://github.com/JuneDrinleng/lux-music-mobile/compare/v0.2.18...v0.2.19) - 2026-05-07
 
 ## v0.2.19
@@ -59,22 +73,21 @@
 
 - PlaylistDetailView 内联歌单详情组件：作为绝对定位的覆盖层渲染，统一处理本地歌单、在线歌单、排行榜三种详情展示。
 - PlayDetailOverlay 播放详情浮层：在 Vertical 布局中新增播放详情覆盖层，支持从迷你播放栏点击进入。
-- PlaylistDetailView 新增 `bottomPadding` prop：支持外部传入底部留白高度，FlatList 底部内容自动留出空间。
+- PlaylistDetailView 新增 bottomPadding prop：支持外部传入底部留白高度，FlatList 底部内容自动留出空间。
 
 ### 调整
 
-- PlaylistTab 歌单详情入口重构：移除内联的 PlaylistDetailScene 渲染分支，统一通过 `global.app_event.openPlaylistDetail` 事件触发详情展示。
-- PlaylistDetailView 背景色适配主题：根容器和 FlatList 背景色使用 `c-app-background` 主题变量，替换硬编码的 `#eef0fb`。
-- PlaylistDetailHeader 主题适配：底部渐变遮罩、Hero 背景 Fallback、Section Header 背景色均使用 `c-app-background` 主题变量。
-- Vertical 布局动态测量底部导航栏 + 迷你播放栏高度，并传入 PlaylistDetailView 的 `bottomPadding`，确保列表末尾歌曲不被遮挡。
+- PlaylistTab 歌单详情入口重构：移除内联的 PlaylistDetailScene 渲染分支，统一通过 global.app_event.openPlaylistDetail 事件触发详情展示。
+- PlaylistDetailView 背景色适配主题：根容器和 FlatList 背景色使用 c-app-background 主题变量，替换硬编码的 #eef0fb。
+- PlaylistDetailHeader 主题适配：底部渐变遮罩、Hero 背景 Fallback、Section Header 背景色均使用 c-app-background 主题变量。
+- Vertical 布局动态测量底部导航栏 + 迷你播放栏高度，并传入 PlaylistDetailView 的 bottomPadding，确保列表末尾歌曲不被遮挡。
 - 移除搜索栏的玻璃拟态效果（GlassSearchField），统一搜索栏视觉风格。
 
 ### 构建
 
 - 版本号更新到 0.2.19。
 - Android versionCode 升级到 110。
-- 移除 `.github/workflows/publish-version-info.yml` 工作流。
->>>>>>> Stashed changes
+- 移除 .github/workflows/publish-version-info.yml 工作流。
 
 ## [0.2.17](https://github.com/lyswhut/lx-music-mobile/compare/v0.2.16...v0.2.17) - 2026-05-06
 

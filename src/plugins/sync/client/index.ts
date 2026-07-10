@@ -1,4 +1,4 @@
-import handleAuth from './auth'
+import handleAuth, { authLux } from './auth'
 import { connect as socketConnect, disconnect as socketDisconnect, sendSyncStatus, sendSyncMessage } from './client'
 // import { getSyncHost } from '@/utils/data'
 import log from '../log'
@@ -16,6 +16,15 @@ const handleConnect = async(host: string, authCode?: string) => {
   await disconnectServer(false)
   if (id != connectId) return
   const keyInfo = await handleAuth(urlInfo, authCode)
+  if (id != connectId) return
+  socketConnect(urlInfo, keyInfo)
+}
+const handleLuxConnect = async(host: string, username?: string, password?: string) => {
+  const id = connectId
+  const urlInfo = parseUrl(host)
+  await disconnectServer(false)
+  if (id != connectId) return
+  const keyInfo = await authLux(urlInfo, username, password)
   if (id != connectId) return
   socketConnect(urlInfo, keyInfo)
 }
@@ -48,6 +57,23 @@ const connectServer = async(host: string, authCode?: string) => {
   })
 }
 
+const connectLuxServer = async(host: string, username?: string, password?: string) => {
+  sendSyncStatus({
+    status: false,
+    message: SYNC_CODE.connecting,
+  })
+  const id = connectId
+  return handleLuxConnect(host, username, password).catch(async err => {
+    if (id != connectId) return
+    sendSyncStatus({
+      status: false,
+      message: err.message,
+    })
+    log.r_warn(err.message)
+    return Promise.reject(err)
+  })
+}
+
 const disconnectServer = async(isResetStatus = true) => handleDisconnect().then(() => {
   log.info('disconnect...')
   if (isResetStatus) {
@@ -64,6 +90,7 @@ const disconnectServer = async(isResetStatus = true) => handleDisconnect().then(
 
 export {
   connectServer,
+  connectLuxServer,
   disconnectServer,
 }
 
