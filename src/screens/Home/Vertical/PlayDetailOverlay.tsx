@@ -5,12 +5,16 @@ import { APP_LAYER_INDEX, COMPONENT_IDS } from '@/config/constant'
 import { setBgPic, setComponentId } from '@/core/common'
 import { useWindowSize } from '@/utils/hooks'
 import commonState from '@/store/common/state'
+import { sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const ANIM_IN_DURATION = 420
 const ANIM_OUT_DURATION = 300
 
 export default memo(
   ({ componentId }: { componentId: string }) => {
+    const styles = useLuxStyles()
+
     const animValue = useRef(new Animated.Value(0)).current
     const prevBgPicRef = useRef<string | null>(null)
     const [isVisible, setVisible] = useState(false)
@@ -97,7 +101,7 @@ export default memo(
   },
 )
 
-const styles = {
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => ({
   container: {
     position: 'absolute' as const,
     top: 0,
@@ -114,9 +118,9 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#000000',
+    backgroundColor: colors.scrim.mask,
   },
   content: {
     flex: 1,
   },
-}
+}))

@@ -25,26 +25,31 @@ import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModa
 import { useWindowSize } from '@/utils/hooks'
 import { setSystemBarsTransparent } from '@/utils/nativeModules/utils'
 import { confirmDialog, createStyle } from '@/utils/tools'
+import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
 const QUEUE_ITEM_HEIGHT = 56
 const QUEUE_LIST_TOP_PADDING = 4
 const QUEUE_PANEL_MIN_HEIGHT = 300
 const QUEUE_PANEL_MAX_HEIGHT_RATIO = 0.82
 const QUEUE_PANEL_HEIGHT_RATIO = 0.62
-const sourceTagColorMap: Record<string, { text: string, background: string }> = {
-  tx: { text: '#31c27c', background: '#ecfdf3' },
-  wy: { text: '#d81e06', background: '#fef2f2' },
-  kg: { text: '#2f88ff', background: '#eff6ff' },
-  kw: { text: '#f59e0b', background: '#fffbeb' },
-  mg: { text: '#e11d8d', background: '#fdf2f8' },
-}
+const readSourceTagColorMap = memoLuxColors((colors: LuxColors) => ({
+  tx: { text: colors.source.tx.text, background: colors.source.tx.background },
+  wy: { text: colors.source.wy.text, background: colors.source.wy.background },
+  kg: { text: colors.source.kg.text, background: colors.source.kg.background },
+  kw: { text: colors.source.kw.text, background: colors.source.kw.background },
+  mg: { text: colors.source.mg.text, background: colors.source.mg.background },
+}))
 
-const getSourceTagColor = (source: string) => {
-  return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#f3f4f6' }
+const getSourceTagColor = (source: string, colors: LuxColors = limeColors) => {
+  return readSourceTagColorMap(colors)[source.toLowerCase()] ?? { text: colors.source.queueUnknown.text, background: colors.source.queueUnknown.background }
 }
 
 export default memo(
   ({ systemGestureInsetBottom = 0, enabled = true }: { systemGestureInsetBottom?: number, enabled?: boolean }) => {
+    const styles = useLuxStyles()
+    const { colors } = useLuxTheme()
+
     const t = useI18n()
     const winSize = useWindowSize()
     const myLists = useMyList()
@@ -268,7 +273,7 @@ export default memo(
     const renderQueueItem = useCallback(
       ({ item, index }: { item: LX.Music.MusicInfo, index: number }) => {
         const isCurrent = index == currentQueueIndex
-        const sourceTagColor = getSourceTagColor(item.source)
+        const sourceTagColor = getSourceTagColor(item.source, colors)
         return (
           <View
             style={[
@@ -285,7 +290,7 @@ export default memo(
             >
               <Text
                 size={11}
-                color={isCurrent ? sourceTagColor.text : '#9ca3af'}
+                color={isCurrent ? sourceTagColor.text : colors.ink.faint}
                 style={styles.itemIndex}
               >
                 {`${index + 1}`.padStart(2, '0')}
@@ -293,7 +298,7 @@ export default memo(
               <View style={styles.itemMain}>
                 <Text
                   size={13}
-                  color={isCurrent ? sourceTagColor.text : '#111827'}
+                  color={isCurrent ? sourceTagColor.text : colors.ink.strong}
                   numberOfLines={1}
                   style={styles.itemTitle}
                 >
@@ -307,7 +312,7 @@ export default memo(
                   >
                     {item.source.toUpperCase()}
                   </Text>
-                  <Text size={11} color="#6b7280" numberOfLines={1} style={styles.itemSinger}>
+                  <Text size={11} color={colors.ink.meta} numberOfLines={1} style={styles.itemSinger}>
                     {item.singer || '-'}
                   </Text>
                 </View>
@@ -332,7 +337,7 @@ export default memo(
                       handleShowMusicAddModal(item)
                     }}
                   >
-                    <Icon name="add-music" rawSize={15} color="#6b7280" />
+                    <Icon name="add-music" rawSize={15} color={colors.ink.meta} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.itemActionBtn}
@@ -341,7 +346,7 @@ export default memo(
                       void handleRemoveQueueMusic(item.id)
                     }}
                   >
-                    <Icon name="remove" rawSize={15} color="#6b7280" />
+                    <Icon name="remove" rawSize={15} color={colors.ink.meta} />
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -356,6 +361,7 @@ export default memo(
         handleSelectQueueMusic,
         isTempQueue,
         isPlay,
+        colors,
       ],
     )
 
@@ -390,10 +396,10 @@ export default memo(
             </View>
             <View style={styles.header}>
               <View style={styles.headerTitleWrap}>
-                <Text size={14} color="#111827" style={styles.headerTitle}>
+                <Text size={14} color={colors.ink.strong} style={styles.headerTitle}>
                   {queueTitle}
                 </Text>
-                <Text size={11} color="#6b7280">
+                <Text size={11} color={colors.ink.meta}>
                   {t('me_tracks_count', { num: playQueue.length })}
                 </Text>
               </View>
@@ -410,7 +416,7 @@ export default memo(
               >
                 <Text
                   size={12}
-                  color={!isTempQueue || !playQueue.length ? '#9ca3af' : '#ef4444'}
+                  color={!isTempQueue || !playQueue.length ? colors.ink.faint : colors.danger}
                 >
                   {t('play_queue_clear_current_btn')}
                 </Text>
@@ -445,7 +451,7 @@ export default memo(
               />
             ) : (
               <View style={styles.emptyWrap}>
-                <Text size={12} color="#9ca3af">
+                <Text size={12} color={colors.ink.faint}>
                   {t('no_item')}
                 </Text>
               </View>
@@ -458,7 +464,7 @@ export default memo(
   },
 )
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   overlayRoot: {
     position: 'absolute',
     top: 0,
@@ -474,7 +480,7 @@ const styles = createStyle({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#000000',
+    backgroundColor: colors.scrim.mask,
   },
   maskTouchable: {
     flex: 1,
@@ -484,7 +490,7 @@ const styles = createStyle({
     left: 0,
     right: 0,
     bottom: 0,
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.16,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: -4 },
@@ -493,7 +499,7 @@ const styles = createStyle({
     flex: 1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     overflow: 'hidden',
   },
   grabWrap: {
@@ -506,13 +512,13 @@ const styles = createStyle({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#d1d5db',
+    backgroundColor: colors.line.soft,
   },
   header: {
     minHeight: 52,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.surface.queueAlt,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -532,10 +538,10 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.queue.close,
   },
   closeBtnDisabled: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   list: {
     flex: 1,
@@ -551,7 +557,7 @@ const styles = createStyle({
     alignItems: 'center',
   },
   itemRowCurrent: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.queue.current,
   },
   itemPress: {
     flex: 1,
@@ -613,4 +619,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

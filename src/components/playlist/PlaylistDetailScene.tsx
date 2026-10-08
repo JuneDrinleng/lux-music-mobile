@@ -8,6 +8,7 @@ import { type useI18n } from '@/lang'
 import PlaylistImportPanel from './PlaylistImportPanel'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 interface ImportCandidate {
   id: string
@@ -108,7 +109,9 @@ export default ({
   onCancelRemoveSong,
   onConfirmRemoveSong,
 }: PlaylistDetailSceneProps) => {
-  const draggingSourceTone = draggingSong ? getSourceTone(draggingSong.source) : null
+  const { colors } = useLuxTheme()
+
+  const draggingSourceTone = draggingSong ? getSourceTone(draggingSong.source, colors) : null
 
   return (
     <>
@@ -134,7 +137,7 @@ export default ({
           ListHeaderComponent={detailHeader}
           ListEmptyComponent={(
             <View style={styles.emptyCard}>
-              <Text size={13} color="#6b7280">{detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+              <Text size={13} color={colors.ink.meta}>{detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
             </View>
           )}
           showsVerticalScrollIndicator={false}

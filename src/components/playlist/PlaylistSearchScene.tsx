@@ -8,6 +8,7 @@ import Text from '@/components/common/Text'
 import GlassSearchField from '@/components/search/GlassSearchField'
 import { getSourceTone } from '@/components/search/sourceTone'
 import { type useI18n } from '@/lang'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 type SearchSourceAction = 'all' | LX.OnlineSource
 interface SourceMenuItem {
@@ -98,6 +99,8 @@ export default ({
   onPickSearchKeyword,
   onRemoveSearchHistoryItem,
 }: PlaylistSearchSceneProps) => {
+  const { colors } = useLuxTheme()
+
   const searchHeaderHeight = statusBarHeight + 18 + 44 + 16
 
   return (
@@ -113,12 +116,12 @@ export default ({
             <View style={styles.topBar}>
               <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={onExitSearch}>
                 <View style={styles.detailBackBtnInner}>
-                  <Icon name="chevron-left" rawSize={20} color="#232733" />
+                  <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
                 </View>
               </TouchableOpacity>
               <View style={styles.searchResultSearchWrap}>
                 <GlassSearchField style={styles.searchWrap} contentStyle={styles.searchContent}>
-                  <Icon name="search-2" rawSize={18} color="#666d7b" />
+                  <Icon name="search-2" rawSize={18} color={colors.ink.searchIcon} />
                   {isSearchInputEditing
                     ? <TextInput
                         ref={searchInputRef}
@@ -132,10 +135,10 @@ export default ({
                         onSubmitEditing={({ nativeEvent }) => { onSubmitSearch(nativeEvent.text ?? searchText) }}
                         returnKeyType="search"
                         placeholder={t('me_search_placeholder')}
-                        placeholderTextColor="#9aa1ae"
+                        placeholderTextColor={colors.ink.quiet}
                       />
                     : <TouchableOpacity style={styles.searchInputDisplay} activeOpacity={0.85} onPress={onBeginSearchInputEdit}>
-                        <Text size={13} color={searchText ? '#232733' : '#9aa1ae'} numberOfLines={1} style={styles.searchInputText}>
+                        <Text size={13} color={searchText ? colors.ink.input : colors.ink.quiet} numberOfLines={1} style={styles.searchInputText}>
                           {searchText || t('me_search_placeholder')}
                         </Text>
                       </TouchableOpacity>}
@@ -152,9 +155,9 @@ export default ({
                     >
                       <TouchableOpacity activeOpacity={0.85} onPress={onToggleSearchSourceMenu} style={styles.sourceMenuHeadBtn}>
                         <View style={styles.sourceMenuSheetHead}>
-                          <Text size={12} color="#666d7b" style={styles.sourceText}>{searchSourceLabel}</Text>
+                          <Text size={12} color={colors.ink.searchIcon} style={styles.sourceText}>{searchSourceLabel}</Text>
                           <Animated.View style={[styles.sourceChevronWrap, { transform: [{ rotate: sourceChevronRotate }] }]}>
-                            <Icon name="chevron-right-2" rawSize={13} color="#666d7b" />
+                            <Icon name="chevron-right-2" rawSize={13} color={colors.ink.searchIcon} />
                           </Animated.View>
                         </View>
                       </TouchableOpacity>
@@ -171,8 +174,8 @@ export default ({
                         {sourceMenus.map((menu, index) => {
                           const isActive = menu.action === searchSource
                           const tone = menu.action === 'all'
-                            ? { text: '#6b7280', background: '#f3f4f6' }
-                            : getSourceTone(menu.action)
+                            ? { text: colors.ink.meta, background: colors.surface.neutral }
+                            : getSourceTone(menu.action, colors)
                           return (
                             <TouchableOpacity
                               key={menu.action}
@@ -189,11 +192,11 @@ export default ({
                                   {menu.action == 'all' ? 'ALL' : menu.action.toUpperCase()}
                                 </Text>
                               </View>
-                              <Text size={13} color="#111827" style={styles.sourcePanelLabel}>
+                              <Text size={13} color={colors.ink.strong} style={styles.sourcePanelLabel}>
                                 {getSourceMenuLabel(menu.action)}
                               </Text>
                               <View style={styles.sourcePanelCheck}>
-                                {isActive ? <MaterialCommunityIcon name="check" size={16} color="#111827" /> : null}
+                                {isActive ? <MaterialCommunityIcon name="check" size={16} color={colors.ink.strong} /> : null}
                               </View>
                             </TouchableOpacity>
                           )
@@ -210,7 +213,7 @@ export default ({
           ? <View style={[styles.searchAssistPanel, { top: searchHeaderHeight }]}>
               {!searchAssistKeyword
                 ? <View style={styles.searchAssistTitleRow}>
-                    <Text size={13} color="#6b7280">{t('search_history_search')}</Text>
+                    <Text size={13} color={colors.ink.meta}>{t('search_history_search')}</Text>
                     {searchHistoryList.length
                       ? (
                           <TouchableOpacity
@@ -218,7 +221,7 @@ export default ({
                             activeOpacity={0.8}
                             onPress={onClearSearchHistoryList}
                           >
-                            <Icon name="eraser" rawSize={14} color="#9ca3af" />
+                            <Icon name="eraser" rawSize={14} color={colors.ink.faint} />
                           </TouchableOpacity>
                         )
                       : null}
@@ -239,13 +242,13 @@ export default ({
                         onPress={() => { onPickSearchKeyword(keyword) }}
                         onLongPress={!searchAssistKeyword ? () => { onRemoveSearchHistoryItem(keyword) } : undefined}
                       >
-                        <Text size={13} color="#111827" numberOfLines={1} style={styles.searchAssistChipText}>{keyword}</Text>
+                        <Text size={13} color={colors.ink.strong} numberOfLines={1} style={styles.searchAssistChipText}>{keyword}</Text>
                       </TouchableOpacity>
                     )
                   })
                   : (
                       <View style={styles.searchAssistEmpty}>
-                        <Text size={13} color="#9ca3af">
+                        <Text size={13} color={colors.ink.faint}>
                           {searchAssistKeyword
                             ? searchTipLoading
                               ? t('me_searching')
@@ -269,7 +272,7 @@ export default ({
           keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
           ListEmptyComponent={(
             <View style={styles.searchResultStatus}>
-              <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
+              <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
                 {searchLoading
                   ? t('me_searching')
                   : searchKeyword

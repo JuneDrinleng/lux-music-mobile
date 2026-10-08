@@ -4,6 +4,8 @@ import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
 import { pickMusicCover } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 interface ImportCandidate {
   id: string
@@ -63,6 +65,9 @@ export default ({
   onToggleItem,
   getSourceTone,
 }: PlaylistImportPanelProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   return (
     <Modal
       transparent={true}
@@ -78,19 +83,19 @@ export default ({
           <View style={styles.handle} />
           <View style={styles.header}>
             <TouchableOpacity activeOpacity={0.8} onPress={onClose}>
-              <Text size={13} color="#6b7280">{cancelText}</Text>
+              <Text size={13} color={colors.ink.meta}>{cancelText}</Text>
             </TouchableOpacity>
             <View style={styles.headerTitleWrap}>
-              <Text size={16} color="#111827" style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+              <Text size={16} color={colors.ink.strong} style={styles.headerTitle} numberOfLines={1}>{title}</Text>
               {targetListName
-                ? <Text size={11} color="#7d8190" numberOfLines={1}>{targetListName}</Text>
+                ? <Text size={11} color={colors.ink.rowMeta} numberOfLines={1}>{targetListName}</Text>
                 : null}
             </View>
             <View style={styles.headerRightSpacer} />
           </View>
 
           <View style={styles.toolbar}>
-            <Text size={12} color="#6b7280" numberOfLines={1}>{loading ? loadingText : countText}</Text>
+            <Text size={12} color={colors.ink.meta} numberOfLines={1}>{loading ? loadingText : countText}</Text>
             {items.length
               ? (
                   <TouchableOpacity
@@ -99,7 +104,7 @@ export default ({
                     onPress={onToggleSelectAll}
                     style={styles.toolbarButton}
                   >
-                    <Text size={12} color={submitting ? '#9ca3af' : '#111827'} style={styles.toolbarButtonText}>
+                    <Text size={12} color={submitting ? colors.ink.faint : colors.ink.strong} style={styles.toolbarButtonText}>
                       {allSelected ? clearSelectionText : selectAllText}
                     </Text>
                   </TouchableOpacity>
@@ -114,7 +119,7 @@ export default ({
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
-              const sourceTone = getSourceTone(item.musicInfo.source)
+              const sourceTone = getSourceTone(item.musicInfo.source, colors)
               const isSelected = Boolean(selectedMap[item.id])
               return (
                 <TouchableOpacity
@@ -129,32 +134,32 @@ export default ({
                     <Icon
                       name={isSelected ? 'checkbox-marked' : 'checkbox-blank-outline'}
                       rawSize={22}
-                      color={isSelected ? '#111827' : '#9ca3af'}
+                      color={isSelected ? colors.ink.strong : colors.ink.faint}
                     />
                   </View>
                   <Image style={styles.itemCover} url={pickMusicCover(item.musicInfo)} />
                   <View style={styles.itemMain}>
-                    <Text size={14} color="#111827" style={styles.itemName} numberOfLines={1}>{item.musicInfo.name}</Text>
+                    <Text size={14} color={colors.ink.strong} style={styles.itemName} numberOfLines={1}>{item.musicInfo.name}</Text>
                     <View style={styles.itemMetaRow}>
                       <Text size={10} color={sourceTone.text} style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}>
                         {item.musicInfo.source.toUpperCase()}
                       </Text>
-                      <Text size={11} color="#6b7280" numberOfLines={1}>{item.musicInfo.singer}</Text>
+                      <Text size={11} color={colors.ink.meta} numberOfLines={1}>{item.musicInfo.singer}</Text>
                     </View>
-                    <Text size={11} color="#9ca3af" numberOfLines={1}>{item.fromListName}</Text>
+                    <Text size={11} color={colors.ink.faint} numberOfLines={1}>{item.fromListName}</Text>
                   </View>
                 </TouchableOpacity>
               )
             }}
             ListEmptyComponent={(
               <View style={styles.emptyCard}>
-                <Text size={13} color="#6b7280">{loading ? loadingText : emptyText}</Text>
+                <Text size={13} color={colors.ink.meta}>{loading ? loadingText : emptyText}</Text>
               </View>
             )}
           />
 
           <View style={styles.footer}>
-            <Text size={12} color="#6b7280" numberOfLines={1}>{loading ? loadingText : countText}</Text>
+            <Text size={12} color={colors.ink.meta} numberOfLines={1}>{loading ? loadingText : countText}</Text>
             <TouchableOpacity
               activeOpacity={0.85}
               disabled={submitting || !items.length || !Object.keys(selectedMap).length}
@@ -166,7 +171,7 @@ export default ({
             >
               <Text
                 size={13}
-                color={submitting || !items.length || !Object.keys(selectedMap).length ? '#9ca3af' : '#17191f'}
+                color={submitting || !items.length || !Object.keys(selectedMap).length ? colors.ink.faint : colors.ink.importConfirm}
                 style={styles.confirmButtonText}
               >
                 {confirmText}
@@ -179,7 +184,7 @@ export default ({
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   mask: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -187,7 +192,7 @@ const styles = createStyle({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.32)',
+    backgroundColor: colors.scrim.import,
   },
   panel: {
     maxHeight: '78%',
@@ -195,9 +200,9 @@ const styles = createStyle({
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.dialog,
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: -5 },
@@ -210,7 +215,7 @@ const styles = createStyle({
     width: 44,
     height: 4,
     borderRadius: 999,
-    backgroundColor: '#d5d8e0',
+    backgroundColor: colors.line.import,
     marginBottom: 10,
   },
   header: {
@@ -234,8 +239,8 @@ const styles = createStyle({
     minHeight: 34,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fc',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.importField,
     paddingHorizontal: 12,
     marginBottom: 12,
     flexDirection: 'row',
@@ -255,9 +260,9 @@ const styles = createStyle({
   item: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#ffffff',
-    shadowColor: '#76809b',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -268,8 +273,8 @@ const styles = createStyle({
     marginBottom: 10,
   },
   itemSelected: {
-    borderColor: '#d7e08b',
-    backgroundColor: '#f6f9ea',
+    borderColor: colors.line.importSelected,
+    backgroundColor: colors.surface.importSelected,
   },
   itemCheckWrap: {
     width: 28,
@@ -279,7 +284,7 @@ const styles = createStyle({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   itemMain: {
     flex: 1,
@@ -306,15 +311,15 @@ const styles = createStyle({
     minHeight: 140,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fc',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.importField,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
   footer: {
     borderTopWidth: 1,
-    borderTopColor: '#edf0f7',
+    borderTopColor: colors.surface.importMuted,
     paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -324,15 +329,15 @@ const styles = createStyle({
     minWidth: 108,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#d9ef62',
+    backgroundColor: colors.accent.chip,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
   confirmButtonDisabled: {
-    backgroundColor: '#eef1f6',
+    backgroundColor: colors.surface.confirmDisabled,
   },
   confirmButtonText: {
     fontWeight: '700',
   },
-})
+})))

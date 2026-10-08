@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getColors, type AndroidImageColors, type IOSImageColors } from 'react-native-image-colors'
+import { memoLuxColors } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
 const clamp = (num: number, min: number, max: number) => {
   if (num < min) return min
@@ -133,16 +135,16 @@ export interface CoverTheme {
   accent: string
 }
 
-const fallbackTheme: CoverTheme = {
-  top: '#f6e6de',
-  middle: '#f8eee7',
-  glow: '#fbf6f2',
-  bottom: '#ffffff',
-  accent: '#cf5f35',
-}
+const readFallbackTheme = memoLuxColors((colors: LuxColors) => ({
+  top: colors.coverFallback.top,
+  middle: colors.coverFallback.middle,
+  glow: colors.coverFallback.glow,
+  bottom: colors.coverFallback.bottom,
+  accent: colors.coverFallback.accent,
+}))
 
-export const getCoverTheme = (seed?: string | null): CoverTheme => {
-  if (!seed) return fallbackTheme
+export const getCoverTheme = (seed?: string | null, colors: LuxColors = limeColors): CoverTheme => {
+  if (!seed) return readFallbackTheme(colors)
   const hash = hashString(seed)
   const hue = hash % 360
   const hueShift = (hash >> 8) % 16
@@ -155,7 +157,7 @@ export const getCoverTheme = (seed?: string | null): CoverTheme => {
     top: hslToHex(hue, sat, topLight),
     middle: hslToHex(hue + 6 + hueShift, Math.max(24, sat - 10), middleLight),
     glow: hslToHex(hue + 12 + hueShift, glowSat, 96),
-    bottom: '#ffffff',
+    bottom: colors.coverFallback.bottom,
     accent: hslToHex(hue + 8 + hueShift, 64, 45),
   }
 }
@@ -174,14 +176,24 @@ export const createLinearGradientColors = (theme: CoverTheme, steps = 72) => {
   })
 }
 
-export const createWhiteFadeMaskColors = (steps = 72, topAlpha = 0.14, bottomAlpha = 1) => {
+export const createWhiteFadeMaskColors = (
+  steps = 72,
+  topAlpha = 0.14,
+  bottomAlpha = 1,
+  white = limeColors.line.white,
+) => {
   const total = Math.max(2, steps)
   const start = clamp(topAlpha, 0, 1)
   const end = clamp(bottomAlpha, 0, 1)
+  const match = /^#([0-9a-f]{6})$/i.exec(white)
+  const value = match ? match[1] : 'ffffff'
+  const r = parseInt(value.slice(0, 2), 16)
+  const g = parseInt(value.slice(2, 4), 16)
+  const b = parseInt(value.slice(4, 6), 16)
   return Array.from({ length: total }, (_, index) => {
     const t = index / (total - 1)
     const alpha = start + (end - start) * easeInOut(t)
-    return `rgba(255,255,255,${alpha.toFixed(4)})`
+    return `rgba(${r},${g},${b},${alpha.toFixed(4)})`
   })
 }
 
@@ -200,7 +212,7 @@ const pickPaletteAccent = (result: AndroidImageColors | IOSImageColors) => {
   return null
 }
 
-export const getCoverAccentColor = async(pic?: string | null) => {
+export const getCoverAccentColor = async(pic?: string | null, colors: LuxColors = limeColors) => {
   if (!pic) return null
   if (accentCache.has(pic)) return accentCache.get(pic)!
 
@@ -210,7 +222,7 @@ export const getCoverAccentColor = async(pic?: string | null) => {
   const task = (async() => {
     try {
       const result = await getColors(pic, {
-        defaultColor: fallbackTheme.accent,
+        defaultColor: readFallbackTheme(colors).accent,
         dominant: true,
         average: true,
         vibrant: true,

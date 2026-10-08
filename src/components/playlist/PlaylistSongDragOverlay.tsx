@@ -6,6 +6,8 @@ import Text from '@/components/common/Text'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import { pickMusicCover } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 interface SourceTone {
   text: string
@@ -22,6 +24,9 @@ interface PlaylistSongDragOverlayProps {
 }
 
 export default ({ song, sourceTone, top, scale, opacity, fallbackCover = null }: PlaylistSongDragOverlayProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const coverUrl = pickMusicCover(song, fallbackCover)
 
   return (
@@ -39,19 +44,19 @@ export default ({ song, sourceTone, top, scale, opacity, fallbackCover = null }:
         <View style={styles.main}>
           <Image style={styles.cover} url={coverUrl} />
           <View style={styles.info}>
-            <Text size={14} color="#111827" style={styles.name} numberOfLines={1}>{song.name}</Text>
+            <Text size={14} color={colors.ink.strong} style={styles.name} numberOfLines={1}>{song.name}</Text>
             <View style={styles.metaRow}>
               <Text size={10} color={sourceTone.text} style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}>
                 {song.source.toUpperCase()}
               </Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{song.singer}</Text>
+              <Text size={11} color={colors.ink.meta} numberOfLines={1}>{song.singer}</Text>
             </View>
           </View>
         </View>
         <View style={styles.actions}>
-          <Text size={11} color="#9ca3af" style={styles.interval}>{song.interval ?? '--:--'}</Text>
+          <Text size={11} color={colors.ink.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
           <View style={styles.actionButton}>
-            <MaterialCommunityIcon name="drag-horizontal-variant" size={16} color="#6b7280" />
+            <MaterialCommunityIcon name="drag-horizontal-variant" size={16} color={colors.ink.meta} />
           </View>
         </View>
       </View>
@@ -59,7 +64,7 @@ export default ({ song, sourceTone, top, scale, opacity, fallbackCover = null }:
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   overlay: {
     position: 'absolute',
     left: 16,
@@ -70,9 +75,9 @@ const styles = createStyle({
   card: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-    shadowColor: '#000000',
+    borderColor: colors.line.soft,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.24,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
@@ -90,7 +95,7 @@ const styles = createStyle({
     width: 52,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   info: {
     flex: 1,
@@ -129,4 +134,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

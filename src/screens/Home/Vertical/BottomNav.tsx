@@ -19,7 +19,8 @@ import { setNavActiveId } from '@/core/common'
 import type { InitState } from '@/store/common/state'
 import { useI18n } from '@/lang'
 import { MdiIcon } from '@/components/common/MdiIcon'
-import { useLuxTheme } from '@/theme/LuxTheme'
+import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const hasNativeBlurView = Boolean(
   UIManager.getViewManagerConfig?.(
@@ -55,6 +56,8 @@ const TabItem = memo(({
   onPress: (id: TabId) => void
   onLayout?: (id: TabId, x: number, width: number) => void
 }) => {
+  const styles = useLuxStyles()
+
   const { colors } = useLuxTheme()
   return (
     <TouchableOpacity
@@ -105,6 +108,8 @@ export default memo(
     bottomInset?: number
     inCard?: boolean
   }) => {
+    const styles = useLuxStyles()
+
     const t = useI18n()
     const { colors } = useLuxTheme()
     const activeId = useNavActiveId()
@@ -222,10 +227,10 @@ export default memo(
                 downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
                 overlayColor={
                   Platform.OS === 'android'
-                    ? 'rgba(255,255,255,0.18)'
+                    ? colors.glass.line18
                     : 'transparent'
                 }
-                reducedTransparencyFallbackColor="rgba(255,255,255,0.7)"
+                reducedTransparencyFallbackColor={colors.glass.fill70}
               />
               <View style={styles.glassTint} pointerEvents="none" />
             </>
@@ -272,7 +277,7 @@ export default memo(
   },
 )
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   shell: {
     paddingHorizontal: 14,
     paddingTop: 1,
@@ -290,11 +295,11 @@ const styles = createStyle({
     overflow: 'hidden',
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    borderColor: colors.glass.rim58,
+    backgroundColor: colors.glass.fill28,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    shadowColor: '#81889a',
+    shadowColor: colors.shadow.dock,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -312,11 +317,11 @@ const styles = createStyle({
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.glass.fill08,
   },
   glassFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: colors.glass.fill62,
   },
   glassRim: {
     position: 'absolute',
@@ -326,7 +331,7 @@ const styles = createStyle({
     bottom: 0,
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: colors.glass.line18,
   },
   contentRow: {
     height: ACTIVE_ORB_SIZE,
@@ -345,8 +350,8 @@ const styles = createStyle({
     height: ACTIVE_ORB_SIZE,
     borderRadius: ACTIVE_ORB_SIZE / 2,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
-    shadowColor: '#b5cc49',
+    borderColor: colors.glass.line45,
+    shadowColor: colors.accent.navShadow,
     shadowOpacity: 0.34,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -395,4 +400,4 @@ const styles = createStyle({
   iconOrbActive: {
     backgroundColor: 'transparent',
   },
-})
+})))

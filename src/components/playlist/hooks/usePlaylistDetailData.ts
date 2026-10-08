@@ -6,6 +6,7 @@ import { getListDetail, getListDetailAll } from '@/core/songlist'
 import { getListDetail as getLeaderboardListDetail, getListDetailAll as getLeaderboardListDetailAll } from '@/core/leaderboard'
 import { type LeaderboardDetailPayload, type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/event/appEvent'
 import { useI18n } from '@/lang'
+import { useLuxTheme } from '@/theme/LuxTheme'
 import { applyMusicCoverFallback, pickMusicCover } from '@/utils/musicCover'
 import { getListMusicSync } from '@/utils/listManage'
 import { getSourceTone } from '@/components/search/sourceTone'
@@ -52,6 +53,7 @@ export const usePlaylistDetailData = (
   detail: PlaylistDetailPayload,
   playlists: LX.List.MyListInfo[],
 ) => {
+  const { colors } = useLuxTheme()
   const t = useI18n()
   const detailRequestIdRef = useRef(0)
   const detailSongsRef = useRef<LX.Music.MusicInfo[]>([])
@@ -77,7 +79,7 @@ export const usePlaylistDetailData = (
   const detailHeroMetaText = selectedOnlineOrLeaderboard
     ? [selectedOnlineDetail?.author, selectedOnlineDetail?.play_count, t('me_songs_count', { num: detailHeroSongCount })].filter(Boolean).join(' · ')
     : t('me_songs_count', { num: detailHeroSongCount })
-  const detailHeroSourceTone = selectedOnlineOrLeaderboard ? getSourceTone(selectedOnlineOrLeaderboard.source) : null
+  const detailHeroSourceTone = selectedOnlineOrLeaderboard ? getSourceTone(selectedOnlineOrLeaderboard.source, colors) : null
   const detailHeroSourceLabel = selectedOnlineOrLeaderboard ? t(`source_real_${selectedOnlineOrLeaderboard.source}`) : ''
 
   const loadLocalDetailSongs = useCallback(async(id: string, showLoading = false) => {

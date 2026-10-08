@@ -9,6 +9,7 @@ import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconS
 import Text from '@/components/common/Text'
 import { type useI18n } from '@/lang'
 import PlaylistLibraryCard, { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 interface FeaturedLibraryCard {
   id: string
@@ -116,6 +117,8 @@ export default ({
   onPlayPlaylistPress,
   onCreateList,
 }: PlaylistLibrarySceneProps) => {
+  const { colors } = useLuxTheme()
+
   return (
     <View style={styles.container} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
       {isSourceMenuVisible
@@ -147,7 +150,7 @@ export default ({
 
         {!hideGreeting
           ? <View style={styles.greetingBlock}>
-              <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
+              <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
             </View>
           : null}
 
@@ -173,10 +176,10 @@ export default ({
                       </View>}
                 </View>
                 <View style={styles.quickInfo}>
-                  <Text size={15} color="#1c1c1e" style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
+                  <Text size={15} color={colors.ink.cardTitle} style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
                   <View style={styles.quickMetaRow}>
                     <MaterialCommunityIcon name={card.icon} size={12} color={tone.accent} />
-                    <Text size={12} color="#8e8e93" style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
+                    <Text size={12} color={colors.ink.songCount} style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -187,7 +190,7 @@ export default ({
         <View ref={playlistSectionRef} style={styles.section} onLayout={onPlaylistSectionLayout}>
           <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
             <View style={styles.playlistSectionTitleWrap}>
-              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
+              <Text size={18} color={colors.ink.strong} style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
             </View>
             <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
               <TouchableOpacity
@@ -195,14 +198,14 @@ export default ({
                 style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
                 onPress={onTogglePlaylistSort}
               >
-                <MdiIcon name={playlistSortIcon} size={22} color={isPlaylistCustomSort ? '#111827' : isPlaylistTimeSort ? '#111827' : '#6b7280'} />
+                <MdiIcon name={playlistSortIcon} size={22} color={isPlaylistCustomSort ? colors.ink.strong : isPlaylistTimeSort ? colors.ink.strong : colors.ink.meta} />
               </TouchableOpacity>
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.sectionIconBtn}
                 onPress={onShowCreateListModal}
               >
-                <MdiIcon name={playlistAddIcon} size={22} color="#111827" />
+                <MdiIcon name={playlistAddIcon} size={22} color={colors.ink.strong} />
               </TouchableOpacity>
             </View>
           </View>
@@ -239,7 +242,7 @@ export default ({
               })
               : <View style={[styles.emptyCard, styles.emptyPlaylistCard]}>
                   <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={onShowCreateListModal}>
-                    <Text size={13} color="#19171c" style={styles.emptyActionText}>{t('me_create_new')}</Text>
+                    <Text size={13} color={colors.ink.emptyAction} style={styles.emptyActionText}>{t('me_create_new')}</Text>
                   </TouchableOpacity>
                 </View>}
           </View>

@@ -13,6 +13,8 @@ import { peekCachedImageUri } from '@/utils/imageCache'
 import { peekPlaylistCover, subscribePlaylistCover, subscribePlaylistCoverStore } from '@/utils/playlistCoverStore'
 import { playlistCoverKey, preferStableCover, resolvePlaylistRowCover } from '@/utils/playlistCoverMap'
 import { prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 export const SONG_ITEM_HEIGHT = 70
 
@@ -48,6 +50,9 @@ const PlaylistDetailSongItem = ({
   onDragPressIn,
   onRemove,
 }: PlaylistDetailSongItemProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const coverForSong = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
     return resolvePlaylistRowCover({
       source: currentSong.source,
@@ -137,22 +142,22 @@ const PlaylistDetailSongItem = ({
             onError={handleCoverError}
           />
           <View style={styles.info}>
-            <Text size={14} color="#111827" style={styles.name} numberOfLines={1}>{song.name}</Text>
+            <Text size={14} color={colors.ink.strong} style={styles.name} numberOfLines={1}>{song.name}</Text>
             <View style={styles.metaRow}>
               <Text size={10} color={sourceTone.text} style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}>
                 {song.source.toUpperCase()}
               </Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{song.singer}</Text>
+              <Text size={11} color={colors.ink.meta} numberOfLines={1}>{song.singer}</Text>
             </View>
           </View>
         </TouchableOpacity>
         <View style={styles.actions}>
-          <Text size={11} color="#9ca3af" style={styles.interval}>{song.interval ?? '--:--'}</Text>
+          <Text size={11} color={colors.ink.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
           {canEdit
             ? (
                 <>
                   <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
-                    <MaterialCommunityIcon name="trash-can" size={16} color="#9ca3af" />
+                    <MaterialCommunityIcon name="trash-can" size={16} color={colors.ink.faint} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.dragButton}
@@ -160,7 +165,7 @@ const PlaylistDetailSongItem = ({
                     delayLongPress={0}
                     onLongPress={onDragPressIn}
                   >
-                    <MdiIcon name="drag-horizontal-variant" size={16} color="#1A1A1A" />
+                    <MdiIcon name="drag-horizontal-variant" size={16} color={colors.ink.nearBlack} />
                   </TouchableOpacity>
                 </>
               )
@@ -171,13 +176,13 @@ const PlaylistDetailSongItem = ({
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   wrap: {
     position: 'relative',
   },
   card: {
     borderRadius: 14,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
     padding: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -197,7 +202,7 @@ const styles = createStyle({
     width: 52,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   info: {
     flex: 1,
@@ -248,7 +253,7 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))
 
 export default memo(PlaylistDetailSongItem, (prev, next) => {
   return prev.song === next.song &&

@@ -34,6 +34,8 @@ import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
@@ -54,8 +56,11 @@ const PlaylistDetailViewInner = ({
   onClose,
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
-  const appBg = '#eef0fb'
+  const appBg = colors.bg.app
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
   const modalBottomInset = useMemo(() => {
@@ -269,7 +274,7 @@ const PlaylistDetailViewInner = ({
     const songKey = drag.getSongRowKey(item, index)
     const isDraggingRow = drag.dragStateRef.current.songKey == songKey && drag.dragStateRef.current.active
     const shiftAnim = drag.getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTone(item.source)
+    const sourceTagColor = getSourceTone(item.source, colors)
     const canEditSongs = Boolean(selectedListIdRef.current)
     return (
       <PlaylistDetailSongItem
@@ -309,6 +314,7 @@ const PlaylistDetailViewInner = ({
     drag.dragStateRef, drag.skipNextSongPressRef,
     handlePlaySong, handlePlayOnlineDetailSong, handlePlayLeaderboardSong,
     handleShowRemoveSongModal,
+    colors,
   ])
 
   const detailHeader = useMemo(() => {
@@ -383,7 +389,7 @@ const PlaylistDetailViewInner = ({
     outputRange: [24, 0],
   }), [openAnim])
 
-  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source) : null
+  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source, colors) : null
 
   return (
     <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }], backgroundColor: appBg }]}>
@@ -409,7 +415,7 @@ const PlaylistDetailViewInner = ({
           ListHeaderComponent={detailHeader}
           ListEmptyComponent={(
             <View style={styles.emptyCard}>
-              <Text size={13} color="#6b7280">{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+              <Text size={13} color={colors.ink.meta}>{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
             </View>
           )}
           showsVerticalScrollIndicator={false}
@@ -512,14 +518,14 @@ export default memo(PlaylistDetailView, (prev, next) => {
   return prev.detail === next.detail && prev.onClose === next.onClose && prev.bottomPadding === next.bottomPadding
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   root: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   detailContent: {
     paddingBottom: 0,
@@ -533,9 +539,9 @@ const styles = createStyle({
     width: '100%',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.glass.fill88,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -544,4 +550,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))
