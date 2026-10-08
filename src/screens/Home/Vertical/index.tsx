@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
+import { setSystemBarIconStyle } from '@/utils/nativeModules/utils'
 import Content from './Content'
 import PlayerBar from '@/components/player/PlayerBar'
 import BottomNav from './BottomNav'
@@ -13,7 +14,7 @@ import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBott
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
 import { type PlaylistDetailPayload } from '@/event/appEvent'
-import { sharedLuxStyles } from '@/theme/LuxTheme'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
 const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
@@ -55,11 +56,16 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
 
 export default () => {
   const styles = useLuxStyles()
+  const { mode } = useLuxTheme()
 
   const bottomInset = useSystemGestureInsetBottom()
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
+
+  useEffect(() => {
+    setSystemBarIconStyle(mode === 'dark' ? 'light' : 'dark')
+  }, [mode])
 
   useEffect(() => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
@@ -83,7 +89,7 @@ export default () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar />
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
       <Content />
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>

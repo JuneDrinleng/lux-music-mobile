@@ -83,7 +83,7 @@ export default ({ active }: { active: boolean }) => {
   const hasBackgroundCover = Boolean(musicInfo?.pic)
   const gradientColors = useMemo(() => {
     return hasBackgroundCover
-      ? createWhiteFadeMaskColors(84, 0.12, 1, colors.line.white)
+      ? createWhiteFadeMaskColors(84, 0.12, 1, colors.bg.plain)
       : createLinearGradientColors(coverTheme, 84)
   }, [coverTheme, hasBackgroundCover, colors])
 

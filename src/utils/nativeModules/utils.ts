@@ -141,3 +141,9 @@ export const setSystemBarsTransparent = () => {
   if (!UtilsModule?.setSystemBarsTransparent) return
   UtilsModule.setSystemBarsTransparent()
 }
+
+/** Dark glyphs on light themes, light glyphs on 墨夜. Does not touch the upstream theme. */
+export const setSystemBarIconStyle = (style: 'light' | 'dark') => {
+  if (!UtilsModule?.setSystemBarIconStyle) return
+  UtilsModule.setSystemBarIconStyle(style)
+}

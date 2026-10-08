@@ -29,8 +29,6 @@ import android.view.WindowManager;
 import androidx.core.app.LocaleManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.os.LocaleListCompat;
-import androidx.core.view.WindowCompat;
-
 import cn.lux.music.mobile.BuildConfig;
 
 import com.facebook.react.bridge.Arguments;
@@ -515,27 +513,14 @@ public class UtilsModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void setSystemBarsTransparent() {
-    final Activity activity = getCurrentActivity();
-    if (activity == null) return;
-    activity.runOnUiThread(() -> {
-      Window window = activity.getWindow();
-      if (window == null) return;
+    SystemBars.apply(getCurrentActivity());
+  }
 
-      WindowCompat.setDecorFitsSystemWindows(window, false);
-      View decorView = window.getDecorView();
-      int systemUiFlags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-      decorView.setSystemUiVisibility(systemUiFlags);
-
-      window.setStatusBarColor(Color.TRANSPARENT);
-      window.setNavigationBarColor(Color.TRANSPARENT);
-
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        window.setStatusBarContrastEnforced(false);
-        window.setNavigationBarContrastEnforced(false);
-      }
-    });
+  /** `dark` glyphs for light themes, `light` glyphs for 墨夜. Bars stay transparent. */
+  @ReactMethod
+  public void setSystemBarIconStyle(String style) {
+    SystemBars.setDarkIcons(!"light".equals(style));
+    SystemBars.apply(getCurrentActivity());
   }
 }
 

@@ -1,5 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { buildLuxColors, type LuxSeed } from './buildLuxColors'
+
 /**
  * 竖屏新美化页面的语义色。
  *
@@ -7,7 +9,7 @@
  * `#767d89` 等，不要为了对比度或「看起来更统一」改它们。同一语义在代码里有多套
  * 色值时拆成多个令牌（强调黄绿、墨色、玻璃白、阴影都如此），不要合并。
  *
- * 另外 5 套主题的 id 已留出，色值留到后续步骤。这里没有可切换的主题表。
+ * 另外 5 套主题按同一套槽位补齐，见 `buildLuxColors`。黄绿这一份不从推导函数生成。
  * 这套令牌不读写上游 `createThemes` / `useTheme()`。
  */
 
@@ -642,9 +644,155 @@ export const limeTheme: LuxTheme = {
   colors: limeColors,
 }
 
-/** 第 1 步只登记黄绿。没有其它主题对象，调用方无法切走默认值。 */
-export const luxThemeRegistry: Record<'lime', LuxTheme> = {
+const themeFromSeed = (id: LuxThemeId, name: string, seed: LuxSeed): LuxTheme => ({
+  id,
+  name,
+  mode: seed.mode,
+  colors: buildLuxColors(seed),
+})
+
+export const mistBlueTheme = themeFromSeed('mist_blue', '雾蓝', {
+  mode: 'light',
+  bgApp: '#eef3f9',
+  surface: '#ffffff',
+  surfaceMuted: '#f4f8fc',
+  placeholder: '#e4eaf2',
+  divider: '#d9e2ec',
+  inkStrong: '#0f172a',
+  ink: '#1e293b',
+  inkSecondary: '#556274',
+  inkMuted: '#64748b',
+  inkFaint: '#94a3b8',
+  accent: '#2563eb',
+  accentSoft: '#bfdbfe',
+  accentNav: '#3b82f6',
+  accentOn: '#ffffff',
+  danger: '#ef4444',
+  like: '#FA5252',
+  search: '#dce6f0',
+  searchBorder: '#c5d3e3',
+  cancelBg: '#eef3f8',
+  cancelText: '#475569',
+  navInactive: '#64748b',
+  cover1: '#dbeafe',
+  cover2: '#e0e7ff',
+})
+
+export const sakuraTheme = themeFromSeed('sakura', '樱粉', {
+  mode: 'light',
+  bgApp: '#faf0f3',
+  surface: '#ffffff',
+  surfaceMuted: '#fdf6f8',
+  placeholder: '#eee4e8',
+  divider: '#eadde3',
+  inkStrong: '#1c1216',
+  ink: '#2d1f25',
+  inkSecondary: '#7a646e',
+  inkMuted: '#8a747c',
+  inkFaint: '#a8929a',
+  accent: '#db2777',
+  accentSoft: '#f9c2d4',
+  accentNav: '#ec4899',
+  accentOn: '#ffffff',
+  danger: '#dc2626',
+  like: '#e11d48',
+  search: '#eedfe5',
+  searchBorder: '#dfccd4',
+  cancelBg: '#f5eaee',
+  cancelText: '#6b5560',
+  navInactive: '#8a747c',
+  cover1: '#fce7f0',
+  cover2: '#fde8e4',
+})
+
+export const lavenderTheme = themeFromSeed('lavender', '薰衣草紫', {
+  mode: 'light',
+  bgApp: '#f3f0fb',
+  surface: '#ffffff',
+  surfaceMuted: '#f8f6fd',
+  placeholder: '#e9e5f2',
+  divider: '#ddd7eb',
+  inkStrong: '#16131f',
+  ink: '#242033',
+  inkSecondary: '#716a82',
+  inkMuted: '#7d768f',
+  inkFaint: '#9a93a8',
+  accent: '#7c5cbf',
+  accentSoft: '#ddd0f5',
+  accentNav: '#9476d1',
+  accentOn: '#ffffff',
+  danger: '#ef4444',
+  like: '#FA5252',
+  search: '#e4dff0',
+  searchBorder: '#d0c8e2',
+  cancelBg: '#efeaf8',
+  cancelText: '#5b5470',
+  navInactive: '#7d768f',
+  cover1: '#ede9fe',
+  cover2: '#e0e7ff',
+})
+
+export const oatMilkTheme = themeFromSeed('oat_milk', '暖米', {
+  mode: 'light',
+  bgApp: '#f6f1ea',
+  surface: '#ffffff',
+  surfaceMuted: '#faf7f2',
+  placeholder: '#ebe4da',
+  divider: '#e2d8cb',
+  inkStrong: '#1c1712',
+  ink: '#2a231c',
+  inkSecondary: '#6f6458',
+  inkMuted: '#867a6d',
+  inkFaint: '#a3988b',
+  accent: '#a65d28',
+  accentSoft: '#f0d5b8',
+  accentNav: '#c47a3a',
+  accentOn: '#ffffff',
+  danger: '#dc2626',
+  like: '#e11d48',
+  search: '#e8dfd3',
+  searchBorder: '#d6cab8',
+  cancelBg: '#efe7dc',
+  cancelText: '#6b5f52',
+  navInactive: '#867a6d',
+  cover1: '#ebe4d7',
+  cover2: '#f6e2e7',
+})
+
+export const inkNightTheme = themeFromSeed('ink_night', '墨夜', {
+  mode: 'dark',
+  bgApp: '#12141c',
+  surface: '#1c1f2a',
+  surfaceMuted: '#252836',
+  placeholder: '#2a2e3c',
+  divider: '#2f3444',
+  inkStrong: '#f3f4f8',
+  ink: '#e5e7ef',
+  inkSecondary: '#a0a6b8',
+  inkMuted: '#8b92a5',
+  inkFaint: '#6b7285',
+  accent: '#c8e600',
+  accentSoft: '#3d4a1a',
+  accentNav: '#d7ef59',
+  accentOn: '#111827',
+  danger: '#f87171',
+  like: '#fb7185',
+  search: '#2a2e3c',
+  searchBorder: '#3a4052',
+  cancelBg: '#2a2e3c',
+  cancelText: '#c5cad8',
+  navInactive: '#8b92a5',
+  cover1: '#3a2a32',
+  cover2: '#2a3344',
+})
+
+export const luxThemeRegistry: Record<LuxThemeId, LuxTheme> = {
   lime: limeTheme,
+  mist_blue: mistBlueTheme,
+  sakura: sakuraTheme,
+  lavender: lavenderTheme,
+  oat_milk: oatMilkTheme,
+  ink_night: inkNightTheme,
 }
 
 export const DEFAULT_LUX_THEME_ID: LuxThemeId = 'lime'
