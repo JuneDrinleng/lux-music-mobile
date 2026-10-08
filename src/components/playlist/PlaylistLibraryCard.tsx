@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useRef, type MutableRefObject } from 'react'
 import { Animated, TouchableOpacity, View, type GestureResponderEvent } from 'react-native'
-import { Play } from 'lucide-react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
@@ -136,11 +136,8 @@ const PlaylistLibraryCard = ({
               onPress={onPlayPress}
             >
               {isCurrent && isPlay
-                ? <View style={styles.pauseGlyphSmall}>
-                    <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                    <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                  </View>
-                : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
+                ? <MdiIcon name="pause" rawSize={13} color="#303340" />
+                : <MdiIcon name="play" rawSize={13} color="#303340" />}
             </TouchableOpacity>
           </>
         : <View style={styles.playlistDragHitGrid} {...touchHandlers}>

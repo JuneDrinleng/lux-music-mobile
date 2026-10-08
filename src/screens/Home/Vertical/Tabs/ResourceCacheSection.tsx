@@ -114,7 +114,7 @@ export default memo(({ styles: parentStyles, cacheSizeLabel, onPress }: Resource
         <TouchableOpacity style={parentStyles.groupRow} activeOpacity={0.84} onPress={onPress}>
           <View style={parentStyles.groupRowLeft}>
             <View style={parentStyles.groupRowIconWrap}>
-              <Icon name="sd-card" rawSize={18} color="#58651b" />
+              <Icon name="broom" rawSize={18} color="#000000" />
             </View>
             <View style={parentStyles.groupRowTextWrap}>
               <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>{t('setting__other_resource_cache')}</Text>

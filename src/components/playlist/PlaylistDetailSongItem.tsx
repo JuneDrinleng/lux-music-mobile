@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useState } from 'react'
-import { Animated, Image as RNImage, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
+import { Animated, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
@@ -9,7 +10,6 @@ import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
 import { updateListMusics } from '@/core/list'
-import dragReorderIcon from '../../../assets/img/drag-reorder.png'
 
 export const SONG_ITEM_HEIGHT = 70
 
@@ -96,7 +96,7 @@ const PlaylistDetailSongItem = ({
             ? (
                 <>
                   <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
-                    <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
+                    <MaterialCommunityIcon name="trash-can" size={16} color="#9ca3af" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.dragButton}
@@ -104,7 +104,7 @@ const PlaylistDetailSongItem = ({
                     delayLongPress={0}
                     onLongPress={onDragPressIn}
                   >
-                    <RNImage source={dragReorderIcon} style={styles.dragIcon} />
+                    <MdiIcon name="drag-horizontal-variant" size={16} color="#1A1A1A" />
                   </TouchableOpacity>
                 </>
               )

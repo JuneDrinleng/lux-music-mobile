@@ -3,8 +3,8 @@
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Animated, Easing, Image as NativeImage, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
-import { Ellipsis, Heart, Play } from 'lucide-react-native'
 import Text from '@/components/common/Text'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import diskPic from '../../../../../assets/img/disk.png'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
@@ -297,26 +297,6 @@ const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
   )
 })
 
-// Skeleton rows that look like song rows with cover image (for new/trending/top)
-const SKELETON_SONG_WIDTHS = [
-  { title: '70%', sub: '48%' },
-  { title: '58%', sub: '38%' },
-  { title: '74%', sub: '52%' },
-] as const
-const SkeletonSongRows = memo(({ pulse }: { pulse: Animated.Value }) => (
-  <>
-    {SKELETON_SONG_WIDTHS.map((w, i) => (
-      <View key={i} style={[skeletonStyles.songRow, i < 2 ? skeletonStyles.rowSpacing : null]}>
-        <Animated.View style={[skeletonStyles.cover, { opacity: pulse }]} />
-        <View style={skeletonStyles.info}>
-          <Animated.View style={[skeletonStyles.line, { width: w.title, marginBottom: 6, opacity: pulse }]} />
-          <Animated.View style={[skeletonStyles.lineSm, { width: w.sub, opacity: pulse }]} />
-        </View>
-      </View>
-    ))}
-  </>
-))
-
 // Skeleton rows for text-only boards (for "other" clip)
 const SKELETON_TEXT_WIDTHS = [
   { title: '65%', sub: '44%' },
@@ -422,17 +402,14 @@ const AllContent = memo(({
                         onPress={handlePlayPlaylistPress(card.sourceListId)}
                       >
                         {isCardCurrent && isPlay
-                          ? <View style={styles.pauseGlyph}>
-                              <View style={styles.pauseBar} />
-                              <View style={styles.pauseBar} />
-                            </View>
-                          : <Play size={16} color="#ffffff" fill="#ffffff" strokeWidth={1.8} />}
+                          ? <MdiIcon name="pause" rawSize={16} color="#ffffff" />
+                          : <MdiIcon name="play" rawSize={16} color="#ffffff" />}
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
-                        <Heart size={16} color={card.tone.accent} strokeWidth={2} />
+                        <MdiIcon name="heart" rawSize={16} color={card.tone.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
-                        <Ellipsis size={16} color={card.tone.accent} strokeWidth={2} />
+                        <MdiIcon name="dots-horizontal" rawSize={16} color={card.tone.accent} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -487,11 +464,8 @@ const AllContent = memo(({
                   onPress={handlePlayPlaylistPress(item.id)}
                 >
                   {isItemCurrent && isPlay
-                    ? <View style={styles.pauseGlyphSmall}>
-                        <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                        <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                      </View>
-                    : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
+                    ? <MdiIcon name="pause" rawSize={13} color="#303340" />
+                    : <MdiIcon name="play" rawSize={13} color="#303340" />}
                 </TouchableOpacity>
               </TouchableOpacity>
             )
@@ -542,7 +516,7 @@ const LbContent = memo(({
     const timer = setTimeout(() => {
       setSettledFilter(activeFilter)
     }, 200)
-    return () => clearTimeout(timer)
+    return () => { clearTimeout(timer) }
   }, [activeFilter])
 
   return (
@@ -624,7 +598,7 @@ const LbContent = memo(({
                                     activeOpacity={0.82}
                                     onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
                                   >
-                                    <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                    <MdiIcon name="play" rawSize={13} color="#303340" />
                                   </TouchableOpacity>
                                 </TouchableOpacity>
                               )
@@ -763,11 +737,11 @@ const OtherContent = memo(({
         return (
           <ContentReveal key={selectedOtherSource}>
             {srcBoards.map(entry => {
-          const { boardId, boardName, songs, loading } = entry
-          const showLoading = loading && !songs.length
-          const chunks: LX.Music.MusicInfoOnline[][] = []
-          for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
-          return (
+              const { boardId, boardName, songs, loading } = entry
+              const showLoading = loading && !songs.length
+              const chunks: LX.Music.MusicInfoOnline[][] = []
+              for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
+              return (
             <View key={boardId} style={styles.lbSourceSection}>
               <View style={styles.sectionHeader}>
                 {showLoading
@@ -820,7 +794,7 @@ const OtherContent = memo(({
                                       activeOpacity={0.82}
                                       onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
                                     >
-                                      <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                      <MdiIcon name="play" rawSize={13} color="#303340" />
                                     </TouchableOpacity>
                                   </TouchableOpacity>
                                 )
@@ -851,8 +825,8 @@ const OtherContent = memo(({
                   </View>
                 : null}
             </View>
-          )
-        })}
+              )
+            })}
           </ContentReveal>
         )
       })()}
@@ -887,7 +861,6 @@ export default memo(() => {
   const lbOtherSourceLoadedRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
   const lbOtherSourceLoadingRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
   const leaderboardHomeCacheReadyRef = useRef(false)
-  const activeFilterRef = useRef<FilterId>(activeFilter)
   const chipAnimsRef = useRef<Record<FilterId, Animated.Value>>({
     all: new Animated.Value(1),
     new: new Animated.Value(0),
@@ -1016,7 +989,7 @@ export default memo(() => {
       .map(item => item.cover)
       .filter((url): url is string => Boolean(url))
     if (coverUrls.length) {
-      await Promise.all(coverUrls.map(url => cacheImageUri(url).catch(() => null)))
+      await Promise.all(coverUrls.map(async url => cacheImageUri(url).catch(() => null)))
     }
     setPlaylistMetaMap(next)
   }, [libraryItems])

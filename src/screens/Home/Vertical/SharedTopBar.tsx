@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { Search, X } from 'lucide-react-native'
 import Text from '@/components/common/Text'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import GlassSearchField from '@/components/search/GlassSearchField'
 import { setNavActiveId } from '@/core/common'
@@ -207,7 +207,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
             contentStyle={styles.searchContent}
             animatedContentStyle={{ opacity: searchTextOpacity }}
           >
-              <Search size={17} color="#666d7b" strokeWidth={2.1} />
+              <MdiIcon name="magnify" rawSize={17} color="#666d7b" />
               {mode === 'settings'
                 ? <TextInput
                     value={settingsSearchQuery}
@@ -240,7 +240,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
                 onPress={mode === 'settings' ? handleSettingsSearchClear : handleMusicSearchClear}
                 disabled={!displayQuery.length}
               >
-                <X size={16} color={displayQuery.length ? '#666d7b' : '#bcc2cf'} strokeWidth={2.2} />
+                <MdiIcon name="close" rawSize={16} color={displayQuery.length ? '#666d7b' : '#bcc2cf'} />
               </TouchableOpacity>
           </GlassSearchField>
         </Animated.View>
