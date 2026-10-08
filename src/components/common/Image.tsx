@@ -3,6 +3,7 @@
 import { createStyle } from '@/utils/tools'
 import { cacheImageUri, forgetCachedImageUri, peekCachedImageUri, pinImageUrl, resetImageCache } from '@/utils/imageCache'
 import { COVER_FADE_MS, COVER_PLACEHOLDER_COLOR, coverPresentation, nextCoverUri } from '@/utils/imagePresentation'
+import { useLuxTheme } from '@/theme/LuxTheme'
 import { type ComponentProps, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, Easing, View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
 
@@ -42,6 +43,8 @@ const appendImageRetryToken = (uri: string, retryIndex: number) => {
 const isRemoteUri = (uri: string | null) => Boolean(uri && /^https?:\/\//i.test(uri))
 
 const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, cachePin = false, style, onError, nativeID }: ImageProps) => {
+  const { colors } = useLuxTheme()
+  const placeholderStyle = [styles.placeholder, { backgroundColor: colors.surface.placeholder }]
   const rawUri = getRawUri(url)
   const shouldUseLocalCache = cache !== false && /^https?:\/\//i.test(rawUri)
   const initialPeek = shouldUseLocalCache ? peekCachedImageUri(rawUri) : null
@@ -138,14 +141,14 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   if (!rawUri || isError) {
     if (!showFallback) return <View style={style} nativeID={nativeID} />
-    return <View style={[styles.placeholder, style]} nativeID={nativeID} />
+    return <View style={[placeholderStyle, style]} nativeID={nativeID} />
   }
 
   const remoteSource = isRemoteUri(sourceUri)
   const displayUri = sourceUri && remoteSource && retryIndex > 0
     ? appendImageRetryToken(sourceUri, retryIndex)
     : sourceUri
-  const plateStyle = showFallback ? styles.placeholder : null
+  const plateStyle = showFallback ? placeholderStyle : null
 
   return (
     <View style={[styles.imageWrap, style, plateStyle]}>

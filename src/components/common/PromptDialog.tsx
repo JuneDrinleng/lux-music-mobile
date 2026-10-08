@@ -6,7 +6,6 @@ import { Keyboard, Modal, TouchableOpacity, TouchableWithoutFeedback, View } fro
 import Input, { type InputType } from './Input'
 import Text from './Text'
 import { createStyle } from '@/utils/tools'
-import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
@@ -56,7 +55,6 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
   const { colors } = useLuxTheme()
 
   const t = useI18n()
-  const theme = useTheme()
   const inputRef = useRef<InputType>(null)
   const [text, setText] = useState('')
   const [visible, setVisible] = useState(false)
@@ -133,7 +131,9 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
                     value={text}
                     onChangeText={setText}
                     onSubmitEditing={() => { void handleConfirm() }}
-                    style={[styles.input, { backgroundColor: theme['c-primary-background'] }]}
+                    placeholderTextColor={colors.ink.quiet}
+                    selectionColor={colors.ink.selection}
+                    style={[styles.input, { backgroundColor: colors.surface.importField, color: colors.ink.input, borderColor: colors.line.modal }]}
                   />
                 : null}
               <View style={[styles.modalActions, showInput ? null : styles.modalActionsNoInput]}>

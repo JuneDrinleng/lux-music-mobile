@@ -17,6 +17,9 @@ const files = [
   'src/components/playlist/playlistDragState.ts',
   'src/components/playlist/songRowKey.ts',
   'src/utils/imagePresentation.ts',
+  'src/theme/luxColorMath.ts',
+  'src/theme/luxStyleCache.ts',
+  'src/theme/buildLuxColors.ts',
   'src/theme/luxTokens.ts',
   'src/utils/imageCachePolicy.ts',
   'src/utils/playlistCoverQueue.ts',
@@ -49,6 +52,8 @@ const dragState = require(join(outDir, 'src/components/playlist/playlistDragStat
 const rowKey = require(join(outDir, 'src/components/playlist/songRowKey.js'))
 const presentation = require(join(outDir, 'src/utils/imagePresentation.js'))
 const lux = require(join(outDir, 'src/theme/luxTokens.js'))
+const colorMath = require(join(outDir, 'src/theme/luxColorMath.js'))
+const styleCache = require(join(outDir, 'src/theme/luxStyleCache.js'))
 
 const LIME_COLOR_LITERALS = [
   '#000000', '#0f172a', '#111111', '#111827', '#16181f', '#17191f', '#171a22', '#19171c', '#1A1A1A', '#1a1c1e',
@@ -224,7 +229,7 @@ test('default lime theme keeps the current screen literals', () => {
   assert.equal(lux.limeTheme.name, '黄绿')
   assert.equal(lux.limeTheme.mode, 'light')
   assert.equal(lux.DEFAULT_LUX_THEME_ID, 'lime')
-  assert.deepEqual(Object.keys(lux.luxThemeRegistry), ['lime'])
+  assert.deepEqual(Object.keys(lux.luxThemeRegistry), ['lime', 'mist_blue', 'sakura', 'lavender', 'oat_milk', 'ink_night'])
   assert.deepEqual([...lux.LUX_THEME_IDS], ['lime', 'mist_blue', 'sakura', 'lavender', 'oat_milk', 'ink_night'])
   assert.equal(lux.luxThemeRegistry.lime, lux.limeTheme)
 
@@ -272,6 +277,68 @@ test('default lime theme keeps the current screen literals', () => {
   assert.deepEqual(unique, LIME_COLOR_LITERALS)
   assert.equal(unique.includes('#eef3f9'), false)
   assert.equal(unique.includes('#12141c'), false)
+})
+
+test('shared style cache refreshes on theme change and keeps one slot', () => {
+  const read = styleCache.memoLuxColors(colors => ({ bg: colors.bg.app, sheet: {} }))
+  const limeStyles = read(lux.limeColors)
+  const mistStyles = read(lux.mistBlueTheme.colors)
+  assert.notEqual(limeStyles, mistStyles)
+  assert.equal(mistStyles.bg, '#eef3f9')
+  assert.equal(read(lux.mistBlueTheme.colors), mistStyles)
+  const limeAgain = read(lux.limeColors)
+  assert.notEqual(limeAgain, limeStyles)
+  assert.equal(limeAgain.bg, '#eef0fb')
+  assert.equal(read(lux.limeColors), limeAgain)
+})
+
+test('the other five themes fill every slot and stay readable', () => {
+  const seeds = {
+    mist_blue: { bg: '#eef3f9', accent: '#2563eb', on: '#ffffff', secondary: '#556274', strong: '#0f172a', mode: 'light' },
+    sakura: { bg: '#faf0f3', accent: '#db2777', on: '#ffffff', secondary: '#7a646e', strong: '#1c1216', mode: 'light' },
+    lavender: { bg: '#f3f0fb', accent: '#7c5cbf', on: '#ffffff', secondary: '#716a82', strong: '#16131f', mode: 'light' },
+    oat_milk: { bg: '#f6f1ea', accent: '#a65d28', on: '#ffffff', secondary: '#6f6458', strong: '#1c1712', mode: 'light' },
+    ink_night: { bg: '#12141c', accent: '#c8e600', on: '#111827', secondary: '#a0a6b8', strong: '#f3f4f8', mode: 'dark' },
+  }
+  const backgroundPaths = [
+    ['bg', 'app'], ['bg', 'plain'],
+    ['surface', 'card'], ['surface', 'muted'], ['surface', 'placeholder'], ['surface', 'search'], ['surface', 'cancel'], ['surface', 'neutral'],
+    ['line', 'divider'],
+    ['iconWrap', 'orange'], ['iconWrap', 'green'], ['iconWrap', 'purple'], ['iconWrap', 'amber'], ['iconWrap', 'red'],
+    ['queue', 'current'], ['queue', 'close'],
+    ['coverFallback', 'top'], ['coverFallback', 'middle'], ['coverFallback', 'glow'], ['coverFallback', 'bottom'],
+  ]
+  for (const id of lux.LUX_THEME_IDS) {
+    const theme = lux.luxThemeRegistry[id]
+    assert.equal(theme.id, id)
+    assert.equal(lux.listLuxColorValues(theme.colors).length, 227)
+    if (id === 'lime') continue
+    const seed = seeds[id]
+    const colors = theme.colors
+    assert.equal(theme.mode, seed.mode)
+    assert.equal(colors.bg.app, seed.bg)
+    assert.equal(colors.accent.primary, seed.accent)
+    assert.equal(colors.ink.onAccent, seed.on)
+    assert.equal(colors.ink.secondary, seed.secondary)
+    assert.equal(colors.ink.strong, seed.strong)
+    assert.equal(colors.surface.card === '#ffffff', seed.mode === 'light')
+    assert.ok(colorMath.contrastRatio(colors.ink.strong, colors.bg.app) >= 4.5, id + ' body on page')
+    assert.ok(colorMath.contrastRatio(colors.ink.list, colors.bg.app) >= 4.5, id + ' list on page')
+    assert.ok(colorMath.contrastRatio(colors.ink.list, colors.surface.card) >= 4.5, id + ' list on card')
+    assert.ok(colorMath.contrastRatio(colors.ink.secondary, colors.bg.app) >= 3, id + ' secondary on page')
+    assert.ok(colorMath.contrastRatio(colors.ink.secondary, colors.surface.card) >= 3, id + ' secondary on card')
+    assert.ok(colorMath.contrastRatio(colors.ink.onAccent, colors.accent.primary) >= 4.5, id + ' on accent')
+    if (seed.mode === 'dark') {
+      for (const path of backgroundPaths) {
+        let value = colors
+        for (const key of path) value = value[key]
+        assert.equal(value.toLowerCase() === '#ffffff', false, path.join('.'))
+        assert.ok(colorMath.relativeLuminance(value) < 0.35, path.join('.') + ' ' + value)
+      }
+      assert.equal(colors.glass.fill95.includes('255,255,255'), false)
+      assert.equal(colors.ink.icon.toLowerCase() === '#000000', false)
+    }
+  }
 })
 
 test('prefetch queue dedupes, keeps priority, and does not downgrade', () => {

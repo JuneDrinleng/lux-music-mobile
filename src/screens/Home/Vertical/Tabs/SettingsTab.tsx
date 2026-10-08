@@ -26,7 +26,6 @@ import settingState from '@/store/setting/state'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearLuxAuth, clearSyncAuthKey, clearSyncConflictMode, setSyncLoginCompleted } from '@/utils/data'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
-import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
@@ -39,7 +38,7 @@ import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -54,10 +53,24 @@ const genderOptionValues = ['male', 'female', 'unknown'] as const
 
 export default () => {
   const styles = useLuxStyles()
-  const { colors } = useLuxTheme()
+  const { colors, id: luxThemeId, setLuxTheme } = useLuxTheme()
+  const luxFieldStyle = useMemo(() => ({
+    backgroundColor: colors.surface.importField,
+    color: colors.ink.input,
+    borderColor: colors.line.modal,
+  }), [colors])
 
   const t = useI18n()
-  const theme = useTheme()
+  const luxThemeLabel = (id: LuxThemeId) => {
+    switch (id) {
+      case 'lime': return t('setting_lux_theme_lime')
+      case 'mist_blue': return t('setting_lux_theme_mist_blue')
+      case 'sakura': return t('setting_lux_theme_sakura')
+      case 'lavender': return t('setting_lux_theme_lavender')
+      case 'oat_milk': return t('setting_lux_theme_oat_milk')
+      case 'ink_night': return t('setting_lux_theme_ink_night')
+    }
+  }
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
@@ -90,7 +103,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
   const {
     cleaning: isCleaningResourceCache,
     cacheSize: resourceCacheSize,
@@ -300,6 +313,14 @@ export default () => {
     t('setting_appearance'),
     t('setting_basic_lang'),
     activeLanguageLabel,
+    t('setting_lux_theme'),
+    t('setting_lux_theme_local_only'),
+    t('setting_lux_theme_lime'),
+    t('setting_lux_theme_mist_blue'),
+    t('setting_lux_theme_sakura'),
+    t('setting_lux_theme_lavender'),
+    t('setting_lux_theme_oat_milk'),
+    t('setting_lux_theme_ink_night'),
   )
   const showSearchAndPlayerSection = matchesSettingsSearch(
     t('setting_search_and_play'),
@@ -361,23 +382,20 @@ export default () => {
     inputRange: [0, 1],
     outputRange: [0.92, 1],
   }), [optionDetailAnim])
-  const optionDetailTitle = activeOptionDetail === 'language'
-    ? t('setting_basic_lang')
-    : activeOptionDetail === 'searchSource'
-      ? t('setting_search_source')
-      : activeOptionDetail === 'gender'
-        ? t('setting_profile_gender')
-        : activeOptionDetail === 'player'
-          ? t('setting_custom_source_title')
-          : activeOptionDetail === 'sync'
-            ? t('setting_sync')
-            : activeOptionDetail === 'syncFormat'
-              ? t('setting_sync_format')
-              : activeOptionDetail === 'resourceCache'
-                ? t('setting_cache_management')
-                : activeOptionDetail === 'changelog'
-                  ? t('version_about_update_title')
-                  : ''
+  const optionDetailTitle = (() => {
+    switch (activeOptionDetail) {
+      case 'language': return t('setting_basic_lang')
+      case 'theme': return t('setting_lux_theme')
+      case 'searchSource': return t('setting_search_source')
+      case 'gender': return t('setting_profile_gender')
+      case 'player': return t('setting_custom_source_title')
+      case 'sync': return t('setting_sync')
+      case 'syncFormat': return t('setting_sync_format')
+      case 'resourceCache': return t('setting_cache_management')
+      case 'changelog': return t('version_about_update_title')
+      default: return ''
+    }
+  })()
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -581,6 +599,9 @@ export default () => {
   }
   const handleOpenLanguageDetail = () => {
     setActiveOptionDetail('language')
+  }
+  const handleOpenThemeDetail = () => {
+    setActiveOptionDetail('theme')
   }
   const handleOpenSearchSourceDetail = () => {
     setActiveOptionDetail('searchSource')
@@ -796,6 +817,19 @@ export default () => {
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
                         <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeLanguageLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenThemeDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
+                        <MdiIcon name="palette-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_lux_theme')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{luxThemeLabel(luxThemeId)}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
@@ -1087,6 +1121,34 @@ export default () => {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionGroup}>
+              {activeOptionDetail === 'theme'
+                ? <>
+                    <Text size={12} color={colors.ink.secondary} style={styles.themeLocalNote}>{t('setting_lux_theme_local_only')}</Text>
+                    {LUX_THEME_IDS.map((id, index) => {
+                      const item = luxThemeRegistry[id]
+                      const isActive = luxThemeId === id
+                      return (
+                        <View key={id}>
+                          <TouchableOpacity
+                            style={styles.optionDetailRow}
+                            activeOpacity={0.84}
+                            onPress={() => { setLuxTheme(id) }}
+                          >
+                            <View style={styles.themeOptionBody}>
+                              <View style={styles.themeSwatch}>
+                                <View style={[styles.themeSwatchMain, { backgroundColor: item.colors.bg.app }]} />
+                                <View style={[styles.themeSwatchAccent, { backgroundColor: item.colors.accent.primary }]} />
+                              </View>
+                              <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{luxThemeLabel(id)}</Text>
+                            </View>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                          {index < LUX_THEME_IDS.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                        </View>
+                      )
+                    })}
+                  </>
+                : null}
               {activeOptionDetail === 'language'
                 ? languageOptions.map((option, index) => {
                   const isActive = (activeLangId ?? 'en_us') === option.locale
@@ -1283,7 +1345,9 @@ export default () => {
                   placeholder={t('setting_profile_nickname_placeholder')}
                   value={nicknameDraft}
                   onChangeText={setNicknameDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseNameModal} activeOpacity={0.75}>
@@ -1315,7 +1379,9 @@ export default () => {
                   placeholder={t('setting_profile_signature_placeholder')}
                   value={signatureDraft}
                   onChangeText={setSignatureDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSignatureModal} activeOpacity={0.75}>
@@ -1347,7 +1413,9 @@ export default () => {
                   placeholder={t('setting_sync_host_value_tip')}
                   value={syncHostDraft}
                   onChangeText={setSyncHostDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   inputMode="url"
                   autoCapitalize="none"
                 />
@@ -1381,7 +1449,9 @@ export default () => {
                   placeholder={t('setting_sync_code_input_tip')}
                   value={authCode}
                   onChangeText={setAuthCode}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancelSetCode} activeOpacity={0.75}>
@@ -1413,14 +1483,18 @@ export default () => {
                   placeholder={t('setting_sync_lux_username')}
                   value={luxUsername}
                   onChangeText={setLuxUsername}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   autoCapitalize="none"
                 />
                 <Input
                   placeholder={t('setting_sync_lux_password')}
                   value={luxPassword}
                   onChangeText={setLuxPassword}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   secureTextEntry
                 />
                 <View style={styles.modalActions}>
@@ -2051,6 +2125,33 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     height: 10,
     borderRadius: 5,
     backgroundColor: colors.accent.primary,
+  },
+  themeLocalNote: {
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  themeOptionBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  themeSwatch: {
+    width: 44,
+    height: 28,
+    borderRadius: 8,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.line.divider,
+  },
+  themeSwatchMain: {
+    flex: 1,
+  },
+  themeSwatchAccent: {
+    width: 12,
   },
   sourceActiveDot: {
     width: 10,
