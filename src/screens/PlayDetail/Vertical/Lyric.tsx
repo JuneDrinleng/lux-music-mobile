@@ -1,8 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View, Image as RNImage, type FlatListProps } from 'react-native'
-import shareIcon from '../../../../assets/img/share.png'
+import { FlatList, TouchableOpacity, View, type FlatListProps } from 'react-native'
 import { usePlayDetailClose } from '../context'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -10,6 +9,7 @@ import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { createStyle, shareMusic, toast } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
@@ -137,8 +137,8 @@ export default ({ active }: { active: boolean }) => {
     if (!musicInfo.id) return
     const nextLoved = !isLoved
     setIsLoved(nextLoved)
-    if (nextLoved) collectMusic()
-    else uncollectMusic()
+    if (nextLoved) void collectMusic()
+    else void uncollectMusic()
   }
   const handleToggleQueuePanel = () => {
     global.app_event.togglePlayQueuePanel()
@@ -214,7 +214,7 @@ export default ({ active }: { active: boolean }) => {
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleShare}>
-          <RNImage source={shareIcon} style={styles.headerShareIcon} />
+          <MdiIcon name="share-variant" size={20} color="#0f172a" />
         </TouchableOpacity>
       </View>
 
@@ -254,7 +254,7 @@ export default ({ active }: { active: boolean }) => {
           <View style={styles.controls}>
             <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={handleToggleLoved}>
               {isLoved
-                ? <Text size={20} color="#ef4444" style={styles.loveFilled}>{'\u2665'}</Text>
+                ? <MdiIcon name="heart" size={20} color="#ef4444" />
                 : <Icon name="love" rawSize={18} color="#6b7280" />}
             </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>

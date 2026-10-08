@@ -1,7 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Platform, StyleSheet, TouchableOpacity, UIManager, View, Image as RNImage } from 'react-native'
+import { Platform, StyleSheet, TouchableOpacity, UIManager, View } from 'react-native'
 import { BlurView } from '@react-native-community/blur'
 import Svg, { Circle } from 'react-native-svg'
 import { useKeyboard } from '@/utils/hooks'
@@ -9,8 +9,7 @@ import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import Image from '@/components/common/Image'
 import diskPic from '../../../../assets/img/disk.png'
-import emptyHeartPic from '../../../../assets/img/empty-heart.png'
-import fillInHeartPic from '../../../../assets/img/fill-in-heart.png'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
@@ -149,8 +148,8 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
     if (!musicInfo.id) return
     const nextLoved = !isLoved
     setIsLoved(nextLoved)
-    if (nextLoved) collectMusic()
-    else uncollectMusic()
+    if (nextLoved) void collectMusic()
+    else void uncollectMusic()
   }
 
   const keepPlayBarOnKeyboard = Reflect.get(global.lx, 'keepPlayBarOnKeyboard') === true
@@ -239,9 +238,11 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             activeOpacity={0.8}
             onPress={handleToggleLoved}
           >
-            {isLoved
-              ? <RNImage source={fillInHeartPic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />
-              : <RNImage source={emptyHeartPic} style={[styles.loveIcon, inCard && styles.loveIconInCard]} />}
+            <MdiIcon
+              name={isLoved ? 'heart' : 'heart-outline'}
+              size={inCard ? 26 : 24}
+              color="#FA5252"
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.playBtn, inCard ? styles.playBtnInCard : null, shouldUseGlass ? styles.playBtnGlass : null]}

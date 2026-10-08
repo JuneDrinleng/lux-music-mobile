@@ -6,7 +6,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Image as RNImage,
   Keyboard,
   LayoutAnimation,
   PanResponder,
@@ -36,6 +35,7 @@ import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -50,16 +50,6 @@ import settingState from '@/store/setting/state'
 import { useSettingValue } from '@/store/setting/hook'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature } from '@/utils/data'
 import { setNavActiveId, updateSetting } from '@/core/common'
-import maleImg from '../../../../../assets/img/male.png'
-import femaleImg from '../../../../../assets/img/female.png'
-import downloadImg from '../../../../../assets/img/download.png'
-import staticImg from '../../../../../assets/img/static.png'
-import listenTogetherImg from '../../../../../assets/img/listen-together.png'
-import fillInHeartBlackImg from '../../../../../assets/img/fill-in-heart-black.png'
-import higherImg from '../../../../../assets/img/higher.png'
-import lowerImg from '../../../../../assets/img/lower.png'
-import addPlaylistImg from '../../../../../assets/img/add-playlist.png'
-import selfSettingsImg from '../../../../../assets/img/self-settings.png'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useIsPlay } from '@/store/player/hook'
 import { useI18n } from '@/lang'
@@ -295,7 +285,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const [gender, setGender] = useState<'male' | 'female' | 'unknown'>('unknown')
   const defaultSignature = t('me_profile_status')
   const genderBadgeText = gender === 'unknown' ? '?' : null
-  const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
+  const genderIconName = gender === 'male' ? 'gender-male' : gender === 'female' ? 'gender-female' : null
   const genderBadgeStyle = gender === 'male'
     ? styles.profileHeroBadgeMale
     : gender === 'female'
@@ -394,14 +384,14 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   }, [])
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const isPlaylistCustomSort = playlistSortMode == 'custom'
-  const playlistSortIcon = isPlaylistTimeSort ? higherImg : isPlaylistCustomSort ? selfSettingsImg : lowerImg
+  const playlistSortIcon = isPlaylistTimeSort ? 'sort-clock-ascending' : isPlaylistCustomSort ? 'tune' : 'sort-clock-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
   const displaySwitchItems = useMemo<SegmentedIconSwitchItem[]>(() => [
     {
       key: 'grid',
       renderIcon: active => (
         <MaterialCommunityIcon
-          name="view-grid-outline"
+          name="view-grid"
           size={15}
           color={active ? '#20242d' : '#72798a'}
           style={[styles.displaySwitchIcon, styles.displaySwitchGridIcon]}
@@ -412,7 +402,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       key: 'list',
       renderIcon: active => (
         <MaterialCommunityIcon
-          name="view-list-outline"
+          name="view-list"
           size={15}
           color={active ? '#20242d' : '#72798a'}
           style={[styles.displaySwitchIcon, styles.displaySwitchListIcon]}
@@ -1649,8 +1639,8 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
           <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
         </View>
         <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
-          {genderImgSource
-            ? <RNImage source={genderImgSource} style={styles.genderBadgeImgSmall} />
+          {genderIconName
+            ? <MdiIcon name={genderIconName} size={12} color="#000000" />
             : <Text size={10} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
         </View>
       </View>
@@ -1678,7 +1668,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
             onPress={() => { handleOpenList(lovePlaylist) }}
           >
             <View style={styles.quickActionIconWrap}>
-              <RNImage source={fillInHeartBlackImg} style={styles.quickActionIconImg} />
+              <MdiIcon name="heart" size={36} color="#000000" />
             </View>
             <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('list_name_love')}</Text>
           </TouchableOpacity>
@@ -1689,7 +1679,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <RNImage source={downloadImg} style={styles.quickActionIconImg} />
+          <MdiIcon name="download" size={36} color="#000000" />
         </View>
         <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
       </TouchableOpacity>
@@ -1699,7 +1689,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <RNImage source={staticImg} style={styles.quickActionIconImg} />
+          <MdiIcon name="chart-bar" size={36} color="#000000" />
         </View>
         <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
       </TouchableOpacity>
@@ -1709,7 +1699,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
+          <MdiIcon name="account-multiple" size={36} color="#000000" />
         </View>
         <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
       </TouchableOpacity>
@@ -1733,7 +1723,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       isPlaylistTimeSort={isPlaylistTimeSort}
       isPlaylistCustomSort={isPlaylistCustomSort}
       playlistSortIcon={playlistSortIcon}
-      playlistAddIcon={addPlaylistImg}
+      playlistAddIcon="playlist-plus"
       isPlaylistListMode={isPlaylistListMode}
       isPlay={isPlay}
       isSourceMenuVisible={isSourceMenuVisible}

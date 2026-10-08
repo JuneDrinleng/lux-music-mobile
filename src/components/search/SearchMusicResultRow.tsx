@@ -1,8 +1,6 @@
-import { Image, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
 
-import addToPlaylist from '../../../assets/img/add-to-playlist.png'
-import emptyHeart from '../../../assets/img/empty-heart-grey.png'
-import fillInHeart from '../../../assets/img/fill-in-heart.png'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { createStyle } from '@/utils/tools'
 import HighlightText from './HighlightText'
@@ -46,10 +44,10 @@ export default ({
       </TouchableOpacity>
       <View style={styles.searchSongActions}>
         <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={onToggleLoved}>
-          <Image source={isLoved ? fillInHeart : emptyHeart} style={styles.actionIcon} />
+          <MdiIcon name={isLoved ? 'heart' : 'heart-outline'} size={20} color={isLoved ? '#FA5252' : '#737373'} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={onAdd}>
-          <Image source={addToPlaylist} style={styles.actionIcon} />
+          <MdiIcon name="playlist-plus" size={20} color="#737373" />
         </TouchableOpacity>
       </View>
     </View>

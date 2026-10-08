@@ -6,7 +6,6 @@ import {
   Animated,
   Easing,
   FlatList,
-  Image,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -16,11 +15,9 @@ import {
   useWindowDimensions,
   type ListRenderItem,
 } from 'react-native'
-import { Search, X } from 'lucide-react-native'
-import songsIcon from '../../../../assets/img/songs.png'
-import playlistsIcon from '../../../../assets/img/playlists.png'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import GlassSearchField from '@/components/search/GlassSearchField'
@@ -466,9 +463,11 @@ export default function SearchPage({
       key: 'music',
       accessibilityLabel: t('search_type_music'),
       renderIcon: (active: boolean) => (
-        <Image
-          source={songsIcon}
-          style={[styles.searchTypeIcon, styles.searchTypeIconMusic, !active && styles.searchTypeIconInactive]}
+        <MdiIcon
+          name="music-note"
+          size={16}
+          color="#1A1A1A"
+          style={!active ? styles.searchTypeIconInactive : undefined}
         />
       ),
     },
@@ -476,9 +475,11 @@ export default function SearchPage({
       key: 'songlist',
       accessibilityLabel: t('search_type_songlist'),
       renderIcon: (active: boolean) => (
-        <Image
-          source={playlistsIcon}
-          style={[styles.searchTypeIcon, !active && styles.searchTypeIconInactive]}
+        <MdiIcon
+          name="playlist-music"
+          size={20}
+          color="#1A1A1A"
+          style={!active ? styles.searchTypeIconInactive : undefined}
         />
       ),
     },
@@ -527,7 +528,7 @@ export default function SearchPage({
           </TouchableOpacity>
           <View style={styles.searchDock}>
             <GlassSearchField style={styles.searchField} contentStyle={styles.searchContent}>
-                <Search size={17} color="#666d7b" strokeWidth={2.1} />
+                <MdiIcon name="magnify" rawSize={17} color="#666d7b" />
                 {isSearchInputEditing
                   ? <View style={styles.searchInputSlot}>
                       <TextInput
@@ -558,10 +559,10 @@ export default function SearchPage({
                   onPress={handleClearSearchText}
                   disabled={!searchText.length && !searchKeyword.length}
                 >
-                  <X
-                    size={16}
+                  <MdiIcon
+                    name="close"
+                    rawSize={16}
                     color={searchText.length || searchKeyword.length ? '#666d7b' : '#bcc2cf'}
-                    strokeWidth={2.2}
                   />
                 </TouchableOpacity>
             </GlassSearchField>

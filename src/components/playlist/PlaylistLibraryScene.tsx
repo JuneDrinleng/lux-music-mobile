@@ -1,8 +1,9 @@
 import { type MutableRefObject, type RefObject, type ReactNode } from 'react'
-import { Animated, Image as RNImage, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
+import { Animated, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 
 import Image from '@/components/common/Image'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import Text from '@/components/common/Text'
@@ -32,8 +33,8 @@ export interface PlaylistLibrarySceneProps {
   playlistDisplayMode: 'grid' | 'list'
   displaySwitchItems: SegmentedIconSwitchItem[]
   isPlaylistTimeSort: boolean
-  playlistSortIcon: number
-  playlistAddIcon: number
+  playlistSortIcon: string
+  playlistAddIcon: string
   isPlaylistListMode: boolean
   isPlay: boolean
   isSourceMenuVisible: boolean
@@ -190,14 +191,14 @@ export default ({
                 style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
                 onPress={onTogglePlaylistSort}
               >
-                <RNImage source={playlistSortIcon} style={[styles.sortIconImg, { tintColor: isPlaylistCustomSort ? '#111827' : isPlaylistTimeSort ? '#111827' : '#6b7280' }]} />
+                <MdiIcon name={playlistSortIcon} size={22} color={isPlaylistCustomSort ? '#111827' : isPlaylistTimeSort ? '#111827' : '#6b7280'} />
               </TouchableOpacity>
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.sectionIconBtn}
                 onPress={onShowCreateListModal}
               >
-                <RNImage source={playlistAddIcon} style={[styles.sortIconImg, { tintColor: '#111827' }]} />
+                <MdiIcon name={playlistAddIcon} size={22} color="#111827" />
               </TouchableOpacity>
             </View>
           </View>

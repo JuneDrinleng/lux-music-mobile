@@ -1,9 +1,9 @@
 import { memo } from 'react'
-import { View, TouchableOpacity, Image as RNImage } from 'react-native'
+import { View, TouchableOpacity } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import { pop } from '@/navigation'
-import shareIcon from '../../../../assets/img/share.png'
 import StatusBar from '@/components/common/StatusBar'
 import { createStyle } from '@/utils/tools'
 import commonState from '@/store/common/state'
@@ -33,7 +33,7 @@ export default memo(({ embedded, onBack, onShare }: {
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={onShare}>
-          <RNImage source={shareIcon} style={styles.shareIcon} />
+          <MdiIcon name="share-variant" size={20} color="#0f172a" />
         </TouchableOpacity>
       </View>
     </View>

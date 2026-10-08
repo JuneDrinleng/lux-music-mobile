@@ -2,9 +2,10 @@
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, Image as RNImage, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
@@ -31,17 +32,6 @@ import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
 import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
-import maleImg from '../../../../../assets/img/male.png'
-import femaleImg from '../../../../../assets/img/female.png'
-import langImg from '../../../../../assets/img/language.png'
-import searchImg from '../../../../../assets/img/search.png'
-import sourceImg from '../../../../../assets/img/source.png'
-import synImg from '../../../../../assets/img/syn.png'
-import formatImg from '../../../../../assets/img/format.png'
-import versionImg from '../../../../../assets/img/version.png'
-import updateImg from '../../../../../assets/img/update.png'
-import githubImg from '../../../../../assets/img/Github.png'
-import logoutImg from '../../../../../assets/img/log-out.png'
 import { checkUpdate } from '@/core/version'
 import versionState from '@/store/version/state'
 import { isDevBuild, resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
@@ -171,7 +161,7 @@ export default () => {
     }
   }, [isSyncEnabled, syncStatus, t])
   const genderBadgeText = gender === 'unknown' ? '?' : null
-  const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
+  const genderIconName = gender === 'male' ? 'gender-male' : gender === 'female' ? 'gender-female' : null
   const genderBadgeStyle = gender === 'male'
     ? styles.profileHeroBadgeMale
     : gender === 'female'
@@ -799,7 +789,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenLanguageDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
-                        <RNImage source={langImg} style={styles.settingRowImg} />
+                        <MdiIcon name="translate" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
@@ -819,7 +809,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSearchSourceDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <RNImage source={searchImg} style={styles.settingRowImg} />
+                        <MdiIcon name="magnify" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
@@ -832,7 +822,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenPlayerDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <RNImage source={sourceImg} style={styles.settingRowImg} />
+                        <MdiIcon name="music-box-multiple" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
@@ -852,7 +842,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <RNImage source={synImg} style={styles.settingRowImg} />
+                        <MdiIcon name="sync" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
@@ -865,7 +855,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncFormatDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <RNImage source={formatImg} style={styles.settingRowImg} />
+                        <MdiIcon name="swap-horizontal" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
@@ -878,7 +868,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={() => { void handleClearSyncConflictMode() }}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <RNImage source={synImg} style={styles.settingRowImg} />
+                        <MdiIcon name="sync" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
@@ -906,7 +896,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenChangelog}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={versionImg} style={styles.settingRowImg} />
+                        <MdiIcon name="certificate" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
@@ -919,7 +909,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleaseChannel}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                        <MdiIcon name="update" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_release_channel')}</Text>
@@ -932,7 +922,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleCheckUpdate}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                        <MdiIcon name="update" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
@@ -945,7 +935,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={githubImg} style={styles.settingRowImg} />
+                        <MdiIcon name="github" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
@@ -1021,7 +1011,7 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="menu" rawSize={18} color="#58651b" />
+                    <Icon name="menu" rawSize={18} color="#000000" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
@@ -1034,7 +1024,7 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="comment" rawSize={18} color="#58651b" />
+                    <Icon name="comment" rawSize={18} color="#000000" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
@@ -1047,8 +1037,8 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenGenderDetail}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, genderBadgeStyle]}>
-                    {genderImgSource
-                      ? <RNImage source={genderImgSource} style={styles.genderBadgeImgLarge} />
+                    {genderIconName
+                      ? <MdiIcon name={genderIconName} size={20} color="#000000" />
                       : <Text size={12} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
                   </View>
                   <View style={styles.groupRowTextWrap}>
@@ -1062,7 +1052,7 @@ export default () => {
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleLogoutSyncAccount}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, styles.iconWrapRed]}>
-                    <RNImage source={logoutImg} style={styles.logoutIcon} />
+                    <MdiIcon name="logout" size={22} color="#000000" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
                     <Text size={15} color="#ef4444" style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>

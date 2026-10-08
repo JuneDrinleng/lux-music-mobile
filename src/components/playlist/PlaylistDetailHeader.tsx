@@ -1,12 +1,10 @@
-import { Image as RNImage, ImageBackground, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { ImageBackground, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { createStyle } from '@/utils/tools'
-import editIcon from '../../../assets/img/edit.png'
-import deleteIcon from '../../../assets/img/delete.png'
-import importIcon from '../../../assets/img/import.png'
 
 const BOTTOM_FADE_HEIGHT = 280
 
@@ -102,7 +100,7 @@ export default ({
         >
           <View style={styles.heroOverlay} pointerEvents="none" />
           <View style={[styles.topBarPad, { paddingTop: statusBarHeight + 18 }]}>
-            <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => onBack()}>
+            <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
               <View style={styles.backButtonInner}>
                 <Icon name="chevron-left" rawSize={20} color="#232733" />
               </View>
@@ -115,7 +113,7 @@ export default ({
         <>
           <View style={[styles.header, { paddingTop: statusBarHeight + 18 }]}>
             <View style={styles.topBar}>
-              <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => onBack()}>
+              <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
                 <View style={styles.backButtonInner}>
                   <Icon name="chevron-left" rawSize={20} color="#232733" />
                 </View>
@@ -144,12 +142,11 @@ export default ({
                     actionDisabled ? { opacity: 0.4 } : null,
                   ]}
                 >
-                  <RNImage
-                    source={importIcon}
-                    style={[
-                      styles.actionIcon,
-                      actionDisabled ? styles.actionIconDisabled : null,
-                    ]}
+                  <MdiIcon
+                    name="import"
+                    size={18}
+                    color="#1A1A1A"
+                    style={actionDisabled ? styles.actionIconDisabled : undefined}
                   />
                 </TouchableOpacity>
               )
@@ -158,10 +155,10 @@ export default ({
             ? (
                 <>
                   <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRename}>
-                    <RNImage source={editIcon} style={styles.editIcon} />
+                    <MdiIcon name="pencil" size={15} color="#1A1A1A" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRemove}>
-                    <RNImage source={deleteIcon} style={styles.editIcon} />
+                    <MdiIcon name="trash-can" size={15} color="#1A1A1A" />
                   </TouchableOpacity>
                 </>
               )

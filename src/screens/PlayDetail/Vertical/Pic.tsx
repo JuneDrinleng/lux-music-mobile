@@ -1,11 +1,12 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, Image as RNImage, TouchableOpacity, View } from 'react-native'
+import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { createStyle, shareMusic, toast } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { usePlayDetailClose } from '../context'
@@ -18,9 +19,6 @@ import SeekBar from './components/SeekBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
-import likeIcon from '../../../../assets/img/empty-heart.png'
-import likedIcon from '../../../../assets/img/fill-in-heart.png'
-import shareIcon from '../../../../assets/img/share.png'
 
 const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
@@ -299,8 +297,8 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     if (!musicInfo.id) return
     const nextLoved = !isLoved
     setIsLoved(nextLoved)
-    if (nextLoved) collectMusic()
-    else uncollectMusic()
+    if (nextLoved) void collectMusic()
+    else void uncollectMusic()
   }
 
   const handleTogglePlay = () => {
@@ -372,7 +370,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={handleShare}>
-          <RNImage source={shareIcon} style={styles.headerShareIcon} />
+          <MdiIcon name="share-variant" size={20} color="#111827" />
         </TouchableOpacity>
       </View>
 
@@ -503,8 +501,8 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
             </Text>
             <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
               {isLoved
-                ? <RNImage source={likedIcon} style={styles.likedIcon} />
-                : <RNImage source={likeIcon} style={styles.sideActionIcon} />}
+                ? <MdiIcon name="heart" size={24} color="#FA5252" />
+                : <MdiIcon name="heart-outline" size={24} color="#9ca3af" />}
             </TouchableOpacity>
           </View>
           <Text size={18} color={sourceAccentColor} numberOfLines={1} style={styles.singer}>
