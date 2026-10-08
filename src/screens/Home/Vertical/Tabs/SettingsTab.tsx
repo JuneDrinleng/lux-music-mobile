@@ -34,9 +34,9 @@ import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 import { checkUpdate } from '@/core/version'
 import versionState from '@/store/version/state'
-import { isDevBuild, resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
+import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
-import ResourceCacheSection, { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
+import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
@@ -85,7 +85,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
   const {
     cleaning: isCleaningResourceCache,
     cacheSize: resourceCacheSize,
@@ -106,9 +106,7 @@ export default () => {
   const releaseChannelLabel = effectiveReleaseChannel == 'dev'
     ? t('setting_release_channel_dev')
     : t('setting_release_channel_stable')
-  const currentVersionLabel = isDevBuild(currentVer)
-    ? `${currentVer} · ${t('setting_release_channel_dev')}`
-    : currentVer
+  const currentVersionLabel = `${currentVer} · ${releaseChannelLabel}`
   const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
     const activeLocale = activeLangId ?? 'en_us'
@@ -308,17 +306,19 @@ export default () => {
     t('setting_basic_source'),
     activeApiSourceLabel,
   )
-  const showSyncSection = matchesSettingsSearch(
+  const showDataSection = matchesSettingsSearch(
+    t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
     t('setting_sync_format'),
     t('setting_sync_clear_conflict_mode'),
-  )
-  const showResourceCacheSection = matchesSettingsSearch(
+    t('setting_sync_clear_conflict_mode_desc'),
+    t('setting_cache_management'),
     t('setting__other_resource_cache'),
     t('setting_other_cache_clear_btn'),
     t('setting_other_cache_size'),
+    resourceCacheSizeLabel,
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -329,13 +329,14 @@ export default () => {
     t('version_changelog_title'),
     t('version_btn_check_update'),
     t('setting_release_channel'),
+    t('setting_release_channel_dev'),
+    t('setting_release_channel_stable'),
     releaseChannelLabel,
     currentVersionLabel,
   )
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
-    showSyncSection ||
-    showResourceCacheSection ||
+    showDataSection ||
     showAboutSection
   const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
     inputRange: [0, 1],
@@ -365,13 +366,11 @@ export default () => {
             ? t('setting_sync')
             : activeOptionDetail === 'syncFormat'
               ? t('setting_sync_format')
-              : activeOptionDetail === 'releaseChannel'
-                ? t('setting_release_channel')
-                : activeOptionDetail === 'resourceCache'
-                  ? t('setting__other_resource_cache')
-                  : activeOptionDetail === 'changelog'
-                    ? t('version_changelog_title')
-                    : ''
+              : activeOptionDetail === 'resourceCache'
+                ? t('setting_cache_management')
+                : activeOptionDetail === 'changelog'
+                  ? t('version_changelog_title')
+                  : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -668,9 +667,6 @@ export default () => {
   const handleCheckUpdate = () => {
     void checkUpdate()
   }
-  const handleOpenReleaseChannel = () => {
-    setActiveOptionDetail('releaseChannel')
-  }
   const handleOpenChangelog = () => {
     setActiveOptionDetail('changelog')
   }
@@ -680,7 +676,6 @@ export default () => {
   }, [handleGetAppCacheSize])
   const handleSelectReleaseChannel = (value: 'stable' | 'dev') => {
     updateSetting({ 'common.releaseChannel': value })
-    setActiveOptionDetail(null)
     void (async() => {
       if (value == 'dev') {
         await tipDialog({
@@ -835,9 +830,9 @@ export default () => {
               </View>
             : null}
 
-          {showSyncSection
+          {showDataSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_sync')}</Text>
+                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_data_and_sync')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
                     <View style={styles.groupRowLeft}>
@@ -877,16 +872,21 @@ export default () => {
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenResourceCacheDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={styles.groupRowIconWrap}>
+                        <Icon name="broom" rawSize={18} color="#000000" />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={2}>{resourceCacheSizeLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                 </View>
               </View>
-            : null}
-
-          {showResourceCacheSection
-            ? <ResourceCacheSection
-                styles={styles}
-                cacheSizeLabel={resourceCacheSizeLabel}
-                onPress={handleOpenResourceCacheDetail}
-              />
             : null}
 
           {showAboutSection
@@ -901,19 +901,6 @@ export default () => {
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
                         <Text size={12} color="#767d89" numberOfLines={1}>{currentVersionLabel}</Text>
-                      </View>
-                    </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-                  </TouchableOpacity>
-                  <View style={styles.groupDivider} />
-                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleaseChannel}>
-                    <View style={styles.groupRowLeft}>
-                      <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <MdiIcon name="update" size={24} color="#000000" />
-                      </View>
-                      <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_release_channel')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{releaseChannelLabel}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -1157,7 +1144,12 @@ export default () => {
                   />
                 : null}
               {activeOptionDetail === 'changelog'
-                ? <VersionChangelogDetail styles={styles} version={currentVer} />
+                ? <VersionChangelogDetail
+                    styles={styles}
+                    version={currentVer}
+                    releaseChannel={effectiveReleaseChannel}
+                    onSelectReleaseChannel={handleSelectReleaseChannel}
+                  />
                 : null}
             </View>
           </View>
@@ -1265,21 +1257,6 @@ export default () => {
               </View>
             : null}
 
-          {activeOptionDetail === 'releaseChannel'
-            ? <View style={styles.sectionCard}>
-                <View style={styles.sectionGroup}>
-                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectReleaseChannel('stable') }}>
-                    <Text size={15} color={effectiveReleaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
-                    {effectiveReleaseChannel == 'stable' ? <View style={styles.languageActiveDot} /> : null}
-                  </TouchableOpacity>
-                  <View style={styles.optionDetailDivider} />
-                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectReleaseChannel('dev') }}>
-                    <Text size={15} color={effectiveReleaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
-                    {effectiveReleaseChannel == 'dev' ? <View style={styles.languageActiveDot} /> : null}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            : null}
         </ScrollView>
       </Animated.View>
       <Modal
