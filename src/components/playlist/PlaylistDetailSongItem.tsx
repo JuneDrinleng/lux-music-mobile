@@ -5,11 +5,14 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
-import { pickMusicCover } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
 import { updateListMusics } from '@/core/list'
+import { peekCachedImageUri } from '@/utils/imageCache'
+import { peekPlaylistCover, subscribePlaylistCover, subscribePlaylistCoverStore } from '@/utils/playlistCoverStore'
+import { playlistCoverKey, preferStableCover, resolvePlaylistRowCover } from '@/utils/playlistCoverMap'
+import { prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
 
 export const SONG_ITEM_HEIGHT = 70
 
@@ -45,13 +48,61 @@ const PlaylistDetailSongItem = ({
   onDragPressIn,
   onRemove,
 }: PlaylistDetailSongItemProps) => {
-  const [displayCoverUrl, setDisplayCoverUrl] = useState<string | null>(() => pickMusicCover(song, fallbackCover))
+  const coverForSong = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
+    return resolvePlaylistRowCover({
+      source: currentSong.source,
+      picUrl: currentSong.meta.picUrl,
+      togglePicUrl: currentSong.meta.toggleMusicInfo?.meta.picUrl ?? null,
+      fallbackUrl: fallback,
+      mapped: peekPlaylistCover(currentSong.source, currentSong.id),
+      isCached: (url) => peekCachedImageUri(url) != null,
+    })
+  }, [])
+
+  const [displayCoverUrl, setDisplayCoverUrl] = useState<string | null>(() => coverForSong(song, fallbackCover))
+
+  const publishCover = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
+    const next = coverForSong(currentSong, fallback)
+    setDisplayCoverUrl(current => preferStableCover(
+      current,
+      next,
+      (url) => !/^https?:\/\//i.test(url) || peekCachedImageUri(url) != null,
+    ))
+  }, [coverForSong])
 
   useEffect(() => {
-    setDisplayCoverUrl(pickMusicCover(song, fallbackCover))
-  }, [song, fallbackCover])
+    publishCover(song, fallbackCover)
+    const key = playlistCoverKey(song.source, song.id)
+    const update = () => { publishCover(song, fallbackCover) }
+    const unsubscribeCover = subscribePlaylistCover(key, update)
+    const unsubscribeStore = subscribePlaylistCoverStore(update)
+    return () => {
+      unsubscribeCover()
+      unsubscribeStore()
+    }
+  }, [fallbackCover, publishCover, song])
+
+  useEffect(() => {
+    if (song.source == 'local') return
+    const mapped = peekPlaylistCover(song.source, song.id)
+    if (mapped?.url) return
+    if (song.meta.picUrl) return
+    prioritizePlaylistCovers([song], 'visible')
+  }, [song])
 
   const handleCoverError = useCallback(async(_url: string | number) => {
+    const mapped = peekPlaylistCover(song.source, song.id)
+    if (mapped && mapped.url != mapped.thumbUrl) {
+      let promoted = false
+      setDisplayCoverUrl(current => {
+        if (current == mapped.thumbUrl) {
+          promoted = true
+          return mapped.url
+        }
+        return current
+      })
+      if (promoted) return
+    }
     if (song.source === 'local') return
     const onlineSong = song
     const altUrl = await fetchAltCoverUrl(onlineSong)
@@ -79,7 +130,12 @@ const PlaylistDetailSongItem = ({
           activeOpacity={0.8}
           onPress={onPress}
         >
-          <Image style={styles.cover} url={displayCoverUrl} onError={handleCoverError} />
+          <Image
+            style={styles.cover}
+            url={displayCoverUrl}
+            cachePin={Boolean(song.meta.picUrl) || Boolean(peekPlaylistCover(song.source, song.id))}
+            onError={handleCoverError}
+          />
           <View style={styles.info}>
             <Text size={14} color="#111827" style={styles.name} numberOfLines={1}>{song.name}</Text>
             <View style={styles.metaRow}>

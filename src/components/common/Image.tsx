@@ -1,7 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { createStyle } from '@/utils/tools'
-import { cacheImageUri, forgetCachedImageUri, peekCachedImageUri, resetImageCache } from '@/utils/imageCache'
+import { cacheImageUri, forgetCachedImageUri, peekCachedImageUri, pinImageUrl, resetImageCache } from '@/utils/imageCache'
 import { COVER_FADE_MS, COVER_PLACEHOLDER_COLOR, coverPresentation, nextCoverUri } from '@/utils/imagePresentation'
 import { type ComponentProps, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, Easing, View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
@@ -15,6 +15,8 @@ export interface ImageProps extends ViewProps {
   resizeMode?: ComponentProps<typeof _Image>['resizeMode']
   blurRadius?: number
   showFallback?: boolean
+  /** Keep this file out of ordinary cache eviction. Does not change layout. */
+  cachePin?: boolean
   onError?: (url: string | number) => void
 }
 
@@ -39,7 +41,7 @@ const appendImageRetryToken = (uri: string, retryIndex: number) => {
 
 const isRemoteUri = (uri: string | null) => Boolean(uri && /^https?:\/\//i.test(uri))
 
-const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
+const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, cachePin = false, style, onError, nativeID }: ImageProps) => {
   const rawUri = getRawUri(url)
   const shouldUseLocalCache = cache !== false && /^https?:\/\//i.test(rawUri)
   const initialPeek = shouldUseLocalCache ? peekCachedImageUri(rawUri) : null
@@ -98,9 +100,10 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
       peekedFileUri: peeked,
     })
     applyPresentation(presentation, presentation.fadeIn)
+    if (cachePin && shouldUseLocalCache && rawUri) pinImageUrl(rawUri)
     if (!presentation.waitForDownload || !rawUri) return
     let canceled = false
-    void cacheImageUri(rawUri).then((fileUri) => {
+    void cacheImageUri(rawUri, { pin: cachePin }).then((fileUri) => {
       if (canceled || requestId != requestIdRef.current) return
       setSourceUri((current) => {
         const next = nextCoverUri(current, fileUri, rawUri)
@@ -113,7 +116,7 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     return () => {
       canceled = true
     }
-  }, [applyPresentation, opacity, rawUri, shouldUseLocalCache, showFallback])
+  }, [applyPresentation, cachePin, opacity, rawUri, shouldUseLocalCache, showFallback])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -173,7 +176,8 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     prevProps.cache == nextProps.cache &&
     prevProps.resizeMode == nextProps.resizeMode &&
     prevProps.blurRadius == nextProps.blurRadius &&
-    prevProps.showFallback == nextProps.showFallback
+    prevProps.showFallback == nextProps.showFallback &&
+    prevProps.cachePin == nextProps.cachePin
 })
 
 export const getSize = (uri: string, success: (width: number, height: number) => void, failure?: (error: any) => void) => {

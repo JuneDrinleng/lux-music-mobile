@@ -18,6 +18,9 @@ const files = [
   'src/components/playlist/songRowKey.ts',
   'src/utils/imagePresentation.ts',
   'src/theme/luxTokens.ts',
+  'src/utils/imageCachePolicy.ts',
+  'src/utils/playlistCoverQueue.ts',
+  'src/utils/playlistCoverMap.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -75,6 +78,9 @@ const LIME_COLOR_LITERALS = [
   'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.78)', 'rgba(255,255,255,0.88)', 'rgba(255,255,255,0.9)',
   'rgba(255,255,255,0.92)', 'rgba(255,255,255,0.95)', 'rgba(34, 39, 51, 0.16)',
 ]
+const cachePolicy = require(join(outDir, 'src/utils/imageCachePolicy.js'))
+const coverQueue = require(join(outDir, 'src/utils/playlistCoverQueue.js'))
+const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -266,6 +272,231 @@ test('default lime theme keeps the current screen literals', () => {
   assert.deepEqual(unique, LIME_COLOR_LITERALS)
   assert.equal(unique.includes('#eef3f9'), false)
   assert.equal(unique.includes('#12141c'), false)
+})
+
+test('prefetch queue dedupes, keeps priority, and does not downgrade', () => {
+  const queue = new coverQueue.PlaylistCoverQueue()
+  assert.equal(queue.enqueue('a', 'background'), 'added')
+  assert.equal(queue.enqueue('a', 'background'), 'duplicate')
+  assert.equal(queue.enqueue('a', 'visible'), 'upgraded')
+  assert.equal(queue.enqueue('a', 'background'), 'duplicate')
+  assert.equal(queue.size(), 1)
+  for (let index = 0; index < 20; index++) queue.enqueue(`bg-${index}`, 'background')
+  queue.enqueue('open', 'playlist')
+  const first = queue.take(0)
+  assert.equal(first?.key, 'a')
+  assert.equal(first?.priority, 'visible')
+  assert.equal(queue.take(0, ['visible']), null)
+  assert.equal(queue.take(0)?.key, 'open')
+  assert.equal(queue.take(0, ['background'])?.key, 'bg-0')
+  const later = new coverQueue.PlaylistCoverQueue()
+  later.enqueue('old', 'visible')
+  later.enqueue('new', 'visible')
+  assert.equal(later.take(0)?.key, 'new')
+  assert.equal(later.take(0)?.key, 'old')
+  assert.equal(coverQueue.VISIBLE_COVER_CONCURRENCY, 3)
+  assert.equal(coverQueue.PLAYLIST_COVER_CONCURRENCY, 2)
+  assert.equal(coverQueue.BACKGROUND_COVER_CONCURRENCY, 2)
+})
+
+test('prefetch retries back off and then stop', () => {
+  const queue = new coverQueue.PlaylistCoverQueue()
+  queue.enqueue('kg_1', 'background', 0)
+  const first = queue.take(0)
+  assert.equal(queue.fail(first, 1_000), 'retry')
+  assert.equal(queue.take(1_000), null)
+  assert.equal(coverQueue.playlistCoverRetryDelay(1), 2_000)
+  const second = queue.take(3_000)
+  assert.equal(second.attempts, 1)
+  assert.equal(queue.fail(second, 3_000), 'retry')
+  assert.equal(coverQueue.playlistCoverRetryDelay(2), 4_000)
+  const third = queue.take(7_000)
+  assert.equal(third.attempts, 2)
+  assert.equal(queue.fail(third, 7_000), 'drop')
+  assert.equal(queue.size(), 0)
+  assert.equal(queue.isBlocked('kg_1', 7_000 + 1_000), true)
+  assert.equal(queue.enqueue('kg_1', 'background', 8_000), 'duplicate')
+  assert.equal(queue.enqueue('kg_1', 'visible', 8_000), 'added')
+  assert.equal(queue.take(8_000)?.priority, 'visible')
+})
+
+test('cover url map persists, rejects fallbacks, and prunes removed songs', () => {
+  const now = 1_700_000_000_000
+  let map = {}
+  map = coverMap.rememberPlaylistCover(map, {
+    source: 'wy',
+    id: 'wy_8',
+    url: 'https://p2.music.126.net/abc/cover.jpg',
+    now,
+  })
+  assert.equal(map.wy_wy_8.url, 'https://p2.music.126.net/abc/cover.jpg')
+  assert.match(map.wy_wy_8.thumbUrl, /param=300y300/)
+  const same = coverMap.rememberPlaylistCover(map, {
+    source: 'wy',
+    id: 'wy_8',
+    url: 'https://p2.music.126.net/abc/cover.jpg',
+    now: now + 10,
+  })
+  assert.equal(same, map)
+
+  const rejected = coverMap.rememberPlaylistCover(map, {
+    source: 'kg',
+    id: 'kg_1',
+    url: 'https://img.example/playlist.jpg',
+    now,
+    rejectUrls: new Set(['https://img.example/playlist.jpg']),
+  })
+  assert.equal(rejected, map)
+  assert.equal(coverMap.rememberPlaylistCover(map, {
+    source: 'tx',
+    id: 'tx_0',
+    url: 'https://y.gtimg.cn/music/photo_new/T002R500x500M000.jpg',
+    now,
+  }), map)
+  assert.equal(coverMap.rememberPlaylistCover(map, {
+    source: 'kg',
+    id: 'kg_2',
+    url: 'not-a-url',
+    now,
+  }), map)
+
+  map = coverMap.rememberPlaylistCover(map, {
+    source: 'kg',
+    id: 'kg_9',
+    url: 'http://imge.kugou.com/stdmusic/480/20200101/a.jpg',
+    now,
+  })
+  const raw = coverMap.serializePlaylistCoverMap(map)
+  const restored = coverMap.parsePlaylistCoverMap(raw)
+  assert.equal(restored.kg_kg_9.thumbUrl, 'http://imge.kugou.com/stdmusic/240/20200101/a.jpg')
+  assert.deepEqual(coverMap.parsePlaylistCoverMap('not json'), {})
+  assert.deepEqual(coverMap.parsePlaylistCoverMap(null), {})
+
+  const pruned = coverMap.prunePlaylistCoverMap(restored, new Set(['wy_wy_8']))
+  assert.deepEqual(Object.keys(pruned.map), ['wy_wy_8'])
+  assert.equal(pruned.removed.length, 1)
+  assert.equal(pruned.removed[0].id, 'kg_9')
+  assert.equal(coverMap.prunePlaylistCoverMap(pruned.map, new Set(['wy_wy_8'])).removed.length, 0)
+})
+
+test('fallback covers are shared across albums, real album art is not', () => {
+  const fallback = coverMap.collectFallbackPicUrls([
+    { picUrl: 'https://img.example/list.jpg', albumId: '1' },
+    { picUrl: 'https://img.example/list.jpg', albumId: '2' },
+    { picUrl: 'https://img.example/album.jpg', albumId: '9' },
+    { picUrl: 'https://img.example/album.jpg', albumId: '9' },
+    { picUrl: 'https://img.example/empty.jpg', albumId: '' },
+    { picUrl: 'https://img.example/empty.jpg', albumId: null },
+  ])
+  assert.equal(fallback.has('https://img.example/list.jpg'), true)
+  assert.equal(fallback.has('https://img.example/album.jpg'), false)
+  assert.equal(fallback.has('https://img.example/empty.jpg'), true)
+})
+
+test('thumb urls shrink list art and leave playback-sized originals alone when already small', () => {
+  assert.equal(
+    coverMap.toPlaylistThumbUrl('https://y.gtimg.cn/music/photo_new/T002R500x500M000abc.jpg', 'tx'),
+    'https://y.gtimg.cn/music/photo_new/T002R300x300M000abc.jpg',
+  )
+  assert.equal(
+    coverMap.toPlaylistThumbUrl('https://y.gtimg.cn/music/photo_new/T002R300x300M000abc.jpg', 'tx'),
+    'https://y.gtimg.cn/music/photo_new/T002R300x300M000abc.jpg',
+  )
+  assert.equal(
+    coverMap.toPlaylistThumbUrl('https://p1.music.126.net/a/b.jpg', 'wy'),
+    'https://p1.music.126.net/a/b.jpg?param=300y300',
+  )
+  assert.equal(
+    coverMap.toPlaylistThumbUrl('https://p1.music.126.net/a/b.jpg?param=640y640', 'wy'),
+    'https://p1.music.126.net/a/b.jpg?param=300y300',
+  )
+  assert.equal(
+    coverMap.toPlaylistThumbUrl('https://img2.kuwo.cn/star/albumcover/500/s/a.jpg', 'kw'),
+    'https://img2.kuwo.cn/star/albumcover/240/s/a.jpg',
+  )
+  assert.equal(
+    coverMap.syntheticCoverUrl('tx', '003abc'),
+    'https://y.gtimg.cn/music/photo_new/T002R500x500M000003abc.jpg',
+  )
+  assert.equal(coverMap.syntheticCoverUrl('tx', ''), null)
+  assert.equal(coverMap.syntheticCoverUrl('kg', '1'), null)
+  const kgPlan = coverMap.planSongCover({
+    source: 'kg',
+    id: 'kg_1',
+    picUrl: null,
+    trustPicUrl: false,
+  })
+  assert.equal(kgPlan.canonicalUrl, null)
+  const txPlan = coverMap.planSongCover({
+    source: 'tx',
+    id: 'tx_1',
+    picUrl: null,
+    albumId: '003abc',
+    trustPicUrl: false,
+  })
+  assert.match(txPlan.thumbUrl, /R300x300/)
+})
+
+test('background cover prefetch runs only on an unmetered network', () => {
+  const ready = {
+    visibleRunning: 0,
+    playlistRunning: 0,
+    backgroundRunning: 0,
+    backgroundLimit: 2,
+    visibleReady: false,
+    playlistReady: false,
+    backgroundReady: true,
+  }
+  assert.equal(coverMap.decideBackgroundCoverLane({ ...ready, unmetered: false }), 'defer-metered')
+  assert.equal(coverMap.decideBackgroundCoverLane({ ...ready, unmetered: true }), 'start')
+  assert.equal(coverMap.decideBackgroundCoverLane({
+    ...ready,
+    unmetered: true,
+    visibleRunning: 1,
+  }), 'defer-foreground')
+  assert.equal(coverMap.decideBackgroundCoverLane({
+    ...ready,
+    unmetered: true,
+    playlistReady: true,
+  }), 'defer-foreground')
+  assert.equal(coverMap.decideBackgroundCoverLane({
+    ...ready,
+    unmetered: true,
+    backgroundRunning: 2,
+  }), 'idle')
+  assert.equal(coverMap.decideBackgroundCoverLane({
+    ...ready,
+    unmetered: true,
+    backgroundReady: false,
+  }), 'idle')
+  assert.equal(coverMap.becameUnmetered(false, true), true)
+  assert.equal(coverMap.becameUnmetered(true, true), false)
+  assert.equal(coverMap.becameUnmetered(true, false), false)
+  assert.equal(coverMap.becameUnmetered(false, false), false)
+})
+
+test('a cached cover stays on screen until the replacement file is ready', () => {
+  const cached = new Set(['https://img.example/hero.jpg'])
+  const next = coverMap.resolvePlaylistRowCover({
+    source: 'kg',
+    picUrl: null,
+    fallbackUrl: 'https://img.example/hero.jpg',
+    mapped: null,
+    isCached: (url) => cached.has(url),
+  })
+  assert.equal(next, 'https://img.example/hero.jpg')
+  const thumb = 'https://imge.kugou.com/stdmusic/240/a.jpg'
+  assert.equal(coverMap.preferStableCover('https://img.example/hero.jpg', thumb, (url) => cached.has(url)), 'https://img.example/hero.jpg')
+  cached.add(thumb)
+  assert.equal(coverMap.preferStableCover('https://img.example/hero.jpg', thumb, (url) => cached.has(url)), thumb)
+})
+
+test('playlist pins are not evicted with ordinary image cache files', () => {
+  const pinned = new Set(['thumb-a', 'thumb-b'])
+  const names = ['loose-1', 'thumb-a', 'loose-2.tmp', 'loose-2', 'thumb-b', 'loose-3']
+  assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 2), ['loose-1'])
+  assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 10), [])
+  assert.equal(cachePolicy.UNPINNED_IMAGE_CACHE_LIMIT >= 100, true)
 })
 
 test.after(() => {

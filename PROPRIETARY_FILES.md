@@ -122,6 +122,11 @@
 | `src/components/playlist/playlistDragState.ts` | `code` | Lux 独立实现的歌单拖动结束/复位决策，上游无对应文件 | `2026-10-08` |
 | `src/components/playlist/songRowKey.ts` | `code` | Lux 独立实现的歌单行稳定 key，上游无对应文件 | `2026-10-08` |
 | `scripts/run-src-unit-tests.mjs` | `code` | Lux 独立新增的封面与歌单拖动单元测试入口，上游无对应文件 | `2026-10-08` |
+| `src/utils/imageCachePolicy.ts` | `code` | Lux 独立实现的图片缓存淘汰策略，歌单封面不参与普通配额，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverQueue.ts` | `code` | Lux 独立实现的歌单封面预取队列，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverMap.ts` | `code` | Lux 独立实现的歌曲封面地址映射与缩图规则，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverStore.ts` | `code` | Lux 独立实现的封面地址本地存储，不进入同步列表，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverPrefetch.ts` | `code` | Lux 独立实现的歌单封面后台预取，上游无对应文件 | `2026-10-08` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |

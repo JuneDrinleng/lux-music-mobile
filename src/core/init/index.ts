@@ -19,27 +19,11 @@ import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailure
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { getListMusics, updateListMusics } from '@/core/list'
 import listState from '@/store/list/state'
-import { cacheImageUri, primeImageCacheIndex } from '@/utils/imageCache'
+import { primeImageCacheIndex } from '@/utils/imageCache'
+import { loadPlaylistCoverStore } from '@/utils/playlistCoverStore'
+import { installPlaylistCoverPrefetch, runIdlePlaylistCoverPrefetch } from '@/utils/playlistCoverPrefetch'
 import BackgroundTimer from 'react-native-background-timer'
-
-const prewarmPlaylistCoverCache = async() => {
-  const allListIds = listState.allList.map(l => l.id)
-  if (!allListIds.length) return
-
-  const coverUrls: string[] = []
-  for (const listId of allListIds) {
-    const songs = await getListMusics(listId)
-    for (const song of songs) {
-      if (song.meta.picUrl) {
-        coverUrls.push(song.meta.picUrl)
-        break
-      }
-    }
-  }
-  const httpUrls = coverUrls.filter(url => /^https?:\/\//i.test(url))
-  if (!httpUrls.length) return
-  void Promise.all(httpUrls.map(async url => cacheImageUri(url).catch(() => null)))
-}
+import { InteractionManager } from 'react-native'
 
 const retryStaleCoverFailures = async() => {
   const entries = await getFailedEntries()
@@ -115,8 +99,12 @@ export default async() => {
   await dataInit(setting)
   bootLog('Data inited.')
   await primeImageCacheIndex().catch(() => {})
+  await loadPlaylistCoverStore().catch(() => {})
+  installPlaylistCoverPrefetch()
+  void InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => { runIdlePlaylistCoverPrefetch() }, 1000)
+  })
   void retryStaleCoverFailures()
-  void prewarmPlaylistCoverCache()
   BackgroundTimer.setInterval(() => { void retryStaleCoverFailures() }, 30 * 60 * 1000)
   await initCommonState(setting)
   bootLog('Common State inited.')
