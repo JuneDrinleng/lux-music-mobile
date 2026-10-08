@@ -86,6 +86,7 @@
 | --- | --- | --- | --- |
 | `docs/page-hierarchy.md` | `doc` | Lux Music 页面层级说明文档（本仓库独立撰写）| `2026-04-11` |
 | `docs/project-structure.md` | `doc` | Lux Music 项目结构说明文档（本仓库独立撰写）| `2026-04-11` |
+| `docs/design-system.md` | `doc` | Lux Music 竖屏界面设计规范（从现有实现归纳，本仓库独立撰写）| `2026-10-08` |
 | `src/component/instruction.md` | `doc` | `src/components` 目录逐文件用途说明文档（本仓库独立撰写）| `2026-04-11` |
 
 ### 代码组件
