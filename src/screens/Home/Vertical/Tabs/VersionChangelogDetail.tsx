@@ -52,11 +52,11 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
   return (
     <>
       <View style={parentStyles.sectionCard}>
-        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('version_current_info')}</Text>
+        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_current_info')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={parentStyles.optionDetailRow}>
             <View style={styles.meta}>
-              <Text size={20} color="#1a1c1e" style={parentStyles.profileDetailTitle}>{version}</Text>
+              <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>{version}</Text>
               <Text size={13} color="#767d89">{channelLabel}</Text>
               {entry?.date
                 ? <Text size={13} color="#767d89">{t('version_changelog_date')}{entry.date}</Text>
@@ -66,7 +66,7 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('setting_release_channel')}</Text>
+        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('setting_release_channel')}</Text>
         <View style={parentStyles.sectionGroup}>
           <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
             <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
@@ -80,12 +80,12 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('version_changelog_title')}</Text>
+        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_changelog_title')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={styles.body}>
             {entry
               ? <ChangelogView desc={entry.desc} />
-              : <Text size={14} color="#767d89" style={styles.paragraph}>
+              : <Text size={15} color="#767d89" style={styles.paragraph}>
                   {loading ? t('version_changelog_loading') : t('version_changelog_empty')}
                 </Text>}
           </View>
@@ -101,13 +101,17 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
 }
 
 const styles = createStyle({
+  groupTitle: {
+    paddingLeft: 18,
+    marginBottom: 8,
+  },
   meta: {
     flex: 1,
     paddingVertical: 4,
   },
   body: {
     paddingHorizontal: 18,
-    paddingTop: 14,
+    paddingTop: 2,
     paddingBottom: 8,
   },
   paragraph: {

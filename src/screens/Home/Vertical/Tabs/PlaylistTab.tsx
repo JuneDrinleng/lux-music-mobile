@@ -2337,6 +2337,10 @@ const styles = createStyle({
   listPicWrap: {
     aspectRatio: 1,
     borderRadius: 18,
+  },
+  listPicClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
     overflow: 'hidden',
   },
   listPic: {
@@ -2751,13 +2755,12 @@ const styles = createStyle({
   playlistDragHitGrid: {
     width: '100%',
   },
-  // White plate is the #11 lift surface so cover + title move as one card.
-  // It is only applied while draggingPlaylistId is set. No zIndex: Android
-  // reparents a view when zIndex changes and drops the in-flight touch.
-  playlistDragLifted: {
+  // Grid lift shadow stays on the cover. Putting backgroundColor + elevation
+  // on the whole card (cover + title) painted the rounded white plate behind
+  // the playlist name. No zIndex: Android reparents a view when zIndex
+  // changes and drops the in-flight touch.
+  playlistDragLiftedCover: {
     elevation: 4,
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
     shadowColor: '#000000',
     shadowOpacity: 0.16,
     shadowRadius: 6,
