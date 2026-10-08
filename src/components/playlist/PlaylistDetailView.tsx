@@ -6,7 +6,6 @@ import {
   FlatList,
   Image as RNImage,
   Platform,
-  StyleSheet,
   View,
   type ListRenderItem,
 } from 'react-native'
@@ -24,6 +23,7 @@ import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { applyMusicCoverFallback } from '@/utils/musicCover'
+import { demoteOpenPlaylistCoverWork, prioritizePlaylistCovers, setPlaylistCoverFocus } from '@/utils/playlistCoverPrefetch'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { createStyle } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
@@ -88,6 +88,14 @@ const PlaylistDetailViewInner = ({
   selectedLeaderboardDetailRef.current = detailData.selectedLeaderboardDetail
   const detailHeroCoverRef = useRef(detailData.detailHeroCover)
   detailHeroCoverRef.current = detailData.detailHeroCover
+  const onCoverViewableItemsChanged = useRef((info: { viewableItems: Array<{ item?: LX.Music.MusicInfo | null }> }) => {
+    const visible: LX.Music.MusicInfo[] = []
+    for (const token of info.viewableItems) {
+      if (token.item?.id && token.item.source != 'local') visible.push(token.item)
+    }
+    if (visible.length) prioritizePlaylistCovers(visible, 'visible')
+  }).current
+  const coverViewabilityConfig = useRef({ itemVisiblePercentThreshold: 25, minimumViewTime: 60 }).current
   const pendingDeleteSongRef = useRef<LX.Music.MusicInfo | null>(null)
 
   const musicMultiAddModalRef = useRef<MusicMultiAddModalType>(null)
@@ -106,8 +114,21 @@ const PlaylistDetailViewInner = ({
   }, [pendingDeleteSong])
 
   useEffect(() => {
+    setPlaylistCoverFocus(detailData.selectedListId)
+    return () => {
+      setPlaylistCoverFocus(null)
+      demoteOpenPlaylistCoverWork()
+    }
+  }, [detailData.selectedListId])
+
+  useEffect(() => {
+    if (!detailData.detailSongs.length) return
+    prioritizePlaylistCovers(detailData.detailSongs, 'playlist')
+  }, [detailData.detailSongs])
+
+  useEffect(() => {
     isClosingRef.current = false
-    const token = ++openAnimTokenRef.current
+    openAnimTokenRef.current += 1
     openAnim.stopAnimation()
     openAnim.setValue(0)
     Animated.timing(openAnim, {
@@ -115,9 +136,7 @@ const PlaylistDetailViewInner = ({
       duration: 280,
       easing: Easing.bezier(0.36, 0.66, 0.04, 1),
       useNativeDriver: true,
-    }).start(() => {
-      if (token !== openAnimTokenRef.current) return
-    })
+    }).start()
   }, [openAnim, detailData.selectedDetailCacheKey])
 
   const handleCloseDetail = useCallback(() => {
@@ -402,6 +421,8 @@ const PlaylistDetailViewInner = ({
           bounces={false}
           alwaysBounceVertical={false}
           overScrollMode="never"
+          onViewableItemsChanged={onCoverViewableItemsChanged}
+          viewabilityConfig={coverViewabilityConfig}
           onScroll={drag.handleDetailListScroll}
           onContentSizeChange={drag.handleDetailListContentSizeChange}
           scrollEventThrottle={16}

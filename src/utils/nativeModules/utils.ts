@@ -36,6 +36,30 @@ export const screenUnkeepAwake = () => {
 
 export const getWIFIIPV4Address = UtilsModule.getWIFIIPV4Address as () => Promise<string>
 
+/** Unmetered active network from ConnectivityManager. False when the module or the call fails. */
+export const isActiveNetworkUnmetered = async(): Promise<boolean> => {
+  if (typeof UtilsModule?.isActiveNetworkUnmetered != 'function') return false
+  try {
+    const value: unknown = await UtilsModule.isActiveNetworkUnmetered()
+    return value === true
+  } catch {
+    return false
+  }
+}
+
+export const onNetworkUnmeteredChange = (handler: (unmetered: boolean) => void): () => void => {
+  if (!UtilsModule) return () => {}
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  const eventEmitter = new NativeEventEmitter(UtilsModule)
+  const eventListener = eventEmitter.addListener('network-unmetered', (event: { unmetered?: boolean }) => {
+    handler(event?.unmetered === true)
+  })
+
+  return () => {
+    eventListener.remove()
+  }
+}
+
 export const getDeviceName = async(): Promise<string> => {
   return UtilsModule.getDeviceName().then((deviceName: string) => deviceName || 'Unknown')
 }

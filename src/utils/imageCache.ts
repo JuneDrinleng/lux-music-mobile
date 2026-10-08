@@ -3,11 +3,13 @@
 // Lux Proprietary
 import { stringMd5 } from 'react-native-quick-md5'
 import { downloadFile, existsFile, mkdir, moveFile, readDir, temporaryDirectoryPath, unlink } from '@/utils/fs'
+import { selectUnpinnedEvictions, UNPINNED_IMAGE_CACHE_LIMIT } from '@/utils/imageCachePolicy'
 
 const COVER_CACHE_DIR = `${temporaryDirectoryPath}/image-cache`
 const inflightTaskMap = new Map<string, Promise<string | null>>()
 const runtimeCacheMap = new Map<string, string>()
 const cachedFileNames = new Set<string>()
+const pinnedFileNames = new Set<string>()
 let cacheDirReady: Promise<void> | null = null
 let indexReady = false
 let indexPromise: Promise<void> | null = null
@@ -99,11 +101,23 @@ export const peekCachedImageUri = (uri: string): string | null => {
   return cachedUri
 }
 
+export const pinImageUrl = (uri: string) => {
+  if (!isHttpUrl(uri)) return
+  pinnedFileNames.add(cacheFileName(uri))
+}
+
+export const unpinImageUrl = (uri: string) => {
+  if (!isHttpUrl(uri)) return
+  pinnedFileNames.delete(cacheFileName(uri))
+}
+
 export const forgetCachedImageUri = (uri: string) => {
   if (!uri) return
   runtimeCacheMap.delete(uri)
   if (!isHttpUrl(uri)) return
-  cachedFileNames.delete(cacheFileName(uri))
+  const fileName = cacheFileName(uri)
+  cachedFileNames.delete(fileName)
+  pinnedFileNames.delete(fileName)
   void unlink(toCacheFilePath(uri)).catch(() => {})
 }
 
@@ -111,6 +125,7 @@ export const forgetCachedImageUri = (uri: string) => {
 export const resetImageCache = async() => {
   runtimeCacheMap.clear()
   cachedFileNames.clear()
+  pinnedFileNames.clear()
   inflightTaskMap.clear()
   cacheDirReady = null
   indexReady = false
@@ -119,6 +134,7 @@ export const resetImageCache = async() => {
   if (previousIndex) await previousIndex.catch(() => {})
   indexReady = false
   cachedFileNames.clear()
+  pinnedFileNames.clear()
   runtimeCacheMap.clear()
   await ensureCacheDir()
   await primeImageCacheIndex()
@@ -169,8 +185,9 @@ export const getCachedImageUri = async(uri: string): Promise<string | null> => {
   return cachedUri
 }
 
-export const cacheImageUri = async(uri: string): Promise<string | null> => {
+export const cacheImageUri = async(uri: string, options?: { pin?: boolean }): Promise<string | null> => {
   if (!isHttpUrl(uri)) return null
+  if (options?.pin) pinImageUrl(uri)
   const peeked = peekCachedImageUri(uri)
   if (peeked) return peeked
   await ensureCacheDir()
@@ -195,6 +212,19 @@ export const cacheImageUri = async(uri: string): Promise<string | null> => {
   const cachedUri = toFileUri(cachedPath)
   rememberCachedFile(uri, cachedUri)
   return cachedUri
+}
+
+/** Drop ordinary cached images past the cap. Pinned playlist thumbs are kept. */
+export const trimUnpinnedImageCache = async(maxUnpinned = UNPINNED_IMAGE_CACHE_LIMIT) => {
+  await primeImageCacheIndex()
+  const extras = selectUnpinnedEvictions([...cachedFileNames], pinnedFileNames, maxUnpinned)
+  for (const name of extras) {
+    cachedFileNames.delete(name)
+    for (const [url, fileUri] of runtimeCacheMap) {
+      if (fileUri.endsWith(`/${name}`)) runtimeCacheMap.delete(url)
+    }
+    await unlink(`${COVER_CACHE_DIR}/${name}`).catch(() => {})
+  }
 }
 
 export const resolveImageUri = async(uri: string, enableLocalCache = true): Promise<string> => {

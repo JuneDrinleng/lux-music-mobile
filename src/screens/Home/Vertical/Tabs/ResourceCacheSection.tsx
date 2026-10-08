@@ -11,6 +11,7 @@ import { clearMusicUrl } from '@/utils/data'
 import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
 import { resetImageCache } from '@/utils/imageCache'
 import { useLuxTheme } from '@/theme/LuxTheme'
+import { restorePlaylistCoverCache } from '@/utils/playlistCoverPrefetch'
 import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
 
 interface ResourceCacheDetailProps {
@@ -50,6 +51,7 @@ export const useResourceCache = () => {
         toast(t('setting_other_cache_clear_success_tip'))
       }).finally(() => {
         void resetImageCache().finally(() => {
+          restorePlaylistCoverCache()
           handleGetAppCacheSize()
           setCleaning(false)
         })
