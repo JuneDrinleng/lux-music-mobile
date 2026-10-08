@@ -289,7 +289,7 @@
 - 唯一仍走 IcoMoon 的是 `logo`（`Icon.tsx`）。应用标志不要换成通用 MDI。
 - `MdiIcon` 的 `size` 会按宽度缩放；`rawSize` 是不缩放的像素，适合以前就按字号写死的箭头。
 - 设置行图标：`MdiIcon` `size={24}`，颜色 `#000000`。色相放在 40 的圆底上，不要把图标本身涂成绿或紫。
-- 少数设置行仍通过 `Icon` 画 `broom`、`menu`、`comment`，`rawSize` 18，颜色同样是 `#000000`。新行用 `MdiIcon` 24。
+- 资料子页的昵称、签名仍通过 `Icon` 画 `menu`、`comment`，`rawSize` 18，颜色 `#000000`。缓存管理与同组其他行一样用 `MdiIcon` `size={24}`、`iconWrapPurple`。新行用 `MdiIcon` 24。
 - 右箭头：`chevron-right-2`（即 MDI `chevron-right`），`rawSize` 18，`#9aa1ae`。
 - 返回：`chevron-left`，`rawSize` 20，`#232733`。
 - 底栏：`size` 24；当前 `#2a311c`，未选 `#5f6574`。
@@ -361,7 +361,7 @@
 - 歌曲拖动缩放 1.06，歌单卡片拖动缩放 1.02。
 - 搜索页底部留白常量是 112，主 Tab 是 164。
 - 搜索区块标题有一处字重 800（`SearchPage` `initialSectionTitle`），其余大标题是 700。
-- 设置里仍有 `Icon` + `rawSize` 18 的图标，和 `MdiIcon` 24 混排。
+- 设置资料子页的昵称、签名仍是 `Icon` + `rawSize` 18，和其余设置行的 `MdiIcon` 24 混排。
 - 同步格式行的副标题直接写了 `lux music` / `lx music`（`SettingsTab.tsx`），没有走 i18n。音源菜单里有硬编码 `All`（`PlaylistTab.tsx` `getSourceMenuLabel`）。
 - 播放详情在没有歌名时的兜底字符串是英文 `Midnight City Echoes` / `Neon Dreamer`（`Pic.tsx`）。
 - 横屏 `src/screens/Home/Horizontal/` 和 `src/screens/Home/Views/` 仍是上游列表与主题色。`docs/page-hierarchy.md` 里关于「只有歌单和设置两个 Tab」的描述已经过时，当前 `Main.tsx` 有首页、歌单、设置三页。

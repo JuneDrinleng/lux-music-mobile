@@ -839,7 +839,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="sync" size={24} color="#000000" />
+                        <MdiIcon name="server-network" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
@@ -865,7 +865,7 @@ export default () => {
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={() => { void handleClearSyncConflictMode() }}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="sync" size={24} color="#000000" />
+                        <MdiIcon name="source-branch-remove" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
@@ -877,8 +877,8 @@ export default () => {
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenResourceCacheDetail}>
                     <View style={styles.groupRowLeft}>
-                      <View style={styles.groupRowIconWrap}>
-                        <Icon name="broom" rawSize={18} color="#000000" />
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="broom" size={24} color="#000000" />
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
