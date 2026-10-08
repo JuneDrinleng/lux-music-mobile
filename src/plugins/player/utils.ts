@@ -172,9 +172,15 @@ export const setPause = async() => TrackPlayer.pause()
 export const setCurrentTime = async(time: number) => TrackPlayer.seekTo(time)
 export const setVolume = async(num: number) => TrackPlayer.setVolume(num)
 export const setPlaybackRate = async(num: number) => TrackPlayer.setRate(num)
-export const updateNowPlayingTitles = async(duration: number, title: string, artist: string, album: string) => {
-  console.log('set playing titles', duration, title, artist, album)
-  return TrackPlayer.updateNowPlayingTitles(duration, title, artist, album)
+export interface NowPlayingTitles {
+  title?: string
+  artist?: string
+  album?: string
+  lyric?: string
+}
+export const updateNowPlayingTitles = async(titles: NowPlayingTitles) => {
+  // console.log('set playing titles', titles)
+  return TrackPlayer.updateNowPlayingTitles(titles)
 }
 
 export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
@@ -274,7 +280,8 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
     capabilities,
     notificationCapabilities,
     compactCapabilities,
-    icon: notificationIcon,
+    // Lux Android uses a named drawable URI; RNTP typings only allow numeric require() assets.
+    icon: notificationIcon as MetadataOptions['icon'],
   }
 
   // This project patches RNTP on Android to expose a custom notification
@@ -301,8 +308,8 @@ export const updateOptions = async(options?: Partial<MetadataOptions>) => {
 
   if (isNotificationLikeSupported && (baseOptions.likeOptions ?? options?.likeOptions)) {
     nextOptions.likeOptions = {
-      ...baseOptions.likeOptions,
-      ...options?.likeOptions,
+      isActive: options?.likeOptions?.isActive ?? baseOptions.likeOptions?.isActive ?? false,
+      title: options?.likeOptions?.title ?? baseOptions.likeOptions?.title ?? '',
     }
   } else {
     delete nextOptions.likeOptions

@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { httpFetch } from '../../request'
 import { getMusicInfo } from './musicInfo'
 import { decrypt } from './utils/mrc'
@@ -21,7 +23,7 @@ const mrcTools = {
 
       const startTime = parseInt(result[1])
       let time = startTime
-      let ms = time % 1000
+      let ms = (time % 1000).toString().padStart(3, '0')
       time /= 1000
       let m = parseInt(time / 60).toString().padStart(2, '0')
       time %= 60
@@ -36,7 +38,7 @@ const mrcTools = {
       if (!times) continue
       times = times.map(time => {
         const result = /\((\d+),(\d+)\)/.exec(time)
-        return `<${parseInt(result[1]) - startTime},${result[2]}>`
+        return `<${Math.trunc(parseInt(result[1]) - startTime)},${result[2]}>`
       })
       const wordArr = words.split(this.rxps.wordTime)
       const newWords = times.map((time, index) => `${time}${wordArr[index]}`).join('')
@@ -75,7 +77,7 @@ const mrcTools = {
   },
   async getMusicInfo(songInfo) {
     return songInfo.mrcUrl == null
-      ? getMusicInfo(songInfo.copyrightId)
+      ? getMusicInfo(songInfo.songmid)
       : songInfo
   },
   getLyric(songInfo) {

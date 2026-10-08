@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 // import BackgroundTimer from 'react-native-background-timer'
 // import { httpGet, httpFetch } from '../../request'
 import { toMD5 } from '../utils'
@@ -99,8 +101,8 @@ export const lrcTools = {
   getWordInfo(str, str2, prevWord) {
     const offset = parseInt(str)
     const offset2 = parseInt(str2)
-    let startTime = Math.abs((offset + offset2) / (this.offset * 2))
-    let endTime = Math.abs((offset - offset2) / (this.offset2 * 2)) + startTime
+    let startTime = Math.trunc(Math.abs((offset + offset2) / (this.offset * 2)))
+    let endTime = Math.trunc(Math.abs((offset - offset2) / (this.offset2 * 2)) + startTime)
     if (prevWord) {
       if (startTime < prevWord.endTime) {
         prevWord.endTime = startTime
@@ -108,14 +110,14 @@ export const lrcTools = {
           prevWord.startTime = prevWord.endTime
         }
 
-        prevWord.newTimeStr = `<${prevWord.startTime},${prevWord.endTime - prevWord.startTime}>`
+        prevWord.newTimeStr = `<${prevWord.startTime},${Math.trunc(prevWord.endTime - prevWord.startTime)}>`
         // console.log(prevWord)
       }
     }
     return {
       startTime,
       endTime,
-      timeStr: `<${startTime},${endTime - startTime}>`,
+      timeStr: `<${startTime},${Math.trunc(endTime - startTime)}>`,
     }
   },
   parseLine(line) {
