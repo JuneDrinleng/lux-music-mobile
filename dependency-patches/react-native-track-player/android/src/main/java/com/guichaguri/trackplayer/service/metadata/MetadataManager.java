@@ -4,7 +4,6 @@ package com.guichaguri.trackplayer.service.metadata;
 
 import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM;
 import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST;
-import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI;
 import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_DURATION;
 import static android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE;
 
