@@ -30,6 +30,7 @@ import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
 import { usePlaylistCardDrag } from '@/components/playlist/hooks/usePlaylistCardDrag'
+import { createSongRowKeyStore, stableSongRowKey } from '@/components/playlist/songRowKey'
 import PlaylistSearchScene from '@/components/playlist/PlaylistSearchScene'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -371,6 +372,8 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     handlePlaylistContentSizeChange,
     handleActiveTouchMove,
     handleActiveTouchEnd,
+    handleActiveTouchCancel,
+    playlistPanHandlers,
   } = usePlaylistCardDrag({
     displayPlaylists,
     playlistDisplayMode,
@@ -659,8 +662,9 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       global.app_event.off('verticalSearchStateUpdated', handleVerticalSearchStateUpdated)
     }
   }, [])
+  const songRowKeyStoreRef = useRef(createSongRowKeyStore())
   const getSongRowKey = useCallback((song: LX.Music.MusicInfo, fallbackIndex = 0) => {
-    return `${song.source}_${song.id}_${fallbackIndex}`
+    return stableSongRowKey(song, fallbackIndex, detailSongsRef.current, songRowKeyStoreRef.current)
   }, [])
   const measureDetailListWrap = useCallback(() => {
     detailListWrapRef.current?.measureInWindow((_, y, _width, height) => {
@@ -1741,6 +1745,8 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       onPlaylistScrollBeginDrag={handlePlaylistScrollBeginDrag}
       onPlaylistTouchMove={handleActiveTouchMove}
       onPlaylistTouchEnd={handleActiveTouchEnd}
+      onPlaylistTouchCancel={handleActiveTouchCancel}
+      playlistPanHandlers={playlistPanHandlers}
       onPlaylistScrollLayout={handlePlaylistScrollLayout}
       onPlaylistContentSizeChange={handlePlaylistContentSizeChange}
       onPlaylistCardLayout={handlePlaylistCardLayout}
@@ -2745,24 +2751,25 @@ const styles = createStyle({
   playlistDragHitGrid: {
     width: '100%',
   },
+  // White plate is the #11 lift surface so cover + title move as one card.
+  // It is only applied while draggingPlaylistId is set. No zIndex: Android
+  // reparents a view when zIndex changes and drops the in-flight touch.
   playlistDragLifted: {
-    zIndex: 30,
-    elevation: 18,
+    elevation: 4,
     backgroundColor: '#ffffff',
     borderRadius: 18,
     shadowColor: '#000000',
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
   playlistDragLiftedList: {
-    zIndex: 30,
-    elevation: 18,
+    elevation: 4,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
   },
 })

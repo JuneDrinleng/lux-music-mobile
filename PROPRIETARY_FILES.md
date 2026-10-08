@@ -117,6 +117,10 @@
 | `src/types/appDialog.ts` | `code` | Lux 独立定义的 AppDialog 类型，上游无此类型文件 | `2026-04-11` |
 | `src/types/permissionPrompt.ts` | `code` | Lux 独立定义的权限提示类型，上游无此类型文件 | `2026-04-11` |
 | `src/utils/imageCache.ts` | `code` | Lux 独立实现的图片缓存工具，上游无对应文件 | `2026-04-11` |
+| `src/utils/imagePresentation.ts` | `code` | Lux 独立实现的封面首帧展示决策，上游无对应文件 | `2026-10-08` |
+| `src/components/playlist/playlistDragState.ts` | `code` | Lux 独立实现的歌单拖动结束/复位决策，上游无对应文件 | `2026-10-08` |
+| `src/components/playlist/songRowKey.ts` | `code` | Lux 独立实现的歌单行稳定 key，上游无对应文件 | `2026-10-08` |
+| `scripts/run-src-unit-tests.mjs` | `code` | Lux 独立新增的封面与歌单拖动单元测试入口，上游无对应文件 | `2026-10-08` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |

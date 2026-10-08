@@ -2,11 +2,11 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, Easing, Image as NativeImage, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { ActivityIndicator, Animated, Easing, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
-import diskPic from '../../../../../assets/img/disk.png'
+import { COVER_PLACEHOLDER_COLOR } from '@/utils/imagePresentation'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import { LIST_IDS } from '@/config/constant'
 import { setNavActiveId } from '@/core/common'
@@ -417,9 +417,7 @@ const AllContent = memo(({
                   <View style={styles.featuredArtworkWrap}>
                     {card.cover
                       ? <Image style={styles.featuredArtwork} url={card.cover} />
-                      : <View style={[styles.featuredArtwork, styles.featuredArtworkFallback, { backgroundColor: 'rgba(255,255,255,0.28)' }]}>
-                          <NativeImage source={diskPic} style={{ width: 48, height: 48 }} resizeMode="contain" />
-                        </View>}
+                      : <View style={[styles.featuredArtwork, styles.featuredArtworkFallback, { backgroundColor: COVER_PLACEHOLDER_COLOR }]} />}
                   </View>
                 </View>
               </View>
@@ -450,9 +448,7 @@ const AllContent = memo(({
                 <View style={styles.dailyCoverWrap}>
                   {meta?.cover
                     ? <Image style={styles.dailyCover} url={meta.cover} />
-                    : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: item.tone.surface }]}>
-                        <NativeImage source={diskPic} style={{ width: 32, height: 32 }} resizeMode="contain" />
-                      </View>}
+                    : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: COVER_PLACEHOLDER_COLOR }]} />}
                 </View>
                 <View style={styles.dailyInfo}>
                   <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{item.title}</Text>
@@ -585,9 +581,7 @@ const LbContent = memo(({
                                   <View style={styles.dailyCoverWrap}>
                                     {coverUrl
                                       ? <Image style={styles.dailyCover} url={coverUrl} />
-                                      : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                                          <NativeImage source={diskPic} style={{ width: 32, height: 32 }} resizeMode="contain" />
-                                        </View>}
+                                      : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: COVER_PLACEHOLDER_COLOR }]} />}
                                   </View>
                                   <View style={styles.dailyInfo}>
                                     <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>

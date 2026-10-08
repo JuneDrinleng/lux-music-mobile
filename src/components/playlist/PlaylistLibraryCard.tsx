@@ -18,6 +18,7 @@ export interface PlaylistDragController {
   onMove: (event: GestureResponderEvent) => void
   onRelease: (item: LX.List.UserListInfo) => boolean
   onTerminate: () => void
+  isPanOwning: () => boolean
 }
 
 interface PlaylistLibraryCardProps {
@@ -86,6 +87,7 @@ const PlaylistLibraryCard = ({
   }, [dragControllerRef])
   const handleTouchCancel = useCallback(() => {
     if (!acceptedRef.current) return
+    if (dragControllerRef.current.isPanOwning()) return
     acceptedRef.current = false
     dragControllerRef.current.onTerminate()
   }, [dragControllerRef])

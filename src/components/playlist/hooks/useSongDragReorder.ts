@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 
 import { updateListMusicPosition } from '@/core/list'
+import { createSongRowKeyStore, stableSongRowKey } from '@/components/playlist/songRowKey'
 import { cachePlaylistSnapshot } from './usePlaylistDetailData'
 
 export const SONG_DRAG_ROW_GAP = 2
@@ -74,6 +75,7 @@ export const useSongDragReorder = ({
     startScrollOffset: 0,
     pressOffsetY: 0,
   })
+  const songRowKeyStoreRef = useRef(createSongRowKeyStore())
   const dragTop = useRef(new Animated.Value(0)).current
   const dragScale = useRef(new Animated.Value(1)).current
   const dragOpacity = useRef(new Animated.Value(0)).current
@@ -82,8 +84,8 @@ export const useSongDragReorder = ({
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
 
   const getSongRowKey = useCallback((song: LX.Music.MusicInfo, fallbackIndex = 0) => {
-    return `${song.source}_${song.id}_${fallbackIndex}`
-  }, [])
+    return stableSongRowKey(song, fallbackIndex, detailSongsRef.current, songRowKeyStoreRef.current)
+  }, [detailSongsRef])
 
   const measureDetailListWrap = useCallback(() => {
     detailListWrapRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {

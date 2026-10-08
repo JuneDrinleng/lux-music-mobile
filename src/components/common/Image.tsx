@@ -1,11 +1,10 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { BorderRadius } from '@/theme'
 import { createStyle } from '@/utils/tools'
-import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
-import { type ComponentProps, memo, useCallback, useEffect, useState } from 'react'
-import { View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
-import defaultPic from '../../../assets/img/disk.png'
+import { cacheImageUri, forgetCachedImageUri, peekCachedImageUri, resetImageCache } from '@/utils/imageCache'
+import { COVER_FADE_MS, COVER_PLACEHOLDER_COLOR, coverPresentation, nextCoverUri } from '@/utils/imagePresentation'
+import { type ComponentProps, memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Animated, Easing, View, type ViewProps, Image as _Image, StyleSheet, type ImageLoadEventData, type NativeSyntheticEvent } from 'react-native'
 
 export type OnLoadEvent = NativeSyntheticEvent<ImageLoadEventData>
 
@@ -16,11 +15,8 @@ export interface ImageProps extends ViewProps {
   resizeMode?: ComponentProps<typeof _Image>['resizeMode']
   blurRadius?: number
   showFallback?: boolean
-  placeholder?: number
-  placeholderStyle?: ComponentProps<typeof _Image>['style']
   onError?: (url: string | number) => void
 }
-
 
 export const defaultHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
@@ -41,24 +37,31 @@ const appendImageRetryToken = (uri: string, retryIndex: number) => {
   return `${baseUri}${separator}lx_retry=${retryIndex}${hash}`
 }
 
-const EmptyPic = memo(({ style, nativeID, placeholder, placeholderStyle }: { style: ImageProps['style'], nativeID: ImageProps['nativeID'], placeholder?: number, placeholderStyle?: ImageProps['placeholderStyle'] }) => {
-  return (
-    <View style={StyleSheet.compose(styles.emptyPicWrap, style)} nativeID={nativeID}>
-      <_Image source={placeholder ?? defaultPic} style={[styles.emptyPicImage, placeholderStyle]} resizeMode="contain" />
-    </View>
-  )
-})
+const isRemoteUri = (uri: string | null) => Boolean(uri && /^https?:\/\//i.test(uri))
 
-const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, placeholder, placeholderStyle, style, onError, nativeID }: ImageProps) => {
-  const [isLoaded, setLoaded] = useState(false)
-  const [isError, setError] = useState(false)
-  const [retryIndex, setRetryIndex] = useState(0)
-  const [preferRawRemote, setPreferRawRemote] = useState(false)
-  const [cachedUriState, setCachedUriState] = useState<{ rawUri: string, cachedUri: string } | null>(null)
+const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback = true, style, onError, nativeID }: ImageProps) => {
   const rawUri = getRawUri(url)
   const shouldUseLocalCache = cache !== false && /^https?:\/\//i.test(rawUri)
-  const runtimeCachedUri = shouldUseLocalCache ? (peekCachedImageUri(rawUri) ?? '') : ''
-  const cachedUri = (cachedUriState?.rawUri == rawUri ? cachedUriState.cachedUri : '') || runtimeCachedUri
+  const initialPeek = shouldUseLocalCache ? peekCachedImageUri(rawUri) : null
+  const initialPresentation = coverPresentation({
+    rawUri,
+    cacheEnabled: shouldUseLocalCache,
+    peekedFileUri: initialPeek,
+  })
+  const [sourceUri, setSourceUri] = useState<string | null>(initialPresentation.uri)
+  const [isLoaded, setLoaded] = useState(initialPresentation.loaded || !showFallback)
+  const [isError, setError] = useState(false)
+  const [retryIndex, setRetryIndex] = useState(0)
+  const [fadeIn, setFadeIn] = useState(initialPresentation.fadeIn && showFallback && !initialPresentation.loaded)
+  const opacity = useRef(new Animated.Value((initialPresentation.loaded || !showFallback) ? 1 : 0)).current
+  const requestIdRef = useRef(0)
+
+  const applyPresentation = useCallback((presentation: ReturnType<typeof coverPresentation>, nextFade: boolean) => {
+    setSourceUri(presentation.uri)
+    setLoaded(presentation.loaded || !showFallback)
+    setFadeIn(nextFade && showFallback && !presentation.loaded)
+    opacity.setValue((presentation.loaded || !showFallback) ? 1 : 0)
+  }, [opacity, showFallback])
 
   const handleLoad = useCallback(() => {
     setLoaded(true)
@@ -67,95 +70,100 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   const handleError = useCallback(() => {
     setLoaded(false)
+    if (showFallback) opacity.setValue(0)
     if (retryIndex < MAX_IMAGE_RETRY) {
-      // If a local cache entry failed, fall back to the original remote URL.
-      if (shouldUseLocalCache && !preferRawRemote && cachedUri) {
-        setPreferRawRemote(true)
+      if (shouldUseLocalCache && sourceUri && rawUri && sourceUri != rawUri && !isRemoteUri(sourceUri)) {
+        forgetCachedImageUri(rawUri)
+        setSourceUri(rawUri)
+        setFadeIn(showFallback)
+        setRetryIndex(retryIndex + 1)
+        return
       }
-      setError(false)
+      setFadeIn(showFallback)
       setRetryIndex(retryIndex + 1)
       return
     }
     setError(true)
-    onError?.(url!)
-  }, [cachedUri, onError, preferRawRemote, retryIndex, shouldUseLocalCache, url])
+    if (url != null && url !== '') onError?.(url)
+  }, [onError, opacity, rawUri, retryIndex, showFallback, shouldUseLocalCache, sourceUri, url])
 
   useEffect(() => {
-    setLoaded(false)
+    const requestId = ++requestIdRef.current
     setError(false)
     setRetryIndex(0)
-    setPreferRawRemote(false)
-    if (!rawUri || !shouldUseLocalCache) return
-    if (runtimeCachedUri) {
-      setCachedUriState({
-        rawUri,
-        cachedUri: runtimeCachedUri,
-      })
-      return
-    }
-    let canceled = false
-    setCachedUriState((prev) => {
-      if (prev?.rawUri == rawUri) return prev
-      return null
+    const peeked = shouldUseLocalCache ? peekCachedImageUri(rawUri) : null
+    const presentation = coverPresentation({
+      rawUri,
+      cacheEnabled: shouldUseLocalCache,
+      peekedFileUri: peeked,
     })
-    void getCachedImageUri(rawUri).then((cachedUri) => {
-      if (canceled) return
-      if (cachedUri) {
-        setCachedUriState({
-          rawUri,
-          cachedUri,
-        })
-        return
-      }
-      void cacheImageUri(rawUri).then((uri) => {
-        if (canceled) return
-        if (!uri || uri == rawUri) return
-        setCachedUriState({
-          rawUri,
-          cachedUri: uri,
-        })
+    applyPresentation(presentation, presentation.fadeIn)
+    if (!presentation.waitForDownload || !rawUri) return
+    let canceled = false
+    void cacheImageUri(rawUri).then((fileUri) => {
+      if (canceled || requestId != requestIdRef.current) return
+      setSourceUri((current) => {
+        const next = nextCoverUri(current, fileUri, rawUri)
+        return next
       })
+      setFadeIn(showFallback)
+      setLoaded(!showFallback)
+      if (showFallback) opacity.setValue(0)
     })
     return () => {
       canceled = true
     }
-  }, [rawUri, runtimeCachedUri, shouldUseLocalCache])
+  }, [applyPresentation, opacity, rawUri, shouldUseLocalCache, showFallback])
 
-  const uri = (preferRawRemote ? rawUri : (cachedUri || rawUri))
+  useEffect(() => {
+    if (!isLoaded) return
+    if (!fadeIn) {
+      opacity.setValue(1)
+      return
+    }
+    const animation = Animated.timing(opacity, {
+      toValue: 1,
+      duration: COVER_FADE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    })
+    animation.start()
+    return () => {
+      animation.stop()
+    }
+  }, [fadeIn, isLoaded, opacity, sourceUri])
 
-  // Never render an empty/black block — always fall back to the placeholder image.
-  if (!uri || isError) {
-    return <EmptyPic style={style} nativeID={nativeID} placeholder={placeholder} placeholderStyle={placeholderStyle} />
+  if (!rawUri || isError) {
+    if (!showFallback) return <View style={style} nativeID={nativeID} />
+    return <View style={[styles.placeholder, style]} nativeID={nativeID} />
   }
 
-  const isRemote = /^https?:\/\//i.test(uri)
-  const sourceUri = isRemote && retryIndex > 0 ? appendImageRetryToken(uri, retryIndex) : uri
-  // Keep a placeholder underneath while loading so we never show a blank or black block.
-  const showNetworkImage = isLoaded
-  const shouldShowFallback = showFallback
-  const shouldHideImageLayer = shouldShowFallback && !showNetworkImage
+  const remoteSource = isRemoteUri(sourceUri)
+  const displayUri = sourceUri && remoteSource && retryIndex > 0
+    ? appendImageRetryToken(sourceUri, retryIndex)
+    : sourceUri
+  const plateStyle = showFallback ? styles.placeholder : null
 
   return (
-    <View style={StyleSheet.compose(styles.imageWrap, style)}>
-      {shouldShowFallback ? (
-        <View style={[styles.imageLayer, styles.fallbackCenterWrap]}>
-          <_Image source={placeholder ?? defaultPic} style={[styles.placeholderImage, placeholderStyle]} resizeMode="contain" />
-        </View>
-      ) : null}
-      <_Image
-        key={sourceUri}
-        style={StyleSheet.compose(styles.imageLayer, shouldHideImageLayer ? styles.hiddenLayer : undefined)}
-        source={{
-          uri: sourceUri,
-          headers: isRemote ? defaultHeaders : undefined,
-          cache: isRemote ? (retryIndex > 0 || cache === false ? 'reload' : 'force-cache') : undefined,
-        }}
-        onError={handleError}
-        onLoad={handleLoad}
-        resizeMode={resizeMode}
-        blurRadius={blurRadius}
-        nativeID={nativeID}
-      />
+    <View style={[styles.imageWrap, style, plateStyle]}>
+      {displayUri
+        ? <Animated.View pointerEvents="none" style={[styles.imageLayer, { opacity }]}>
+            <_Image
+              key={displayUri}
+              style={styles.imageFill}
+              source={{
+                uri: displayUri,
+                headers: remoteSource ? defaultHeaders : undefined,
+                cache: remoteSource ? (retryIndex > 0 || cache === false ? 'reload' : 'force-cache') : undefined,
+              }}
+              onError={handleError}
+              onLoad={handleLoad}
+              resizeMode={resizeMode}
+              blurRadius={blurRadius}
+              nativeID={nativeID}
+            />
+          </Animated.View>
+        : null}
     </View>
   )
 }, (prevProps, nextProps) => {
@@ -165,47 +173,29 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     prevProps.cache == nextProps.cache &&
     prevProps.resizeMode == nextProps.resizeMode &&
     prevProps.blurRadius == nextProps.blurRadius &&
-    prevProps.showFallback == nextProps.showFallback &&
-    prevProps.placeholder == nextProps.placeholder &&
-    prevProps.placeholderStyle == nextProps.placeholderStyle
+    prevProps.showFallback == nextProps.showFallback
 })
 
 export const getSize = (uri: string, success: (width: number, height: number) => void, failure?: (error: any) => void) => {
   _Image.getSize(uri, success, failure)
 }
 export const clearMemoryCache = async() => {
-  return Promise.resolve()
+  await resetImageCache()
 }
 export default Image
 
 const styles = createStyle({
-  emptyPicWrap: {
-    borderRadius: BorderRadius.normal,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyPicImage: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderImage: {
-    width: '100%',
-    height: '100%',
+  placeholder: {
+    backgroundColor: COVER_PLACEHOLDER_COLOR,
   },
   imageWrap: {
     overflow: 'hidden',
   },
   imageLayer: {
     ...StyleSheet.absoluteFillObject,
+  },
+  imageFill: {
     width: '100%',
     height: '100%',
-  },
-  fallbackCenterWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hiddenLayer: {
-    opacity: 0,
   },
 })

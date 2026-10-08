@@ -9,6 +9,7 @@ import { clearCache, getCacheSize } from '@/plugins/player/utils'
 import { sizeFormate } from '@/utils'
 import { clearMusicUrl } from '@/utils/data'
 import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
+import { resetImageCache } from '@/utils/imageCache'
 import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
 
 interface ResourceCacheDetailProps {
@@ -47,8 +48,10 @@ export const useResourceCache = () => {
       ]).then(() => {
         toast(t('setting_other_cache_clear_success_tip'))
       }).finally(() => {
-        handleGetAppCacheSize()
-        setCleaning(false)
+        void resetImageCache().finally(() => {
+          handleGetAppCacheSize()
+          setCleaning(false)
+        })
       })
     })
   }, [cacheSize, cleaning, handleGetAppCacheSize, t])
