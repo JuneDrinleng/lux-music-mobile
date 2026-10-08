@@ -131,6 +131,9 @@
 | `src/utils/changelogFormat.js` | `code` | Lux 独立新增的更新日志分点解析，上游无对应文件 | `2026-10-08` |
 | `src/utils/changelogFormat.d.ts` | `code` | 上述解析器的类型声明 | `2026-10-08` |
 | `src/components/ChangelogView.tsx` | `code` | Lux 独立新增的更新日志分点渲染，上游无对应文件 | `2026-10-08` |
+| `src/theme/luxTokens.ts` | `code` | Lux 竖屏新页面的语义颜色令牌，上游主题表无此文件 | `2026-10-08` |
+| `src/theme/LuxTheme.tsx` | `code` | Lux 竖屏主题上下文，与上游 `useTheme()` 分开 | `2026-10-08` |
+| `docs/theme-tokens.md` | `doc` | 默认黄绿令牌与新美化页面色值的对照，供后续替换硬编码 | `2026-10-08` |
 
 ## 维护模板
 
