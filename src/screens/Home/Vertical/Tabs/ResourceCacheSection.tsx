@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
+import { Icon } from '@/components/common/Icon'
 import { useI18n } from '@/lang'
 import { clearCache, getCacheSize } from '@/plugins/player/utils'
 import { sizeFormate } from '@/utils'
@@ -13,9 +14,19 @@ import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotification
 
 interface ResourceCacheSectionProps {
   styles: Record<string, any>
+  cacheSizeLabel: string
+  onPress: () => void
 }
 
-export default memo(({ styles: parentStyles }: ResourceCacheSectionProps) => {
+interface ResourceCacheDetailProps {
+  styles: Record<string, any>
+  cacheSizeLabel: string
+  cleaning: boolean
+  canClean: boolean
+  onClean: () => void
+}
+
+export const useResourceCache = () => {
   const t = useI18n()
   const [cleaning, setCleaning] = useState(false)
   const [cacheSize, setCacheSize] = useState<string | null>(null)
@@ -53,28 +64,64 @@ export default memo(({ styles: parentStyles }: ResourceCacheSectionProps) => {
     handleGetAppCacheSize()
   }, [handleGetAppCacheSize])
 
+  const cacheSizeLabel = cacheSize == null
+    ? t('setting_other_cache_getting')
+    : t('setting_other_cache_size') + cacheSize
+
+  return {
+    cleaning,
+    cacheSize,
+    cacheSizeLabel,
+    handleCleanCache,
+    handleGetAppCacheSize,
+  }
+}
+
+export const ResourceCacheDetail = memo(({
+  styles: parentStyles,
+  cacheSizeLabel,
+  cleaning,
+  canClean,
+  onClean,
+}: ResourceCacheDetailProps) => {
+  const t = useI18n()
+  return (
+    <>
+      <View style={parentStyles.optionDetailRow}>
+        <Text size={15} color="#20242d" style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>{cacheSizeLabel}</Text>
+      </View>
+      <View style={parentStyles.optionDetailDivider} />
+      <TouchableOpacity
+        style={parentStyles.optionDetailRow}
+        activeOpacity={0.84}
+        onPress={onClean}
+        disabled={!canClean || cleaning}
+      >
+        <Text size={15} color={cleaning ? '#9aa1ae' : '#20242d'} style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>
+          {t('setting_other_cache_clear_btn')}
+        </Text>
+      </TouchableOpacity>
+    </>
+  )
+})
+
+export default memo(({ styles: parentStyles, cacheSizeLabel, onPress }: ResourceCacheSectionProps) => {
+  const t = useI18n()
   return (
     <View style={parentStyles.sectionCard}>
       <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('setting__other_resource_cache')}</Text>
       <View style={parentStyles.sectionGroup}>
-        <View style={parentStyles.groupRow}>
+        <TouchableOpacity style={parentStyles.groupRow} activeOpacity={0.84} onPress={onPress}>
           <View style={parentStyles.groupRowLeft}>
+            <View style={parentStyles.groupRowIconWrap}>
+              <Icon name="sd-card" rawSize={18} color="#58651b" />
+            </View>
             <View style={parentStyles.groupRowTextWrap}>
-              <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>
-                {cacheSize == null ? t('setting_other_cache_getting') : t('setting_other_cache_size') + cacheSize}
-              </Text>
+              <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>{t('setting__other_resource_cache')}</Text>
+              <Text size={12} color="#767d89" numberOfLines={2}>{cacheSizeLabel}</Text>
             </View>
           </View>
-        </View>
-        <View style={parentStyles.groupDivider} />
-        <TouchableOpacity style={parentStyles.groupRow} activeOpacity={0.84} onPress={handleCleanCache} disabled={cleaning || cacheSize == null}>
-          <View style={parentStyles.groupRowLeft}>
-            <View style={parentStyles.groupRowTextWrap}>
-              <Text size={15} color={cleaning ? '#9aa1ae' : '#20242d'} style={parentStyles.groupRowTitle}>
-                {t('setting_other_cache_clear_btn')}
-              </Text>
-            </View>
-          </View>
+          <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
         </TouchableOpacity>
       </View>
     </View>

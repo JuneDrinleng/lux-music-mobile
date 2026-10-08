@@ -46,7 +46,7 @@ import { checkUpdate } from '@/core/version'
 import versionState from '@/store/version/state'
 import { isDevBuild, resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
-import ResourceCacheSection from './ResourceCacheSection'
+import ResourceCacheSection, { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -94,7 +94,14 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel' | 'resourceCache'>(null)
+  const {
+    cleaning: isCleaningResourceCache,
+    cacheSize: resourceCacheSize,
+    cacheSizeLabel: resourceCacheSizeLabel,
+    handleCleanCache: handleCleanResourceCache,
+    handleGetAppCacheSize,
+  } = useResourceCache()
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
@@ -368,7 +375,9 @@ export default () => {
               ? t('setting_sync_format')
               : activeOptionDetail === 'releaseChannel'
                 ? t('setting_release_channel')
-                : ''
+                : activeOptionDetail === 'resourceCache'
+                  ? t('setting__other_resource_cache')
+                  : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -668,6 +677,10 @@ export default () => {
   const handleOpenReleaseChannel = () => {
     setActiveOptionDetail('releaseChannel')
   }
+  const handleOpenResourceCacheDetail = useCallback(() => {
+    handleGetAppCacheSize()
+    setActiveOptionDetail('resourceCache')
+  }, [handleGetAppCacheSize])
   const handleSelectReleaseChannel = (value: 'stable' | 'dev') => {
     updateSetting({ 'common.releaseChannel': value })
     setActiveOptionDetail(null)
@@ -872,7 +885,11 @@ export default () => {
             : null}
 
           {showResourceCacheSection
-            ? <ResourceCacheSection styles={styles} />
+            ? <ResourceCacheSection
+                styles={styles}
+                cacheSizeLabel={resourceCacheSizeLabel}
+                onPress={handleOpenResourceCacheDetail}
+              />
             : null}
 
           {showAboutSection
@@ -1131,6 +1148,15 @@ export default () => {
                     </View>
                   )
                 })
+                : null}
+              {activeOptionDetail === 'resourceCache'
+                ? <ResourceCacheDetail
+                    styles={styles}
+                    cacheSizeLabel={resourceCacheSizeLabel}
+                    cleaning={isCleaningResourceCache}
+                    canClean={resourceCacheSize != null}
+                    onClean={handleCleanResourceCache}
+                  />
                 : null}
             </View>
           </View>
@@ -1925,6 +1951,9 @@ const styles = createStyle({
   },
   optionDetailText: {
     fontWeight: '600',
+  },
+  optionDetailLabel: {
+    flex: 1,
   },
   optionDetailDivider: {
     height: 1,
