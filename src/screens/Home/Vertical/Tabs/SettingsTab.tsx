@@ -47,6 +47,7 @@ import versionState from '@/store/version/state'
 import { isDevBuild, resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import ResourceCacheSection, { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
+import VersionChangelogDetail from './VersionChangelogDetail'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -94,7 +95,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel' | 'resourceCache'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel' | 'resourceCache' | 'changelog'>(null)
   const {
     cleaning: isCleaningResourceCache,
     cacheSize: resourceCacheSize,
@@ -335,6 +336,7 @@ export default () => {
     aboutStatusText,
     currentVer,
     t('version_label_current_ver'),
+    t('version_changelog_title'),
     t('version_btn_check_update'),
     t('setting_release_channel'),
     releaseChannelLabel,
@@ -377,7 +379,9 @@ export default () => {
                 ? t('setting_release_channel')
                 : activeOptionDetail === 'resourceCache'
                   ? t('setting__other_resource_cache')
-                  : ''
+                  : activeOptionDetail === 'changelog'
+                    ? t('version_changelog_title')
+                    : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -677,6 +681,9 @@ export default () => {
   const handleOpenReleaseChannel = () => {
     setActiveOptionDetail('releaseChannel')
   }
+  const handleOpenChangelog = () => {
+    setActiveOptionDetail('changelog')
+  }
   const handleOpenResourceCacheDetail = useCallback(() => {
     handleGetAppCacheSize()
     setActiveOptionDetail('resourceCache')
@@ -896,7 +903,7 @@ export default () => {
             ? <View style={styles.sectionCard}>
                 <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_about')}</Text>
                 <View style={styles.sectionGroup}>
-                  <View style={styles.groupRow}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenChangelog}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
                         <RNImage source={versionImg} style={styles.settingRowImg} />
@@ -906,7 +913,8 @@ export default () => {
                         <Text size={12} color="#767d89" numberOfLines={1}>{currentVersionLabel}</Text>
                       </View>
                     </View>
-                  </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleaseChannel}>
                     <View style={styles.groupRowLeft}>
@@ -1157,6 +1165,9 @@ export default () => {
                     canClean={resourceCacheSize != null}
                     onClean={handleCleanResourceCache}
                   />
+                : null}
+              {activeOptionDetail === 'changelog'
+                ? <VersionChangelogDetail styles={styles} version={currentVer} />
                 : null}
             </View>
           </View>
