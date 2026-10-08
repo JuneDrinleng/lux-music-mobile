@@ -175,8 +175,6 @@ const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
 const SONG_DRAG_AUTO_SCROLL_EDGE = 96
 const SONG_DRAG_AUTO_SCROLL_SPEED = 16
 const SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS = 240
-// Keep unfinished shortcuts behind a flag so they can be re-enabled later.
-const SHOW_IN_DEVELOPMENT_QUICK_ACTIONS = false
 
 const clampIndex = (value: number, max: number) => {
   if (max < 0) return 0
@@ -1949,40 +1947,36 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
             <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('list_name_love')}</Text>
           </TouchableOpacity>
         : null}
-      {SHOW_IN_DEVELOPMENT_QUICK_ACTIONS
-        ? <>
-            <TouchableOpacity
-              style={styles.quickActionItem}
-              activeOpacity={0.78}
-              onPress={() => { toast(t('toast_in_development')) }}
-            >
-              <View style={styles.quickActionIconWrap}>
-                <RNImage source={downloadImg} style={styles.quickActionIconImg} />
-              </View>
-              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionItem}
-              activeOpacity={0.78}
-              onPress={() => { toast(t('toast_in_development')) }}
-            >
-              <View style={styles.quickActionIconWrap}>
-                <RNImage source={staticImg} style={styles.quickActionIconImg} />
-              </View>
-              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickActionItem}
-              activeOpacity={0.78}
-              onPress={() => { toast(t('toast_in_development')) }}
-            >
-              <View style={styles.quickActionIconWrap}>
-                <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
-              </View>
-              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
-            </TouchableOpacity>
-          </>
-        : null}
+      <TouchableOpacity
+        style={styles.quickActionItem}
+        activeOpacity={0.78}
+        onPress={() => { toast(t('toast_in_development')) }}
+      >
+        <View style={styles.quickActionIconWrap}>
+          <RNImage source={downloadImg} style={styles.quickActionIconImg} />
+        </View>
+        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.quickActionItem}
+        activeOpacity={0.78}
+        onPress={() => { toast(t('toast_in_development')) }}
+      >
+        <View style={styles.quickActionIconWrap}>
+          <RNImage source={staticImg} style={styles.quickActionIconImg} />
+        </View>
+        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.quickActionItem}
+        activeOpacity={0.78}
+        onPress={() => { toast(t('toast_in_development')) }}
+      >
+        <View style={styles.quickActionIconWrap}>
+          <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
+        </View>
+        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
+      </TouchableOpacity>
     </View>
   )
 
