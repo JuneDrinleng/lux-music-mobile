@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -497,6 +497,33 @@ test('playlist pins are not evicted with ordinary image cache files', () => {
   assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 2), ['loose-1'])
   assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 10), [])
   assert.equal(cachePolicy.UNPINNED_IMAGE_CACHE_LIMIT >= 100, true)
+})
+
+test('lime token paths still match the inventory table', () => {
+  const doc = readFileSync(join(root, 'docs/theme-tokens.md'), 'utf8')
+  const rows = [...doc.matchAll(/^\| `([^`]+)` \| `([^`]+)` \|/gm)]
+  assert.ok(rows.length >= 200)
+  const resolvePath = tokenPath => {
+    const parts = tokenPath.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)
+    let current = lux.limeColors
+    for (const part of parts) current = current[part]
+    return current
+  }
+  for (const row of rows) {
+    assert.equal(resolvePath(row[1]), row[2], row[1])
+  }
+})
+
+test('migrated screens reject new color literals', () => {
+  const checked = spawnSync(process.execPath, ['scripts/check-lux-color-literals.mjs'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  if (checked.status != 0) {
+    process.stderr.write(checked.stdout || '')
+    process.stderr.write(checked.stderr || '')
+  }
+  assert.equal(checked.status, 0)
 })
 
 test.after(() => {
