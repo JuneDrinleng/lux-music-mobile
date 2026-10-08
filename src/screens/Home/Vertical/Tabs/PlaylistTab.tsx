@@ -20,7 +20,6 @@ import {
   type LayoutChangeEvent,
   type ListRenderItem,
   type TextInput,
-  type ScrollView,
 } from 'react-native'
 import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import { type PromptDialogType } from '@/components/common/PromptDialog'
@@ -31,6 +30,7 @@ import PlaylistDetailHeader from '@/components/playlist/PlaylistDetailHeader'
 import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
+import { usePlaylistCardDrag } from '@/components/playlist/hooks/usePlaylistCardDrag'
 import PlaylistSearchScene from '@/components/playlist/PlaylistSearchScene'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -40,7 +40,7 @@ import Image from '@/components/common/Image'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList, updateUserListPosition } from '@/core/list'
+import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { addMusicToQueueAndPlay, pause, play, playList, playListAsQueue } from '@/core/player/player'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { search as searchOnlineMusic } from '@/core/search/music'
@@ -287,33 +287,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
-  const playlistScrollRef = useRef<ScrollView>(null)
-  const playlistSectionRef = useRef<View>(null)
-  const playlistSectionPageYRef = useRef(0)
-  const playlistSectionWidthRef = useRef(0)
-  const playlistScrollOffsetRef = useRef(0)
-  const playlistCardLayoutMapRef = useRef(new Map<string, { x: number, y: number, width: number, height: number }>())
-  const playlistDragStateRef = useRef({
-    active: false,
-    fromIndex: -1,
-    toIndex: -1,
-    cardWidth: 0,
-    cardHeight: 0,
-    rowHeight: 0,
-    startPageX: 0,
-    startPageY: 0,
-    pressOffsetX: 0,
-    pressOffsetY: 0,
-    startScrollOffset: 0,
-  })
-  const playlistDragTop = useRef(new Animated.Value(0)).current
-  const playlistDragLeft = useRef(new Animated.Value(0)).current
-  const playlistDragScale = useRef(new Animated.Value(1)).current
-  const playlistDragOpacity = useRef(new Animated.Value(0)).current
-  const [isPlaylistDragActive, setPlaylistDragActive] = useState(false)
-  const [draggingPlaylistId, setDraggingPlaylistId] = useState<string | null>(null)
-  const [draggingPlaylist, setDraggingPlaylist] = useState<LX.List.UserListInfo | null>(null)
-  const [playlistShiftVersion, setPlaylistShiftVersion] = useState(0)
   const [pendingPlaylistOrder, setPendingPlaylistOrder] = useState<string[] | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
@@ -393,6 +366,29 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     if (!missing.length) return
     updateSetting({ 'list.playlistCustomOrder': JSON.stringify([...missing, ...playlistCustomOrder]) })
   }, [playlists, playlistSortMode, playlistCustomOrder])
+  const {
+    playlistScrollRef,
+    playlistSectionRef,
+    isPlaylistDragActive,
+    draggingPlaylistId,
+    playlistShiftAnimMap,
+    dragControllerRef,
+    handlePlaylistCardLayout,
+    handlePlaylistSectionLayout,
+    handlePlaylistScroll,
+    handlePlaylistScrollBeginDrag,
+    handlePlaylistScrollLayout,
+    handlePlaylistContentSizeChange,
+    handleActiveTouchMove,
+    handleActiveTouchEnd,
+  } = usePlaylistCardDrag({
+    displayPlaylists,
+    playlistDisplayMode,
+    playlistSortMode,
+    autoScrollTopInset: headerHeight,
+    autoScrollBottomInset: bottomDockHeight,
+    setPendingPlaylistOrder,
+  })
   const featuredLibraryCards = useMemo(() => {
     return []
   }, [])
@@ -905,266 +901,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     setPendingDeleteSong(null)
     return true
   }, [loadLocalDetailSongs, pendingDeleteSong, selectedListId, updatePlaylistMeta])
-  interface CardShiftAnims {
-    x: Animated.Value
-    y: Animated.Value
-  }
-  const playlistShiftAnimMapRef = useRef(new Map<string, CardShiftAnims>())
-
-  const getPlaylistShiftAnims = useCallback((playlistId: string): CardShiftAnims => {
-    let anims = playlistShiftAnimMapRef.current.get(playlistId)
-    if (!anims) {
-      anims = { x: new Animated.Value(0), y: new Animated.Value(0) }
-      playlistShiftAnimMapRef.current.set(playlistId, anims)
-    }
-    return anims
-  }, [])
-
-  const getCardDisplayIndex = (index: number, sourceIndex: number, targetIndex: number) => {
-    if (targetIndex === sourceIndex) return index
-    if (index === sourceIndex) return targetIndex
-    if (sourceIndex < targetIndex) {
-      return index > sourceIndex && index <= targetIndex ? index - 1 : index
-    }
-    return index >= targetIndex && index < sourceIndex ? index + 1 : index
-  }
-
-  const animateShiftTo = useCallback((anim: Animated.Value, toValue: number, immediate: boolean) => {
-    if (immediate) {
-      anim.stopAnimation()
-      anim.setValue(toValue)
-      return
-    }
-    Animated.timing(anim, {
-      toValue,
-      duration: 140,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start()
-  }, [])
-
-  const updatePlaylistDragShifts = useCallback((sourceIndex: number, targetIndex: number, rowHeight: number, isListMode: boolean) => {
-    const sectionWidth = playlistSectionWidthRef.current || Dimensions.get('window').width - 36
-    const cardWidth = isListMode ? sectionWidth : sectionWidth * 0.484
-    const colGap = sectionWidth - 2 * cardWidth
-    displayPlaylists.forEach((list, index) => {
-      const displayIndex = getCardDisplayIndex(index, sourceIndex, targetIndex)
-      const { x: animX, y: animY } = getPlaylistShiftAnims(list.id)
-      if (isListMode) {
-        const fromY = index * rowHeight
-        const toY = displayIndex * rowHeight
-        animateShiftTo(animY, toY - fromY, false)
-      } else {
-        const fromRow = Math.floor(index / 2)
-        const fromCol = index % 2
-        const fromX = fromCol === 0 ? 0 : cardWidth + colGap
-        const fromY = fromRow * rowHeight
-        const toRow = Math.floor(displayIndex / 2)
-        const toCol = displayIndex % 2
-        const toX = toCol === 0 ? 0 : cardWidth + colGap
-        const toY = toRow * rowHeight
-        animateShiftTo(animX, toX - fromX, false)
-        animateShiftTo(animY, toY - fromY, false)
-      }
-    })
-    setPlaylistShiftVersion(v => v + 1)
-  }, [displayPlaylists, animateShiftTo, getPlaylistShiftAnims])
-
-  const resetPlaylistDragShifts = useCallback((immediate = false) => {
-    for (const anims of playlistShiftAnimMapRef.current.values()) {
-      animateShiftTo(anims.x, 0, immediate)
-      animateShiftTo(anims.y, 0, immediate)
-    }
-    setPlaylistShiftVersion(v => v + 1)
-  }, [animateShiftTo])
-
-  const resetPlaylistDragState = useCallback(() => {
-    playlistDragStateRef.current.active = false
-    playlistDragStateRef.current.fromIndex = -1
-    playlistDragStateRef.current.toIndex = -1
-    setPlaylistDragActive(false)
-    setDraggingPlaylistId(null)
-    setDraggingPlaylist(null)
-    resetPlaylistDragShifts(true)
-    playlistDragScale.stopAnimation()
-    playlistDragOpacity.stopAnimation()
-    playlistDragScale.setValue(1)
-    playlistDragOpacity.setValue(0)
-  }, [playlistDragOpacity, playlistDragScale, resetPlaylistDragShifts])
-
-  const handleFinishPlaylistDrag = useCallback(() => {
-    const state = playlistDragStateRef.current
-    if (!state.active) {
-      resetPlaylistDragState()
-      return
-    }
-    const fromIndex = state.fromIndex
-    const toIndex = state.toIndex
-    state.active = false
-    // 1. Fade out the drag overlay
-    Animated.parallel([
-      Animated.timing(playlistDragScale, {
-        toValue: 0.98,
-        duration: 90,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(playlistDragOpacity, {
-        toValue: 0,
-        duration: 120,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setDraggingPlaylistId(null)
-      setDraggingPlaylist(null)
-      playlistDragScale.setValue(1)
-    })
-    // 2. If positions changed, reorder data and reset shifts in the same frame
-    if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
-      const reordered = moveArrayItem(displayPlaylists, fromIndex, toIndex)
-      if (reordered !== displayPlaylists) {
-        const newOrder = reordered.map(list => list.id)
-        // Reset shifts immediately — cards rendered at new order positions will match shifted positions
-        resetPlaylistDragShifts(true)
-        // Set pending order so displayPlaylists uses the new order right away, before store updates
-        setPendingPlaylistOrder(newOrder)
-        // Persist to store in background
-        try {
-          void updateUserListPosition(toIndex, [displayPlaylists[fromIndex].id]).then(() => {
-            updateSetting({ 'list.playlistCustomOrder': JSON.stringify(newOrder) })
-          })
-        } catch {
-          updateSetting({ 'list.playlistCustomOrder': JSON.stringify(newOrder) })
-        }
-        // Clean up drag mode after React commits the new order (keep dragActive until then so transforms stay applied)
-        requestAnimationFrame(() => {
-          setPlaylistDragActive(false)
-        })
-        return
-      }
-    }
-    // No reorder — clean up immediately
-    resetPlaylistDragShifts(true)
-    setPlaylistDragActive(false)
-  }, [displayPlaylists, playlistDragOpacity, playlistDragScale, resetPlaylistDragShifts, resetPlaylistDragState])
-
-  const handleStartPlaylistDrag = useCallback((item: LX.List.UserListInfo, index: number, event: GestureResponderEvent) => {
-    if (playlistDragStateRef.current.active || displayPlaylists.length < 2) return
-    resetPlaylistDragShifts(true)
-    displayPlaylists.forEach(list => {
-      getPlaylistShiftAnims(list.id)
-    })
-    const pageX = event.nativeEvent.pageX
-    const pageY = event.nativeEvent.pageY
-    const sectionWidth = playlistSectionWidthRef.current || Dimensions.get('window').width - 36
-    const isListMode = playlistDisplayMode == 'list'
-    let cardWidth: number
-    let cardHeight: number
-    let rowHeight: number
-    if (isListMode) {
-      cardWidth = sectionWidth
-      cardHeight = 84
-      rowHeight = 85
-    } else {
-      cardWidth = sectionWidth * 0.484
-      cardHeight = cardWidth + 36
-      rowHeight = cardHeight + 14
-    }
-    const pressOffsetX = cardWidth / 2
-    const pressOffsetY = cardHeight / 2
-    playlistDragStateRef.current.active = true
-    playlistDragStateRef.current.fromIndex = index
-    playlistDragStateRef.current.toIndex = index
-    playlistDragStateRef.current.cardWidth = cardWidth
-    playlistDragStateRef.current.cardHeight = cardHeight
-    playlistDragStateRef.current.rowHeight = rowHeight
-    playlistDragStateRef.current.startPageX = pageX
-    playlistDragStateRef.current.startPageY = pageY
-    playlistDragStateRef.current.pressOffsetX = cardWidth / 2
-    playlistDragStateRef.current.pressOffsetY = cardHeight / 2
-    playlistDragStateRef.current.startScrollOffset = playlistScrollOffsetRef.current
-    setPlaylistDragActive(true)
-    setDraggingPlaylistId(item.id)
-    setDraggingPlaylist(item)
-    playlistDragScale.setValue(1)
-    playlistDragOpacity.setValue(0)
-    playlistDragTop.setValue(pageY - pressOffsetY)
-    playlistDragLeft.setValue(pageX - pressOffsetX)
-    if (playlistSortMode !== 'custom') {
-      updateSetting({ 'list.playlistSortMode': 'custom' })
-    }
-    Animated.parallel([
-      Animated.spring(playlistDragScale, {
-        toValue: 1.06,
-        useNativeDriver: true,
-        speed: 16,
-        bounciness: 8,
-      }),
-      Animated.timing(playlistDragOpacity, {
-        toValue: 1,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-    ]).start()
-  }, [displayPlaylists, playlistDisplayMode, playlistDragOpacity, playlistDragScale, playlistDragTop, playlistDragLeft, playlistSortMode, resetPlaylistDragShifts, getPlaylistShiftAnims])
-
-  const handlePlaylistCardLayout = useCallback((itemId: string, layout: { x: number, y: number, width: number, height: number }) => {
-    playlistCardLayoutMapRef.current.set(itemId, layout)
-  }, [])
-
-  const handlePlaylistSectionLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout
-    playlistSectionWidthRef.current = width
-    playlistSectionRef.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
-      playlistSectionPageYRef.current = pageY
-    })
-  }, [])
-
-  const handlePlaylistScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
-    playlistScrollOffsetRef.current = event.nativeEvent.contentOffset.y
-  }, [])
-
-  const playlistDragPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: () => playlistDragStateRef.current.active,
-    onPanResponderMove: (_event, gestureState) => {
-      const state = playlistDragStateRef.current
-      if (!state.active) return
-      const pageX = gestureState.moveX
-      const pageY = gestureState.moveY
-      playlistDragTop.setValue(pageY - state.pressOffsetY)
-      playlistDragLeft.setValue(pageX - state.pressOffsetX)
-      const dy = pageY - state.startPageY
-      const scrollDelta = playlistScrollOffsetRef.current - state.startScrollOffset
-      const contentDelta = dy + scrollDelta
-      const isListMode = playlistDisplayMode == 'list'
-      let targetIndex: number
-      if (isListMode) {
-        targetIndex = state.fromIndex + Math.round(contentDelta / state.rowHeight)
-      } else {
-        const rowDelta = Math.round(contentDelta / state.rowHeight)
-        const colDelta = pageX > state.startPageX ? 1 : pageX < state.startPageX ? -1 : 0
-        const fromRow = Math.floor(state.fromIndex / 2)
-        const fromCol = state.fromIndex % 2
-        const targetRow = fromRow + rowDelta
-        let targetCol = fromCol + colDelta
-        if (targetCol < 0) { targetCol = 0 }
-        if (targetCol > 1) { targetCol = 1 }
-        targetIndex = targetRow * 2 + targetCol
-      }
-      targetIndex = clampIndex(targetIndex, Math.max(displayPlaylists.length - 1, 0))
-      if (targetIndex == state.toIndex) return
-      state.toIndex = targetIndex
-      updatePlaylistDragShifts(state.fromIndex, targetIndex, state.rowHeight, isListMode)
-    },
-    onPanResponderRelease: () => {
-      handleFinishPlaylistDrag()
-    },
-    onPanResponderTerminate: () => {
-      handleFinishPlaylistDrag()
-    },
-  }), [displayPlaylists.length, handleFinishPlaylistDrag, playlistDisplayMode, updatePlaylistDragShifts, playlistDragLeft, playlistDragTop])
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const detailListPanResponder = useMemo(() => PanResponder.create({
@@ -1980,49 +1716,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     </View>
   )
 
-  const playlistDragOverlay = isPlaylistDragActive && draggingPlaylist
-    ? <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.playlistDragOverlay,
-          {
-            transform: [
-              { translateX: playlistDragLeft },
-              { translateY: playlistDragTop },
-              { scale: playlistDragScale },
-            ],
-            opacity: playlistDragOpacity,
-          },
-        ]}
-      >
-        {isPlaylistListMode
-          ? <View style={styles.dragCardList}>
-              <View style={styles.dragCardListCoverWrap}>
-                {playlistMetaMap[draggingPlaylist.id]?.pic
-                  ? <Image style={styles.dragCardListCover} url={playlistMetaMap[draggingPlaylist.id]?.pic ?? null} />
-                  : <View style={[styles.dragCardListCover, styles.dragCardListCoverFallback]}>
-                      <MaterialCommunityIcon name="music-note-eighth" size={20} color="#8f96a2" />
-                    </View>}
-              </View>
-              <View style={styles.dragCardListInfo}>
-                <Text size={15} color="#171a22" style={styles.dragCardListTitle} numberOfLines={1}>{draggingPlaylist.name}</Text>
-              </View>
-            </View>
-          : <View style={[styles.dragCardGrid, { width: playlistSectionWidthRef.current * 0.484 }]}>
-              <View style={styles.dragCardGridPicWrap}>
-                {playlistMetaMap[draggingPlaylist.id]?.pic
-                  ? <Image style={styles.dragCardGridPic} url={playlistMetaMap[draggingPlaylist.id]?.pic ?? null} />
-                  : <View style={[styles.dragCardGridPic, styles.dragCardGridPicFallback]}>
-                      <MaterialCommunityIcon name="music-note-eighth" size={24} color="#8f96a2" />
-                    </View>}
-              </View>
-              <View style={styles.dragCardGridInfo}>
-                <Text size={13} color="#1c1c1e" style={styles.dragCardGridTitle} numberOfLines={1}>{draggingPlaylist.name}</Text>
-              </View>
-            </View>}
-      </Animated.View>
-    : null
-
   const homeScene = (
     <PlaylistLibraryScene
       styles={styles}
@@ -2050,12 +1743,16 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       isPlaylistCurrent={isPlaylistCurrent}
       isPlaylistDragActive={isPlaylistDragActive}
       draggingPlaylistId={draggingPlaylistId}
-      playlistShiftAnimMap={playlistShiftAnimMapRef.current}
-      playlistShiftVersion={playlistShiftVersion}
+      playlistShiftAnimMap={playlistShiftAnimMap}
+      dragControllerRef={dragControllerRef}
       playlistSectionRef={playlistSectionRef}
       playlistScrollRef={playlistScrollRef}
       onPlaylistScroll={handlePlaylistScroll}
-      onPlaylistCardLongPress={handleStartPlaylistDrag}
+      onPlaylistScrollBeginDrag={handlePlaylistScrollBeginDrag}
+      onPlaylistTouchMove={handleActiveTouchMove}
+      onPlaylistTouchEnd={handleActiveTouchEnd}
+      onPlaylistScrollLayout={handlePlaylistScrollLayout}
+      onPlaylistContentSizeChange={handlePlaylistContentSizeChange}
       onPlaylistCardLayout={handlePlaylistCardLayout}
       onPlaylistSectionLayout={handlePlaylistSectionLayout}
       onCloseSourceMenu={closeSourceMenu}
@@ -2079,10 +1776,8 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
           styles.scene,
           { transform: [{ translateX: homeSceneTranslateX }] },
         ]}
-        {...playlistDragPanResponder.panHandlers}
       >
         {homeScene}
-        {playlistDragOverlay}
       </Animated.View>
       {shouldRenderDetailScene
         ? <>
@@ -2633,9 +2328,11 @@ const styles = createStyle({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    overflow: 'visible',
   },
   listPanel: {
     width: '100%',
+    overflow: 'visible',
   },
   listItem: {
     width: '48.4%',
@@ -3050,72 +2747,32 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playlistDragOverlay: {
-    position: 'absolute',
-    zIndex: APP_LAYER_INDEX.playQueue,
-    elevation: APP_LAYER_INDEX.playQueue,
-    shadowColor: '#000000',
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  dragCardGrid: {
-    width: 160,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    overflow: 'hidden',
-  },
-  dragCardGridPicWrap: {
-    aspectRatio: 1,
-    overflow: 'hidden',
-  },
-  dragCardGridPic: {
-    width: '100%',
-    height: '100%',
-  },
-  dragCardGridPicFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  dragCardGridInfo: {
-    paddingHorizontal: 10,
-    paddingTop: 7,
-    paddingBottom: 10,
-  },
-  dragCardGridTitle: {
-    fontWeight: '600',
-  },
-  dragCardList: {
+  playlistDragHit: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    paddingVertical: 7,
-    paddingLeft: 7,
-    paddingRight: 16,
-    width: 260,
   },
-  dragCardListCoverWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  dragCardListCover: {
+  playlistDragHitGrid: {
     width: '100%',
-    height: '100%',
   },
-  dragCardListCoverFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
+  playlistDragLifted: {
+    zIndex: 30,
+    elevation: 18,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    shadowColor: '#000000',
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   },
-  dragCardListInfo: {
-    flex: 1,
-    marginLeft: 13,
-  },
-  dragCardListTitle: {
-    fontWeight: '700',
+  playlistDragLiftedList: {
+    zIndex: 30,
+    elevation: 18,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
   },
 })
