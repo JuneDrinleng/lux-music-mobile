@@ -280,7 +280,8 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
     capabilities,
     notificationCapabilities,
     compactCapabilities,
-    icon: notificationIcon,
+    // Lux Android uses a named drawable URI; RNTP typings only allow numeric require() assets.
+    icon: notificationIcon as MetadataOptions['icon'],
   }
 
   // This project patches RNTP on Android to expose a custom notification
@@ -307,8 +308,8 @@ export const updateOptions = async(options?: Partial<MetadataOptions>) => {
 
   if (isNotificationLikeSupported && (baseOptions.likeOptions ?? options?.likeOptions)) {
     nextOptions.likeOptions = {
-      ...baseOptions.likeOptions,
-      ...options?.likeOptions,
+      isActive: options?.likeOptions?.isActive ?? baseOptions.likeOptions?.isActive ?? false,
+      title: options?.likeOptions?.title ?? baseOptions.likeOptions?.title ?? '',
     }
   } else {
     delete nextOptions.likeOptions
