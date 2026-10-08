@@ -696,6 +696,8 @@
   "changelog_group_fix": "Fixed",
   "changelog_group_improve": "Improved",
   "changelog_group_other": "Other",
+  "version_about_update_title": "About Updates",
+  "version_current_info": "Current version",
   "version_changelog_date": "Released: ",
   "version_changelog_empty": "Release notes for this version are not available yet.",
   "version_changelog_github": "View the full changelog on GitHub",
