@@ -1,7 +1,7 @@
 <!-- Lux Repository Notice: registry of files explicitly marked as Lux Proprietary. See LICENSE-NOTICE.md. -->
 # Lux Proprietary 文件清单
 
-最后更新：2026-04-11
+最后更新：2026-10-08
 
 本清单用于明确标记本仓库中由 Lux Music 维护者保留权利的内容。
 未出现在本清单中的文件，默认按仓库主许可证与 `LICENSE-NOTICE.md` 执行。
@@ -121,6 +121,8 @@
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |
 | `android/app/src/main/res/values-v29/styles.xml` | `code` | Lux 独立新增的 Android 29+ 系统栏样式配置，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx` | `code` | Lux 独立新增的当前版本更新日志页，上游无对应文件 | `2026-10-08` |
+| `src/utils/installedChangelog.ts` | `code` | Lux 独立新增的安装包内更新日志读取，上游无对应文件 | `2026-10-08` |
 
 ## 维护模板
 
