@@ -10,6 +10,7 @@ import { sizeFormate } from '@/utils'
 import { clearMusicUrl } from '@/utils/data'
 import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
 import { resetImageCache } from '@/utils/imageCache'
+import { useLuxTheme } from '@/theme/LuxTheme'
 import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
 
 interface ResourceCacheDetailProps {
@@ -81,10 +82,11 @@ export const ResourceCacheDetail = memo(({
   onClean,
 }: ResourceCacheDetailProps) => {
   const t = useI18n()
+  const { colors } = useLuxTheme()
   return (
     <>
       <View style={parentStyles.optionDetailRow}>
-        <Text size={15} color="#20242d" style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>{cacheSizeLabel}</Text>
+        <Text size={15} color={colors.ink.list} style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>{cacheSizeLabel}</Text>
       </View>
       <View style={parentStyles.optionDetailDivider} />
       <TouchableOpacity
@@ -93,7 +95,7 @@ export const ResourceCacheDetail = memo(({
         onPress={onClean}
         disabled={!canClean || cleaning}
       >
-        <Text size={15} color={cleaning ? '#9aa1ae' : '#20242d'} style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>
+        <Text size={15} color={cleaning ? colors.ink.quiet : colors.ink.list} style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>
           {t('setting_other_cache_clear_btn')}
         </Text>
       </TouchableOpacity>

@@ -15,6 +15,7 @@ import {
   LeaderboardDetail,
 } from '@/screens'
 import { Provider } from '@/store/Provider'
+import { LuxThemeProvider } from '@/theme/LuxTheme'
 
 import {
   LAUNCH_SCREEN,
@@ -37,9 +38,11 @@ function WrappedComponent(Component: any) {
   return function inject(props: Record<string, any>) {
     const EnhancedComponent = () => (
       <Provider>
-        <Component
-          {...props}
-        />
+        <LuxThemeProvider>
+          <Component
+            {...props}
+          />
+        </LuxThemeProvider>
       </Provider>
     )
 

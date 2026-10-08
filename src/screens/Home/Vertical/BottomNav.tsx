@@ -19,6 +19,7 @@ import { setNavActiveId } from '@/core/common'
 import type { InitState } from '@/store/common/state'
 import { useI18n } from '@/lang'
 import { MdiIcon } from '@/components/common/MdiIcon'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 const hasNativeBlurView = Boolean(
   UIManager.getViewManagerConfig?.(
@@ -54,6 +55,7 @@ const TabItem = memo(({
   onPress: (id: TabId) => void
   onLayout?: (id: TabId, x: number, width: number) => void
 }) => {
+  const { colors } = useLuxTheme()
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -87,7 +89,7 @@ const TabItem = memo(({
           <MdiIcon
             name={icon}
             size={BASE_ICON_SIZE}
-            color={active ? '#2a311c' : '#5f6574'}
+            color={active ? colors.ink.navActive : colors.ink.navIdle}
           />
         </View>
       </View>
@@ -104,6 +106,7 @@ export default memo(
     inCard?: boolean
   }) => {
     const t = useI18n()
+    const { colors } = useLuxTheme()
     const activeId = useNavActiveId()
     const shouldUseBlur = !inCard && hasNativeBlurView
     const [isSearchPageVisible, setSearchPageVisible] = useState(false)
@@ -243,6 +246,7 @@ export default memo(
                 style={[
                   styles.activeOrbIndicator,
                   {
+                    backgroundColor: colors.accent.nav,
                     opacity: indicatorOpacity,
                     transform: [{ translateX: indicatorX }],
                   },
@@ -340,7 +344,6 @@ const styles = createStyle({
     width: ACTIVE_ORB_SIZE,
     height: ACTIVE_ORB_SIZE,
     borderRadius: ACTIVE_ORB_SIZE / 2,
-    backgroundColor: '#d7ef59',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.45)',
     shadowColor: '#b5cc49',
