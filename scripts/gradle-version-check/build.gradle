@@ -1,0 +1,57 @@
+apply from: new File(rootDir, '../../android/version-code.gradle')
+
+def expect = { String version, String abi, int code ->
+    int actual = apkVersionCode(version, abi) as int
+    if (actual != code) throw new GradleException("${version} ${abi}: 期望 ${code}，实际 ${actual}")
+}
+
+tasks.register('verifyVersionCode') {
+    doLast {
+        expect('0.3.1', 'universal', 301990)
+        expect('0.3.1', 'arm64-v8a', 301993)
+        expect('0.4.0-dev.1', 'universal', 400010)
+        expect('0.4.0-dev.1', 'armeabi-v7a', 400011)
+        expect('0.4.0-dev.1', 'x86', 400012)
+        expect('0.4.0-dev.1', 'arm64-v8a', 400013)
+        expect('0.4.0-dev.1', 'x86_64', 400014)
+        expect('0.4.0-dev.98', 'universal', 400980)
+        expect('0.4.0-dev.98', 'x86_64', 400984)
+        expect('0.4.0', 'universal', 400990)
+        expect('0.4.0', 'arm64-v8a', 400993)
+        expect('0.4.1', 'universal', 401990)
+        expect('0.4.1', 'x86_64', 401994)
+        expect('0.5.0-dev.1', 'universal', 500010)
+        expect('1.0.0', 'universal', 10000990)
+        expect('1.0.0', 'arm64-v8a', 10000993)
+
+        def versions = ['0.3.1', '0.4.0-dev.1', '0.4.0-dev.2', '0.4.0-dev.98', '0.4.0', '0.4.1', '0.5.0-dev.1', '1.0.0']
+        def abis = ['universal', 'armeabi-v7a', 'x86', 'arm64-v8a', 'x86_64']
+        def previous = -1
+        versions.each { version ->
+            abis.each { abi ->
+                int code = apkVersionCode(version, abi) as int
+                if (code <= previous) throw new GradleException("versionCode 不是单调递增: ${version} ${abi} = ${code}")
+                previous = code
+            }
+        }
+        if ((apkVersionCode('0.4.0-dev.1', 'universal') as int) <= 112004) {
+            throw new GradleException('首个开发版没有大于旧公式的最大 versionCode 112004')
+        }
+
+        ['0.4.0-dev.0', '0.4.0-dev.99', '0.4.0-beta', '1.2', '210.0.0', '0.100.0', '01.0.0'].each { bad ->
+            try {
+                computeBaseVersionCode(bad)
+                throw new GradleException("应当拒绝 ${bad}")
+            } catch (GradleException err) {
+                if (err.message.startsWith('应当拒绝')) throw err
+            }
+        }
+        try {
+            apkVersionCode('0.4.0', 'mips')
+            throw new GradleException('应当拒绝未知 ABI')
+        } catch (GradleException err) {
+            if (err.message.contains('应当拒绝')) throw err
+        }
+        println 'versionCode ok'
+    }
+}

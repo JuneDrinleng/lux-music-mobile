@@ -99,9 +99,12 @@ def getNpmPackageJson() {
     def packageJson = new JsonSlurper().parseText(inputFile.text)
     return packageJson
 }
+apply from: rootProject.file("version-code.gradle")
 def npmPackageJson = getNpmPackageJson()
-def verCode = npmPackageJson["versionCode"]
 def verName = npmPackageJson["version"]
+// universal 包的 versionCode。拆分 ABI 在下面加 0–4，避免再使用旧的 versionCode*1000。
+def apkVersionCodeFn = apkVersionCode
+def verCode = apkVersionCodeFn(verName, "universal")
 def applicationName = "lux-music-mobile"
 def channels = [
     standard: [
@@ -213,23 +216,12 @@ android {
     // applicationVariants are e.g. debug, release
     applicationVariants.all { variant ->
         variant.outputs.each { output ->
-            // For each separate APK per architecture, set a unique version code as described here:
-            // https://developer.android.com/studio/build/configure-apk-splits.html
-            // Example: versionCode 1 will generate 1001 for armeabi-v7a, 1002 for x86, etc.
-            def versionCodes = ["armeabi-v7a": 1, "x86": 2, "arm64-v8a": 3, "x86_64": 4]
             def abi = output.getFilter(OutputFile.ABI)
             def channel = variant.productFlavors[0]?.name ?: channels.standard.updateChannel
             def releaseAssetPrefix = channels[channel].releaseAssetPrefix
-            if (abi == null) {  // null for the universal-debug, universal-release variants
-                output.outputFileName =
-                        "${releaseAssetPrefix}-v${defaultConfig.versionName}-universal.apk"
-            } else {
-                output.versionCodeOverride =
-                        defaultConfig.versionCode * 1000 + versionCodes.get(abi)
-                output.outputFileName =
-                        "${releaseAssetPrefix}-v${defaultConfig.versionName}-${abi}.apk"
-            }
-
+            // universal 用 base*10，拆分包在其上 +1..+4。任何 ABI 的新版本都大于旧版本。
+            output.versionCodeOverride = apkVersionCodeFn(defaultConfig.versionName, abi)
+            output.outputFileName = "${releaseAssetPrefix}-v${defaultConfig.versionName}-${abi ?: 'universal'}.apk"
         }
     }
 }
