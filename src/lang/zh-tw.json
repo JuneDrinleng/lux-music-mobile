@@ -696,6 +696,8 @@
   "changelog_group_fix": "修復",
   "changelog_group_improve": "優化",
   "changelog_group_other": "其他",
+  "version_about_update_title": "關於版本更新",
+  "version_current_info": "目前版本資訊",
   "version_changelog_date": "發布日期：",
   "version_changelog_empty": "暫時沒有這份版本的更新日誌。",
   "version_changelog_github": "在 GitHub 查看完整更新日誌",

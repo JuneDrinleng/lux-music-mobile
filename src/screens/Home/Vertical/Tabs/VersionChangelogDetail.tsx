@@ -51,40 +51,50 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
 
   return (
     <>
-      <View style={parentStyles.optionDetailRow}>
-        <View style={styles.meta}>
-          <Text size={20} color="#1a1c1e" style={parentStyles.profileDetailTitle}>{version}</Text>
-          <Text size={13} color="#767d89">{channelLabel}</Text>
-          {entry?.date
-            ? <Text size={13} color="#767d89">{t('version_changelog_date')}{entry.date}</Text>
-            : null}
+      <View style={parentStyles.sectionCard}>
+        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('version_current_info')}</Text>
+        <View style={parentStyles.sectionGroup}>
+          <View style={parentStyles.optionDetailRow}>
+            <View style={styles.meta}>
+              <Text size={20} color="#1a1c1e" style={parentStyles.profileDetailTitle}>{version}</Text>
+              <Text size={13} color="#767d89">{channelLabel}</Text>
+              {entry?.date
+                ? <Text size={13} color="#767d89">{t('version_changelog_date')}{entry.date}</Text>
+                : null}
+            </View>
+          </View>
         </View>
       </View>
-      <View style={parentStyles.optionDetailDivider} />
-      <View style={styles.channelLabelRow}>
-        <Text size={13} color="#767d89">{t('setting_release_channel')}</Text>
+      <View style={parentStyles.sectionCard}>
+        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('setting_release_channel')}</Text>
+        <View style={parentStyles.sectionGroup}>
+          <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
+            <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
+            {releaseChannel == 'stable' ? <View style={parentStyles.languageActiveDot} /> : null}
+          </TouchableOpacity>
+          <View style={parentStyles.optionDetailDivider} />
+          <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('dev') }}>
+            <Text size={15} color={releaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
+            {releaseChannel == 'dev' ? <View style={parentStyles.languageActiveDot} /> : null}
+          </TouchableOpacity>
+        </View>
       </View>
-      <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
-        <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
-        {releaseChannel == 'stable' ? <View style={parentStyles.languageActiveDot} /> : null}
-      </TouchableOpacity>
-      <View style={parentStyles.optionDetailDivider} />
-      <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('dev') }}>
-        <Text size={15} color={releaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
-        {releaseChannel == 'dev' ? <View style={parentStyles.languageActiveDot} /> : null}
-      </TouchableOpacity>
-      <View style={parentStyles.optionDetailDivider} />
-      <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenGithub}>
-        <Text size={15} color="#20242d" style={[parentStyles.optionDetailText, styles.linkText]}>{t('version_changelog_github')}</Text>
-        <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-      </TouchableOpacity>
-      <View style={parentStyles.optionDetailDivider} />
-      <View style={styles.body}>
-        {entry
-          ? <ChangelogView desc={entry.desc} />
-          : <Text size={14} color="#767d89" style={styles.paragraph}>
-              {loading ? t('version_changelog_loading') : t('version_changelog_empty')}
-            </Text>}
+      <View style={parentStyles.sectionCard}>
+        <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('version_changelog_title')}</Text>
+        <View style={parentStyles.sectionGroup}>
+          <View style={styles.body}>
+            {entry
+              ? <ChangelogView desc={entry.desc} />
+              : <Text size={14} color="#767d89" style={styles.paragraph}>
+                  {loading ? t('version_changelog_loading') : t('version_changelog_empty')}
+                </Text>}
+          </View>
+          <View style={parentStyles.optionDetailDivider} />
+          <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenGithub}>
+            <Text size={15} color="#20242d" style={[parentStyles.optionDetailText, styles.linkText]}>{t('version_changelog_github')}</Text>
+            <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+          </TouchableOpacity>
+        </View>
       </View>
     </>
   )
@@ -94,11 +104,6 @@ const styles = createStyle({
   meta: {
     flex: 1,
     paddingVertical: 4,
-  },
-  channelLabelRow: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 2,
   },
   body: {
     paddingHorizontal: 18,

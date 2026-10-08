@@ -326,6 +326,8 @@ export default () => {
     aboutStatusText,
     currentVer,
     t('version_label_current_ver'),
+    t('version_about_update_title'),
+    t('version_current_info'),
     t('version_changelog_title'),
     t('version_btn_check_update'),
     t('setting_release_channel'),
@@ -369,7 +371,7 @@ export default () => {
               : activeOptionDetail === 'resourceCache'
                 ? t('setting_cache_management')
                 : activeOptionDetail === 'changelog'
-                  ? t('version_changelog_title')
+                  ? t('version_about_update_title')
                   : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
