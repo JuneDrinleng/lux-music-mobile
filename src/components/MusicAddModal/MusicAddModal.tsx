@@ -73,6 +73,21 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, r
     }
   }
 
+  const handleCreated = async(listInfo: LX.List.UserListInfo) => {
+    dialogRef.current?.setVisible(false)
+    if (selectInfo.isMove || !selectInfo.musicInfo) return
+    try {
+      await addListMusics(listInfo.id,
+        [selectInfo.musicInfo],
+        settingState.setting['list.addMusicLocationType'],
+      )
+      onAdded?.()
+      toast(t('list_edit_action_tip_add_success'))
+    } catch {
+      toast(t('list_edit_action_tip_add_failed'))
+    }
+  }
+
   return (
     <Dialog
       ref={dialogRef}
@@ -84,7 +99,11 @@ export default forwardRef<MusicAddModalType, MusicAddModalProps>(({ onAdded }, r
         selectInfo.musicInfo
           ? (<>
               <Title musicInfo={selectInfo.musicInfo} isMove={selectInfo.isMove} />
-              <List musicInfo={selectInfo.musicInfo} onPress={handleSelect} />
+              <List
+                musicInfo={selectInfo.musicInfo}
+                onPress={handleSelect}
+                onCreated={selectInfo.isMove ? undefined : handleCreated}
+              />
             </>)
           : null
       }

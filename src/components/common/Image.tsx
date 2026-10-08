@@ -25,7 +25,7 @@ export interface ImageProps extends ViewProps {
 export const defaultHeaders = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
 }
-const MAX_REMOTE_IMAGE_RETRY = 2
+const MAX_IMAGE_RETRY = 3
 
 const getRawUri = (url?: string | number | null) => {
   if (typeof url == 'number') return _Image.resolveAssetSource(url).uri
@@ -53,6 +53,7 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
   const [isLoaded, setLoaded] = useState(false)
   const [isError, setError] = useState(false)
   const [retryIndex, setRetryIndex] = useState(0)
+  const [preferRawRemote, setPreferRawRemote] = useState(false)
   const [cachedUriState, setCachedUriState] = useState<{ rawUri: string, cachedUri: string } | null>(null)
   const rawUri = getRawUri(url)
   const shouldUseLocalCache = cache !== false && /^https?:\/\//i.test(rawUri)
@@ -66,19 +67,24 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
 
   const handleError = useCallback(() => {
     setLoaded(false)
-    if (shouldUseLocalCache && retryIndex < MAX_REMOTE_IMAGE_RETRY) {
+    if (retryIndex < MAX_IMAGE_RETRY) {
+      // If a local cache entry failed, fall back to the original remote URL.
+      if (shouldUseLocalCache && !preferRawRemote && cachedUri) {
+        setPreferRawRemote(true)
+      }
       setError(false)
       setRetryIndex(retryIndex + 1)
       return
     }
     setError(true)
     onError?.(url!)
-  }, [onError, retryIndex, shouldUseLocalCache, url])
+  }, [cachedUri, onError, preferRawRemote, retryIndex, shouldUseLocalCache, url])
 
   useEffect(() => {
     setLoaded(false)
     setError(false)
     setRetryIndex(0)
+    setPreferRawRemote(false)
     if (!rawUri || !shouldUseLocalCache) return
     if (runtimeCachedUri) {
       setCachedUriState({
@@ -115,14 +121,18 @@ const Image = memo(({ url, cache, resizeMode = 'cover', blurRadius, showFallback
     }
   }, [rawUri, runtimeCachedUri, shouldUseLocalCache])
 
-  const uri = cachedUri || rawUri
+  const uri = (preferRawRemote ? rawUri : (cachedUri || rawUri))
 
-  if (!uri) return <EmptyPic style={style} nativeID={nativeID} placeholder={placeholder} placeholderStyle={placeholderStyle} />
+  // Never render an empty/black block — always fall back to the placeholder image.
+  if (!uri || isError) {
+    return <EmptyPic style={style} nativeID={nativeID} placeholder={placeholder} placeholderStyle={placeholderStyle} />
+  }
 
   const isRemote = /^https?:\/\//i.test(uri)
   const sourceUri = isRemote && retryIndex > 0 ? appendImageRetryToken(uri, retryIndex) : uri
-  const showNetworkImage = !isRemote || (isLoaded && !isError)
-  const shouldShowFallback = showFallback && isRemote
+  // Keep a placeholder underneath while loading so we never show a blank or black block.
+  const showNetworkImage = isLoaded
+  const shouldShowFallback = showFallback
   const shouldHideImageLayer = shouldShowFallback && !showNetworkImage
 
   return (

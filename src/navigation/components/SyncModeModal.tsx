@@ -59,7 +59,7 @@ const SyncModeContent = () => {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.notice}>
-            <Text size={12} color="#5f6572" style={styles.noticeText}>{t('sync__mode_remember_tip')}</Text>
+            <Text size={12} color="#5f6572" style={styles.noticeText}>{t('sync__mode_remember_merge_only_tip')}</Text>
           </View>
 
           <Text size={12} color="#8a909c" style={styles.sectionLabel}>{t('sync__mode_merge_tip')}</Text>

@@ -32,11 +32,11 @@
 
 - React Native `0.73.11`
 - React `18.2.0`
-- Redux（沿用上游架构）
+- 自定义全局 store / event（沿用上游 LX Music Mobile 架构，**不是** Redux）
 
 ## 平台支持
 
-当前以 Android 平台为主。
+目前仅支持 **Android**（仓库不含 `ios/` 工程）。
 
 ## 开发环境
 

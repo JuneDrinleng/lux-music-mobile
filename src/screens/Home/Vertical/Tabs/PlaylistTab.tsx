@@ -175,6 +175,8 @@ const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
 const SONG_DRAG_AUTO_SCROLL_EDGE = 96
 const SONG_DRAG_AUTO_SCROLL_SPEED = 16
 const SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS = 240
+// Keep unfinished shortcuts behind a flag so they can be re-enabled later.
+const SHOW_IN_DEVELOPMENT_QUICK_ACTIONS = false
 
 const clampIndex = (value: number, max: number) => {
   if (max < 0) return 0
@@ -197,14 +199,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const headerTopPadding = statusBarHeight + 18
   const headerHeight = headerTopPadding + 44 + 16
-  const modalBottomInset = useMemo(() => {
-    const screenHeight = Dimensions.get('screen').height
-    const windowHeight = Dimensions.get('window').height
-    const extraInset = Math.max(0, screenHeight - windowHeight)
-    if (!extraInset) return 0
-    if (Platform.OS == 'android') return Math.max(0, extraInset - statusBarHeight)
-    return extraInset
-  }, [statusBarHeight])
   const playlists = useMyList()
   const isPlay = useIsPlay()
   const detailSceneWidth = Dimensions.get('window').width
@@ -234,7 +228,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const [searchTipList, setSearchTipList] = useState<string[]>([])
   const [searchTipLoading, setSearchTipLoading] = useState(false)
   const [isImportDrawerVisible, setImportDrawerVisible] = useState(false)
-  const [importLoading, setImportLoading] = useState(false)
+  const [, setImportLoading] = useState(false)
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
@@ -323,21 +317,12 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const [draggingPlaylist, setDraggingPlaylist] = useState<LX.List.UserListInfo | null>(null)
   const [playlistShiftVersion, setPlaylistShiftVersion] = useState(0)
   const [pendingPlaylistOrder, setPendingPlaylistOrder] = useState<string[] | null>(null)
-  const activeLangId = useSettingValue('common.langId')
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
   const [gender, setGender] = useState<'male' | 'female' | 'unknown'>('unknown')
   const defaultSignature = t('me_profile_status')
-  const activeLanguageLabel = useMemo(() => {
-    const languageOptions = [
-      { locale: 'zh_cn', label: '简体中文' },
-      { locale: 'zh_tw', label: '繁體中文' },
-      { locale: 'en_us', label: 'English' },
-    ] as const
-    return languageOptions.find(item => item.locale === (activeLangId ?? 'en_us'))?.label ?? 'English'
-  }, [activeLangId])
   const genderBadgeText = gender === 'unknown' ? '?' : null
   const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
   const genderBadgeStyle = gender === 'male'
@@ -368,14 +353,16 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     if (playlistSortMode === 'custom') {
       const effectiveOrder = pendingPlaylistOrder ?? playlistCustomOrder
       const orderMap = new Map(effectiveOrder.map((id, i) => [id, i]))
-      return [...userPlaylists].sort((a, b) => {
-        const aOrder = orderMap.get(a.id)
-        const bOrder = orderMap.get(b.id)
-        if (aOrder != null && bOrder != null) return aOrder - bOrder
-        if (aOrder != null) return -1
-        if (bOrder != null) return 1
-        return 0
-      })
+      // Newly created playlists (not yet in custom order) go first so they are
+      // immediately visible after 转存 / create, instead of buried at the end.
+      const ordered: LX.List.UserListInfo[] = []
+      const unordered: LX.List.UserListInfo[] = []
+      for (const list of userPlaylists) {
+        if (orderMap.has(list.id)) ordered.push(list)
+        else unordered.push(list)
+      }
+      ordered.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
+      return [...unordered, ...ordered]
     }
     return userPlaylists
       .map((list, index) => ({
@@ -396,7 +383,18 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       setPendingPlaylistOrder(null)
     }
   }, [pendingPlaylistOrder, playlistCustomOrder])
-  const likedSongsCount = lovePlaylist ? playlistMetaMap[lovePlaylist.id]?.count ?? 0 : 0
+  // Keep custom order in sync when new playlists are created outside drag/drop
+  // (e.g. MusicAddModal / 一键转存 → CreateUserList).
+  useEffect(() => {
+    if (playlistSortMode !== 'custom') return
+    if (!playlistCustomOrder.length) return
+    const userIds = playlists
+      .filter(list => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT)
+      .map(list => list.id)
+    const missing = userIds.filter(id => !playlistCustomOrder.includes(id))
+    if (!missing.length) return
+    updateSetting({ 'list.playlistCustomOrder': JSON.stringify([...missing, ...playlistCustomOrder]) })
+  }, [playlists, playlistSortMode, playlistCustomOrder])
   const featuredLibraryCards = useMemo(() => {
     return []
   }, [])
@@ -686,12 +684,14 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       if (height > 0) detailListHeightRef.current = height
     })
   }, [])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleDetailWrapLayout = useCallback((event: LayoutChangeEvent) => {
     detailListHeightRef.current = event.nativeEvent.layout.height
     requestAnimationFrame(() => {
       measureDetailListWrap()
     })
   }, [measureDetailListWrap])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleDetailListScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
     if (!dragStateRef.current.active && draggingSong) {
       setDraggingSong(null)
@@ -704,6 +704,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     }
     detailScrollOffsetRef.current = event.nativeEvent.contentOffset.y
   }, [draggingSong])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleDetailListContentSizeChange = useCallback((_width: number, height: number) => {
     detailListContentHeightRef.current = height
   }, [])
@@ -884,9 +885,11 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     setPendingDeleteSong(song)
     removeSongDialogRef.current?.show('')
   }, [selectedListId])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleCancelRemoveSong = useCallback(() => {
     setPendingDeleteSong(null)
   }, [])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleConfirmRemoveSong = useCallback(async() => {
     if (!selectedListId || !pendingDeleteSong || dragStateRef.current.active) {
       setPendingDeleteSong(null)
@@ -1165,6 +1168,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     },
   }), [displayPlaylists.length, handleFinishPlaylistDrag, playlistDisplayMode, updatePlaylistDragShifts, playlistDragLeft, playlistDragTop])
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const detailListPanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => dragStateRef.current.active,
     onMoveShouldSetPanResponder: () => dragStateRef.current.active,
@@ -1341,6 +1345,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     if (!isUserListInfo(selectedListInfo)) return
     removeListDialogRef.current?.show('')
   }, [selectedListInfo])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleRenameList = useCallback(async(name: string) => {
     if (!isUserListInfo(selectedListInfo)) return false
     const targetName = name.trim().substring(0, 100)
@@ -1355,6 +1360,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     }])
     return true
   }, [selectedListInfo])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until detail handlers are fully retired
   const handleRemoveSelectedList = useCallback(async() => {
     if (!isUserListInfo(selectedListInfo)) return false
     await removeUserList([selectedListInfo.id])
@@ -1384,6 +1390,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       defaultNewListName: detailHeroName,
     })
   }, [detailHeroCover, detailHeroName, detailLoading, detailSongs, selectedOnlineDetail])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
   const areAllImportSongsSelected = useMemo(() => {
     return importCandidates.length > 0 && importCandidates.every(candidate => importSelectedMap[candidate.id])
@@ -1426,10 +1433,12 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     setImportSelectedMap({})
     void loadImportCandidates(selectedListId)
   }, [loadImportCandidates, selectedListId])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const handleCloseImportDrawer = useCallback(() => {
     if (importSubmitting) return
     setImportDrawerVisible(false)
   }, [importSubmitting])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const handleToggleImportSong = useCallback((songId: string) => {
     setImportSelectedMap((prev) => {
       const next = { ...prev }
@@ -1438,6 +1447,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       return next
     })
   }, [])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const handleToggleSelectAllImportSongs = useCallback(() => {
     if (!importCandidates.length) return
     setImportSelectedMap(() => {
@@ -1447,6 +1457,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       return next
     })
   }, [areAllImportSongsSelected, importCandidates])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const handleImportSelectedSongs = useCallback(async() => {
     if (!selectedListId || importSubmitting) return
     const selectedSongs = importCandidates
@@ -1473,6 +1484,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     setImportCandidates([])
     setImportSelectedMap({})
   }, [selectedListId])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until list render is rewired
   const renderSongItem: ListRenderItem<LX.Music.MusicInfo> = useCallback(({ item, index }) => {
     if (!selectedDetail) return null
     const songKey = getSongRowKey(item, index)
@@ -1490,7 +1502,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         isGhost={isDraggingRow}
         canEdit={canEditSongs}
         onLayout={(event) => { handleSongRowLayout(item, index, event) }}
-        onLongPress={canEditSongs ? (event) => { handleStartSongDrag(item, index, event) } : undefined}
+        onLongPress={canEditSongs ? (event: GestureResponderEvent) => { handleStartSongDrag(item, index, event) } : undefined}
         onPress={() => {
           if (skipNextSongPressRef.current) {
             if (dragStateRef.current.active) {
@@ -1510,6 +1522,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       />
     )
   }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedDetail, selectedListId])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until header is rewired
   const detailHeader = useMemo(() => {
     if (!selectedOnlineDetail && !selectedListInfo) return null
     const detailActionLabel = selectedOnlineDetail
@@ -1936,36 +1949,40 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
             <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('list_name_love')}</Text>
           </TouchableOpacity>
         : null}
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={downloadImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={staticImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
-      </TouchableOpacity>
+      {SHOW_IN_DEVELOPMENT_QUICK_ACTIONS
+        ? <>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={downloadImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={staticImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
+            </TouchableOpacity>
+          </>
+        : null}
     </View>
   )
 

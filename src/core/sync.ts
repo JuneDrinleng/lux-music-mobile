@@ -24,9 +24,12 @@ const closeSyncModeModal = () => {
     syncActions.setSyncModeComponentId('')
   }
 }
+const isMergeConflictMode = (mode: string) => mode.startsWith('merge_')
+
 export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverName: string, type: T): Promise<LX.Sync.ModeTypes[T]> => {
   const savedMode = await getSyncConflictMode()
-  if (savedMode) {
+  // Only reuse remembered merge modes; overwrite modes must always confirm.
+  if (savedMode && isMergeConflictMode(savedMode)) {
     const mode = type == 'dislike' ? savedMode.replace(/_full$/, '') : savedMode
     return mode as LX.Sync.ModeTypes[T]
   }
@@ -46,7 +49,10 @@ export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverNam
     const handleSelectMode = async({ mode }: LX.Sync.ModeType) => {
       removeListeners()
       closeSyncModeModal()
-      if (mode != 'cancel') await setSyncConflictMode(mode as LX.Sync.List.SyncMode)
+      // Persist merge modes only — never remember overwrite_* to avoid silent data loss.
+      if (mode != 'cancel' && isMergeConflictMode(mode)) {
+        await setSyncConflictMode(mode as LX.Sync.List.SyncMode)
+      }
       resolve(mode as LX.Sync.ModeTypes[T])
     }
 

@@ -101,7 +101,9 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  const sharedTopBarVisible = !searchPageVisible && (
+  // Hide SharedTopBar whenever playlist detail is open so the detail header's
+  // back button is the only top-left control (including HomeTab → detail).
+  const sharedTopBarVisible = !searchPageVisible && !playlistDetailVisible && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
