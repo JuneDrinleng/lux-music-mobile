@@ -1,6 +1,6 @@
 /* Lux Third-Party Patch Notice: repository-maintained patch file for a third-party dependency. Rights remain subject to the upstream dependency license. See LICENSE-NOTICE.md. */
 
-import { MetadataOptions, PlayerOptions, Event, Track, State, TrackMetadataBase, NowPlayingMetadata, RepeatMode } from './interfaces';
+import { MetadataOptions, PlayerOptions, Event, Track, State, TrackMetadataBase, NowPlayingMetadata, NowPlayingTitles, RepeatMode } from './interfaces';
 declare function setupPlayer(options?: PlayerOptions): Promise<void>;
 declare function destroy(): any;
 type ServiceHandler = () => Promise<void>;
@@ -16,7 +16,7 @@ declare function updateOptions(options?: MetadataOptions): Promise<void>;
 declare function updateMetadataForTrack(trackIndex: number, metadata: TrackMetadataBase): Promise<void>;
 declare function clearNowPlayingMetadata(): Promise<void>;
 declare function updateNowPlayingMetadata(metadata: NowPlayingMetadata, playing: boolean): Promise<void>;
-declare function updateNowPlayingTitles(duration: number, title: string, artist: string, album: string): Promise<void>;
+declare function updateNowPlayingTitles(titles: NowPlayingTitles): Promise<void>;
 declare function reset(): Promise<void>;
 declare function play(): Promise<void>;
 declare function pause(): Promise<void>;

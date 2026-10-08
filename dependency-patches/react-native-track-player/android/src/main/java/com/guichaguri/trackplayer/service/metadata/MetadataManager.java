@@ -277,20 +277,23 @@ public class MetadataManager {
         updateNotification();
     }
 
-    public void updateNowPlayingTitles(ExoPlayback playback, long duration, String title, String artist, String album) {
-      MediaMetadataCompat.Builder metadata = new MediaMetadataCompat.Builder();
-      metadata.putString(METADATA_KEY_TITLE, title);
-      metadata.putString(METADATA_KEY_ARTIST, artist);
-      metadata.putString(METADATA_KEY_ALBUM, album);
-      if (prevArtwork != null) {
-        metadata.putString(METADATA_KEY_ALBUM_ART_URI, prevArtwork.toString());
+    public void updateTitles(Bundle data) {
+      // Ported from upstream track-player bfe3393: partial title/artist/album/lyric updates.
+      if (prevMetadata == null) return;
+      if (data.containsKey("title")) {
+        prevMetadata.putString(METADATA_KEY_TITLE, data.getString("title"));
       }
-      if (prevArtResource != null) {
-        metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, prevArtResource);
+      if (data.containsKey("artist")) {
+        prevMetadata.putString(METADATA_KEY_ARTIST, data.getString("artist"));
       }
-      metadata.putLong(METADATA_KEY_DURATION, duration);
-      session.setMetadata(metadata.build());
-      updatePlaybackState(playback);
+      if (data.containsKey("album")) {
+        prevMetadata.putString(METADATA_KEY_ALBUM, data.getString("album"));
+      }
+      if (data.containsKey("lyric")) {
+        prevMetadata.putString("android.media.metadata.LYRICS", data.getString("lyric"));
+      }
+      session.setMetadata(prevMetadata.build());
+      updatePlaybackState(manager.getPlayback());
     }
 
     /**
