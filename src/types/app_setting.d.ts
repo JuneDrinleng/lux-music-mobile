@@ -19,6 +19,12 @@ declare global {
       'common.langId': I18n['locale'] | null
 
       /**
+       * 安装包更新通道。null 表示跟随当前安装包：稳定版包看稳定版，开发版包看开发版。
+       * 与 buildInfo.updateChannel（standard / vivo）不是同一个设置。
+       */
+      'common.releaseChannel': 'stable' | 'dev' | null
+
+      /**
        * api id
        */
       'common.apiSource': string

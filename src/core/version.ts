@@ -2,8 +2,9 @@
 
 import { AppState, type AppStateStatus } from 'react-native'
 import { Navigation } from 'react-native-navigation'
-import { compareVer } from '@/utils'
 import { showVersionModal } from '@/navigation'
+import settingState from '@/store/setting/state'
+import { pickUpdateTarget, resolveChannel } from '@/utils/releaseChannel'
 import versionActions from '@/store/version/action'
 import versionState, { type InitState } from '@/store/version/state'
 import { getIgnoreVersion, getIgnoreVersionFailTipTime, saveIgnoreVersion, saveIgnoreVersionFailTipTime } from '@/utils/data'
@@ -60,8 +61,15 @@ export const hideModal = (componentId: string) => {
   void Navigation.dismissOverlay(componentId)
 }
 
-export const checkUpdate = async(options: CheckUpdateOptions = {}) => {
-  if (checkUpdateTask) return checkUpdateTask
+export const checkUpdate = (options: CheckUpdateOptions = {}): Promise<void> | undefined => {
+  if (checkUpdateTask) {
+    if (!options.force) return checkUpdateTask
+    return checkUpdateTask.then(async() => {
+      await checkUpdate(options)
+    }, async() => {
+      await checkUpdate(options)
+    })
+  }
   if (versionState.versionInfo.status == 'downloading' && !options.force) return
 
   const now = Date.now()
@@ -81,34 +89,62 @@ export const checkUpdate = async(options: CheckUpdateOptions = {}) => {
       isLatest: false,
     }
 
+    const channel = resolveChannel(settingState.setting['common.releaseChannel'], versionInfo.version)
     try {
-      const { version, desc, history } = await getVersionInfo()
-      versionInfo.newVersion = {
-        version,
-        desc,
-        history,
+      const raw = await getVersionInfo()
+      if (raw == null || typeof raw.version != 'string') throw new Error('failed')
+      const history: Array<{ version: string, desc: string }> = []
+      if (Array.isArray(raw.history)) {
+        for (const item of raw.history) {
+          if (item != null && typeof item.version == 'string') {
+            history.push({
+              version: item.version,
+              desc: typeof item.desc == 'string' ? item.desc : '',
+            })
+          }
+        }
       }
+      const dev = raw.dev != null && typeof raw.dev.version == 'string'
+        ? {
+            version: raw.dev.version,
+            desc: typeof raw.dev.desc == 'string' ? raw.dev.desc : '',
+            date: typeof raw.dev.date == 'string' ? raw.dev.date : undefined,
+          }
+        : undefined
+      const picked = pickUpdateTarget({
+        version: raw.version,
+        desc: typeof raw.desc == 'string' ? raw.desc : '',
+        history,
+        dev,
+      }, versionInfo.version, channel)
+      versionInfo.newVersion = picked.target
+      versionInfo.channel = picked.channel
+      versionInfo.waitStable = picked.waitStable
+      versionInfo.isLatest = picked.isLatest
     } catch {
       versionInfo.newVersion = {
         version: '0.0.0',
         desc: '',
         history: [],
       }
+      versionInfo.channel = channel
+      versionInfo.waitStable = false
+      versionInfo.isLatest = false
     }
 
     if (versionInfo.newVersion.version == '0.0.0') {
       versionInfo.isUnknown = true
       versionInfo.isLatest = false
+      versionInfo.waitStable = false
       versionInfo.status = 'error'
     } else {
       versionInfo.status = 'idle'
       versionInfo.isUnknown = false
-      versionInfo.isLatest = compareVer(versionInfo.version, versionInfo.newVersion.version) != -1
     }
 
     versionActions.setVersionInfo(versionInfo)
 
-    if (!versionInfo.isLatest) {
+    if (!versionInfo.isLatest && !versionInfo.waitStable) {
       if (versionInfo.isUnknown) {
         const time = await getIgnoreVersionFailTipTime()
         if (Date.now() - time < 7 * 86400000) return

@@ -8,7 +8,7 @@ import { Icon } from '@/components/common/Icon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
-import { confirmDialog, createStyle, openUrl, toast } from '@/utils/tools'
+import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
@@ -43,6 +43,8 @@ import updateImg from '../../../../../assets/img/update.png'
 import githubImg from '../../../../../assets/img/Github.png'
 import logoutImg from '../../../../../assets/img/log-out.png'
 import { checkUpdate } from '@/core/version'
+import versionState from '@/store/version/state'
+import { isDevBuild, resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import ResourceCacheSection from './ResourceCacheSection'
 
@@ -92,7 +94,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'releaseChannel'>(null)
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
@@ -101,6 +103,14 @@ export default () => {
   const syncStatus = useStatus()
   const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
+  const releaseChannelSetting = useSettingValue('common.releaseChannel')
+  const effectiveReleaseChannel = resolveChannel(releaseChannelSetting, currentVer)
+  const releaseChannelLabel = effectiveReleaseChannel == 'dev'
+    ? t('setting_release_channel_dev')
+    : t('setting_release_channel_stable')
+  const currentVersionLabel = isDevBuild(currentVer)
+    ? `${currentVer} · ${t('setting_release_channel_dev')}`
+    : currentVer
   const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
     const activeLocale = activeLangId ?? 'en_us'
@@ -159,23 +169,29 @@ export default () => {
     : gender === 'female'
       ? styles.profileHeroBadgeFemale
       : styles.profileHeroBadgeUnknown
-  const aboutStatusText = versionInfo.status == 'downloading'
-    ? t('version_btn_downloading', {
-      total: sizeFormate(versionProgress.total),
-      current: sizeFormate(versionProgress.current),
-      progress: versionProgress.total ? (versionProgress.current / versionProgress.total * 100).toFixed(2) : '0',
+  const aboutStatusText = versionInfo.waitStable
+    ? t('version_wait_stable', {
+      current: versionInfo.version,
+      stable: versionInfo.newVersion?.version ?? '',
+      next: upcomingStableVersion(versionInfo.version),
     })
-    : versionInfo.isLatest
-      ? t('version_tip_latest')
-      : versionInfo.isUnknown
-        ? t('version_tip_unknown')
-        : versionInfo.status == 'checking'
-          ? t('version_title_checking')
-          : versionInfo.status == 'downloaded'
-            ? t('version_title_update')
-            : versionInfo.status == 'error'
-              ? t('version_tip_failed')
-              : t('version_title_new')
+    : versionInfo.status == 'downloading'
+      ? t('version_btn_downloading', {
+        total: sizeFormate(versionProgress.total),
+        current: sizeFormate(versionProgress.current),
+        progress: versionProgress.total ? (versionProgress.current / versionProgress.total * 100).toFixed(2) : '0',
+      })
+      : versionInfo.isLatest
+        ? t('version_tip_latest')
+        : versionInfo.isUnknown
+          ? t('version_tip_unknown')
+          : versionInfo.status == 'checking'
+            ? t('version_title_checking')
+            : versionInfo.status == 'downloaded'
+              ? t('version_title_update')
+              : versionInfo.status == 'error'
+                ? t('version_tip_failed')
+                : t('version_title_new')
 
   useEffect(() => {
     let isUnmounted = false
@@ -313,6 +329,9 @@ export default () => {
     currentVer,
     t('version_label_current_ver'),
     t('version_btn_check_update'),
+    t('setting_release_channel'),
+    releaseChannelLabel,
+    currentVersionLabel,
   )
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
@@ -347,7 +366,9 @@ export default () => {
             ? t('setting_sync')
             : activeOptionDetail === 'syncFormat'
               ? t('setting_sync_format')
-              : ''
+              : activeOptionDetail === 'releaseChannel'
+                ? t('setting_release_channel')
+                : ''
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -644,6 +665,32 @@ export default () => {
   const handleCheckUpdate = () => {
     void checkUpdate()
   }
+  const handleOpenReleaseChannel = () => {
+    setActiveOptionDetail('releaseChannel')
+  }
+  const handleSelectReleaseChannel = (value: 'stable' | 'dev') => {
+    updateSetting({ 'common.releaseChannel': value })
+    setActiveOptionDetail(null)
+    void (async() => {
+      if (value == 'dev') {
+        await tipDialog({
+          title: t('setting_release_channel_dev'),
+          message: t('setting_release_channel_dev_tip'),
+        })
+      }
+      await checkUpdate({ force: true })
+      if (value == 'stable' && versionState.versionInfo.waitStable) {
+        await tipDialog({
+          title: t('setting_release_channel_stable'),
+          message: t('version_wait_stable', {
+            current: versionState.versionInfo.version,
+            stable: versionState.versionInfo.newVersion?.version ?? '',
+            next: upcomingStableVersion(versionState.versionInfo.version),
+          }),
+        })
+      }
+    })()
+  }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
   }
@@ -839,10 +886,23 @@ export default () => {
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{currentVer}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{currentVersionLabel}</Text>
                       </View>
                     </View>
                   </View>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleaseChannel}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
+                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_release_channel')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{releaseChannelLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleCheckUpdate}>
                     <View style={styles.groupRowLeft}>
@@ -851,7 +911,7 @@ export default () => {
                       </View>
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={versionInfo.waitStable ? 4 : 1}>{aboutStatusText}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -1173,6 +1233,22 @@ export default () => {
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lux') }}>
                     <Text size={15} color={syncMode == 'lux' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
                     {syncMode == 'lux' ? <View style={styles.languageActiveDot} /> : null}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            : null}
+
+          {activeOptionDetail === 'releaseChannel'
+            ? <View style={styles.sectionCard}>
+                <View style={styles.sectionGroup}>
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectReleaseChannel('stable') }}>
+                    <Text size={15} color={effectiveReleaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
+                    {effectiveReleaseChannel == 'stable' ? <View style={styles.languageActiveDot} /> : null}
+                  </TouchableOpacity>
+                  <View style={styles.optionDetailDivider} />
+                  <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectReleaseChannel('dev') }}>
+                    <Text size={15} color={effectiveReleaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
+                    {effectiveReleaseChannel == 'dev' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                 </View>
               </View>
