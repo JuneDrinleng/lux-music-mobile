@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Lint changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.base_ref }}"
+          git rev-parse --verify "origin/${base}" >/dev/null
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "origin/${base}...HEAD" -- '*.js' '*.jsx' '*.ts' '*.tsx')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "没有改动 JS/TS 文件"
+            exit 0
+          fi
+          npx eslint "${files[@]}"
+
+      - name: Lint（全量，既有错误不阻断）
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Typecheck（既有错误不阻断）
+        continue-on-error: true
+        run: npx tsc --noEmit --pretty false --incremental false
+
+      - name: Release bundle
+        run: npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output /tmp/index.android.bundle --assets-dest /tmp/res
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            native:
+              - 'android/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'dependency-patches/**'
+              - 'dependencies-patch.js'
+
+      - if: steps.filter.outputs.native == 'true'
+        uses: ./.github/actions/setup
+
+      - name: Assemble standard arm64 release（不注入 keystore，回落 debug 签名）
+        if: steps.filter.outputs.native == 'true'
+        env:
+          DISABLE_SVG: 1
+        run: cd android && ./gradlew --no-daemon --max-workers=2 assembleStandardRelease -PreactNativeArchitectures=arm64-v8a
+
+  version-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - run: node --test scripts/*.test.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 用 Gradle 执行真实 versionCode 公式
+        run: chmod +x android/gradlew && android/gradlew -p scripts/gradle-version-check verifyVersionCode --no-daemon

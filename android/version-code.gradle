@@ -1,0 +1,30 @@
+// Lux Music versionCode. Same applicationId for stable and dev builds.
+// base = ((MAJOR*100 + MINOR)*100 + PATCH)*100 + s
+//   s = N for X.Y.Z-dev.N (1–98), s = 99 for a stable release
+// APK versionCode = base*10 + abi
+//   universal 0, armeabi-v7a 1, x86 2, arm64-v8a 3, x86_64 4
+// Keep this in sync with scripts/version-code.mjs.
+
+ext.luxAbiOffsets = ["armeabi-v7a": 1, "x86": 2, "arm64-v8a": 3, "x86_64": 4]
+
+ext.computeBaseVersionCode = { String v ->
+    def m = (v =~ /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-dev\.([1-9]\d*))?$/)
+    if (!m.matches()) throw new GradleException("版本号不合法（需 X.Y.Z 或 X.Y.Z-dev.N）: ${v}")
+    int major = m.group(1) as int
+    int minor = m.group(2) as int
+    int patch = m.group(3) as int
+    Integer dev = m.group(4) ? (m.group(4) as int) : null
+    int s = dev != null ? dev : 99
+    if (major > 209 || minor > 99 || patch > 99 || s < 1 || s > 99 || (dev != null && dev > 98)) {
+        throw new GradleException("版本号超出 versionCode 编码范围: ${v}")
+    }
+    return ((major * 100 + minor) * 100 + patch) * 100 + s
+}
+
+ext.apkVersionCode = { String v, String abi ->
+    int code = computeBaseVersionCode(v) * 10
+    if (abi == null || abi == "universal") return code
+    def offset = luxAbiOffsets[abi]
+    if (offset == null) throw new GradleException("未知 ABI: ${abi}")
+    return code + (offset as int)
+}
