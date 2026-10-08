@@ -175,6 +175,8 @@ const SONG_DRAG_ROW_FALLBACK_HEIGHT = 72
 const SONG_DRAG_AUTO_SCROLL_EDGE = 96
 const SONG_DRAG_AUTO_SCROLL_SPEED = 16
 const SONG_DRAG_LAYOUT_ANIMATION_MAX_ITEMS = 240
+// Keep unfinished shortcuts behind a flag so they can be re-enabled later.
+const SHOW_IN_DEVELOPMENT_QUICK_ACTIONS = false
 
 const clampIndex = (value: number, max: number) => {
   if (max < 0) return 0
@@ -368,14 +370,16 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     if (playlistSortMode === 'custom') {
       const effectiveOrder = pendingPlaylistOrder ?? playlistCustomOrder
       const orderMap = new Map(effectiveOrder.map((id, i) => [id, i]))
-      return [...userPlaylists].sort((a, b) => {
-        const aOrder = orderMap.get(a.id)
-        const bOrder = orderMap.get(b.id)
-        if (aOrder != null && bOrder != null) return aOrder - bOrder
-        if (aOrder != null) return -1
-        if (bOrder != null) return 1
-        return 0
-      })
+      // Newly created playlists (not yet in custom order) go first so they are
+      // immediately visible after 转存 / create, instead of buried at the end.
+      const ordered: LX.List.UserListInfo[] = []
+      const unordered: LX.List.UserListInfo[] = []
+      for (const list of userPlaylists) {
+        if (orderMap.has(list.id)) ordered.push(list)
+        else unordered.push(list)
+      }
+      ordered.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
+      return [...unordered, ...ordered]
     }
     return userPlaylists
       .map((list, index) => ({
@@ -396,6 +400,18 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       setPendingPlaylistOrder(null)
     }
   }, [pendingPlaylistOrder, playlistCustomOrder])
+  // Keep custom order in sync when new playlists are created outside drag/drop
+  // (e.g. MusicAddModal / 一键转存 → CreateUserList).
+  useEffect(() => {
+    if (playlistSortMode !== 'custom') return
+    if (!playlistCustomOrder.length) return
+    const userIds = playlists
+      .filter(list => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT)
+      .map(list => list.id)
+    const missing = userIds.filter(id => !playlistCustomOrder.includes(id))
+    if (!missing.length) return
+    updateSetting({ 'list.playlistCustomOrder': JSON.stringify([...missing, ...playlistCustomOrder]) })
+  }, [playlists, playlistSortMode, playlistCustomOrder])
   const likedSongsCount = lovePlaylist ? playlistMetaMap[lovePlaylist.id]?.count ?? 0 : 0
   const featuredLibraryCards = useMemo(() => {
     return []
@@ -1936,36 +1952,40 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
             <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('list_name_love')}</Text>
           </TouchableOpacity>
         : null}
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={downloadImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={staticImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
-        </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
-      </TouchableOpacity>
+      {SHOW_IN_DEVELOPMENT_QUICK_ACTIONS
+        ? <>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={downloadImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={staticImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              activeOpacity={0.78}
+              onPress={() => { toast(t('toast_in_development')) }}
+            >
+              <View style={styles.quickActionIconWrap}>
+                <RNImage source={listenTogetherImg} style={styles.quickActionIconImg} />
+              </View>
+              <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
+            </TouchableOpacity>
+          </>
+        : null}
     </View>
   )
 

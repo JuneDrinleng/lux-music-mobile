@@ -44,6 +44,7 @@ import githubImg from '../../../../../assets/img/Github.png'
 import logoutImg from '../../../../../assets/img/log-out.png'
 import { checkUpdate } from '@/core/version'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
+import ResourceCacheSection from './ResourceCacheSection'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -298,6 +299,12 @@ export default () => {
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
     t('setting_sync_format'),
+    t('setting_sync_clear_conflict_mode'),
+  )
+  const showResourceCacheSection = matchesSettingsSearch(
+    t('setting__other_resource_cache'),
+    t('setting_other_cache_clear_btn'),
+    t('setting_other_cache_size'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -310,6 +317,7 @@ export default () => {
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
     showSyncSection ||
+    showResourceCacheSection ||
     showAboutSection
   const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
     inputRange: [0, 1],
@@ -629,6 +637,10 @@ export default () => {
     setAuthCode('')
     await pushSyncLoginScreen()
   }, [t])
+  const handleClearSyncConflictMode = useCallback(async() => {
+    await clearSyncConflictMode()
+    toast(t('setting_sync_clear_conflict_mode_success'))
+  }, [t])
   const handleCheckUpdate = () => {
     void checkUpdate()
   }
@@ -795,8 +807,25 @@ export default () => {
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
                   </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={() => { void handleClearSyncConflictMode() }}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <RNImage source={synImg} style={styles.settingRowImg} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
+                        <Text size={12} color="#767d89" numberOfLines={1}>{t('setting_sync_clear_conflict_mode_desc')}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                  </TouchableOpacity>
                 </View>
               </View>
+            : null}
+
+          {showResourceCacheSection
+            ? <ResourceCacheSection styles={styles} />
             : null}
 
           {showAboutSection

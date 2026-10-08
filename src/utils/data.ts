@@ -430,6 +430,15 @@ export const removeListMusics = async(ids: string[]): Promise<void> => {
 }
 
 
+export const qualitys: LX.Quality[] = ['128k', '320k', 'flac', 'flac24bit']
+export const hasMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  return getDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`)).then((urls) => {
+    return urls.some(([, url]) => !!url)
+  })
+}
+export const clearMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  await removeDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`))
+}
 export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => getData<string>(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`).then((url) => url ?? '')
 export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, url)
 export const clearMusicUrl = async(keys?: string[]) => {
@@ -566,10 +575,18 @@ export const setSyncLoginCompleted = async(completed: boolean) => {
 }
 export const getSyncConflictMode = async() => {
   const mode = await getData<LX.Sync.List.SyncMode>(syncConflictModePrefix)
-  return mode && mode != 'cancel' ? mode : null
+  if (!mode || mode == 'cancel') return null
+  // Drop legacy overwrite_* memories so they cannot silently re-apply.
+  if (mode.startsWith('overwrite_')) {
+    await removeData(syncConflictModePrefix)
+    return null
+  }
+  return mode
 }
 export const setSyncConflictMode = async(mode: LX.Sync.List.SyncMode) => {
   if (mode == 'cancel') return
+  // Never persist overwrite modes — they must be confirmed each time.
+  if (mode.startsWith('overwrite_')) return
   await saveData(syncConflictModePrefix, mode)
 }
 export const clearSyncConflictMode = async() => {
