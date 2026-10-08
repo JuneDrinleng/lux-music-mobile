@@ -1,11 +1,13 @@
-import { memo, useCallback, useMemo, useRef, type MutableRefObject } from 'react'
-import { Animated, TouchableOpacity, View, type GestureResponderEvent } from 'react-native'
+import { memo, useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react'
+import { Animated, Easing, TouchableOpacity, View, type GestureResponderEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
 import { type useI18n } from '@/lang'
+
+const PLAYLIST_LABEL_FADE_MS = 140
 
 export interface PlaylistCardShiftAnims {
   x: Animated.Value
@@ -65,6 +67,20 @@ const PlaylistLibraryCard = ({
   const propsRef = useRef({ item, index, onOpenList, onPlayPress, onCardLayout })
   propsRef.current = { item, index, onOpenList, onPlayPress, onCardLayout }
   const acceptedRef = useRef(false)
+  const labelOpacity = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    if (isListMode) {
+      labelOpacity.setValue(1)
+      return
+    }
+    // Opacity only. Hiding the label with height/unmount would reflow the grid mid-drag.
+    Animated.timing(labelOpacity, {
+      toValue: isDragging ? 0 : 1,
+      duration: PLAYLIST_LABEL_FADE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start()
+  }, [isDragging, isListMode, labelOpacity])
   const animatedStyle = useMemo(() => ({
     transform: [
       { translateX: shiftAnims.x },
@@ -113,7 +129,7 @@ const PlaylistLibraryCard = ({
       style={[
         isListMode ? styles.listRowItem : styles.listItem,
         isListMode && !isLast ? styles.listRowSpacing : null,
-        isDragging ? (isListMode ? styles.playlistDragLiftedList : styles.playlistDragLifted) : null,
+        isDragging && isListMode ? styles.playlistDragLiftedList : null,
         dragActive ? animatedStyle : null,
       ]}
       onLayout={(event) => {
@@ -143,13 +159,19 @@ const PlaylistLibraryCard = ({
             </TouchableOpacity>
           </>
         : <View style={styles.playlistDragHitGrid} {...touchHandlers}>
-            <View style={[styles.listPicWrap, { backgroundColor: tone.surface }]}>
-              {cover}
+            <View style={[
+              styles.listPicWrap,
+              { backgroundColor: tone.surface },
+              isDragging ? styles.playlistDragLiftedCover : null,
+            ]}>
+              <View style={styles.listPicClip}>
+                {cover}
+              </View>
             </View>
-            <View style={styles.listInfo}>
+            <Animated.View style={[styles.listInfo, { opacity: labelOpacity }]}>
               <Text size={13} color="#1c1c1e" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
               <Text size={12} color="#8e8e93">{t('me_songs_count', { num: count })}</Text>
-            </View>
+            </Animated.View>
           </View>}
     </Animated.View>
   )

@@ -25,7 +25,7 @@ const BulletList = ({ items, compact }: { items: ChangelogInline[][], compact: b
         <View style={compact ? styles.bulletWrapCompact : styles.bulletWrap}>
           <View style={compact ? styles.bulletCompact : styles.bullet} />
         </View>
-        <Text size={compact ? 13 : 14} color={compact ? '#374151' : '#20242d'} style={compact ? styles.listTextCompact : styles.listText}>
+        <Text size={compact ? 13 : 15} color={compact ? '#374151' : '#20242d'} style={compact ? styles.listTextCompact : styles.listText}>
           <Inlines parts={item} />
         </Text>
       </View>
@@ -50,7 +50,7 @@ const ChangelogView = ({ desc, compact = false }: ChangelogViewProps) => {
   const doc = useMemo(() => parseChangelog(desc), [desc])
   if (doc.fallback) {
     return (
-      <Text size={compact ? 13 : 14} color={compact ? '#4b5563' : '#20242d'} style={compact ? styles.paragraphCompact : styles.paragraph}>
+      <Text size={compact ? 13 : 15} color={compact ? '#4b5563' : '#20242d'} style={compact ? styles.paragraphCompact : styles.paragraph}>
         {doc.raw}
       </Text>
     )
@@ -67,7 +67,7 @@ const ChangelogView = ({ desc, compact = false }: ChangelogViewProps) => {
         }
         if (block.kind == 'paragraph') {
           return (
-            <Text key={`p-${index}`} size={compact ? 13 : 14} color={compact ? '#374151' : '#20242d'} style={compact ? styles.paragraphCompact : styles.paragraph}>
+            <Text key={`p-${index}`} size={compact ? 13 : 15} color={compact ? '#374151' : '#20242d'} style={compact ? styles.paragraphCompact : styles.paragraph}>
               <Inlines parts={block.inlines} />
             </Text>
           )
@@ -98,10 +98,10 @@ const styles = createStyle({
     marginBottom: 6,
   },
   heading: {
-    fontWeight: '700',
+    fontWeight: '600',
     lineHeight: 22,
-    marginTop: 10,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 6,
   },
   headingCompact: {
     fontWeight: '700',
