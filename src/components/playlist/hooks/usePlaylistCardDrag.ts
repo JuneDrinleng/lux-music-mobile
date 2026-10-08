@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
+  AppState,
   Dimensions,
   Easing,
+  PanResponder,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   type ScrollView,
@@ -19,6 +21,13 @@ import {
   shiftBetweenSlots,
 } from '@/components/playlist/playlistDragMath'
 import { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
+import {
+  decidePlaylistGestureEnd,
+  PLAYLIST_LIFT_SCALE,
+  readTouchPagePoint,
+  type PlaylistGestureEndKind,
+  type PlaylistGestureFlags,
+} from '@/components/playlist/playlistDragState'
 
 const LONG_PRESS_MS = 300
 const MOVE_SLOP = 8
@@ -27,7 +36,6 @@ const MIN_SCROLL_SPEED = 0.28
 const MAX_SCROLL_SPEED = 1.05
 const SHIFT_MS = 160
 const SETTLE_MS = 180
-const LIFT_SCALE = 1.045
 
 interface UsePlaylistCardDragParams {
   displayPlaylists: LX.List.UserListInfo[]
@@ -39,15 +47,7 @@ interface UsePlaylistCardDragParams {
 }
 
 const readPagePoint = (event: GestureResponderEvent) => {
-  const nativeEvent = event.nativeEvent
-  if (Number.isFinite(nativeEvent.pageX) && Number.isFinite(nativeEvent.pageY)) {
-    return { pageX: nativeEvent.pageX, pageY: nativeEvent.pageY }
-  }
-  const touch = (nativeEvent as { touches?: Array<{ pageX: number, pageY: number }> }).touches?.[0]
-  return {
-    pageX: touch?.pageX ?? 0,
-    pageY: touch?.pageY ?? 0,
-  }
+  return readTouchPagePoint(event.nativeEvent)
 }
 
 const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
@@ -116,6 +116,8 @@ export const usePlaylistCardDrag = ({
     raf: 0,
     pressTimer: null as ReturnType<typeof setTimeout> | null,
     safetyTimer: null as ReturnType<typeof setTimeout> | null,
+    panClaiming: false,
+    panOwned: false,
   })
 
   const getShiftAnims = useCallback((playlistId: string) => {
@@ -310,15 +312,18 @@ export const usePlaylistCardDrag = ({
     let pendingAxes = anims ? 2 : 0
     let committed = false
     const commit = () => {
-      if (committed || token !== gestureTokenRef.current) return
+      if (committed) return
       committed = true
       if (state.safetyTimer) {
         clearTimeout(state.safetyTimer)
         state.safetyTimer = null
       }
       state.settling = false
+      state.panClaiming = false
+      state.panOwned = false
+      const tokenOk = token === gestureTokenRef.current
       const lists = displayPlaylistsRef.current
-      if (fromIndex !== toIndex && lists[fromIndex] && lists[fromIndex].id === playlistId) {
+      if (tokenOk && fromIndex !== toIndex && lists[fromIndex] && lists[fromIndex].id === playlistId) {
         const reordered = moveArrayItem(lists, fromIndex, toIndex)
         if (reordered !== lists) {
           const newOrder = reordered.map(list => list.id)
@@ -349,11 +354,11 @@ export const usePlaylistCardDrag = ({
       useNativeDriver: true,
     }
     shiftTargetRef.current.set(playlistId!, { x: target.x, y: target.y })
-    Animated.timing(anims.x, { ...settle, toValue: target.x }).start(({ finished }) => {
-      if (finished) axisDone()
+    Animated.timing(anims.x, { ...settle, toValue: target.x }).start(() => {
+      axisDone()
     })
-    Animated.timing(anims.y, { ...settle, toValue: target.y }).start(({ finished }) => {
-      if (finished) axisDone()
+    Animated.timing(anims.y, { ...settle, toValue: target.y }).start(() => {
+      axisDone()
     })
     Animated.timing(anims.scale, { ...settle, toValue: 1 }).start()
     state.safetyTimer = setTimeout(commit, SETTLE_MS + 90)
@@ -366,6 +371,8 @@ export const usePlaylistCardDrag = ({
     state.settling = false
     state.pressLive = false
     state.moved = true
+    state.panClaiming = false
+    state.panOwned = false
     stopAutoScroll()
     clearPressTimer()
     if (state.safetyTimer) {
@@ -375,6 +382,33 @@ export const usePlaylistCardDrag = ({
     zeroShiftAnims()
     releaseDragVisuals()
   }, [clearPressTimer, releaseDragVisuals, stopAutoScroll, zeroShiftAnims])
+
+  const gestureFlags = useCallback((): PlaylistGestureFlags => {
+    const state = dragRef.current
+    return {
+      active: state.active,
+      settling: state.settling,
+      pressLive: state.pressLive,
+      moved: state.moved,
+      panOwned: state.panOwned,
+      fromIndex: state.fromIndex,
+      toIndex: state.toIndex,
+    }
+  }, [])
+
+  const endGesture = useCallback((kind: PlaylistGestureEndKind) => {
+    const decision = decidePlaylistGestureEnd(gestureFlags(), kind)
+    if (kind == 'safety' && dragRef.current.settling) return decision
+    if (decision.recoverStuck || (kind == 'safety' && decision.resetVisual)) {
+      abortDrag()
+      return decision
+    }
+    if (dragRef.current.active && decision.resetVisual) {
+      finishDrag()
+      return decision
+    }
+    return decision
+  }, [abortDrag, finishDrag, gestureFlags])
 
   const beginDrag = useCallback((item: LX.List.UserListInfo, index: number) => {
     const state = dragRef.current
@@ -416,19 +450,23 @@ export const usePlaylistCardDrag = ({
     setDraggingPlaylistId(item.id)
     setPlaylistDragActive(true)
     setScrollEnabled(false)
-    playlistScrollRef.current?.scrollTo({ y: playlistScrollOffsetRef.current, animated: false })
     measureScrollViewport()
     startAutoScroll()
   }, [getShiftAnims, measureScrollViewport, setScrollEnabled, startAutoScroll])
 
   const onGrant = useCallback((item: LX.List.UserListInfo, index: number, event: GestureResponderEvent) => {
+    const decision = endGesture('newPress')
     const state = dragRef.current
-    if (state.active || state.settling || displayPlaylistsRef.current.length < 2) return false
+    if ((state.active || state.settling) && !decision.recoverStuck) return false
+    if (displayPlaylistsRef.current.length < 2) return false
     if (state.pressLive && state.pressPlaylistId !== item.id) return false
     clearPressTimer()
     const point = readPagePoint(event)
+    if (!point) return false
     state.pressLive = true
     state.moved = false
+    state.panClaiming = false
+    state.panOwned = false
     state.pressPlaylistId = item.id
     state.startPageX = point.pageX
     state.startPageY = point.pageY
@@ -441,11 +479,12 @@ export const usePlaylistCardDrag = ({
       beginDrag(item, index)
     }, LONG_PRESS_MS)
     return true
-  }, [beginDrag, clearPressTimer])
+  }, [beginDrag, clearPressTimer, endGesture])
 
   const onMove = useCallback((event: GestureResponderEvent) => {
     const state = dragRef.current
     const point = readPagePoint(event)
+    if (!point) return
     const pageX = point.pageX
     const pageY = point.pageY
     if (!state.active) {
@@ -469,39 +508,80 @@ export const usePlaylistCardDrag = ({
   const onRelease = useCallback((item: LX.List.UserListInfo) => {
     const state = dragRef.current
     if (!state.active && state.pressPlaylistId !== item.id) return false
-    const wasActive = state.active
-    const moved = state.moved
+    const decision = decidePlaylistGestureEnd(gestureFlags(), 'release')
     clearPressTimer()
     state.pressLive = false
     state.pressPlaylistId = null
-    if (wasActive) {
+    if (state.active && decision.resetVisual) {
       finishDrag()
       return false
     }
-    return !moved && !state.settling
-  }, [clearPressTimer, finishDrag])
+    return decision.openList
+  }, [clearPressTimer, finishDrag, gestureFlags])
 
   const onTerminate = useCallback(() => {
     const state = dragRef.current
-    const wasActive = state.active
+    if (state.panOwned || state.panClaiming) {
+      clearPressTimer()
+      return
+    }
+    const decision = decidePlaylistGestureEnd(gestureFlags(), 'cancel')
     state.moved = true
     state.pressLive = false
     state.pressPlaylistId = null
     clearPressTimer()
-    if (wasActive) finishDrag()
-  }, [clearPressTimer, finishDrag])
+    if (state.active && decision.resetVisual) finishDrag()
+  }, [clearPressTimer, finishDrag, gestureFlags])
+
+  const onMoveRef = useRef(onMove)
+  const finishDragRef = useRef(finishDrag)
+  onMoveRef.current = onMove
+  finishDragRef.current = finishDrag
+  const playlistPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponderCapture: () => false,
+    onMoveShouldSetPanResponderCapture: () => {
+      if (!dragRef.current.active) return false
+      dragRef.current.panClaiming = true
+      return true
+    },
+    onPanResponderGrant: () => {
+      dragRef.current.panOwned = true
+    },
+    onPanResponderMove: (event) => {
+      if (!dragRef.current.active) return
+      onMoveRef.current(event)
+    },
+    onPanResponderRelease: () => {
+      const state = dragRef.current
+      state.panClaiming = false
+      state.panOwned = false
+      if (state.active) finishDragRef.current()
+    },
+    onPanResponderTerminate: () => {
+      const state = dragRef.current
+      state.panClaiming = false
+      state.panOwned = false
+      if (state.active) finishDragRef.current()
+    },
+    onPanResponderTerminationRequest: () => !dragRef.current.active,
+    onShouldBlockNativeResponder: () => dragRef.current.active,
+  }), [])
 
   const dragControllerRef = useRef<PlaylistDragController>({
     onGrant,
     onMove,
     onRelease,
     onTerminate,
+    isPanOwning: () => false,
   })
   dragControllerRef.current = {
     onGrant,
     onMove,
     onRelease,
     onTerminate,
+    isPanOwning: () => dragRef.current.panOwned || dragRef.current.panClaiming,
   }
 
   useEffect(() => {
@@ -509,7 +589,7 @@ export const usePlaylistCardDrag = ({
     const anims = shiftAnimMapRef.current.get(draggingPlaylistId)
     if (!anims) return
     Animated.timing(anims.scale, {
-      toValue: LIFT_SCALE,
+      toValue: PLAYLIST_LIFT_SCALE,
       duration: 140,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -541,6 +621,16 @@ export const usePlaylistCardDrag = ({
     if (dragRef.current.safetyTimer) clearTimeout(dragRef.current.safetyTimer)
   }, [clearPressTimer, stopAutoScroll])
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState == 'active') return
+      endGesture('safety')
+    })
+    return () => {
+      subscription.remove()
+    }
+  }, [endGesture])
+
   const handlePlaylistCardLayout = useCallback((itemId: string, layout: PlaylistDragLayoutBox) => {
     if (dragRef.current.active || dragRef.current.settling) return
     layoutMapRef.current.set(itemId, layout)
@@ -565,12 +655,15 @@ export const usePlaylistCardDrag = ({
 
   const handlePlaylistScrollBeginDrag = useCallback(() => {
     const state = dragRef.current
-    if (state.active) return
+    if (state.active || state.settling) {
+      if (!state.panOwned && !state.panClaiming) endGesture('safety')
+      return
+    }
     state.moved = true
     state.pressLive = false
     state.pressPlaylistId = null
     clearPressTimer()
-  }, [clearPressTimer])
+  }, [clearPressTimer, endGesture])
 
   const handleActiveTouchMove = useCallback((event: GestureResponderEvent) => {
     if (!dragRef.current.active) return
@@ -581,6 +674,10 @@ export const usePlaylistCardDrag = ({
     if (!dragRef.current.active) return
     finishDrag()
   }, [finishDrag])
+
+  const handleActiveTouchCancel = useCallback(() => {
+    onTerminate()
+  }, [onTerminate])
 
   const handlePlaylistScrollLayout = useCallback((event: LayoutChangeEvent) => {
     viewportHeightRef.current = event.nativeEvent.layout.height
@@ -606,5 +703,7 @@ export const usePlaylistCardDrag = ({
     handlePlaylistContentSizeChange,
     handleActiveTouchMove,
     handleActiveTouchEnd,
+    handleActiveTouchCancel,
+    playlistPanHandlers: playlistPanResponder.panHandlers,
   }
 }

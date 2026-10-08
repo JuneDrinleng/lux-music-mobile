@@ -27,6 +27,9 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
+      - name: Unit tests
+        run: node --test scripts/run-src-unit-tests.mjs
+
       - name: Lint changed files
         shell: bash
         run: |

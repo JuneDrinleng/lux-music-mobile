@@ -19,7 +19,7 @@ import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailure
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { getListMusics, updateListMusics } from '@/core/list'
 import listState from '@/store/list/state'
-import { cacheImageUri } from '@/utils/imageCache'
+import { cacheImageUri, primeImageCacheIndex } from '@/utils/imageCache'
 import BackgroundTimer from 'react-native-background-timer'
 
 const prewarmPlaylistCoverCache = async() => {
@@ -38,7 +38,7 @@ const prewarmPlaylistCoverCache = async() => {
   }
   const httpUrls = coverUrls.filter(url => /^https?:\/\//i.test(url))
   if (!httpUrls.length) return
-  void Promise.all(httpUrls.map(url => cacheImageUri(url).catch(() => null)))
+  void Promise.all(httpUrls.map(async url => cacheImageUri(url).catch(() => null)))
 }
 
 const retryStaleCoverFailures = async() => {
@@ -54,7 +54,7 @@ const retryStaleCoverFailures = async() => {
 
     for (const song of songs) {
       if (song.source === 'local') continue
-      const onlineSong = song as LX.Music.MusicInfoOnline
+      const onlineSong = song
       const key = `${onlineSong.source}_${onlineSong.id}`
       if (!failedKeySet.has(key)) continue
       if (!await isCoverFailureStale(onlineSong)) continue
@@ -114,6 +114,7 @@ export default async() => {
   bootLog('Player inited.')
   await dataInit(setting)
   bootLog('Data inited.')
+  await primeImageCacheIndex().catch(() => {})
   void retryStaleCoverFailures()
   void prewarmPlaylistCoverCache()
   BackgroundTimer.setInterval(() => { void retryStaleCoverFailures() }, 30 * 60 * 1000)

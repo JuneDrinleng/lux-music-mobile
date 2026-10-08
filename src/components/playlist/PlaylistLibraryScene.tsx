@@ -1,5 +1,5 @@
 import { type MutableRefObject, type RefObject, type ReactNode } from 'react'
-import { Animated, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
+import { Animated, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type GestureResponderHandlers, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 
 import Image from '@/components/common/Image'
@@ -53,6 +53,8 @@ export interface PlaylistLibrarySceneProps {
   onPlaylistScrollBeginDrag?: () => void
   onPlaylistTouchMove?: (event: GestureResponderEvent) => void
   onPlaylistTouchEnd?: () => void
+  onPlaylistTouchCancel?: () => void
+  playlistPanHandlers?: GestureResponderHandlers
   onPlaylistScrollLayout?: (event: LayoutChangeEvent) => void
   onPlaylistContentSizeChange?: (width: number, height: number) => void
   onPlaylistCardLayout?: (itemId: string, layout: { x: number, y: number, width: number, height: number }) => void
@@ -100,6 +102,8 @@ export default ({
   onPlaylistScrollBeginDrag,
   onPlaylistTouchMove,
   onPlaylistTouchEnd,
+  onPlaylistTouchCancel,
+  playlistPanHandlers,
   onPlaylistScrollLayout,
   onPlaylistContentSizeChange,
   onPlaylistCardLayout,
@@ -113,7 +117,7 @@ export default ({
   onCreateList,
 }: PlaylistLibrarySceneProps) => {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
       {isSourceMenuVisible
         ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
             <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={onCloseSourceMenu} />
@@ -133,7 +137,7 @@ export default ({
         onScrollBeginDrag={onPlaylistScrollBeginDrag}
         onTouchMove={onPlaylistTouchMove}
         onTouchEnd={onPlaylistTouchEnd}
-        onTouchCancel={onPlaylistTouchEnd}
+        onTouchCancel={onPlaylistTouchCancel}
         onLayout={onPlaylistScrollLayout}
         onContentSizeChange={onPlaylistContentSizeChange}
       >

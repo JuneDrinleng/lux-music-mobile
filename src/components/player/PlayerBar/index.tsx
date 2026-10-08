@@ -8,7 +8,6 @@ import { useKeyboard } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import Image from '@/components/common/Image'
-import diskPic from '../../../../assets/img/disk.png'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
@@ -197,7 +196,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
           <View style={[styles.left, inCard ? styles.leftInCard : null]}>
             <View style={styles.ring}>
               <View style={styles.coverClip}>
-                <Image url={musicInfo.pic} placeholder={diskPic} placeholderStyle={styles.diskPlaceholder} style={styles.pic} />
+                <Image url={musicInfo.pic} style={styles.pic} />
               </View>
               <Svg width={RING_RENDER_SIZE} height={RING_RENDER_SIZE} style={styles.ringSvg} pointerEvents="none">
                 <Circle
@@ -369,10 +368,6 @@ const styles = createStyle({
     width: '100%',
     height: '100%',
     borderRadius: scaleSizeW(COVER_INNER_SIZE / 2),
-  },
-  diskPlaceholder: {
-    width: '65%',
-    height: '65%',
   },
   ringSvg: {
     position: 'absolute',
