@@ -1,8 +1,9 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, ScrollView } from 'react-native'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
+import ChangelogView from '@/components/ChangelogView'
 import { useI18n } from '@/lang'
 import { useVersionInfo } from '@/store/version/hook'
 import { downloadUpdate, hideModal, setIgnoreVersion } from '@/core/version'
@@ -34,8 +35,10 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
         <View style={styles.contentBox}>
           <Text style={styles.label} color="#111827">{t('version_label_current_ver')}{currentVer}</Text>
           <Text style={styles.label} color="#111827">{t('version_label_latest_ver')}{nextVersion}{nextIsDev ? ` · ${t('setting_release_channel_dev')}` : ''}</Text>
-          {nextIsDev && versionInfo.newVersion?.desc
-            ? <Text style={styles.desc} color="#4b5563" numberOfLines={4}>{versionInfo.newVersion.desc}</Text>
+          {versionInfo.newVersion?.desc
+            ? <ScrollView style={styles.descScroll} nestedScrollEnabled>
+                <ChangelogView desc={versionInfo.newVersion.desc} compact />
+              </ScrollView>
             : null}
         </View>
         <View style={styles.modalActions}>
@@ -84,9 +87,8 @@ const styles = createStyle({
     fontWeight: '500',
     marginBottom: 8,
   },
-  desc: {
-    fontSize: 13,
-    lineHeight: 18,
+  descScroll: {
+    maxHeight: 220,
     marginBottom: 8,
   },
   modalActions: {

@@ -5,51 +5,22 @@ import { TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import ChangelogView from '@/components/ChangelogView'
 import { useI18n } from '@/lang'
 import { createStyle, openUrl } from '@/utils/tools'
-import { isDevBuild } from '@/utils/releaseChannel'
+import { isDevBuild, type ReleaseChannel } from '@/utils/releaseChannel'
 import { loadInstalledChangelog, readBundledChangelog, type InstalledChangelog } from '@/utils/installedChangelog'
 
 const releaseNotesUrl = (version: string) => `https://github.com/JuneDrinleng/lux-music-mobile/releases/tag/v${version}`
 
-const isListLine = (line: string) => /^[-*]\s+/.test(line)
-
-const ChangelogBody = ({ desc }: { desc: string }) => {
-  const lines = desc.split(/\r?\n/)
-  return (
-    <>
-      {lines.map((line, index) => {
-        if (!line.trim()) return <View key={`gap-${index}`} style={styles.gap} />
-        const item = /^[-*]\s+(.*)$/.exec(line)
-        if (item) {
-          return (
-            <View key={`item-${index}`} style={styles.listRow}>
-              <Text size={14} color="#20242d" style={styles.bullet}>-</Text>
-              <Text size={14} color="#20242d" style={styles.listText}>{item[1]}</Text>
-            </View>
-          )
-        }
-        const next = lines.slice(index + 1).find(entry => entry.trim())
-        const heading = !!next && isListLine(next) && line.trim().length <= 40
-        return (
-          <Text
-            key={`line-${index}`}
-            size={heading ? 15 : 14}
-            color="#20242d"
-            style={heading ? styles.heading : styles.paragraph}
-          >{line}</Text>
-        )
-      })}
-    </>
-  )
-}
-
 interface VersionChangelogDetailProps {
   styles: Record<string, any>
   version: string
+  releaseChannel: ReleaseChannel
+  onSelectReleaseChannel: (value: ReleaseChannel) => void
 }
 
-export default ({ styles: parentStyles, version }: VersionChangelogDetailProps) => {
+export default ({ styles: parentStyles, version, releaseChannel, onSelectReleaseChannel }: VersionChangelogDetailProps) => {
   const t = useI18n()
   const bundled = useMemo(() => readBundledChangelog(version), [version])
   const [remote, setRemote] = useState<InstalledChangelog | null>(null)
@@ -90,6 +61,19 @@ export default ({ styles: parentStyles, version }: VersionChangelogDetailProps) 
         </View>
       </View>
       <View style={parentStyles.optionDetailDivider} />
+      <View style={styles.channelLabelRow}>
+        <Text size={13} color="#767d89">{t('setting_release_channel')}</Text>
+      </View>
+      <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
+        <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
+        {releaseChannel == 'stable' ? <View style={parentStyles.languageActiveDot} /> : null}
+      </TouchableOpacity>
+      <View style={parentStyles.optionDetailDivider} />
+      <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('dev') }}>
+        <Text size={15} color={releaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
+        {releaseChannel == 'dev' ? <View style={parentStyles.languageActiveDot} /> : null}
+      </TouchableOpacity>
+      <View style={parentStyles.optionDetailDivider} />
       <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenGithub}>
         <Text size={15} color="#20242d" style={[parentStyles.optionDetailText, styles.linkText]}>{t('version_changelog_github')}</Text>
         <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
@@ -97,7 +81,7 @@ export default ({ styles: parentStyles, version }: VersionChangelogDetailProps) 
       <View style={parentStyles.optionDetailDivider} />
       <View style={styles.body}>
         {entry
-          ? <ChangelogBody desc={entry.desc} />
+          ? <ChangelogView desc={entry.desc} />
           : <Text size={14} color="#767d89" style={styles.paragraph}>
               {loading ? t('version_changelog_loading') : t('version_changelog_empty')}
             </Text>}
@@ -111,6 +95,11 @@ const styles = createStyle({
     flex: 1,
     paddingVertical: 4,
   },
+  channelLabelRow: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 2,
+  },
   body: {
     paddingHorizontal: 18,
     paddingTop: 14,
@@ -119,28 +108,6 @@ const styles = createStyle({
   paragraph: {
     lineHeight: 22,
     marginBottom: 8,
-  },
-  heading: {
-    fontWeight: '700',
-    lineHeight: 22,
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  listRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  bullet: {
-    width: 16,
-    lineHeight: 22,
-  },
-  listText: {
-    flex: 1,
-    lineHeight: 22,
-  },
-  gap: {
-    height: 8,
   },
   linkText: {
     flex: 1,

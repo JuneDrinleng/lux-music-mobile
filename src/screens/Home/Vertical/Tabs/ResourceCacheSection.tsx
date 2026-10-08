@@ -4,19 +4,12 @@ import { memo, useCallback, useEffect, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
 import { useI18n } from '@/lang'
 import { clearCache, getCacheSize } from '@/plugins/player/utils'
 import { sizeFormate } from '@/utils'
 import { clearMusicUrl } from '@/utils/data'
 import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
 import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
-
-interface ResourceCacheSectionProps {
-  styles: Record<string, any>
-  cacheSizeLabel: string
-  onPress: () => void
-}
 
 interface ResourceCacheDetailProps {
   styles: Record<string, any>
@@ -102,28 +95,5 @@ export const ResourceCacheDetail = memo(({
         </Text>
       </TouchableOpacity>
     </>
-  )
-})
-
-export default memo(({ styles: parentStyles, cacheSizeLabel, onPress }: ResourceCacheSectionProps) => {
-  const t = useI18n()
-  return (
-    <View style={parentStyles.sectionCard}>
-      <Text size={11} color="#838995" style={parentStyles.sectionEyebrow}>{t('setting__other_resource_cache')}</Text>
-      <View style={parentStyles.sectionGroup}>
-        <TouchableOpacity style={parentStyles.groupRow} activeOpacity={0.84} onPress={onPress}>
-          <View style={parentStyles.groupRowLeft}>
-            <View style={parentStyles.groupRowIconWrap}>
-              <Icon name="broom" rawSize={18} color="#000000" />
-            </View>
-            <View style={parentStyles.groupRowTextWrap}>
-              <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>{t('setting__other_resource_cache')}</Text>
-              <Text size={12} color="#767d89" numberOfLines={2}>{cacheSizeLabel}</Text>
-            </View>
-          </View>
-          <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
-        </TouchableOpacity>
-      </View>
-    </View>
   )
 })

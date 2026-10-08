@@ -123,6 +123,9 @@
 | `android/app/src/main/res/values-v29/styles.xml` | `code` | Lux 独立新增的 Android 29+ 系统栏样式配置，上游无对应文件 | `2026-04-11` |
 | `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx` | `code` | Lux 独立新增的当前版本更新日志页，上游无对应文件 | `2026-10-08` |
 | `src/utils/installedChangelog.ts` | `code` | Lux 独立新增的安装包内更新日志读取，上游无对应文件 | `2026-10-08` |
+| `src/utils/changelogFormat.js` | `code` | Lux 独立新增的更新日志分点解析，上游无对应文件 | `2026-10-08` |
+| `src/utils/changelogFormat.d.ts` | `code` | 上述解析器的类型声明 | `2026-10-08` |
+| `src/components/ChangelogView.tsx` | `code` | Lux 独立新增的更新日志分点渲染，上游无对应文件 | `2026-10-08` |
 
 ## 维护模板
 
