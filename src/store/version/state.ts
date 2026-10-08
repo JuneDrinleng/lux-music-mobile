@@ -21,6 +21,8 @@ export interface InitState {
     isLatest: boolean
     reCheck: boolean
     status: LX.UpdateStatus
+    channel: 'stable' | 'dev'
+    waitStable: boolean
   }
   ignoreVersion: string | null
   progress: ProgressInfo
@@ -36,6 +38,8 @@ const state: InitState = {
     isUnknown: false,
     isLatest: false,
     status: 'checking',
+    channel: 'stable',
+    waitStable: false,
   },
   ignoreVersion: null,
   progress: {
