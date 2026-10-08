@@ -2,9 +2,9 @@
 
 # 主题颜色令牌
 
-本文给第 2 步用：新美化页面里的颜色字面量已经收成默认黄绿主题。色值以代码现状为准，不以来源资料里合并过的黄绿表为准。默认主题的值不可改。
+竖屏美化页面里的颜色字面量已经收成默认黄绿主题，并改成从 `useLuxTheme()` 读取。色值以替换前的代码为准，不以来源资料里合并过的黄绿表为准。默认主题的值不可改。
 
-读取方式：`useLuxTheme()`（`src/theme/LuxTheme.tsx`）返回 `limeTheme`（`src/theme/luxTokens.ts`）。新代码不要再写十六进制色值。
+读取方式：`useLuxTheme()`（`src/theme/LuxTheme.tsx`）返回 `limeTheme`（`src/theme/luxTokens.ts`）。模块级样式用 `sharedLuxStyles`，同一个颜色对象只生成一次样式。新代码不要再写十六进制色值。`scripts/check-lux-color-literals.mjs` 会扫描下面这些文件，出现新的颜色字面量就失败（`transparent` 除外）。
 
 ## 和上游主题的关系
 
@@ -20,7 +20,7 @@
 
 包含：首页、歌单、搜索、顶栏、设置及子页、更新日志、播放队列、底部导航、迷你播放条、播放详情（`Pic` / `Lyric` / 封面兜底）、歌单与搜索组件、`PromptDialog`、`Dialog`、`SegmentedIconSwitch`、`ChangelogView`、封面占位色。
 
-不包含，也不要在第 2 步顺手改：
+不包含，这次替换也没有改：
 
 - `transparent`。它表示没有颜色，不是主题色。
 - `coverTheme.ts` 里随封面计算的渐变。只有无封面时的固定兜底进了 `coverFallback`。
@@ -30,27 +30,15 @@
 
 `#c8e600`、`#d7ef59`、`#d9ef62`、`#dbeb92` 保持四枚强调色。`rgba(244,247,252,0.72)` 与 `rgba(245,247,252,0.72)` 不合并。播放条本地色 `#64748b` 和播放详情本地色 `#475569` 不合并。搜索未知来源底 `#e5e7eb` 和队列未知来源底 `#f3f4f6` 不合并。
 
-## 试点
+## 替换结果
 
-下面两处已改为从 `useLuxTheme()` 取色，取到的字符串和原来的字面量相同：
+下面文件里的颜色字面量已改为 `useLuxTheme()`。默认黄绿下取到的字符串和表里的色值相同。没有删、藏或移动任何界面。
 
-- `BottomNav`：当前项图标 `ink.navActive`、未选图标 `ink.navIdle`、当前项圆底 `accent.nav`。
-- `ResourceCacheSection`：容量行 `ink.list`，清理中的禁用字 `ink.quiet`。
+同一色值有多个令牌时按角色取，不因为色值相同就共用。例如 `#111827` 同时是 `ink.strong`（标题，深色主题里会变浅）和 `ink.onAccent`（黄绿按钮上的字，应留深色）。设置弹窗输入框仍使用上游 `theme['c-primary-background']`。
 
-其余硬编码还在。没有删、藏或移动任何界面。
+另外 5 套主题仍然只有 id，没有色值，也没有切换入口。
 
-## 第 2 步建议
-
-按表面拆开替换，每处取到的值必须和字面量一致。`createStyle` 在模块加载时执行，不能在里面调用 hook。颜色放到 JSX 的 `color` / `style` 上，或在组件内按主题生成样式。
-
-1. 设置主页、子页、版本日志、`ChangelogView`、`PromptDialog`、`Dialog`。
-2. 歌单页和 `src/components/playlist/`。
-3. 搜索页、`SharedTopBar`、`src/components/search/`。
-4. 首页 `HomeTab`（含推荐卡和英雄卡数组）。
-5. 迷你播放条、底部导航剩余玻璃色、播放队列。
-6. 播放详情 `Pic`、`Lyric` 和封面兜底。
-
-同一色值有多个令牌时，按角色选，不要因为色值相同就共用。例如 `#111827` 同时是 `ink.strong`（标题，深色主题里会变浅）和 `ink.onAccent`（黄绿按钮上的字，应留深色）。设置输入框的上游 `c-primary-background` 不要在这一步改成 lux 令牌。
+下表是替换前的盘点。出现次数按当时的字面量统计，试点两处也算在里面。
 
 ## 含颜色字面量的文件
 

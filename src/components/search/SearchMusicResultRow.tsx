@@ -5,6 +5,8 @@ import Text from '@/components/common/Text'
 import { createStyle } from '@/utils/tools'
 import HighlightText from './HighlightText'
 import { getSourceTone } from './sourceTone'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 export default ({
   item,
@@ -23,7 +25,10 @@ export default ({
   onToggleLoved: () => void
   onAdd: () => void
 }) => {
-  const sourceTone = getSourceTone(item.source)
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
+  const sourceTone = getSourceTone(item.source, colors)
 
   return (
     <View style={styles.songItem}>
@@ -32,29 +37,29 @@ export default ({
         activeOpacity={0.8}
         onPress={onPress}
       >
-        <Text size={14} color="#8a8f9d" style={styles.rankNum}>{index + 1}</Text>
+        <Text size={14} color={colors.ink.index} style={styles.rankNum}>{index + 1}</Text>
         <View style={styles.songInfo}>
-          <HighlightText text={item.name} keyword={keyword} size={14} color="#111827" style={styles.listTitle} numberOfLines={1} />
+          <HighlightText text={item.name} keyword={keyword} size={14} color={colors.ink.strong} style={styles.listTitle} numberOfLines={1} />
           <View style={styles.songMetaRow}>
             <Text size={10} color={sourceTone.text} style={[styles.songSource, { backgroundColor: sourceTone.background }]}>{item.source.toUpperCase()}</Text>
-            <Text size={11} color="#6b7280" numberOfLines={1}>{item.singer}</Text>
-            <Text size={11} color="#9ca3af" style={styles.interval}>{item.interval ?? '--:--'}</Text>
+            <Text size={11} color={colors.ink.meta} numberOfLines={1}>{item.singer}</Text>
+            <Text size={11} color={colors.ink.faint} style={styles.interval}>{item.interval ?? '--:--'}</Text>
           </View>
         </View>
       </TouchableOpacity>
       <View style={styles.searchSongActions}>
         <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={onToggleLoved}>
-          <MdiIcon name={isLoved ? 'heart' : 'heart-outline'} size={20} color={isLoved ? '#FA5252' : '#737373'} />
+          <MdiIcon name={isLoved ? 'heart' : 'heart-outline'} size={20} color={isLoved ? colors.like : colors.ink.heartIdle} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.songActionBtn} activeOpacity={0.8} onPress={onAdd}>
-          <MdiIcon name="playlist-plus" size={20} color="#737373" />
+          <MdiIcon name="playlist-plus" size={20} color={colors.ink.heartIdle} />
         </TouchableOpacity>
       </View>
     </View>
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   songItem: {
     minHeight: 48,
     flexDirection: 'row',
@@ -86,7 +91,7 @@ const styles = createStyle({
     overflow: 'hidden',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
     marginRight: 6,
     fontWeight: '600',
   },
@@ -112,4 +117,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

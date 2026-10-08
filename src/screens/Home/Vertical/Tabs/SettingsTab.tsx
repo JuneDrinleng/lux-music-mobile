@@ -38,6 +38,8 @@ import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -51,6 +53,9 @@ const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 const genderOptionValues = ['male', 'female', 'unknown'] as const
 
 export default () => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
@@ -758,11 +763,11 @@ export default () => {
         overScrollMode="never"
       >
         <View style={styles.greetingBlock}>
-          <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('nav_setting')}</Text>
+          <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{t('nav_setting')}</Text>
         </View>
         <View style={styles.list}>
           <View style={styles.sectionCard}>
-            <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
+            <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
             <View style={styles.sectionGroup}>
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenProfileDetail}>
                 <View style={styles.groupRowLeft}>
@@ -770,30 +775,30 @@ export default () => {
                     <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{nickname}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
             </View>
           </View>
 
           {showAppearanceSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenLanguageDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
-                        <MdiIcon name="translate" size={24} color="#000000" />
+                        <MdiIcon name="translate" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeLanguageLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeLanguageLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -801,32 +806,32 @@ export default () => {
 
           {showSearchAndPlayerSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search_and_play')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_search_and_play')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSearchSourceDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <MdiIcon name="magnify" size={24} color="#000000" />
+                        <MdiIcon name="magnify" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSearchSourceLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeSearchSourceLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenPlayerDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <MdiIcon name="music-box-multiple" size={24} color="#000000" />
+                        <MdiIcon name="music-box-multiple" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeApiSourceLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeApiSourceLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -834,58 +839,58 @@ export default () => {
 
           {showDataSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_data_and_sync')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_data_and_sync')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="server-network" size={24} color="#000000" />
+                        <MdiIcon name="server-network" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSyncStatusLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeSyncStatusLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncFormatDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="swap-horizontal" size={24} color="#000000" />
+                        <MdiIcon name="swap-horizontal" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{syncMode == 'lux' ? 'lux music' : 'lx music'}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{syncMode == 'lux' ? 'lux music' : 'lx music'}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={() => { void handleClearSyncConflictMode() }}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="source-branch-remove" size={24} color="#000000" />
+                        <MdiIcon name="source-branch-remove" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{t('setting_sync_clear_conflict_mode_desc')}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_sync_clear_conflict_mode_desc')}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenResourceCacheDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <MdiIcon name="broom" size={24} color="#000000" />
+                        <MdiIcon name="broom" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={2}>{resourceCacheSizeLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={2}>{resourceCacheSizeLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -893,44 +898,44 @@ export default () => {
 
           {showAboutSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_about')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_about')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenChangelog}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <MdiIcon name="certificate" size={24} color="#000000" />
+                        <MdiIcon name="certificate" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{currentVersionLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{currentVersionLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleCheckUpdate}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <MdiIcon name="update" size={24} color="#000000" />
+                        <MdiIcon name="update" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={versionInfo.waitStable ? 4 : 1}>{aboutStatusText}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={versionInfo.waitStable ? 4 : 1}>{aboutStatusText}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <MdiIcon name="github" size={24} color="#000000" />
+                        <MdiIcon name="github" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>GitHub Releases</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -938,8 +943,8 @@ export default () => {
 
           {!hasSettingSearchResults
             ? <View style={styles.emptySearchCard}>
-                <Text size={16} color="#111827" style={styles.emptySearchTitle}>{t('setting_search_empty_title')}</Text>
-                <Text size={13} color="#707789" style={styles.emptySearchText}>{t('setting_search_empty_text')}</Text>
+                <Text size={16} color={colors.ink.strong} style={styles.emptySearchTitle}>{t('setting_search_empty_title')}</Text>
+                <Text size={13} color={colors.ink.emptySearch} style={styles.emptySearchText}>{t('setting_search_empty_text')}</Text>
               </View>
             : null}
         </View>
@@ -966,10 +971,10 @@ export default () => {
         >
           <View style={styles.profileDetailHeaderRow}>
             <TouchableOpacity style={[styles.profileDetailBackBtn, styles.profileDetailBackBtnWithLabel]} activeOpacity={0.82} onPress={handleCloseProfileDetail}>
-              <Icon name="chevron-left" rawSize={20} color="#232733" />
-              <Text size={14} color="#232733" style={styles.profileDetailBackText}>{t('back')}</Text>
+              <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
+              <Text size={14} color={colors.ink.input} style={styles.profileDetailBackText}>{t('back')}</Text>
             </TouchableOpacity>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
           </View>
 
           <View style={styles.profileDetailHero}>
@@ -978,8 +983,8 @@ export default () => {
                 <Image style={styles.profileDetailAvatar} url={avatarDisplayUrl} resizeMode="contain" />
               </View>
             </View>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailName}>{nickname}</Text>
-            <Text size={13} color="#6a707c" style={styles.profileDetailSignature}>{signature || defaultSignature}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailName}>{nickname}</Text>
+            <Text size={13} color={colors.ink.profileMeta} style={styles.profileDetailSignature}>{signature || defaultSignature}</Text>
           </View>
 
           <View style={styles.sectionCard}>
@@ -990,65 +995,65 @@ export default () => {
                     <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>JPEG / PNG</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>JPEG / PNG</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="menu" rawSize={18} color="#000000" />
+                    <Icon name="menu" rawSize={18} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{nickname}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="comment" rawSize={18} color="#000000" />
+                    <Icon name="comment" rawSize={18} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{signature || defaultSignature}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{signature || defaultSignature}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenGenderDetail}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, genderBadgeStyle]}>
                     {genderIconName
-                      ? <MdiIcon name={genderIconName} size={20} color="#000000" />
-                      : <Text size={12} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
+                      ? <MdiIcon name={genderIconName} size={20} color={colors.ink.icon} />
+                      : <Text size={12} color={colors.ink.onControl} style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{activeGenderLabel}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeGenderLabel}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleLogoutSyncAccount}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, styles.iconWrapRed]}>
-                    <MdiIcon name="logout" size={22} color="#000000" />
+                    <MdiIcon name="logout" size={22} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#ef4444" style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{t('setting_sync_logout_desc')}</Text>
+                    <Text size={15} color={colors.danger} style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_sync_logout_desc')}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1075,9 +1080,9 @@ export default () => {
         >
           <View style={styles.profileDetailHeaderRow}>
             <TouchableOpacity style={styles.profileDetailBackBtn} activeOpacity={0.82} onPress={handleCloseOptionDetail}>
-              <Icon name="chevron-left" rawSize={20} color="#232733" />
+              <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
             </TouchableOpacity>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{optionDetailTitle}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailTitle}>{optionDetailTitle}</Text>
           </View>
 
           <View style={styles.sectionCard}>
@@ -1092,7 +1097,7 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectLanguage(option.locale) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < languageOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
@@ -1110,7 +1115,7 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectSearchSource(option.value) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < searchSourceOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
@@ -1128,7 +1133,7 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectGender(option.value) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < genderOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
@@ -1172,10 +1177,10 @@ export default () => {
                             activeOpacity={0.84}
                             onPress={() => { handleSelectApiSource(api.id) }}
                           >
-                            <Text size={15} color={isActive && !isManagingApiSources ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{api.name}</Text>
+                            <Text size={15} color={isActive && !isManagingApiSources ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{api.name}</Text>
                             {isManagingApiSources
                               ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteApiSource(api.id) }}>
-                                  <Text size={20} color="#ef4444">{'×'}</Text>
+                                  <Text size={20} color={colors.danger}>{'×'}</Text>
                                 </TouchableOpacity>
                               : isActive ? <View style={styles.sourceActiveDot} /> : null}
                           </TouchableOpacity>
@@ -1188,7 +1193,7 @@ export default () => {
                       activeOpacity={0.84}
                       onPress={handleAddSource}
                     >
-                      <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_import_local_source')}</Text>
+                      <Text size={15} color={colors.ink.option} style={styles.optionDetailText}>{t('setting_import_local_source')}</Text>
                     </TouchableOpacity>
                     <View style={styles.optionDetailDivider} />
                     <TouchableOpacity
@@ -1196,7 +1201,7 @@ export default () => {
                       activeOpacity={0.84}
                       onPress={handleToggleApiSourceManage}
                     >
-                      <Text size={15} color={isManagingApiSources ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                      <Text size={15} color={isManagingApiSources ? colors.danger : colors.ink.option} style={styles.optionDetailText}>
                         {isManagingApiSources ? t('setting_exit_manage') : t('setting_manage_source')}
                       </Text>
                     </TouchableOpacity>
@@ -1217,10 +1222,10 @@ export default () => {
                           activeOpacity={0.84}
                           onPress={() => { handleSelectSyncHost(host) }}
                         >
-                          <Text size={15} color={isActive && !isManagingSyncHosts ? '#20242d' : '#5f6572'} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
+                          <Text size={15} color={isActive && !isManagingSyncHosts ? colors.ink.list : colors.ink.option} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
                           {isManagingSyncHosts
                             ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteSyncHost(index) }}>
-                                <Text size={20} color="#ef4444">{'×'}</Text>
+                                <Text size={20} color={colors.danger}>{'×'}</Text>
                               </TouchableOpacity>
                             : isActive
                               ? <View style={syncStatus.status ? styles.sourceActiveDot : styles.sourceErrorDot} />
@@ -1231,11 +1236,11 @@ export default () => {
                     )
                   })}
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenSyncHostModal}>
-                    <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_fill_sync_address')}</Text>
+                    <Text size={15} color={colors.ink.option} style={styles.optionDetailText}>{t('setting_fill_sync_address')}</Text>
                   </TouchableOpacity>
                   <View style={styles.optionDetailDivider} />
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleToggleSyncManage}>
-                    <Text size={15} color={isManagingSyncHosts ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                    <Text size={15} color={isManagingSyncHosts ? colors.danger : colors.ink.option} style={styles.optionDetailText}>
                       {isManagingSyncHosts ? t('setting_exit_manage') : t('setting_manage_records')}
                     </Text>
                   </TouchableOpacity>
@@ -1247,12 +1252,12 @@ export default () => {
             ? <View style={styles.sectionCard}>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lx') }}>
-                    <Text size={15} color={syncMode == 'lx' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
+                    <Text size={15} color={syncMode == 'lx' ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
                     {syncMode == 'lx' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                   <View style={styles.optionDetailDivider} />
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lux') }}>
-                    <Text size={15} color={syncMode == 'lux' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
+                    <Text size={15} color={syncMode == 'lux' ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
                     {syncMode == 'lux' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                 </View>
@@ -1273,7 +1278,7 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_profile_nickname_edit')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_profile_nickname_edit')}</Text>
                 <Input
                   placeholder={t('setting_profile_nickname_placeholder')}
                   value={nicknameDraft}
@@ -1282,10 +1287,10 @@ export default () => {
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseNameModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveName} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1305,7 +1310,7 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_profile_signature_edit')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_profile_signature_edit')}</Text>
                 <Input
                   placeholder={t('setting_profile_signature_placeholder')}
                   value={signatureDraft}
@@ -1314,10 +1319,10 @@ export default () => {
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSignatureModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSignature} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1337,7 +1342,7 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_host_label')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_host_label')}</Text>
                 <Input
                   placeholder={t('setting_sync_host_value_tip')}
                   value={syncHostDraft}
@@ -1348,10 +1353,10 @@ export default () => {
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSyncHostModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSyncHost} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1371,7 +1376,7 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_code_label')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_code_label')}</Text>
                 <Input
                   placeholder={t('setting_sync_code_input_tip')}
                   value={authCode}
@@ -1380,10 +1385,10 @@ export default () => {
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancelSetCode} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSetCode} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1403,7 +1408,7 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_lux_login_title')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_lux_login_title')}</Text>
                 <Input
                   placeholder={t('setting_sync_lux_username')}
                   value={luxUsername}
@@ -1420,10 +1425,10 @@ export default () => {
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseLuxLoginModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleLuxLogin} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('setting_sync_lux_login_button')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('setting_sync_lux_login_button')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1435,10 +1440,10 @@ export default () => {
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   content: {
     paddingHorizontal: 18,
@@ -1464,7 +1469,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   topBar: {
     flexDirection: 'row',
@@ -1477,9 +1482,9 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
-    shadowColor: '#2d3242',
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -1489,7 +1494,7 @@ const styles = createStyle({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: colors.surface.avatar,
   },
   avatarBubbleImage: {
     width: '100%',
@@ -1507,9 +1512,9 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    shadowColor: '#2d3242',
+    borderColor: colors.glass.rim58,
+    backgroundColor: colors.glass.fill28,
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -1517,17 +1522,17 @@ const styles = createStyle({
   },
   searchGlassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.glass.fill08,
   },
   searchGlassFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: colors.glass.fill62,
   },
   searchGlassRim: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.glass.line16,
   },
   searchContent: {
     flex: 1,
@@ -1540,7 +1545,7 @@ const styles = createStyle({
     flex: 1,
     height: '100%',
     marginLeft: 10,
-    color: '#232733',
+    color: colors.ink.input,
     fontSize: 14,
     paddingVertical: 0,
     backgroundColor: 'transparent',
@@ -1552,13 +1557,13 @@ const styles = createStyle({
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls + 4,
     elevation: APP_LAYER_INDEX.controls + 4,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   optionDetailLayer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls + 5,
     elevation: APP_LAYER_INDEX.controls + 5,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   profileDetailHeaderRow: {
     minHeight: 40,
@@ -1572,9 +1577,9 @@ const styles = createStyle({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: colors.glass.fill78,
     borderWidth: 1,
-    borderColor: 'rgba(231,236,245,0.96)',
+    borderColor: colors.glass.backBorder,
     marginRight: 12,
   },
   profileDetailBackBtnWithLabel: {
@@ -1600,20 +1605,20 @@ const styles = createStyle({
     height: 108,
     borderRadius: 54,
     padding: 5,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     marginBottom: 14,
   },
   profileDetailAvatarInner: {
     flex: 1,
     borderRadius: 49,
     overflow: 'hidden',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileDetailAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 49,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileDetailName: {
     fontWeight: '700',
@@ -1636,19 +1641,19 @@ const styles = createStyle({
     borderRadius: 40,
     position: 'relative',
     padding: 4,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   profileHeroAvatarInner: {
     flex: 1,
     borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 36,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroBadge: {
     position: 'absolute',
@@ -1657,20 +1662,20 @@ const styles = createStyle({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#58651b',
+    backgroundColor: colors.badge.online,
     borderWidth: 3,
-    borderColor: '#ffffff',
+    borderColor: colors.line.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileHeroBadgeMale: {
-    backgroundColor: '#bfdbfe',
+    backgroundColor: colors.badge.male,
   },
   profileHeroBadgeFemale: {
-    backgroundColor: '#fce7f3',
+    backgroundColor: colors.badge.female,
   },
   profileHeroBadgeUnknown: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.badge.unknown,
   },
   profileHeroBadgeText: {
     fontWeight: '700',
@@ -1707,14 +1712,14 @@ const styles = createStyle({
   },
   profileHeroMetaPill: {
     borderRadius: 999,
-    backgroundColor: '#dbeb92',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 11,
     paddingVertical: 5,
     marginRight: 8,
   },
   profileHeroMetaPillMuted: {
     borderRadius: 999,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
     paddingHorizontal: 11,
     paddingVertical: 5,
   },
@@ -1730,12 +1735,12 @@ const styles = createStyle({
   accountCard: {
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: 'rgba(245,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderColor: colors.glass.rim72Warm,
+    backgroundColor: colors.glass.fill90,
     paddingHorizontal: 18,
     paddingVertical: 18,
     marginBottom: 14,
-    shadowColor: '#2d3242',
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -1749,9 +1754,9 @@ const styles = createStyle({
     width: 78,
     height: 78,
     borderRadius: 39,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 4,
-    shadowColor: '#7b8193',
+    shadowColor: colors.shadow.menu,
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -1762,7 +1767,7 @@ const styles = createStyle({
     height: '100%',
     borderRadius: 35,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderColor: colors.glass.fill90,
   },
   accountInfo: {
     flex: 1,
@@ -1776,7 +1781,7 @@ const styles = createStyle({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: colors.glass.fill78,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1788,7 +1793,7 @@ const styles = createStyle({
     flex: 1,
     minHeight: 72,
     borderRadius: 18,
-    backgroundColor: '#f7f8fd',
+    backgroundColor: colors.surface.muted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginRight: 10,
@@ -1825,7 +1830,7 @@ const styles = createStyle({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   sectionActionText: {
     lineHeight: 20,
@@ -1865,31 +1870,31 @@ const styles = createStyle({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#dbeb92',
+    backgroundColor: colors.accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
     overflow: 'hidden',
   },
-  iconWrapOrange: { backgroundColor: '#ffedd5' },
-  iconWrapGreen: { backgroundColor: '#d1fae5' },
-  iconWrapPurple: { backgroundColor: '#ede9fe' },
-  iconWrapAmber: { backgroundColor: '#fef9c3' },
-  iconWrapRed: { backgroundColor: '#fee2e2' },
+  iconWrapOrange: { backgroundColor: colors.iconWrap.orange },
+  iconWrapGreen: { backgroundColor: colors.iconWrap.green },
+  iconWrapPurple: { backgroundColor: colors.iconWrap.purple },
+  iconWrapAmber: { backgroundColor: colors.iconWrap.amber },
+  iconWrapRed: { backgroundColor: colors.iconWrap.red },
   logoutIcon: {
     width: 22,
     height: 22,
   },
   groupRowAvatarWrap: {
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
   },
   groupRowAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 18,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   groupRowBadgeText: {
     fontWeight: '700',
@@ -1906,7 +1911,7 @@ const styles = createStyle({
     height: 1,
     marginLeft: 72,
     marginRight: 18,
-    backgroundColor: '#e1e6ef',
+    backgroundColor: colors.line.divider,
   },
   inlineOptionList: {
     paddingHorizontal: 18,
@@ -1939,7 +1944,7 @@ const styles = createStyle({
     height: 1,
     marginLeft: 18,
     marginRight: 18,
-    backgroundColor: '#e1e6ef',
+    backgroundColor: colors.line.divider,
   },
   groupEmbedWrap: {
     paddingHorizontal: 18,
@@ -1962,8 +1967,8 @@ const styles = createStyle({
     height: 30,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fd',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.mutedAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1994,11 +1999,11 @@ const styles = createStyle({
     width: 58,
     height: 58,
     borderRadius: 16,
-    backgroundColor: '#eef1f8',
+    backgroundColor: colors.surface.emptyBlock,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 13,
-    shadowColor: '#747b8f',
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -2007,7 +2012,7 @@ const styles = createStyle({
   profileAvatarWrap: {
     overflow: 'hidden',
     padding: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   profileAvatarThumb: {
     width: '100%',
@@ -2045,25 +2050,25 @@ const styles = createStyle({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
   },
   sourceActiveDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
   },
   sourceErrorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.danger,
   },
   aboutInfoWrap: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fd',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.mutedAlt,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 10,
@@ -2084,9 +2089,9 @@ const styles = createStyle({
   item: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
+    borderColor: colors.line.modal,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.dialog,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -2108,7 +2113,7 @@ const styles = createStyle({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2122,7 +2127,7 @@ const styles = createStyle({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(34, 39, 51, 0.16)',
+    backgroundColor: colors.scrim.settings,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -2131,10 +2136,10 @@ const styles = createStyle({
     width: '100%',
     maxWidth: 360,
     borderRadius: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    shadowColor: '#2d3242',
+    borderColor: colors.surface.importMuted,
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -2165,12 +2170,12 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   modalBtnGhost: {
-    backgroundColor: '#f1f4fb',
+    backgroundColor: colors.surface.cancel,
   },
   modalBtnPrimary: {
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
   },
   modalBtnPrimaryText: {
     fontWeight: '600',
   },
-})
+})))

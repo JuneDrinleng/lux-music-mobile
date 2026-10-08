@@ -6,6 +6,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
 import { type useI18n } from '@/lang'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 const PLAYLIST_LABEL_FADE_MS = 140
 
@@ -64,6 +65,8 @@ const PlaylistLibraryCard = ({
   onPlayPress,
   onCardLayout,
 }: PlaylistLibraryCardProps) => {
+  const { colors } = useLuxTheme()
+
   const propsRef = useRef({ item, index, onOpenList, onPlayPress, onCardLayout })
   propsRef.current = { item, index, onOpenList, onPlayPress, onCardLayout }
   const acceptedRef = useRef(false)
@@ -144,8 +147,8 @@ const PlaylistLibraryCard = ({
                 {cover}
               </View>
               <View style={styles.listRowInfo}>
-                <Text size={15} color="#171a22" style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
-                <Text size={12} color="#7d8190" style={styles.listRowSubtitle} numberOfLines={1}>{t('home_daily_tracks', { count })}</Text>
+                <Text size={15} color={colors.ink.rowTitle} style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
+                <Text size={12} color={colors.ink.rowMeta} style={styles.listRowSubtitle} numberOfLines={1}>{t('home_daily_tracks', { count })}</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -154,8 +157,8 @@ const PlaylistLibraryCard = ({
               onPress={onPlayPress}
             >
               {isCurrent && isPlay
-                ? <MdiIcon name="pause" rawSize={13} color="#303340" />
-                : <MdiIcon name="play" rawSize={13} color="#303340" />}
+                ? <MdiIcon name="pause" rawSize={13} color={colors.ink.miniPlay} />
+                : <MdiIcon name="play" rawSize={13} color={colors.ink.miniPlay} />}
             </TouchableOpacity>
           </>
         : <View style={styles.playlistDragHitGrid} {...touchHandlers}>
@@ -169,8 +172,8 @@ const PlaylistLibraryCard = ({
               </View>
             </View>
             <Animated.View style={[styles.listInfo, { opacity: labelOpacity }]}>
-              <Text size={13} color="#1c1c1e" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-              <Text size={12} color="#8e8e93">{t('me_songs_count', { num: count })}</Text>
+              <Text size={13} color={colors.ink.cardTitle} style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
+              <Text size={12} color={colors.ink.songCount}>{t('me_songs_count', { num: count })}</Text>
             </Animated.View>
           </View>}
     </Animated.View>

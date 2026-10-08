@@ -5,10 +5,14 @@ import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { createStyle } from '@/utils/tools'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const BOTTOM_FADE_HEIGHT = 280
 
-const BottomFade = ({ color }: { color: string }) => (
+const BottomFade = ({ color }: { color: string }) => {
+  const styles = useLuxStyles()
+  return (
   <View style={styles.bottomFade} pointerEvents="none">
     <Svg width="100%" height="100%">
       <Defs>
@@ -23,7 +27,8 @@ const BottomFade = ({ color }: { color: string }) => (
       <Rect width="100%" height="100%" fill="url(#bottomFadeGradient)" />
     </Svg>
   </View>
-)
+  )
+}
 
 interface SourceTone {
   text: string
@@ -65,12 +70,15 @@ export default ({
   onRemove,
   onActionPress,
 }: PlaylistDetailHeaderProps) => {
-  const appBg = '#eef0fb'
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
+  const appBg = colors.bg.app
 
   const heroBody = (
     <View style={styles.heroContent}>
-      <Text size={22} color="#111827" style={styles.heroTitle} numberOfLines={2}>{name}</Text>
-      <Text size={12} color="#6b7280" style={styles.heroMeta} numberOfLines={2}>{metaText}</Text>
+      <Text size={22} color={colors.ink.strong} style={styles.heroTitle} numberOfLines={2}>{name}</Text>
+      <Text size={12} color={colors.ink.meta} style={styles.heroMeta} numberOfLines={2}>{metaText}</Text>
       {sourceCode && sourceTone
         ? (
             <View style={styles.sourceRow}>
@@ -82,7 +90,7 @@ export default ({
                 {sourceCode.toUpperCase()}
               </Text>
               {sourceLabel
-                ? <Text size={11} color="#6b7280" numberOfLines={1} style={styles.sourceLabel}>{sourceLabel}</Text>
+                ? <Text size={11} color={colors.ink.meta} numberOfLines={1} style={styles.sourceLabel}>{sourceLabel}</Text>
                 : null}
             </View>
           )
@@ -102,7 +110,7 @@ export default ({
           <View style={[styles.topBarPad, { paddingTop: statusBarHeight + 18 }]}>
             <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
               <View style={styles.backButtonInner}>
-                <Icon name="chevron-left" rawSize={20} color="#232733" />
+                <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
               </View>
             </TouchableOpacity>
           </View>
@@ -115,7 +123,7 @@ export default ({
             <View style={styles.topBar}>
               <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
                 <View style={styles.backButtonInner}>
-                  <Icon name="chevron-left" rawSize={20} color="#232733" />
+                  <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -129,7 +137,7 @@ export default ({
       )}
 
       <View style={[styles.sectionHeader, { backgroundColor: appBg }]}>
-        <Text size={18} color="#111827" style={styles.sectionTitle}>{sectionTitle}</Text>
+        <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{sectionTitle}</Text>
         <View style={styles.sectionActions}>
           {actionLabel
             ? (
@@ -145,7 +153,7 @@ export default ({
                   <MdiIcon
                     name="import"
                     size={18}
-                    color="#1A1A1A"
+                    color={colors.ink.nearBlack}
                     style={actionDisabled ? styles.actionIconDisabled : undefined}
                   />
                 </TouchableOpacity>
@@ -155,10 +163,10 @@ export default ({
             ? (
                 <>
                   <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRename}>
-                    <MdiIcon name="pencil" size={15} color="#1A1A1A" />
+                    <MdiIcon name="pencil" size={15} color={colors.ink.nearBlack} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRemove}>
-                    <MdiIcon name="trash-can" size={15} color="#1A1A1A" />
+                    <MdiIcon name="trash-can" size={15} color={colors.ink.nearBlack} />
                   </TouchableOpacity>
                 </>
               )
@@ -169,7 +177,7 @@ export default ({
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   header: {
     position: 'relative',
     overflow: 'visible',
@@ -187,7 +195,7 @@ const styles = createStyle({
     marginBottom: 18,
     minHeight: 340,
     justifyContent: 'flex-end',
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   topBarPad: {
     position: 'absolute',
@@ -202,14 +210,14 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
   },
   backButtonInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: colors.surface.avatar,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -224,11 +232,11 @@ const styles = createStyle({
   },
   heroBgFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#1e2233',
+    backgroundColor: colors.surface.heroFallback,
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: colors.scrim.heroPhoto,
   },
   heroContent: {
     position: 'relative',
@@ -266,7 +274,7 @@ const styles = createStyle({
     marginHorizontal: -18,
     marginBottom: 14,
     paddingHorizontal: 20,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
     zIndex: 2,
   },
   sectionActions: {
@@ -312,4 +320,4 @@ const styles = createStyle({
     height: BOTTOM_FADE_HEIGHT,
     zIndex: 1,
   },
-})
+})))

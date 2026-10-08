@@ -18,6 +18,8 @@ import { useSettingValue } from '@/store/setting/hook'
 import { resolveImageUri } from '@/utils/imageCache'
 import { LIST_IDS } from '@/config/constant'
 import { useI18n } from '@/lang'
+import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
 const COVER_SIZE = 48
 const RING_BORDER_WIDTH_RAW = 3.5
@@ -29,14 +31,14 @@ const RING_RADIUS = (RING_RENDER_SIZE - RING_BORDER_WIDTH) / 2
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 const hasNativeBlurView = Boolean(UIManager.getViewManagerConfig?.(Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView'))
 
-const sourceRingColorMap: Record<string, string> = {
-  tx: '#31c27c',
-  wy: '#d81e06',
-  kg: '#2f88ff',
-  kw: '#f59e0b',
-  mg: '#e11d8d',
-  local: '#64748b',
-}
+const readSourceRingColorMap = memoLuxColors((colors: LuxColors): Record<string, string> => ({
+  tx: colors.source.tx.text,
+  wy: colors.source.wy.text,
+  kg: colors.source.kg.text,
+  kw: colors.source.kw.text,
+  mg: colors.source.mg.text,
+  local: colors.source.localPlayer,
+}))
 
 const SOURCE_RING_LIGHTEN_RATIO = 0.22
 
@@ -52,14 +54,14 @@ const lightenHex = (hex: string, ratio: number) => {
   return `#${channel(0)}${channel(2)}${channel(4)}`
 }
 
-const getSourceColor = (source: string | null | undefined) => {
-  const baseColor = !source ? '#111827' : (sourceRingColorMap[source.toLowerCase()] ?? '#111827')
+const getSourceColor = (source: string | null | undefined, colors: LuxColors = limeColors) => {
+  const baseColor = !source ? colors.source.unknown.text : (readSourceRingColorMap(colors)[source.toLowerCase()] ?? colors.source.unknown.text)
   return lightenHex(baseColor, SOURCE_RING_LIGHTEN_RATIO)
 }
 
-const getTrackColor = (hex: string) => {
+const getTrackColor = (hex: string, colors: LuxColors = limeColors) => {
   if (/^#[0-9a-f]{6}$/i.test(hex)) return `${hex}33`
-  return '#e5e7eb'
+  return colors.line.neutral
 }
 
 const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
@@ -73,6 +75,9 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
   systemGestureInsetBottom?: number
   inCard?: boolean
 }) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const { keyboardShown } = useKeyboard()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
@@ -84,10 +89,10 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
   const [isLoved, setIsLoved] = useState(false)
   void systemGestureInsetBottom
   const ringColor = useMemo(() => {
-    if (!musicInfo.id) return '#111827'
-    return getSourceColor(getMusicSource(playMusicInfo.musicInfo))
-  }, [musicInfo.id, playMusicInfo.musicInfo])
-  const trackColor = useMemo(() => getTrackColor(ringColor), [ringColor])
+    if (!musicInfo.id) return colors.ink.strong
+    return getSourceColor(getMusicSource(playMusicInfo.musicInfo), colors)
+  }, [musicInfo.id, playMusicInfo.musicInfo, colors])
+  const trackColor = useMemo(() => getTrackColor(ringColor, colors), [ringColor, colors])
   const normalizedProgress = useMemo(() => {
     if (!musicInfo.id || !Number.isFinite(progress)) return 0
     if (progress <= 0) return 0
@@ -178,8 +183,8 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
                       blurAmount={Platform.OS === 'ios' ? 34 : 24}
                       blurRadius={Platform.OS === 'android' ? 24 : undefined}
                       downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
-                      overlayColor={Platform.OS === 'android' ? 'rgba(255,255,255,0.16)' : 'transparent'}
-                      reducedTransparencyFallbackColor="rgba(255,255,255,0.72)"
+                      overlayColor={Platform.OS === 'android' ? colors.glass.line16 : 'transparent'}
+                      reducedTransparencyFallbackColor={colors.glass.fill72}
                     />
                     <View style={styles.glassTint} pointerEvents="none" />
                   </>
@@ -223,10 +228,10 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             </View>
           </View>
           <View style={[styles.center, inCard ? styles.centerInCard : null]}>
-            <Text size={inCard ? 14 : 13} color="#111827" numberOfLines={1} style={styles.title}>
+            <Text size={inCard ? 14 : 13} color={colors.ink.strong} numberOfLines={1} style={styles.title}>
               {musicInfo.name || t('player_bar_not_playing')}
             </Text>
-            <Text size={inCard ? 11 : 10} color="#6b7280" numberOfLines={1}>
+            <Text size={inCard ? 11 : 10} color={colors.ink.meta} numberOfLines={1}>
               {musicInfo.singer || t('player_bar_choose_song')}
             </Text>
           </View>
@@ -240,7 +245,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             <MdiIcon
               name={isLoved ? 'heart' : 'heart-outline'}
               size={inCard ? 26 : 24}
-              color="#FA5252"
+              color={colors.like}
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -248,14 +253,14 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             activeOpacity={0.85}
             onPress={togglePlay}
           >
-            <Icon name={isPlay ? 'pause' : 'play'} rawSize={inCard ? 21 : 18} color="#ffffff" />
+            <Icon name={isPlay ? 'pause' : 'play'} rawSize={inCard ? 21 : 18} color={colors.ink.onControl} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconBtn, inCard ? styles.iconBtnInCard : null]}
             activeOpacity={0.8}
             onPress={handleMenuPress}
           >
-            <Icon name="menu" rawSize={inCard ? 20 : 18} color="#9ca3af" />
+            <Icon name="menu" rawSize={inCard ? 20 : 18} color={colors.ink.faint} />
           </TouchableOpacity>
         </View>
       </View>
@@ -263,7 +268,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
   )
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   wrap: {
     paddingHorizontal: 24,
     paddingBottom: 6,
@@ -287,13 +292,13 @@ const styles = createStyle({
     overflow: 'hidden',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e8e8ec',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: colors.surface.playerTrack,
+    backgroundColor: colors.glass.fill95,
     paddingVertical: 8,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.12,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -304,9 +309,9 @@ const styles = createStyle({
     maxWidth: 328,
     alignSelf: 'center',
     borderRadius: 34,
-    borderColor: 'rgba(244,247,252,0.56)',
-    backgroundColor: 'rgba(255,255,255,0.26)',
-    shadowColor: '#81889a',
+    borderColor: colors.glass.rim56,
+    backgroundColor: colors.glass.fill26,
+    shadowColor: colors.shadow.dock,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -327,17 +332,17 @@ const styles = createStyle({
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.glass.fill08,
   },
   glassFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: colors.glass.fill62,
   },
   glassRim: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.glass.line16,
   },
   contentPress: {
     flex: 1,
@@ -400,9 +405,9 @@ const styles = createStyle({
     borderRadius: 15,
   },
   iconBtnGlass: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: colors.glass.fill14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.glass.line16,
   },
   iconBtnInCard: {
     width: 36,
@@ -422,17 +427,17 @@ const styles = createStyle({
     height: 40,
     borderRadius: 20,
     marginHorizontal: 2,
-    backgroundColor: '#111827',
+    backgroundColor: colors.control.play,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#111827',
+    shadowColor: colors.control.playShadow,
     shadowOpacity: 0.3,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
   playBtnGlass: {
-    backgroundColor: '#1d2434',
-    shadowColor: '#2f3748',
+    backgroundColor: colors.surface.playGlass,
+    shadowColor: colors.shadow.playGlass,
     shadowOpacity: 0.18,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
@@ -444,4 +449,4 @@ const styles = createStyle({
     borderRadius: 22,
     marginHorizontal: 4,
   },
-})
+})))

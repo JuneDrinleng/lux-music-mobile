@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native'
 import { createStyle } from '@/utils/tools'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 export interface SegmentedIconSwitchItem {
   key: string
@@ -42,13 +43,20 @@ export default ({
   itemHeight = 28,
   padding = 3,
   borderWidth = 1,
-  borderColor = '#d7deec',
-  backgroundColor = '#e3e9f4',
-  thumbColor = '#ffffff',
-  thumbBorderColor = '#eef2f8',
-  thumbShadowColor = '#687189',
+  borderColor: borderColorProp,
+  backgroundColor: backgroundColorProp,
+  thumbColor: thumbColorProp,
+  thumbBorderColor: thumbBorderColorProp,
+  thumbShadowColor: thumbShadowColorProp,
   animationDuration = 188,
 }: SegmentedIconSwitchProps) => {
+  const { colors } = useLuxTheme()
+  const borderColor = borderColorProp ?? colors.line.segmentAlt
+  const backgroundColor = backgroundColorProp ?? colors.surface.segmentAlt
+  const thumbColor = thumbColorProp ?? colors.surface.card
+  const thumbBorderColor = thumbBorderColorProp ?? colors.line.thumb
+  const thumbShadowColor = thumbShadowColorProp ?? colors.shadow.segment
+
   const activeIndex = Math.max(0, items.findIndex(item => item.key == value))
   const animatedIndex = useRef(new Animated.Value(activeIndex)).current
   const inputRange = useMemo(() => items.map((_, index) => index), [items])

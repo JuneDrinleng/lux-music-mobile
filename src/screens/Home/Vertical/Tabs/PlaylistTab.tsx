@@ -62,6 +62,8 @@ import { applyMusicCoverFallback, pickMusicCover } from '@/utils/musicCover'
 import musicSdk from '@/utils/musicSdk'
 import { debounce } from '@/utils'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
+import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const SOURCE_MENU_PANEL_WIDTH = 156
@@ -80,28 +82,28 @@ const sourceMenus = [
   { action: 'tx', label: 'tx' },
   { action: 'wy', label: 'wy' },
 ] as const
-const sourceTagColorMap: Record<string, { text: string, background: string }> = {
-  tx: { text: '#31c27c', background: '#ecfdf3' },
-  wy: { text: '#d81e06', background: '#fef2f2' },
-  kg: { text: '#2f88ff', background: '#eff6ff' },
-  kw: { text: '#f59e0b', background: '#fffbeb' },
-  mg: { text: '#e11d8d', background: '#fdf2f8' },
-}
-const playlistCardTones = [
-  { surface: '#f6e2e7', accent: '#cf385b', ink: '#652233' },
-  { surface: '#ebe4d7', accent: '#8a6745', ink: '#45301d' },
-  { surface: '#e4e8f1', accent: '#556b96', ink: '#293548' },
-  { surface: '#ece6f2', accent: '#7f5da5', ink: '#413052' },
-] as const
-const getSourceTagColor = (source: string) => {
-  return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
+const readSourceTagColorMap = memoLuxColors((colors: LuxColors) => ({
+  tx: { text: colors.source.tx.text, background: colors.source.tx.background },
+  wy: { text: colors.source.wy.text, background: colors.source.wy.background },
+  kg: { text: colors.source.kg.text, background: colors.source.kg.background },
+  kw: { text: colors.source.kw.text, background: colors.source.kw.background },
+  mg: { text: colors.source.mg.text, background: colors.source.mg.background },
+}))
+const readPlaylistCardTones = memoLuxColors((colors: LuxColors) => ([
+  { surface: colors.playlistCovers[0].surface, accent: colors.playlistCovers[0].accent, ink: colors.playlistCovers[0].ink },
+  { surface: colors.playlistCovers[1].surface, accent: colors.playlistCovers[1].accent, ink: colors.playlistCovers[1].ink },
+  { surface: colors.playlistCovers[2].surface, accent: colors.playlistCovers[2].accent, ink: colors.playlistCovers[2].ink },
+  { surface: colors.playlistCovers[3].surface, accent: colors.playlistCovers[3].accent, ink: colors.playlistCovers[3].ink },
+] as const))
+const getSourceTagColor = (source: string, colors: LuxColors = limeColors) => {
+  return readSourceTagColorMap(colors)[source.toLowerCase()] ?? { text: colors.source.unknown.text, background: colors.source.unknown.background }
 }
 const getSourceMenuLabel = (source: SourceMenu['action']) => {
   return source == 'all' ? 'All' : source.toUpperCase()
 }
 
-const getPlaylistCardTone = (index: number) => {
-  return playlistCardTones[index % playlistCardTones.length]
+const getPlaylistCardTone = (index: number, colors: LuxColors = limeColors) => {
+  return readPlaylistCardTones(colors)[index % readPlaylistCardTones(colors).length]
 }
 
 const playlistSnapshotCache = new Map<string, {
@@ -182,6 +184,9 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
 }
 
 export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
@@ -396,7 +401,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         <MaterialCommunityIcon
           name="view-grid"
           size={15}
-          color={active ? '#20242d' : '#72798a'}
+          color={active ? colors.ink.list : colors.ink.displayIdle}
           style={[styles.displaySwitchIcon, styles.displaySwitchGridIcon]}
         />
       ),
@@ -407,12 +412,12 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         <MaterialCommunityIcon
           name="view-list"
           size={15}
-          color={active ? '#20242d' : '#72798a'}
+          color={active ? colors.ink.list : colors.ink.displayIdle}
           style={[styles.displaySwitchIcon, styles.displaySwitchListIcon]}
         />
       ),
     },
-  ], [])
+  ], [colors])
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
@@ -1106,7 +1111,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         .filter(Boolean)
         .join(' / ')
     : t('me_songs_count', { num: detailSongCount })
-  const detailHeroSourceTone = selectedOnlineDetail ? getSourceTagColor(selectedOnlineDetail.source) : null
+  const detailHeroSourceTone = selectedOnlineDetail ? getSourceTagColor(selectedOnlineDetail.source, colors) : null
   const detailHeroSourceLabel = selectedOnlineDetail ? t(`source_real_${selectedOnlineDetail.source}`) : ''
   const handleShowPlaylistTransferModal = useCallback(() => {
     if (!selectedOnlineDetail || detailLoading || !detailSongs.length) return
@@ -1218,7 +1223,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     const songKey = getSongRowKey(item, index)
     const isDraggingRow = draggingSongKey == songKey && dragStateRef.current.active
     const shiftAnim = getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTagColor(item.source)
+    const sourceTagColor = getSourceTagColor(item.source, colors)
     const canEditSongs = Boolean(selectedListId)
     return (
       <PlaylistDetailSongItem
@@ -1249,7 +1254,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onRemove={canEditSongs ? () => { handleShowRemoveSongModal(item) } : undefined}
       />
     )
-  }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedDetail, selectedListId])
+  }, [clearDragPressGuard, detailHeroCover, draggingSongKey, getSongRowKey, getSongShiftAnim, handleFinishSongDrag, handlePlayOnlineDetailSong, handlePlaySong, handleShowRemoveSongModal, handleSongRowLayout, handleStartSongDrag, selectedDetail, selectedListId, colors])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until header is rewired
   const detailHeader = useMemo(() => {
     if (!selectedOnlineDetail && !selectedListInfo) return null
@@ -1644,21 +1649,21 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         </View>
         <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
           {genderIconName
-            ? <MdiIcon name={genderIconName} size={12} color="#000000" />
-            : <Text size={10} color="#ffffff" style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
+            ? <MdiIcon name={genderIconName} size={12} color={colors.ink.icon} />
+            : <Text size={10} color={colors.ink.onControl} style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
         </View>
       </View>
       <View style={styles.profileHeroContent}>
-        <Text size={24} color="#1a1c1e" style={styles.profileHeroName}>{nickname}</Text>
-        <Text size={13} color="#5f6572" numberOfLines={2}>{signature || defaultSignature}</Text>
+        <Text size={24} color={colors.ink.subpageTitle} style={styles.profileHeroName}>{nickname}</Text>
+        <Text size={13} color={colors.ink.option} numberOfLines={2}>{signature || defaultSignature}</Text>
         <View style={styles.profileHeroMetaRow}>
           <View style={styles.profileHeroMetaPill}>
-            <Text size={12} color="#383d2b" style={styles.profileHeroMetaText}>{t('me_today_listening', { num: 70 })}</Text>
+            <Text size={12} color={colors.ink.pill} style={styles.profileHeroMetaText}>{t('me_today_listening', { num: 70 })}</Text>
           </View>
         </View>
       </View>
       <View style={styles.profileHeroArrow}>
-        <Icon name="chevron-right-2" rawSize={16} color="#8f96a2" />
+        <Icon name="chevron-right-2" rawSize={16} color={colors.ink.heroArrow} />
       </View>
     </TouchableOpacity>
   )
@@ -1672,9 +1677,9 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
             onPress={() => { handleOpenList(lovePlaylist) }}
           >
             <View style={styles.quickActionIconWrap}>
-              <MdiIcon name="heart" size={36} color="#000000" />
+              <MdiIcon name="heart" size={36} color={colors.ink.icon} />
             </View>
-            <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('list_name_love')}</Text>
+            <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('list_name_love')}</Text>
           </TouchableOpacity>
         : null}
       <TouchableOpacity
@@ -1683,9 +1688,9 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="download" size={36} color="#000000" />
+          <MdiIcon name="download" size={36} color={colors.ink.icon} />
         </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
+        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.quickActionItem}
@@ -1693,9 +1698,9 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="chart-bar" size={36} color="#000000" />
+          <MdiIcon name="chart-bar" size={36} color={colors.ink.icon} />
         </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
+        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.quickActionItem}
@@ -1703,9 +1708,9 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         onPress={() => { toast(t('toast_in_development')) }}
       >
         <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="account-multiple" size={36} color="#000000" />
+          <MdiIcon name="account-multiple" size={36} color={colors.ink.icon} />
         </View>
-        <Text size={12} color="#5f6572" style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
+        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
       </TouchableOpacity>
     </View>
   )
@@ -1733,7 +1738,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       isSourceMenuVisible={isSourceMenuVisible}
       sourceMenuBackdropOpacity={sourceMenuBackdropOpacity}
       createListDialogRef={createListDialogRef}
-      getPlaylistCardTone={getPlaylistCardTone}
+      getPlaylistCardTone={(index) => getPlaylistCardTone(index, colors)}
       isPlaylistCurrent={isPlaylistCurrent}
       isPlaylistDragActive={isPlaylistDragActive}
       draggingPlaylistId={draggingPlaylistId}
@@ -1798,14 +1803,14 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   sceneRoot: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   scene: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   sceneOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1814,12 +1819,12 @@ const styles = createStyle({
   detailSceneShade: {
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls + 3,
-    backgroundColor: '#000000',
+    backgroundColor: colors.scrim.mask,
   },
   detailScene: {},
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   content: {
     paddingHorizontal: 18,
@@ -1854,7 +1859,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   topBar: {
     flexDirection: 'row',
@@ -1867,9 +1872,9 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
-    shadowColor: '#2d3242',
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -1879,7 +1884,7 @@ const styles = createStyle({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: colors.surface.avatar,
   },
   avatarImage: {
     width: '100%',
@@ -1898,11 +1903,11 @@ const styles = createStyle({
   },
   searchResultList: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   searchModeRoot: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   searchResultContent: {
     paddingBottom: 16,
@@ -1914,7 +1919,7 @@ const styles = createStyle({
     bottom: 0,
     zIndex: APP_LAYER_INDEX.controls - 1,
     elevation: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
@@ -1940,8 +1945,8 @@ const styles = createStyle({
     maxWidth: '100%',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderColor: colors.line.neutral,
+    backgroundColor: colors.surface.card,
     paddingHorizontal: 11,
     paddingVertical: 6,
     marginRight: 8,
@@ -1963,20 +1968,20 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   detailBackBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f0f1f6',
+    backgroundColor: colors.surface.backBubble,
     padding: 2,
   },
   detailBackBtnInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#e8e9f0',
+    backgroundColor: colors.surface.backInner,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1985,8 +1990,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#cdd2de',
-    backgroundColor: '#dce0e9',
+    borderColor: colors.searchField.border,
+    backgroundColor: colors.surface.search,
   },
   searchContent: {
     flex: 1,
@@ -1999,7 +2004,7 @@ const styles = createStyle({
     flex: 1,
     height: '100%',
     marginLeft: 10,
-    color: '#232733',
+    color: colors.ink.input,
     fontSize: 14,
     paddingVertical: 0,
     backgroundColor: 'transparent',
@@ -2051,7 +2056,7 @@ const styles = createStyle({
   },
   sourceMenuBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17,24,39,0.04)',
+    backgroundColor: colors.scrim.wash,
   },
   sourceMenuSheet: {
     position: 'absolute',
@@ -2059,10 +2064,10 @@ const styles = createStyle({
     right: 0,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d9d9de',
-    backgroundColor: '#ffffff',
+    borderColor: colors.line.panel,
+    backgroundColor: colors.surface.card,
     overflow: 'hidden',
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.1,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -2078,7 +2083,7 @@ const styles = createStyle({
   },
   sourceMenuSheetList: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ececf0',
+    borderTopColor: colors.line.hairline,
     paddingTop: 1,
   },
   sourcePanelItem: {
@@ -2088,11 +2093,11 @@ const styles = createStyle({
     paddingHorizontal: 12,
   },
   sourcePanelItemActive: {
-    backgroundColor: '#f4f4f7',
+    backgroundColor: colors.surface.sourceActive,
   },
   sourcePanelItemBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ececf0',
+    borderBottomColor: colors.line.hairline,
   },
   sourcePanelBadge: {
     width: 30,
@@ -2123,9 +2128,9 @@ const styles = createStyle({
     flex: 1,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: '#ffffff',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -2140,7 +2145,7 @@ const styles = createStyle({
     height: 112,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.44)',
+    backgroundColor: colors.glass.fill44,
   },
   quickMediaImage: {
     width: '100%',
@@ -2175,9 +2180,9 @@ const styles = createStyle({
   detailHeroCard: {
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.glass.fill88,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -2233,13 +2238,13 @@ const styles = createStyle({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#f1f4fb',
+    backgroundColor: colors.surface.cancel,
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailHeroDeleteBtn: {
     marginLeft: 8,
-    backgroundColor: '#fee2e2',
+    backgroundColor: colors.iconWrap.red,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -2308,14 +2313,14 @@ const styles = createStyle({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e3e8f3',
-    backgroundColor: '#ffffff',
+    borderColor: colors.line.detail,
+    backgroundColor: colors.surface.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailActionBtnDisabled: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#edf2f7',
+    backgroundColor: colors.surface.actionDisabled,
+    borderColor: colors.line.detailDisabled,
   },
   detailActionBtnText: {
     fontWeight: '600',
@@ -2370,8 +2375,8 @@ const styles = createStyle({
     height: 58,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#f2f5fb',
-    shadowColor: '#747b8f',
+    backgroundColor: colors.surface.songlistCard,
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -2399,9 +2404,9 @@ const styles = createStyle({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.52)',
+    backgroundColor: colors.glass.fill52,
     borderWidth: 1,
-    borderColor: 'rgba(230,234,243,0.92)',
+    borderColor: colors.glass.stroke,
   },
   listTitle: {
     fontWeight: '600',
@@ -2418,20 +2423,20 @@ const styles = createStyle({
     width: 4,
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   pauseBarSmall: {
     width: 3,
   },
   pauseBarDark: {
-    backgroundColor: '#303340',
+    backgroundColor: colors.ink.miniPlay,
   },
   songItem: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    shadowColor: '#76809b',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.glass.fill90,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -2473,7 +2478,7 @@ const styles = createStyle({
     overflow: 'hidden',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
     marginRight: 6,
     fontWeight: '600',
   },
@@ -2495,12 +2500,12 @@ const styles = createStyle({
     elevation: APP_LAYER_INDEX.playQueue,
   },
   songDragCard: {
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.24,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 20,
-    borderColor: '#d1d5db',
+    borderColor: colors.line.soft,
   },
   searchSongActions: {
     flexDirection: 'row',
@@ -2535,16 +2540,16 @@ const styles = createStyle({
   },
   importDrawerBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.35)',
+    backgroundColor: colors.scrim.menu,
   },
   importDrawerPanel: {
     maxHeight: '72%',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.dialog,
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: -5 },
@@ -2571,9 +2576,9 @@ const styles = createStyle({
   importSongItem: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    shadowColor: '#76809b',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.glass.fill92,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -2602,9 +2607,9 @@ const styles = createStyle({
     width: '100%',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.glass.fill88,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -2614,14 +2619,14 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   emptyPlaylistCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     paddingVertical: 16,
   },
   emptyActionBtn: {
     height: 40,
     paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: '#d9ef62',
+    backgroundColor: colors.accent.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2666,19 +2671,19 @@ const styles = createStyle({
     borderRadius: 40,
     position: 'relative',
     padding: 4,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   profileHeroAvatarInner: {
     flex: 1,
     borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 36,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroBadge: {
     position: 'absolute',
@@ -2687,20 +2692,20 @@ const styles = createStyle({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#58651b',
+    backgroundColor: colors.badge.online,
     borderWidth: 3,
-    borderColor: '#ffffff',
+    borderColor: colors.line.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileHeroBadgeMale: {
-    backgroundColor: '#bfdbfe',
+    backgroundColor: colors.badge.male,
   },
   profileHeroBadgeFemale: {
-    backgroundColor: '#fce7f3',
+    backgroundColor: colors.badge.female,
   },
   profileHeroBadgeUnknown: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.badge.unknown,
   },
   profileHeroBadgeText: {
     fontWeight: '700',
@@ -2727,14 +2732,14 @@ const styles = createStyle({
   },
   profileHeroMetaPill: {
     borderRadius: 999,
-    backgroundColor: '#dbeb92',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 11,
     paddingVertical: 5,
     marginRight: 8,
   },
   profileHeroMetaPillMuted: {
     borderRadius: 999,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
     paddingHorizontal: 11,
     paddingVertical: 5,
   },
@@ -2761,18 +2766,18 @@ const styles = createStyle({
   // changes and drops the in-flight touch.
   playlistDragLiftedCover: {
     elevation: 4,
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.16,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
   playlistDragLiftedList: {
     elevation: 4,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     borderRadius: 16,
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.14,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
   },
-})
+})))

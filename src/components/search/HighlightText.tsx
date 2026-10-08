@@ -1,7 +1,9 @@
 import { memo } from 'react'
 import Text from '@/components/common/Text'
+import { sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
-const HIGHLIGHT_COLOR = '#85b300'
+const useHIGHLIGHT_COLOR = sharedLuxStyles((colors: LuxColors) => (colors.accent.highlight))
 
 export default memo(({ text, keyword, size, color, style, numberOfLines }: {
   text: string
@@ -11,6 +13,8 @@ export default memo(({ text, keyword, size, color, style, numberOfLines }: {
   numberOfLines?: number
   style?: any
 }) => {
+  const HIGHLIGHT_COLOR = useHIGHLIGHT_COLOR()
+
   if (!keyword) {
     return <Text size={size} color={color} style={style} numberOfLines={numberOfLines}>{text}</Text>
   }
@@ -22,7 +26,7 @@ export default memo(({ text, keyword, size, color, style, numberOfLines }: {
       {parts.map((part, index) =>
         part.toLowerCase() === keyword.toLowerCase()
           ? <Text key={index} size={size} color={HIGHLIGHT_COLOR}>{part}</Text>
-          : <Text key={index} size={size} color={color}>{part}</Text>
+          : <Text key={index} size={size} color={color}>{part}</Text>,
       )}
     </Text>
   )

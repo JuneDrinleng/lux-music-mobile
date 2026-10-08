@@ -8,6 +8,8 @@ import Text from './Text'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 export interface PromptDialogProps {
   title?: string
@@ -50,6 +52,9 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
   onConfirm,
   onExtra,
 }, ref) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const theme = useTheme()
   const inputRef = useRef<InputType>(null)
@@ -119,8 +124,8 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback>
             <View style={styles.modalCard}>
-              {title ? <Text size={17} color="#111827" style={styles.title}>{title}</Text> : null}
-              {message ? <Text size={13} color="#6b7280" style={styles.message}>{message}</Text> : null}
+              {title ? <Text size={17} color={colors.ink.strong} style={styles.title}>{title}</Text> : null}
+              {message ? <Text size={13} color={colors.ink.meta} style={styles.message}>{message}</Text> : null}
               {showInput
                 ? <Input
                     ref={inputRef}
@@ -133,16 +138,16 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
                 : null}
               <View style={[styles.modalActions, showInput ? null : styles.modalActionsNoInput]}>
                 <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancel} activeOpacity={0.75}>
-                  <Text size={14} color="#4b5563">{cancelText || t('cancel')}</Text>
+                  <Text size={14} color={colors.ink.cancel}>{cancelText || t('cancel')}</Text>
                 </TouchableOpacity>
                 {extraText
                   ? <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => { void handleExtra() }} activeOpacity={0.75}>
-                      <Text size={14} color="#4b5563">{extraText}</Text>
+                      <Text size={14} color={colors.ink.cancel}>{extraText}</Text>
                     </TouchableOpacity>
                   : null}
                 {showConfirm
                   ? <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => { void handleConfirm() }} activeOpacity={0.85}>
-                      <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{confirmText || t('confirm')}</Text>
+                      <Text size={14} color={colors.ink.strong} style={styles.modalBtnPrimaryText}>{confirmText || t('confirm')}</Text>
                     </TouchableOpacity>
                   : null}
               </View>
@@ -154,10 +159,10 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
   )
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.22)',
+    backgroundColor: colors.scrim.dialog,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -166,9 +171,9 @@ const styles = createStyle({
     width: '100%',
     maxWidth: 360,
     borderRadius: 18,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     borderWidth: 1,
-    borderColor: '#eef0f3',
+    borderColor: colors.line.prompt,
     paddingTop: 18,
     paddingHorizontal: 16,
     paddingBottom: 14,
@@ -202,12 +207,12 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   modalBtnGhost: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   modalBtnPrimary: {
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
   },
   modalBtnPrimaryText: {
     fontWeight: '600',
   },
-})
+})))

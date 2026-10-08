@@ -9,12 +9,16 @@ import Comment from '@/screens/Comment'
 import { createStyle } from '@/utils/tools'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
+import { sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 export default memo(({
   componentId,
 }: {
   componentId: string
 }) => {
+  const styles = useLuxStyles()
+
   const [pageIndex, setPageIndex] = useState(1)
   const [commentRefreshKey, setCommentRefreshKey] = useState(0)
   const showLyricRef = useRef(false)
@@ -81,12 +85,12 @@ export default memo(({
   )
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bg.plain,
   },
   pagerView: {
     flex: 1,
   },
-})
+})))

@@ -20,10 +20,15 @@ import { useSettingValue } from '@/store/setting/hook'
 import { createStyle } from '@/utils/tools'
 import { DEFAULT_USER_AVATAR, getUserAvatar } from '@/utils/data'
 import { APP_LAYER_INDEX } from '@/config/constant'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 type SharedTopBarMode = 'music' | 'settings'
 
 export default function SharedTopBar({ visible, mode, hideAvatar = false }: { visible: boolean, mode: SharedTopBarMode, hideAvatar?: boolean }) {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const searchSource = useSettingValue('search.defaultSource')
@@ -207,7 +212,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
             contentStyle={styles.searchContent}
             animatedContentStyle={{ opacity: searchTextOpacity }}
           >
-              <MdiIcon name="magnify" rawSize={17} color="#666d7b" />
+              <MdiIcon name="magnify" rawSize={17} color={colors.ink.searchIcon} />
               {mode === 'settings'
                 ? <TextInput
                     value={settingsSearchQuery}
@@ -215,9 +220,9 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
                     onFocus={handleSettingsSearchFocus}
                     onBlur={handleSettingsSearchBlur}
                     placeholder={placeholder}
-                    placeholderTextColor="#9aa1ae"
+                    placeholderTextColor={colors.ink.quiet}
                     style={styles.searchInput}
-                    selectionColor="#6f7688"
+                    selectionColor={colors.ink.selection}
                     returnKeyType="search"
                   />
                 : <TouchableOpacity
@@ -227,7 +232,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
                   >
                       <Text
                         size={14}
-                        color={musicSearchQuery ? '#232733' : '#9aa1ae'}
+                        color={musicSearchQuery ? colors.ink.input : colors.ink.quiet}
                         numberOfLines={1}
                         style={styles.searchInputText}
                       >
@@ -240,7 +245,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
                 onPress={mode === 'settings' ? handleSettingsSearchClear : handleMusicSearchClear}
                 disabled={!displayQuery.length}
               >
-                <MdiIcon name="close" rawSize={16} color={displayQuery.length ? '#666d7b' : '#bcc2cf'} />
+                <MdiIcon name="close" rawSize={16} color={displayQuery.length ? colors.ink.searchIcon : colors.ink.searchClearIdle} />
               </TouchableOpacity>
           </GlassSearchField>
         </Animated.View>
@@ -249,7 +254,7 @@ export default function SharedTopBar({ visible, mode, hideAvatar = false }: { vi
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   headerFloating: {
     position: 'absolute',
     top: 0,
@@ -257,7 +262,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls + 6,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
     paddingHorizontal: 18,
     paddingBottom: 16,
   },
@@ -282,20 +287,20 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
   },
   avatarInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: colors.surface.avatar,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
     borderRadius: 20,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   searchDock: {
     position: 'absolute',
@@ -308,8 +313,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#cdd2de',
-    backgroundColor: '#dce0e9',
+    borderColor: colors.searchField.border,
+    backgroundColor: colors.surface.search,
   },
   searchContent: {
     paddingRight: 6,
@@ -324,7 +329,7 @@ const styles = createStyle({
     flex: 1,
     height: '100%',
     marginLeft: 10,
-    color: '#232733',
+    color: colors.ink.input,
     fontSize: 14,
     paddingVertical: 0,
     paddingRight: 8,
@@ -339,4 +344,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

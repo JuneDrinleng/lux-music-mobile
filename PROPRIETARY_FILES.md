@@ -127,6 +127,7 @@
 | `src/utils/playlistCoverMap.ts` | `code` | Lux 独立实现的歌曲封面地址映射与缩图规则，上游无对应文件 | `2026-10-08` |
 | `src/utils/playlistCoverStore.ts` | `code` | Lux 独立实现的封面地址本地存储，不进入同步列表，上游无对应文件 | `2026-10-08` |
 | `src/utils/playlistCoverPrefetch.ts` | `code` | Lux 独立实现的歌单封面后台预取，上游无对应文件 | `2026-10-08` |
+| `scripts/check-lux-color-literals.mjs` | `code` | Lux 独立新增的竖屏颜色字面量回退检查，上游无对应文件 | `2026-10-08` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |

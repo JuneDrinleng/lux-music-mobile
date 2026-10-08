@@ -10,6 +10,7 @@ import { useI18n } from '@/lang'
 import { createStyle, openUrl } from '@/utils/tools'
 import { isDevBuild, type ReleaseChannel } from '@/utils/releaseChannel'
 import { loadInstalledChangelog, readBundledChangelog, type InstalledChangelog } from '@/utils/installedChangelog'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 const releaseNotesUrl = (version: string) => `https://github.com/JuneDrinleng/lux-music-mobile/releases/tag/v${version}`
 
@@ -21,6 +22,8 @@ interface VersionChangelogDetailProps {
 }
 
 export default ({ styles: parentStyles, version, releaseChannel, onSelectReleaseChannel }: VersionChangelogDetailProps) => {
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const bundled = useMemo(() => readBundledChangelog(version), [version])
   const [remote, setRemote] = useState<InstalledChangelog | null>(null)
@@ -52,47 +55,47 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
   return (
     <>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_current_info')}</Text>
+        <Text size={18} color={colors.ink.strong} style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_current_info')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={parentStyles.optionDetailRow}>
             <View style={styles.meta}>
-              <Text size={15} color="#20242d" style={parentStyles.groupRowTitle}>{version}</Text>
-              <Text size={13} color="#767d89">{channelLabel}</Text>
+              <Text size={15} color={colors.ink.list} style={parentStyles.groupRowTitle}>{version}</Text>
+              <Text size={13} color={colors.ink.secondary}>{channelLabel}</Text>
               {entry?.date
-                ? <Text size={13} color="#767d89">{t('version_changelog_date')}{entry.date}</Text>
+                ? <Text size={13} color={colors.ink.secondary}>{t('version_changelog_date')}{entry.date}</Text>
                 : null}
             </View>
           </View>
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('setting_release_channel')}</Text>
+        <Text size={18} color={colors.ink.strong} style={[parentStyles.cardTitle, styles.groupTitle]}>{t('setting_release_channel')}</Text>
         <View style={parentStyles.sectionGroup}>
           <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
-            <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
+            <Text size={15} color={releaseChannel == 'stable' ? colors.ink.list : colors.ink.option} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
             {releaseChannel == 'stable' ? <View style={parentStyles.languageActiveDot} /> : null}
           </TouchableOpacity>
           <View style={parentStyles.optionDetailDivider} />
           <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('dev') }}>
-            <Text size={15} color={releaseChannel == 'dev' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
+            <Text size={15} color={releaseChannel == 'dev' ? colors.ink.list : colors.ink.option} style={parentStyles.optionDetailText}>{t('setting_release_channel_dev')}</Text>
             {releaseChannel == 'dev' ? <View style={parentStyles.languageActiveDot} /> : null}
           </TouchableOpacity>
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_changelog_title')}</Text>
+        <Text size={18} color={colors.ink.strong} style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_changelog_title')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={styles.body}>
             {entry
               ? <ChangelogView desc={entry.desc} />
-              : <Text size={15} color="#767d89" style={styles.paragraph}>
+              : <Text size={15} color={colors.ink.secondary} style={styles.paragraph}>
                   {loading ? t('version_changelog_loading') : t('version_changelog_empty')}
                 </Text>}
           </View>
           <View style={parentStyles.optionDetailDivider} />
           <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenGithub}>
-            <Text size={15} color="#20242d" style={[parentStyles.optionDetailText, styles.linkText]}>{t('version_changelog_github')}</Text>
-            <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+            <Text size={15} color={colors.ink.list} style={[parentStyles.optionDetailText, styles.linkText]}>{t('version_changelog_github')}</Text>
+            <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
           </TouchableOpacity>
         </View>
       </View>

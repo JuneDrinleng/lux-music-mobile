@@ -13,12 +13,13 @@ import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBott
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
 import { type PlaylistDetailPayload } from '@/event/appEvent'
-import { APP_LAYER_INDEX } from '@/config/constant'
+import { sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bg.plain,
   },
   playlistDetailLayer: {
     position: 'absolute',
@@ -44,15 +45,17 @@ const styles = createStyle({
   navShell: {
     backgroundColor: 'transparent',
     overflow: 'visible',
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
   },
-})
+})))
 
 export default () => {
+  const styles = useLuxStyles()
+
   const bottomInset = useSystemGestureInsetBottom()
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)

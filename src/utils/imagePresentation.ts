@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-export const COVER_PLACEHOLDER_COLOR = '#e8eaef'
+import { limeColors } from '../theme/luxTokens'
+
+export const COVER_PLACEHOLDER_COLOR = limeColors.surface.placeholder
 export const COVER_FADE_MS = 150
 
 const HTTP_URI = /^https?:\/\//i
