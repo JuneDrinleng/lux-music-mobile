@@ -52,7 +52,7 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
   return (
     <>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_current_info')}</Text>
+        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_current_info')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={parentStyles.optionDetailRow}>
             <View style={styles.meta}>
@@ -66,7 +66,7 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('setting_release_channel')}</Text>
+        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('setting_release_channel')}</Text>
         <View style={parentStyles.sectionGroup}>
           <TouchableOpacity style={parentStyles.optionDetailRow} activeOpacity={0.84} onPress={() => { onSelectReleaseChannel('stable') }}>
             <Text size={15} color={releaseChannel == 'stable' ? '#20242d' : '#5f6572'} style={parentStyles.optionDetailText}>{t('setting_release_channel_stable')}</Text>
@@ -80,7 +80,7 @@ export default ({ styles: parentStyles, version, releaseChannel, onSelectRelease
         </View>
       </View>
       <View style={parentStyles.sectionCard}>
-        <Text size={18} color="#1a1c1e" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_changelog_title')}</Text>
+        <Text size={18} color="#111827" style={[parentStyles.cardTitle, styles.groupTitle]}>{t('version_changelog_title')}</Text>
         <View style={parentStyles.sectionGroup}>
           <View style={styles.body}>
             {entry

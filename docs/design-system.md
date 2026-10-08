@@ -42,7 +42,7 @@
 | 角色 | 色值 | 依据 |
 | --- | --- | --- |
 | 页面背景 | `#eef0fb` | `SettingsTab` `container`，`PlaylistTab` `container`，`SearchPage` `overlayRoot`，`HomeTab` `container`，`SharedTopBar` `headerFloating` |
-| 卡片 / 弹窗 / 抬起底 | `#ffffff` | 设置 `modalCard`、歌单 `quickCard`、拖动 `playlistDragLifted` |
+| 卡片 / 弹窗 | `#ffffff` | 设置 `modalCard`、歌单 `quickCard`。列表模式拖动抬起仍是白底 `playlistDragLiftedList`。宫格拖动不给整张卡片铺白底 |
 | 卡片内的浅底 | `#f7f8fd`、`#f8f9fd`、`#eef1f7` | 设置 `accountMetaCard`、`aboutInfoWrap`、头像内底 |
 | 头像未加载底 | `#f3eef2`（外圈内底）、`#eef1f7`（大头像） | `SharedTopBar` `avatarInner`，设置 `profileDetailAvatar` |
 | 封面与图片占位 | `#e8eaef` | `COVER_PLACEHOLDER_COLOR`，`src/utils/imagePresentation.ts` |
@@ -171,10 +171,11 @@
 | 白卡片 | `shadowColor #76809b` 或 `#2d3242`，opacity 0.08，radius 16–18，offset `(0, 8)`，`elevation: 3` | 歌单 `quickCard`、设置 `accountCard` |
 | 居中弹窗 | 同上量级，`elevation: 4`，圆角 24 | 设置 `modalCard`；`Dialog.tsx` 为 `elevation: 4`、圆角 18 |
 | 底部导航 / 首页播放条 | `shadowColor #81889a`，opacity 0.12，radius 14，offset `(0, 8)`，`elevation: 5` | `BottomNav` `rail`，`PlayerBar` `containerGlass` |
-| 长按抬起的歌单卡 | `elevation: 4`，白底，`shadowColor #000000`，opacity 0.16，radius 6，offset `(0, 3)` | `PlaylistTab` `playlistDragLifted` |
+| 宫格长按抬起 | `elevation: 4` 只在封面，`shadowColor #000000`，opacity 0.16，radius 6，offset `(0, 3)`，圆角 18。整张卡片没有白底 | `PlaylistTab` `playlistDragLiftedCover` |
+| 列表长按抬起 | `elevation: 4`，白底，圆角 16，阴影略轻 | `PlaylistTab` `playlistDragLiftedList` |
 | 浮动顶栏 | `elevation: 0` | `SharedTopBar`、各页 `headerFloating` |
 
-长按抬起时只加 elevation 和白底，不改 `zIndex`。原因写在 `PlaylistTab.tsx` 的 `playlistDragLifted` 注释里：Android 在 `zIndex` 变化时会重挂视图，进行中的触摸会丢失。
+宫格长按抬起时，阴影和 `elevation` 只加在封面上，歌单名和歌曲数用 `opacity` 淡出（140ms）。列表模式仍是整行白底。两种模式都不改 `zIndex`。原因写在 `PlaylistTab.tsx` 的 `playlistDragLiftedCover` 注释里：Android 在 `zIndex` 变化时会重挂视图，进行中的触摸会丢失。
 
 ## 布局模式
 
@@ -223,13 +224,13 @@
 
 ### 关于版本更新
 
-设置里的版本子页按三个分组小标题组织。小标题与设置主页的分组小标题同一层级（字号 11、字重 700、颜色 `#838995`、字距 1.4，样式名 `sectionEyebrow`）。页面标题是「关于版本更新」。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`，行、分割线和圆点复用 `SettingsTab` 的子页样式。
+设置里的版本子页按三个分组标题组织。页面大标题仍是「关于版本更新」（22 / 700 / `#1a1c1e`，`profileDetailTitle`）。分组标题用区块标题这一级（18 / 700 / `#111827`），样式复用 `SettingsTab` 的 `cardTitle`，左缘与 `optionDetailRow` 一样缩进 18。不要用设置主页的 11 号灰色 `sectionEyebrow`，否则会比版本号和日志分类更弱。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`。行、分割线和圆点复用 `SettingsTab` 的子页样式。缓存管理、语言这些二级页没有第二级标题，也没有白色圆角分组卡片；这一页有三组，所以只加了区块标题，分组本身仍是 `#eef0fb` 上的 `sectionCard` / `sectionGroup`。
 
-1. **当前版本信息**：版本号（现有实现是字号 20、颜色 `#1a1c1e`）、通道名和发布日期（13、`#767d89`），以及「在 GitHub 查看完整更新日志」入口（右箭头，与设置行相同）。
+1. **当前版本信息**：版本号是 15 / 700 / `#20242d`（`groupRowTitle`，与缓存行同一级），通道名和发布日期是 13 / `#767d89`。
 2. **更新通道**：稳定版 / 开发版两行单选，选中项右侧 `#c8e600` 圆点。
-3. **更新日志**：`ChangelogView` 把正文收成要点，不要在这里改回大段纯文本。
+3. **更新日志**：`ChangelogView` 把正文收成要点。分类名（新增 / 修复 / 优化）是 15 / 600 / `#20242d`，要点是 15 号正文。然后才是「在 GitHub 查看完整更新日志」入口（右箭头，与设置行相同）。
 
-这一页的三个小标题是该子页正在采用的结构。写新页面或改这一页时按这三块排，不要再把通道和日志堆成没有小标题的一整列。
+写新页面或改这一页时按这三块排，不要再把通道和日志堆成没有分组标题的一整列。
 
 ### 歌单页
 
@@ -313,7 +314,7 @@
 - **按压。** `TouchableOpacity` 的 `activeOpacity`：底栏、返回、搜索触发用 0.82；设置行和单选项用 0.84；列表与播放控制用 0.8；主播放键 0.85。不要用没有按压变化的裸 `View` 当按钮。
 - **设置子页。** 自右滑入 248ms，返回 220ms，透明度从 0.92 到 1。
 - **顶栏模式切换**（音乐搜索 / 设置搜索、头像收起）：188ms（`SharedTopBar.tsx`）。
-- **歌单长按拖动。** 缩放 `PLAYLIST_LIFT_SCALE = 1.02`（`src/components/playlist/playlistDragState.ts`），140ms，`Easing.out(Easing.cubic)`（`usePlaylistCardDrag.ts`）。抬起样式 `elevation: 4`、白底、圆角 18（列表模式 16）。不要在抬起时修改 `zIndex`。
+- **歌单长按拖动。** 缩放 `PLAYLIST_LIFT_SCALE = 1.02`（`src/components/playlist/playlistDragState.ts`），140ms，`Easing.out(Easing.cubic)`（`usePlaylistCardDrag.ts`）。宫格抬起时 `elevation: 4` 和阴影只在封面圆角 18 上，歌单名和歌曲数同步用 `opacity` 淡出 140ms，占位保留；列表模式仍是整行白底、圆角 16。不要在抬起时修改 `zIndex`。
 - **歌曲行长按**是另一套浮层（`useSongDragReorder.ts`）：弹簧到 1.06，出现 120ms，松手后 140ms 淡出。不要把 1.06 用到歌单卡片上，也不要为了这首浮层去改卡片的 `zIndex`。
 - **底栏当前项**用位移动画跟着选中 tab，图标在选中时 `scale: 1.1`。
 - **播放详情切歌封面**交叉过渡 280ms（`COVER_TRANSITION_DURATION`）。黑胶自转 30s 是播放器装饰，不是通用动效。
@@ -336,7 +337,7 @@
 - 图标用 `MdiIcon`。设置行图标黑色、24，颜色在圆底上。
 - 封面用 `Image`。加载和失败只有 `#e8eaef`，缓存命中不淡入。
 - 可点区域有 `activeOpacity`（0.8–0.85 这一档）。
-- 长按拖动的卡片是缩放 1.02、`elevation: 4`、不改 `zIndex`。
+- 长按拖动的卡片是缩放 1.02、`elevation: 4`（宫格只加在封面上）、不改 `zIndex`。
 - 文案进三份语言包。更新日志用要点。
 - 底部内容让出 164 + 手势 inset，不把列表画进播放条下面。
 - 复用「组件清单」里的组件。歌单和搜索不要在页面文件里再堆一整份 JSX。
