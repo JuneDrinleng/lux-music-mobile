@@ -157,20 +157,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flexShrink: 1,
   },
   figures: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  figure: {
-    flex: 1,
-  },
-  figureSplit: {
-    // Do not inherit figure's flex: 1: Yoga gives this non-growing column a zero basis.
-    width: 112,
-    flexGrow: 0,
-    flexShrink: 0,
-    paddingLeft: 18,
-    borderLeftWidth: 1,
-    borderLeftColor: colors.line.divider,
+    alignItems: 'flex-start',
   },
   figureLabel: {
     marginBottom: 2,
@@ -733,21 +720,13 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
                   <Text size={12} color={colors.ink.secondary}>{rangeText}</Text>
                 </View>
                 <View style={styles.figures}>
-                  <View style={styles.figure}>
-                    <Text size={12} color={colors.ink.secondary} style={styles.figureLabel}>{t('stats_duration')}</Text>
-                    <Text size={30} color={colors.ink.pageTitle} style={styles.figureValue}>
-                      {hours > 0
-                        ? <>{hours}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_hour')}</Text></>
-                        : null}
-                      {minutes}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_minute')}</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.figureSplit}>
-                    <Text size={12} color={colors.ink.secondary} style={styles.figureLabel}>{t('stats_play_count')}</Text>
-                    <Text size={30} color={colors.ink.pageTitle} style={styles.figureValue}>
-                      {stats.playCount}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_count')}</Text>
-                    </Text>
-                  </View>
+                  <Text size={12} color={colors.ink.secondary} style={styles.figureLabel}>{t('stats_duration')}</Text>
+                  <Text size={30} color={colors.ink.pageTitle} style={styles.figureValue}>
+                    {hours > 0
+                      ? <>{hours}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_hour')}</Text></>
+                      : null}
+                    {minutes}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_minute')}</Text>
+                  </Text>
                 </View>
                 <View style={styles.compare}>
                   {compareText

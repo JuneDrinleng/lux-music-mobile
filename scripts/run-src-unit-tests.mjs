@@ -1083,7 +1083,8 @@ test('play history counting, rolling range, merge, and backup', () => {
     record('dev', oct2, 120_000),
     record('other', oct3 + 1000, 60_000, '林小屿、苏禾'),
   ], 'days7', now)
-  assert.equal(stats.playCount, 2)
+  assert.equal(stats.listenedMs, 120_000)
+  assert.equal(stats.songs.reduce((n, song) => n + song.playCount, 0), 2)
   assert.equal(stats.chart[0].minutes, 2)
   assert.equal(stats.chart[6].isCurrent, true)
   assert.equal(stats.chart.filter(day => day.isCurrent).length, 1)
@@ -1105,7 +1106,8 @@ test('play history counting, rolling range, merge, and backup', () => {
   assert.equal(todayStats.chart[9].minutes, 1)
   assert.equal(todayStats.chart.filter(bucket => bucket.isCurrent).length, 1)
   assert.equal(todayStats.chart.find(bucket => bucket.isCurrent).hour, 20)
-  assert.equal(todayStats.playCount, 2)
+  assert.equal(todayStats.listenedMs, 180_000)
+  assert.equal(todayStats.songs.reduce((n, song) => n + song.playCount, 0), 2)
 
   const hourly = playRange.buildTodayHourlyBuckets([
     record('dev', todayMorning, 180_000),
