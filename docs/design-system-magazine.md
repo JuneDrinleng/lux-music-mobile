@@ -1,11 +1,11 @@
 # Lux Music 杂志风设计规范（Magazine / Editorial）· v0.4
 
-> 状态：**v0.4 定稿**（June 2026-10-09 已批准全部页面与待定项，见 §10）。本文件只是规范，代码迁移见 §8。
+> 状态：**设计稿，仅文档**。没有改任何代码、没有开 PR。
 > 读取基准：`JuneDrinleng/lux-music-mobile@dev`（2026-10-09 PT），重点参照 `docs/design-system.md`、`docs/theme-tokens.md`、`docs/page-hierarchy.md`、`docs/project-structure.md`，以及已经落地的杂志风听歌统计 `src/components/stats/ListeningStatsMagazine.tsx`（June 指定的参考页）。
-> v0.4（2026-10-09 PT）：播放详情定稿 **22A-v4**：唱臂用 v3a 白臂墨边；去掉唱片与歌名之间的分隔线；喜欢旁的评论按钮换成「添加到歌单」。稿件 `docs/magazine-design/22A-v4-player-vinyl.png`、`53-v4-warm-player-vinyl.png`、`56-v4-dark-player-vinyl.png`，对比表 `v4-22.png`。
+> v0.4（2026-10-09 PT）：播放详情定稿 **22A-v4**：唱臂用 v3a 白臂墨边；去掉唱片与歌名之间的分隔线；喜欢旁的评论按钮换成「添加到歌单」。稿件 `pages-v2/22A-v4-player-vinyl.png`、`53-v4-warm-player-vinyl.png`、`56-v4-dark-player-vinyl.png`，对比表 `v4-22.png`。
 > v0.3（2026-10-09 PT）：June 选定共用抽屉 **B 刊头**；播放详情以 **22A-v3** 为准（唱臂高对比 + 歌词移到歌手与进度条之间），v3a / v3b 两种唱臂对比方案待定。对比表 `v3-22.png`。
-> v0.2（2026-10-09 PT）：June 已批准整套规范和除 14 / 25 / 26 以外的全部页面。§10 的前 4 项已拍板；播放详情**保留黑胶**；14 / 25 / 26 改由一个共用抽屉组件 `MagazineSheet` 承载（§4.15.1，A / B / C 三个方案待选）。v2 稿件在 `docs/magazine-design/`，对比表为 `v2-sheet-A/B/C.png` 与 `v2-22.png`。
-> 设计稿：仓库内 `docs/magazine-design/NN-*.png`（390 宽 @2x，下文所有不带目录的 `NN-*.png` / `contact-*.png` / `v4-22.png` 等文件名都指 `docs/magazine-design/` 下的同名文件），联系表 `docs/magazine-design/contact-1.png … contact-7.png`。仓库只收录**定稿**：旧稿 14 / 22 / 25 / 26 / 53 / 56 以及 A / C 方案、22B、v2 / v3 存档稿未入库（下文提到它们时仅作历史记录）；HTML 源与生成脚本不入库。
+> v0.2（2026-10-09 PT）：June 已批准整套规范和除 14 / 25 / 26 以外的全部页面。§10 的前 4 项已拍板；播放详情**保留黑胶**；14 / 25 / 26 改由一个共用抽屉组件 `MagazineSheet` 承载（§4.15.1，A / B / C 三个方案待选）。v2 稿件在 `pages-v2/`，对比表为 `v2-sheet-A/B/C.png` 与 `v2-22.png`。
+> 设计稿：`/workspace/dev-bot/magazine-design/pages/NN-*.png`（390 宽 @2x），联系表 `contact-1.png … contact-7.png`，HTML 源在 `html/`，生成脚本在 `src/`。
 
 ---
 
@@ -45,7 +45,7 @@
 | 11 | 歌单详情（自建） | `components/playlist/PlaylistDetailView.tsx`、`PlaylistDetailHeader.tsx`、`PlaylistDetailSongItem.tsx`、`PlaylistDetailOverlay.tsx` | `11-playlist-detail.png` |
 | 12 | 歌单详情·多选（单选 / 区间 / 反选，添加 / 移动 / 移除） | `PlaylistDetailView.tsx`、`MusicMultiAddModal/*` | `12-playlist-select.png` |
 | 13 | 榜单 / 在线歌单详情（一键转存） | `PlaylistDetailView.tsx`（leaderboard / online 类型）；遗留 `src/screens/LeaderboardDetail/index.tsx` | `13-online-detail.png` |
-| 14 | 导入歌单面板（把其他歌单里、本歌单没有的歌导进来；已去重，不含试听列表） | `components/playlist/PlaylistImportPanel.tsx`、`hooks/usePlaylistImport.ts`、调用处 `PlaylistDetailView.tsx` | `docs/magazine-design/14B-import-panel.png`（定稿 B；旧稿 14 与 A / C 未入库） |
+| 14 | 导入歌单面板（把其他歌单里、本歌单没有的歌导进来；已去重，不含试听列表） | `components/playlist/PlaylistImportPanel.tsx`、`hooks/usePlaylistImport.ts`、调用处 `PlaylistDetailView.tsx` | `pages-v2/14A/B/C-import-panel.png`（旧稿 14 作废） |
 | 15 | 歌单内搜索 | `components/playlist/PlaylistSearchScene.tsx` | `15-playlist-search.png` |
 | 16 | 本地歌曲 | `components/playlist/LocalSongsDetail.tsx` | `16-local-songs.png` |
 | 17 | 听歌统计·杂志风（参考页） | `components/stats/ListeningStatsMagazine.tsx`、`ListeningStatsPage.tsx` | `17-stats-magazine.png` |
@@ -53,11 +53,11 @@
 | 19 | 搜索·最近搜索与建议 | `src/screens/Home/Vertical/SearchPage.tsx` | `19-search-initial.png` |
 | 20 | 搜索结果·歌曲 | `SearchPage.tsx`、`components/search/SearchMusicResultRow.tsx`、`HighlightText.tsx` | `20-search-songs.png` |
 | 21 | 搜索结果·歌单 | `SearchPage.tsx`、`components/search/SearchSonglistResultRow.tsx` | `21-search-songlists.png` |
-| 22 | 播放详情（保留黑胶 + 唱臂） | `src/screens/PlayDetail/Vertical/Pic.tsx`、`components/SeekBar.tsx`、`Home/Vertical/PlayDetailOverlay.tsx` | `docs/magazine-design/22A-v4-player-vinyl.png`（定稿；旧稿 22 与 v2 / v3 存档） |
+| 22 | 播放详情（保留黑胶 + 唱臂） | `src/screens/PlayDetail/Vertical/Pic.tsx`、`components/SeekBar.tsx`、`Home/Vertical/PlayDetailOverlay.tsx` | `pages-v2/22A-v4-player-vinyl.png`（定稿；旧稿 22 与 v2 / v3 存档） |
 | 23 | 歌词 | `src/screens/PlayDetail/Vertical/Lyric.tsx` | `23-lyrics.png` |
 | 24 | 评论（热门 / 最新） | `src/screens/Comment/index.tsx`、`Comment/components/*`（竖屏以 embedded 形式嵌在播放 Pager 第 0 页） | `24-comments.png` |
-| 25 | 播放队列（只有临时列表可加歌 / 移除 / 清空） | `src/screens/Home/Vertical/PlayQueueSheet.tsx` | `docs/magazine-design/25B-play-queue.png`（定稿 B；旧稿 25 与 A / C 未入库） |
-| 26 | 添加 / 移动到歌单（含行内新建列表） | `components/MusicAddModal/*`（`Title`、`TargetPlaylistList`、`CreateUserList`；由搜索、队列、歌单搜索、歌单详情调起）；多选版 `MusicMultiAddModal/*` 共用同一列表 | `docs/magazine-design/26B-add-to-playlist.png`（定稿 B；旧稿 26 与 A / C 未入库） |
+| 25 | 播放队列（只有临时列表可加歌 / 移除 / 清空） | `src/screens/Home/Vertical/PlayQueueSheet.tsx` | `pages-v2/25A/B/C-play-queue.png`（旧稿 25 作废） |
+| 26 | 添加 / 移动到歌单（含行内新建列表） | `components/MusicAddModal/*`（`Title`、`TargetPlaylistList`、`CreateUserList`；由搜索、队列、歌单搜索、歌单详情调起）；多选版 `MusicMultiAddModal/*` 共用同一列表 | `pages-v2/26A/B/C-add-to-playlist.png`（旧稿 26 作废） |
 | 27 | 设置主页 | `Tabs/SettingsTab.tsx` | `27-settings.png` |
 | 28 | 设置搜索（含无结果） | `SharedTopBar.tsx`（settings 模式）、`SettingsTab.tsx` `emptySearchCard` | `28-settings-search.png` |
 | 29 | 个人资料 | `SettingsTab.tsx`（profileDetail 层） | `29-profile.png` |
@@ -83,7 +83,7 @@
 | 49 | 组件样张（按钮、胶囊、Tabs、开关、滑块、输入、封面、加载、空状态、Toast、图标） | — | `49-components.png` |
 | — | 迷你播放条 + 底部导航 | `components/player/PlayerBar/index.tsx`、`Home/Vertical/BottomNav.tsx` | 出现在所有主页面底部 |
 
-主题变体：`50-warm-home`、`51-warm-library`、`52-warm-stats`、`53-warm-player`、`54-warm-settings`（暖米）；`55-dark-stats`、`56-dark-player`、`57-dark-settings`（墨夜）。其中 53 / 56 播放详情以 `docs/magazine-design/53-v4-warm-player-vinyl.png`、`docs/magazine-design/56-v4-dark-player-vinyl.png`（22A-v4）为准，旧稿 53 / 56 未入库。
+主题变体：`50-warm-home`、`51-warm-library`、`52-warm-stats`、`53-warm-player`、`54-warm-settings`（暖米）；`55-dark-stats`、`56-dark-player`、`57-dark-settings`（墨夜）。其中 53 / 56 播放详情以 `pages-v2/53-warm-player-vinyl.png`、`pages-v2/56-dark-player-vinyl.png`（黑胶 A 方案）为准。
 
 **不在本次范围（只记录）：** 横屏 `src/screens/Home/Horizontal/*`、`src/screens/PlayDetail/Horizontal/*`；上游旧视图 `src/screens/Home/Views/**`（旧排行榜 `MusicList`、`SearchTypeSelector`、旧设置分页）；`src/components/OnlineList/*`（`ListMenu`、`MultipleModeBar`）；`src/components/DesktopLyricEnable.tsx`（桌面歌词悬浮窗权限，竖屏未引用）；`src/components/modern/*`。`SettingPopup` 与 `TimeoutExitEditModal` 只在横屏用到，因为将来竖屏可能接入，所以仍画了 48 号稿。
 
@@ -218,14 +218,12 @@
 
 ### 4.3 文字 Tabs（范围 / 筛选 / 来源）
 - 横排文字，间距 22（小号 18），底部一条 hairline；选中项 800 + `ink` + 3px 下划线；未选 600 + `quiet`。
-- 用于：统计范围、搜索类型（歌曲 / 歌单）、本地歌曲（全部 / 设备 / 已缓存）、评论（热门 / 最新）、播放 Pager（评论 / 播放 / 歌词）。**首页主筛选改用 §4.4 `MagSegmented`，不再用文字 Tabs。**
+- 用于：统计范围、首页筛选（全部 / 新发布 / 趋势 / 热门 / 其他）、榜单来源、搜索类型（歌曲 / 歌单）、本地歌曲（全部 / 设备 / 已缓存）、评论（热门 / 最新）、播放 Pager（评论 / 播放 / 歌词）。
 - 超出宽度时横向滚动，不换行，不缩字号。
 
-### 4.4 分段控件 `MagSegmented`
-- **首页主筛选（定稿 variant C，June）：** 通栏等分单元格，压满页边距 22 内的内容宽；外框 1.5px `ink`；选中格 `ink` 底 + `paper` 字 13/800；未选透明底 + `ink` 字 13/600；格间 1.5px `ink` 竖线。五项：全部 / 新发布 / 趋势 / 热门 / 其他。组件：`src/components/magazine/MagSegmented.tsx`。
-- **「其他」来源行（非 Tabs）：** 分段控件下方一行 `来源  酷我 / 酷狗 / 企鹅 / 网易 / 咪咕`（斜杠分隔）；选中源 **800 `ink`**，左侧小圆点 `accent` 填充；**无**底部分割线、无第二排 TextTabs。
-- **紧接筛选的首个 `SectionHeader`：** 不画主线、不加 `RULE_GAP` 34 顶距（`showRule={false}`），避免筛选与榜单标题之间出现 ~69pt 空白。
-- 其它场景仍可用：两项强对比时的 1.5px 墨边胶囊（选中墨底纸字）；`SegmentedIconSwitch` 迁移为「两枚图标 + 颜色区分」，去掉轨道和拇指。
+### 4.4 分段控件（备选）
+- 只在「两项、需要强对比、且不是导航」时用：1.5px 墨边胶囊，选中段墨底纸字。例：宫格 / 列表若要文字化时。默认仍优先文字 Tabs 或两枚图标（选中 `ink`、未选 `quiet`）。
+- `SegmentedIconSwitch` 迁移为「两枚图标 + 颜色区分」，去掉轨道和拇指。
 
 ### 4.5 区块头 Section header
 - 主线 → 12 → 一行：左 22/800 标题，右 12/600 字距 1 的 `eyebrow` meta（排序方式、数量、英文栏目名），或一个「查看全部 →」文字链接（`ink`，700）。基线对齐。
@@ -341,7 +339,7 @@
 
 图标在组内同色、不重复：队列行尾 `playlist-plus` / `close` 同为 `muted`；添加页图标块统一 `placeholder` 底 + `ink` 图标，不再用现在的粉 / 蓝 / 棕三色底；「已存在」用 `check`，「可添加」用 `plus-circle-outline`，与新建列表的 `plus` 外形不同。
 
-**已选定：B 刊头抽屉（June，2026-10-09）。** 14 / 25 / 26 统一按 B 实现：顶角 6、无抓手、顶部 3px `ink` 墨线、右上 34 描边圆形关闭；眉题 + 20/800 标题；56/800 大数字 + 单位（有 `subject` 的抽屉，例如添加页，用歌曲信息代替大数字）；`ink` 主线 + hairline 夹出的「meta ↔ 操作」工具条（没有操作时这里放空）；行高 56，导入行封面 40、队列行封面 36、添加行用图标块；底栏上沿是 `ink` 主线，左侧「取消」文字，右侧通栏 `ink` 主按钮，计数是 `accent` 圆标。稿件：`docs/magazine-design/14B-import-panel.png`、`25B-play-queue.png`、`26B-add-to-playlist.png`，对比表 `v2-sheet-B.png`。A / C 两个方案仅作记录，不实现。
+**已选定：B 刊头抽屉（June，2026-10-09）。** 14 / 25 / 26 统一按 B 实现：顶角 6、无抓手、顶部 3px `ink` 墨线、右上 34 描边圆形关闭；眉题 + 20/800 标题；56/800 大数字 + 单位（有 `subject` 的抽屉，例如添加页，用歌曲信息代替大数字）；`ink` 主线 + hairline 夹出的「meta ↔ 操作」工具条（没有操作时这里放空）；行高 56，导入行封面 40、队列行封面 36、添加行用图标块；底栏上沿是 `ink` 主线，左侧「取消」文字，右侧通栏 `ink` 主按钮，计数是 `accent` 圆标。稿件：`pages-v2/14B-import-panel.png`、`25B-play-queue.png`、`26B-add-to-playlist.png`，对比表 `v2-sheet-B.png`。A / C 两个方案仅作记录，不实现。
 
 **三个方案（存档，B 已选定）：**
 
@@ -373,8 +371,8 @@
 - **定稿 22A-v4「居中唱片 + 唱臂」（June 已拍板；默认 / 暖米 53 / 墨夜 56 均按此出稿）：** 眉题 `NOW PLAYING · 来自「歌单名」` → 唱片居中、v3a 唱臂在右上 → **（不画分隔线，唱片下留 30 空白直接接歌名）** → 歌名 32/800 左对齐 + 来源标 + 歌手 · 专辑；右侧两个按钮：**添加到歌单 `playlist-plus` 26 `ink`** + 喜欢 `heart` 26 `like`（未喜欢时 `heart-outline` `ink`）→ 歌词两行（当前句 17/800 `ink`，下一句 14 `faint`，左侧 3px `accent` 竖条）→ 进度 → 控制行。间距：唱片下 30 → 标题块 → 18 → 歌词 → 14 → 进度 → 10 → 控制行。
 - **添加到歌单按钮（替换评论按钮）：** 点按后用当前曲目打开 `MusicAddModal`，即共用抽屉 `MagazineSheet` B 版（`26B`），参数为 `{ musicInfo, listId: '', isMove: false }`，与 `PlayQueueSheet.handleShowMusicAddModal` 相同。竖屏 `Pic.tsx` 现在没有这个入口，需要在 Pic 里挂一个 `MusicAddModal` ref（横屏 `PlayDetail/Horizontal/MoreBtn/MusicAddBtn.tsx` 已有同样的做法，可参考）。图标 `playlist-plus` 在本页唯一：控制行右侧的队列按钮是 `playlist-music`，分享是 `share-variant-outline`，没有重复；它和队列行尾的「添加到歌单」用的是同一个图标，全 App 含义一致。
 - **评论入口仍然保留（已核对代码）：** `src/screens/PlayDetail/Vertical/index.tsx` 是 `PagerView`（`initialPage={1}`），第 0 页是 `<Comment embedded …>`，第 1 页是 `Pic`，第 2 页是 `Lyric`。在播放页**向右滑**就到评论页（进入第 0 页时会 `triggerCommentRefresh`），评论页返回走 `onCommentBack → setPage(1)`。杂志版顶部的「评论 · 播放 · 歌词」文字 Tabs 直接映射到 `setPage(0/1/2)`，所以点「评论」也能到。⚠️ 现行代码的 Pic 顶部只有返回和分享、**没有**文字 Tabs，Tabs 是本规范新增的；迁移时如果 Tabs 还没做，就会丢掉评论的点按入口（只能滑动），所以去掉评论按钮和加 Tabs **必须在同一个 PR**。去掉评论按钮后，`Pic` 的 `onCommentPress` prop 和 index 里的 `onPicCommentPress` 可以改为供 Tabs 使用，或者删掉。
-- 22A（v2 版，唱臂低对比 + 歌词在底部）作废：`docs/magazine-design/22A-player-vinyl.png`、`53-warm-player-vinyl.png`、`56-dark-player-vinyl.png` 只作记录。
-- 22A-v3（v3a / v3b，唱片下有墨色主线、喜欢旁是评论按钮）作废：`docs/magazine-design/22A-v3a/v3b-*`、`53-v3*`、`56-v3*` 只作记录。
+- 22A（v2 版，唱臂低对比 + 歌词在底部）作废：`pages-v2/22A-player-vinyl.png`、`53-warm-player-vinyl.png`、`56-dark-player-vinyl.png` 只作记录。
+- 22A-v3（v3a / v3b，唱片下有墨色主线、喜欢旁是评论按钮）作废：`pages-v2/22A-v3a/v3b-*`、`53-v3*`、`56-v3*` 只作记录。
 - **方案 22B「唱片出套」（未选，存档）：** 眉题 `SIDE A · 03 / 18` → 250 方形封面（唱片套）压在左侧，唱片从套口向右露出约 100、顶部一枚 3px `accent` 刻度随唱片旋转 → 墨色主线 → 「03」描边胶囊 + 歌单 · 第 N 首 → 歌名 40/800 → 进度 / 控制 / 歌词同 A。没有唱臂，更像唱片封套排版；播放时只转唱片，暂停时唱片缩回套里 20%（可选）。
 - 进度条：2px hairline 轨道 + 4px `ink` 已播 + `accent` 拇指（浅色主题 2px 墨描边）。现在的来源色进度 / 歌手名来源色**不用**，来源色只留在来源标里。
 - 控制行：循环 24 `muted` / 上一首 36 `ink` / 播放 72 `ink` 圆 + `onInk` 图标 / 下一首 36 / 队列 `playlist-music` 24 `muted`。
@@ -495,7 +493,7 @@
 2. 加 `src/theme/magazineType.ts`：上面的字号表（设计数字，交给 `createStyle`）和 `RULE_GAP = 34` 等节奏常量。
 
 ### 8.3 组件层（第二步）
-新建 `src/components/magazine/`，每个组件一个文件，先在统计页内部替换验证：`MagTopBar`、`BackButton`、`TextTabs`、`MagSegmented`（首页主筛选 variant C）、`SectionHeader`（含主线）、`Rule` / `Hairline`、`RankNumber`（svg 描边）、`RankedRow`、`SongRow`、`SettingRow`、`OptionRow`、`PrimaryButton` / `SecondaryButton` / `TextButton`、`DeltaPill` / `Chip` / `SourceTag`、`Toggle` / `Checkbox`、`MagSlider`（由 `CacheLimitSlider` 抽出）、`UnderlineInput`、`MagDialog` / `MagazineSheet`（+ `MagazineSheetRow`）/ `MagMenu`、`EmptyState`、`Skeleton`、`Toast`、`Dock`（`PlayerBar` + `BottomNav` 合并）。
+新建 `src/components/magazine/`，每个组件一个文件，先在统计页内部替换验证：`MagTopBar`、`BackButton`、`TextTabs`、`SectionHeader`（含主线）、`Rule` / `Hairline`、`RankNumber`（svg 描边）、`RankedRow`、`SongRow`、`SettingRow`、`OptionRow`、`PrimaryButton` / `SecondaryButton` / `TextButton`、`DeltaPill` / `Chip` / `SourceTag`、`Toggle` / `Checkbox`、`MagSlider`（由 `CacheLimitSlider` 抽出）、`UnderlineInput`、`MagDialog` / `MagazineSheet`（+ `MagazineSheetRow`）/ `MagMenu`、`EmptyState`、`Skeleton`、`Toast`、`Dock`（`PlayerBar` + `BottomNav` 合并）。
 `ListeningStatsMagazine.tsx` 里的 `styles.rule / sectionHead / tabs / rank / pill` 已经是这些组件的原型，直接抽出。
 
 **硬性要求：** `PlaylistImportPanel`、`PlayQueueSheet`、`MusicAddModal`（以及共用 `TargetPlaylistList` 的 `MusicMultiAddModal`）**必须全部改用 `MagazineSheet` + `MagazineSheetRow`**，不得各自保留头部、行或按钮样式；`MusicAddModal` 现在用的居中 `Dialog`（height 78%）同时改为底部抽屉。三处在同一个 PR 里迁移，PR 附 14 / 25 / 26 同方案截图对照。`MagazineSheet` 也是后续其他底部面板的唯一实现。
@@ -528,14 +526,14 @@
 
 ## 9. 设计稿索引
 
-`docs/magazine-design/`：
+`/workspace/dev-bot/magazine-design/pages/`：
 01 启动闪屏 · 02 欢迎与协议确认 · 03 许可协议 / 安全提醒 · 04 协议更新弹窗 · 05 同步登录 · 06 权限请求 · 07 首页·全部 · 08 首页·热门榜单 · 09 歌单库·宫格 · 10 歌单库·列表与来源菜单 · 11 歌单详情 · 12 歌单详情·多选 · 13 榜单/在线歌单详情 · 14 导入歌曲面板 · 15 歌单内搜索 · 16 本地歌曲 · 17 听歌统计·杂志风 · 18 听歌统计·年度回顾风 · 19 搜索·最近与建议 · 20 搜索结果·歌曲 · 21 搜索结果·歌单 · 22 播放详情 · 23 歌词 · 24 评论 · 25 播放队列 · 26 添加到歌单 · 27 设置主页 · 28 设置搜索 · 29 个人资料 · 30 修改昵称弹窗 · 31 语言 · 32 主题 · 33 统计页样式 · 34 搜索来源 · 35 自定义源 · 36 同步服务 · 37 同步格式 · 38 Lux 账号登录弹窗 · 39 缓存管理 · 40 关于版本更新 · 41 性别 · 42 导出/导入·选择位置 · 43 首次同步方式 · 44 版本更新弹窗 · 45 确认弹窗与提示 · 46 新建歌单弹窗 · 47 自定义源管理（实验性） · 48 播放器设置与定时停止 · 49 组件样张 · 50–54 暖米（首页、歌单库、听歌统计、播放详情、设置） · 55–57 墨夜（听歌统计、播放详情、设置）。
 
-**播放详情定稿 v4（以此为准）：** `docs/magazine-design/22A-v4-player-vinyl.png`（默认黄绿）、`docs/magazine-design/53-v4-warm-player-vinyl.png`（暖米）、`docs/magazine-design/56-v4-dark-player-vinyl.png`（墨夜），对比表 `v4-22.png`。
+**播放详情定稿 v4（以此为准）：** `pages-v2/22A-v4-player-vinyl.png`（默认黄绿）、`pages-v2/53-v4-warm-player-vinyl.png`（暖米）、`pages-v2/56-v4-dark-player-vinyl.png`（墨夜），对比表 `v4-22.png`。
 
-v3 播放详情（存档，被 v4 取代）：`docs/magazine-design/22A-v3a-player-vinyl.png`、`22A-v3b-player-vinyl.png`、`53-v3a-warm-player-vinyl.png`、`53-v3b-warm-player-vinyl.png`、`56-v3a-dark-player-vinyl.png`、`56-v3b-dark-player-vinyl.png`，对比表 `v3-22.png`。
+v3 播放详情（存档，被 v4 取代）：`pages-v2/22A-v3a-player-vinyl.png`、`22A-v3b-player-vinyl.png`、`53-v3a-warm-player-vinyl.png`、`53-v3b-warm-player-vinyl.png`、`56-v3a-dark-player-vinyl.png`、`56-v3b-dark-player-vinyl.png`，对比表 `v3-22.png`。
 
-v2（替换旧稿 14 / 22 / 25 / 26，以及 53 / 56 的播放详情）在 `docs/magazine-design/`：`14A/14B/14C-import-panel`、`25A/25B/25C-play-queue`、`26A/26B/26C-add-to-playlist`、`22A-player-vinyl`、`22B-player-vinyl`、`53-warm-player-vinyl`、`56-dark-player-vinyl`。对比表：`v2-sheet-A.png`、`v2-sheet-B.png`、`v2-sheet-C.png`（每张为同一抽屉方案下的 14 / 25 / 26），`v2-22.png`（22A / 22B / 暖米 / 墨夜）。生成脚本 `src/v2.js`、`src/build-v2.js`、`src/compare-v2.py`。
+v2（替换旧稿 14 / 22 / 25 / 26，以及 53 / 56 的播放详情）在 `/workspace/dev-bot/magazine-design/pages-v2/`：`14A/14B/14C-import-panel`、`25A/25B/25C-play-queue`、`26A/26B/26C-add-to-playlist`、`22A-player-vinyl`、`22B-player-vinyl`、`53-warm-player-vinyl`、`56-dark-player-vinyl`。对比表：`v2-sheet-A.png`、`v2-sheet-B.png`、`v2-sheet-C.png`（每张为同一抽屉方案下的 14 / 25 / 26），`v2-22.png`（22A / 22B / 暖米 / 墨夜）。生成脚本 `src/v2.js`、`src/build-v2.js`、`src/compare-v2.py`。
 
 联系表：`contact-1.png`（01–08）、`contact-2.png`（09–16）、`contact-3.png`（17–24）、`contact-4.png`（25–32）、`contact-5.png`（33–40）、`contact-6.png`（41–49）、`contact-7.png`（50–57）。
 所有稿件中的歌名、歌手、数值、地址均为**示例数据**（页面右上角「示例」小标）。
@@ -557,20 +555,11 @@ v2（替换旧稿 14 / 22 / 25 / 26，以及 53 / 56 的播放详情）在 `docs
 **新增待选：**
 7. ✔ **已定：共用抽屉 `MagazineSheet` 用 B 刊头**（§4.15.1）。14 / 25 / 26 按 `14B` / `25B` / `26B` 实现，A / C 存档。
 8. ✔ **已定：播放详情 = 22A-v4**。唱臂用 **v3a 白臂墨边**；去掉唱片与歌名之间的分隔线；喜欢旁的评论按钮换成「添加到歌单」（`playlist-plus` → `MagazineSheet` B），评论通过「评论」Tab / 右滑 Pager 第 0 页进入（§4.17）。稿件 `22A-v4`、`53-v4`、`56-v4`，对比表 `v4-22.png`。22B、22A-v2/v3 都已存档。
-
-### 10.1 全部已定（2026-10-09，v0.4 定稿）
-
-所有待定项都已拍板，实现时不再有开放问题：
-
-- **Q5 / Q6：保持草案写法**（June：「其他都按照设计稿来改」）。即首页「每周发现」满宽封面按 `07-home.png` 原样（保留英文标题 Discover Weekly）；48 号稿「播放器设置 / 定时停止」按稿保留为预留样式，竖屏不新增入口。
-- **Q7 抽屉 = B 刊头**：14 / 25 / 26 统一用共用抽屉 `MagazineSheet`（B 版，§4.15.1），稿件 `docs/magazine-design/14B-import-panel.png`、`25B-play-queue.png`、`26B-add-to-playlist.png`。
-- **Q8 播放详情 = 22A-v4**：v3a 白臂墨边唱臂；唱片与歌名之间**不画分隔线**；喜欢旁的评论按钮换成「添加到歌单」（`playlist-plus` → `MusicAddModal` / `MagazineSheet` B）；顶部「评论 · 播放 · 歌词」文字 Tabs **与去掉评论按钮在同一个 PR**（§4.17）。稿件 `22A-v4-player-vinyl.png`、`53-v4-warm-player-vinyl.png`、`56-v4-dark-player-vinyl.png`，对比表 `v4-22.png`。
-
-### 10.2 新增规则：滑块刻度必须与拇指吸附位置对齐
-
-缓存管理（`39-cache.png`，代码 `src/screens/Home/Vertical/Tabs/CacheLimitSlider.tsx`）以及所有基于它抽出的 `MagSlider`：**刻度文字的水平位置必须与拇指在该档位的吸附位置完全一致。**
-
-- 现状问题（v0.4.0）：拇指中心在 `cacheStepRatio(i, n) × trackWidth`（即 i/(n−1)），刻度却是 `flex: 1` 均分单元格 + 首档左对齐 / 末档右对齐 / 中间居中，二者映射不同，所以中间档位会错位——例如选中 1GB 时，拇指停在「1GB」刻度文字的左侧。
-- 要求：刻度 x 坐标与拇指使用**同一个** step → position 映射（`cacheStepRatio(i, n) × trackWidth`，与拇指同一个轨道宽度、同一个左边起点），每个刻度文字以该 x 为中心绝对定位（按测得的文字宽度减半偏移）；只有首 / 末档在会超出轨道边缘时才夹紧到边缘（夹紧后仍须视觉上落在拇指正下方）。不得再用均分 `flex` 单元格。
-- 点击刻度的热区跟随刻度位置；当前档刻度 `ink` 700（§4.12）。
-- 验收：每个档位松手后，拇指中心与对应刻度文字中心的水平偏差 ≤ 1px（首末档夹紧情况除外）；建议为位置计算加单测（纯函数，放在 `utils/cacheLimitSteps` 旁）。
+9. ✔ **已定：资料库「我的歌单」工具栏 = 方案 A**（`lib-toolbar-A.png`）。
+   - 标题行：「我的歌单」+ 墨色「＋ 新建」胶囊（视觉 36，可点 44）。
+   - 下一行：方角墨框分段控件「宫格 | 列表」（同 `MagSegmented`）+「排序：最近更新 ▾」，展开 `MagMenu`：按最近更新 / 按最早更新 / 自定义排序（注「拖动卡片即切换到此项」），行高 44。
+   - 元信息只写「N 个歌单」。
+   - 快捷入口行到区块标题的间距收紧到约 28pt：快捷入口行 `marginBottom` 0，区块 `marginTop` 16，`SectionHeader showRule={false}`，标题行 `minHeight` 44。
+   - B / C 存档。
+10. ✔ **已定：收听时长一律用「分钟」**，超过 1 小时也不换算（「85 分钟」「1,240 分钟」，千分位），全 App 不出现「小时」。单位统一写「分钟」，不写「分」。
+11. ✔ **已定：听歌统计「年度回顾风」= 年度听歌报告方案 B 故事卡**（`replay-report-B.png` / `replay-report-B-ink.png`）。8 屏全幅色块 + Stories 进度条；时长一律「分钟」+ 千分位；不做曲风分布与「保存为图片」。A 存档。

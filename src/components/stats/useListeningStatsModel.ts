@@ -24,11 +24,10 @@ import {
   setStatsPageStyle as writeStatsPageStyle,
   subscribeStatsPageStyle,
 } from '@/utils/playHistory/statsPageStyleStore'
+import { formatMinutes } from '@/utils/formatMinutes'
 import { toast } from '@/utils/tools'
 
 const TOP_N = 5
-
-const pad2 = (value: number) => (value < 10 ? `0${value}` : String(value))
 
 export const useStatsPageStylePreference = () => {
   const [style, setStyleState] = useState<StatsPageStyle>(() => getStatsPageStyle())
@@ -91,24 +90,14 @@ export const useListeningStatsModel = () => {
     void saveData(storageDataPrefix.statsChartMode, next)
   }, [])
 
-  const durationText = useCallback((ms: number, padMinutes: boolean) => {
-    const total = Math.max(0, Math.floor(ms / 60_000))
-    const hours = Math.floor(total / 60)
-    const minutes = total % 60
-    if (hours > 0) return t('stats_duration_hm', { hours, minutes: padMinutes ? pad2(minutes) : minutes })
-    return t('stats_duration_m', { minutes })
-  }, [t])
+  const durationText = useCallback((ms: number, _padMinutes?: boolean) => (
+    t('stats_duration_m', { minutes: formatMinutes(ms, true) })
+  ), [t])
 
-  const durationParts = useCallback((ms: number) => {
-    const total = Math.max(0, Math.floor(ms / 60_000))
-    if (total >= 60) {
-      const hours = Math.floor(total / 60)
-      const minutes = total % 60
-      if (minutes == 0) return { value: String(hours), unit: t('stats_unit_hour') }
-      return { value: `${hours}${t('stats_unit_hour')}${minutes}`, unit: t('stats_unit_minute') }
-    }
-    return { value: String(total), unit: t('stats_unit_minute') }
-  }, [t])
+  const durationParts = useCallback((ms: number) => ({
+    value: formatMinutes(ms, true),
+    unit: t('stats_unit_minute'),
+  }), [t])
 
   const dateText = useCallback((time: number) => {
     const date = new Date(time)
@@ -129,8 +118,6 @@ export const useListeningStatsModel = () => {
   )
 
   const totalMinutes = Math.floor(stats.listenedMs / 60_000)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
 
   const compareDiffMinutes = useMemo(() => {
     if (range == 'all' || !stats.previousBounds) return null
@@ -159,8 +146,6 @@ export const useListeningStatsModel = () => {
     stats,
     songs,
     artists,
-    hours,
-    minutes,
     totalMinutes,
     compareDiffMinutes,
     peakBucket,

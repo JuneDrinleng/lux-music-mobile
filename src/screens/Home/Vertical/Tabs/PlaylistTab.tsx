@@ -39,6 +39,7 @@ import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
+import { formatMinutes } from '@/utils/formatMinutes'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
@@ -370,26 +371,14 @@ export default () => {
     autoScrollBottomInset: bottomDockHeight,
     setPendingPlaylistOrder,
   })
-  const isPlaylistTimeSort = playlistSortMode == 'time'
-  const isPlaylistCustomSort = playlistSortMode == 'custom'
-  const playlistSortIcon = isPlaylistTimeSort ? 'sort-clock-ascending' : isPlaylistCustomSort ? 'tune' : 'sort-clock-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
-  const playlistSortLabel = isPlaylistCustomSort
-    ? t('library_sort_custom')
-    : isPlaylistTimeSort
-      ? t('library_sort_oldest')
-      : t('library_sort_recent')
   const playlistSectionMeta = t('library_playlists_meta', {
     count: displayPlaylists.length,
-    sort: playlistSortLabel,
   })
-  const days7Meta = useMemo(() => {
-    if (days7ListenedMinutes < 60) return t('library_days7_meta_minutes', { minutes: days7ListenedMinutes })
-    return t('library_days7_meta', {
-      hours: Math.floor(days7ListenedMinutes / 60),
-      minutes: days7ListenedMinutes % 60,
-    })
-  }, [days7ListenedMinutes, t])
+  const days7Meta = useMemo(
+    () => t('library_days7_meta_minutes', { minutes: formatMinutes(days7ListenedMinutes) }),
+    [days7ListenedMinutes, t],
+  )
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
@@ -1002,10 +991,9 @@ export default () => {
     event.stopPropagation()
     void handlePlayPlaylist(listId)
   }, [handlePlayPlaylist])
-  const handleTogglePlaylistSort = useCallback(() => {
-    const nextMode = playlistSortMode == 'default' ? 'time' : playlistSortMode == 'time' ? 'custom' : 'default'
-    updateSetting({ 'list.playlistSortMode': nextMode })
-  }, [playlistSortMode])
+  const handlePlaylistSortChange = useCallback((mode: 'default' | 'time' | 'custom') => {
+    updateSetting({ 'list.playlistSortMode': mode })
+  }, [])
   const handleCreateList = useCallback(async(name: string) => {
     if (!name) return false
     const isDuplicated = listState.userList.some(list => list.name == name)
@@ -1626,7 +1614,7 @@ export default () => {
         </View>
       </TouchableOpacity>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 10 }}>
-        <StatusChip label={t('library_today_minutes', { num: todayListenedMinutes })} />
+        <StatusChip label={t('library_today_minutes', { num: formatMinutes(todayListenedMinutes) })} />
         <Text size={magType.meta.size} color={r.muted}>{days7Meta}</Text>
       </View>
     </View>
@@ -1672,7 +1660,7 @@ export default () => {
     <View style={{
       flexDirection: 'row',
       alignItems: 'stretch',
-      marginBottom: 8,
+      marginBottom: 0,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderColor: r.hairline,
@@ -1711,9 +1699,7 @@ export default () => {
       playlistMetaMap={playlistMetaMap}
       playlistDisplayMode={playlistDisplayMode}
       sectionMeta={playlistSectionMeta}
-      isPlaylistTimeSort={isPlaylistTimeSort}
-      isPlaylistCustomSort={isPlaylistCustomSort}
-      playlistSortIcon={playlistSortIcon}
+      playlistSortMode={playlistSortMode}
       isPlaylistListMode={isPlaylistListMode}
       isPlay={isPlay}
       createListDialogRef={createListDialogRef}
@@ -1736,7 +1722,7 @@ export default () => {
       onPlaylistSectionLayout={handlePlaylistSectionLayout}
       onOpenList={handleOpenList}
       onPlaylistDisplayModeChange={setPlaylistDisplayMode}
-      onTogglePlaylistSort={handleTogglePlaylistSort}
+      onPlaylistSortChange={handlePlaylistSortChange}
       onShowCreateListModal={handleShowCreateListModal}
       onPlayPlaylistPress={handlePlayPlaylistPress}
       onCreateList={handleCreateList}

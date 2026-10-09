@@ -32,6 +32,7 @@ const files = [
   'src/utils/localSongCoverMatch.ts',
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
+  'src/utils/formatMinutes.ts',
   'src/utils/playHistory/types.ts',
   'src/utils/playHistory/threshold.ts',
   'src/utils/playHistory/session.ts',
@@ -114,6 +115,7 @@ const kwMusicInfoParse = require(join(outDir, 'src/utils/kwMusicInfoParse.js'))
 const localCover = require(join(outDir, 'src/utils/localSongCoverMatch.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
+const formatMinutesMod = require(join(outDir, 'src/utils/formatMinutes.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
@@ -2128,6 +2130,20 @@ test('bar and line modes share finite geometry across all ranges, singleton and 
     assert.ok(geometry.width > 0)
     assert.equal(geometry.points[0].x, geometry.width / 2)
   }
+})
+
+test('formatMinutes floors ms to whole minutes and formats with en-US grouping', () => {
+  assert.equal(formatMinutesMod.minutesFromMs(0), 0)
+  assert.equal(formatMinutesMod.minutesFromMs(-1), 0)
+  assert.equal(formatMinutesMod.minutesFromMs(Number.NaN), 0)
+  assert.equal(formatMinutesMod.minutesFromMs(59_999), 0)
+  assert.equal(formatMinutesMod.minutesFromMs(60_000), 1)
+  assert.equal(formatMinutesMod.minutesFromMs(3_600_000), 60)
+  assert.equal(formatMinutesMod.formatMinutes(0), '0')
+  assert.equal(formatMinutesMod.formatMinutes(32), '32')
+  assert.equal(formatMinutesMod.formatMinutes(1_240), '1,240')
+  assert.equal(formatMinutesMod.formatMinutes(3_600_000, true), '60')
+  assert.equal(formatMinutesMod.formatMinutes(74_400_000, true), '1,240')
 })
 
 test('migrated screens reject new color literals', () => {

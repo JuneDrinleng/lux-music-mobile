@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 export { BackButton } from './BackButton'
+export { IconButton, ICON_BUTTON_SIZE } from './IconButton'
 export { Checkbox } from './Checkbox'
 export { Chip, StatusChip } from './Chip'
 export { DeltaPill } from './DeltaPill'

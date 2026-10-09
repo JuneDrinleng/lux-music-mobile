@@ -10,6 +10,7 @@ import {
   DeltaPill,
   EmptyState,
   Hairline,
+  IconButton,
   MagSegmented,
   MagTopBar,
   RankedRow,
@@ -37,6 +38,7 @@ import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboa
 import { pickMusicCover } from '@/utils/musicCover'
 import { getPicUrl } from '@/core/music/online'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
+import { formatMinutes } from '@/utils/formatMinutes'
 import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@/utils/homeBootGate'
 import { getHomePlaylistMetaSnapshot, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
 import { peekPlaylistCover } from '@/utils/playlistCoverStore'
@@ -414,13 +416,17 @@ const AllContent = memo(({
                     </Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.dailyPlayButton, { borderColor: r.ink }]}
+                    style={styles.dailyPlayHit}
                     activeOpacity={0.7}
                     onPress={handlePlayPlaylistPress(item.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home_play_now')}
                   >
-                    {isItemCurrent && isPlay
-                      ? <MdiIcon name="pause" rawSize={13} color={r.ink} />
-                      : <MdiIcon name="play" rawSize={13} color={r.ink} />}
+                    <View style={[styles.dailyPlayButton, { borderColor: r.ink }]}>
+                      {isItemCurrent && isPlay
+                        ? <MdiIcon name="pause" rawSize={18} color={r.ink} />
+                        : <MdiIcon name="play" rawSize={18} color={r.ink} />}
+                    </View>
                   </TouchableOpacity>
                 </TouchableOpacity>
                 {last ? null : <Hairline />}
@@ -517,7 +523,6 @@ const LbContent = memo(({
                           coverUri={pickMusicCover(song)}
                           last={index === songs.length - 1}
                           onPress={() => { handleLbPlay(boardId, srcData?.songs ?? songs, index) }}
-                          trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
                         />
                       ))
                       : <EmptyState title={t('home_charts_empty')} />}
@@ -664,7 +669,6 @@ const OtherContent = memo(({
                                   coverUri={pickMusicCover(song)}
                                   last={index === songs.length - 1}
                                   onPress={() => { handleLbPlay(boardId, allSongs, index) }}
-                                  trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
                                 />
                               ))
                               : <EmptyState title={t('home_charts_empty')} />}
@@ -1247,8 +1251,8 @@ export default memo(() => {
   const showDeltaPill = listenDelta !== 0 || todayListenedMinutes > 0
   const deltaDirection = listenDelta > 0 ? 'up' as const : listenDelta < 0 ? 'down' as const : 'none' as const
   const deltaLabel = listenDelta !== 0
-    ? `${Math.abs(listenDelta)}${t('stats_unit_minute')}`
-    : `${todayListenedMinutes}${t('stats_unit_minute')}`
+    ? `${formatMinutes(Math.abs(listenDelta))}${t('stats_unit_minute')}`
+    : `${formatMinutes(todayListenedMinutes)}${t('stats_unit_minute')}`
 
   const filterTabs = useMemo(() => filterChips.map(({ id, key }) => ({
     id,
@@ -1274,10 +1278,19 @@ export default memo(() => {
           masthead={masthead}
           trailing={
             <>
-              <TouchableOpacity activeOpacity={0.7} onPress={handleOpenSearch} hitSlop={8} accessibilityRole="button">
-                <MdiIcon name="magnify" size={24} color={r.ink} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.avatarButton} activeOpacity={0.82} onPress={handleOpenSettings} accessibilityRole="button">
+              <IconButton
+                name="magnify"
+                accessibilityLabel={t('action_search')}
+                onPress={handleOpenSearch}
+              />
+              <TouchableOpacity
+                style={styles.avatarButton}
+                activeOpacity={0.82}
+                onPress={handleOpenSettings}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('bottom_nav_settings')}
+              >
                 <Image style={styles.avatarImage} url={avatarDisplayUrl} resizeMode="contain" />
               </TouchableOpacity>
             </>
@@ -1293,7 +1306,7 @@ export default memo(() => {
             ? <DeltaPill label={deltaLabel} direction={deltaDirection} />
             : null}
           <Text size={magType.meta.size} color={r.muted} style={styles.metaText}>
-            {t('home_today_listened', { num: todayListenedMinutes })}
+            {t('home_today_listened', { num: formatMinutes(todayListenedMinutes) })}
           </Text>
         </View>
 
@@ -1409,6 +1422,8 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
+      minHeight: 44,
+      justifyContent: 'center',
       paddingVertical: 4,
     },
     sourceDot: {
@@ -1489,10 +1504,16 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => {
       fontWeight: '700',
       marginBottom: 3,
     },
+    dailyPlayHit: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     dailyPlayButton: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: 'transparent',
       borderWidth: 1.5,
       alignItems: 'center',

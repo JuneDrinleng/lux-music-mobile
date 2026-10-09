@@ -11,6 +11,8 @@ import { createStyle } from '@/utils/tools'
 export interface MagMenuItem {
   id: string
   label: string
+  /** Optional grey note under the label (e.g. custom-sort hint). */
+  note?: string
 }
 
 const useStyles = sharedLuxStyles((colors) => {
@@ -30,21 +32,42 @@ const useStyles = sharedLuxStyles((colors) => {
       shadowRadius: 0,
       shadowOffset: { width: 4, height: 4 },
       elevation: 0,
-      minWidth: 160,
+      minWidth: 180,
       overflow: 'hidden',
     },
-    row: {
-      height: 42,
+    title: {
+      minHeight: 40,
       paddingHorizontal: 14,
+      justifyContent: 'center',
+      borderBottomWidth: 1.5,
+      borderBottomColor: r.ink,
+    },
+    titleText: {
+      fontWeight: '800',
+      letterSpacing: 1,
+    },
+    row: {
+      minHeight: 44,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: 12,
+    },
+    labels: {
+      flex: 1,
+      minWidth: 0,
     },
     label: {
       fontWeight: '600',
     },
     labelOn: {
       fontWeight: '800',
+    },
+    note: {
+      fontWeight: '500',
+      marginTop: 2,
     },
     dot: {
       width: 8,
@@ -62,6 +85,7 @@ export const MagMenu = memo(({
   value,
   onChange,
   anchor,
+  title,
 }: {
   visible: boolean
   onClose: () => void
@@ -69,6 +93,7 @@ export const MagMenu = memo(({
   value?: string
   onChange: (id: string) => void
   anchor: { top: number, left: number, width?: number }
+  title?: string
 }) => {
   const styles = useStyles()
   const { colors, mode } = useLuxTheme()
@@ -78,6 +103,13 @@ export const MagMenu = memo(({
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.root} activeOpacity={1} onPress={onClose}>
         <View style={[styles.card, { top: anchor.top, left: anchor.left, width: anchor.width }]}>
+          {title
+            ? (
+              <View style={styles.title}>
+                <Text size={12} color={r.eyebrow} style={styles.titleText}>{title}</Text>
+              </View>
+              )
+            : null}
           {items.map(item => {
             const on = item.id === value
             return (
@@ -89,8 +121,15 @@ export const MagMenu = memo(({
                   onChange(item.id)
                   onClose()
                 }}
+                accessibilityRole="menuitem"
+                accessibilityState={{ selected: on }}
               >
-                <Text size={14} color={r.ink} style={on ? styles.labelOn : styles.label}>{item.label}</Text>
+                <View style={styles.labels}>
+                  <Text size={14} color={r.ink} style={on ? styles.labelOn : styles.label}>{item.label}</Text>
+                  {item.note
+                    ? <Text size={11} color={r.quiet} style={styles.note}>{item.note}</Text>
+                    : null}
+                </View>
                 {on
                   ? (
                     <View style={[

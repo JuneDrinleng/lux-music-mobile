@@ -9,8 +9,10 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import {
   Chip,
   EmptyState,
+  IconButton,
   MagTopBar,
   SectionHeader,
+  TextButton,
 } from '@/components/magazine'
 import { type useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -164,13 +166,13 @@ export default ({
                     )}
                 {searchText
                   ? (
-                    <TouchableOpacity
-                      activeOpacity={0.7}
+                    <IconButton
+                      name="close-circle"
+                      size={20}
+                      color={r.quiet}
+                      accessibilityLabel={t('search_clear')}
                       onPress={() => { onSearchTextChange('') }}
-                      hitSlop={8}
-                    >
-                      <MdiIcon name="close-circle" size={20} color={r.quiet} />
-                    </TouchableOpacity>
+                    />
                     )
                   : null}
               </View>
@@ -184,9 +186,14 @@ export default ({
                       </Text>
                       {searchHistoryList.length
                         ? (
-                          <TouchableOpacity activeOpacity={0.7} onPress={onClearSearchHistoryList} hitSlop={8}>
-                            <MdiIcon name="eraser" size={16} color={r.faint} />
-                          </TouchableOpacity>
+                          <View style={{ minHeight: 44, justifyContent: 'center' }}>
+                            <TextButton
+                              label={t('search_clear')}
+                              onPress={onClearSearchHistoryList}
+                              muted
+                              underline={false}
+                            />
+                          </View>
                           )
                         : null}
                     </View>

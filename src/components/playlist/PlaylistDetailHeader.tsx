@@ -1,11 +1,12 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { TouchableOpacity, View } from 'react-native'
+import { View } from 'react-native'
 
 import Image from '@/components/common/Image'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import {
+  IconButton,
   MagTopBar,
   PrimaryButton,
   SecondaryButton,
@@ -13,6 +14,7 @@ import {
   TextButton,
   TextTabs,
 } from '@/components/magazine'
+import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -66,6 +68,7 @@ export default ({
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const t = useI18n()
 
   return (
     <View style={{ paddingTop: statusBarHeight }}>
@@ -75,20 +78,29 @@ export default ({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {canSelect && onToggleSelect
               ? (
-                <TouchableOpacity activeOpacity={0.7} onPress={onToggleSelect} hitSlop={8} accessibilityRole="button">
-                  <MdiIcon name="checkbox-multiple-outline" size={22} color={r.ink} />
-                </TouchableOpacity>
+                <IconButton
+                  name="checkbox-multiple-outline"
+                  size={22}
+                  accessibilityLabel={t('library_select_manage')}
+                  onPress={onToggleSelect}
+                />
                 )
               : null}
             {canRename
               ? (
                 <>
-                  <TouchableOpacity activeOpacity={0.7} onPress={onRename} hitSlop={8} accessibilityRole="button">
-                    <MdiIcon name="pencil-outline" size={22} color={r.ink} />
-                  </TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.7} onPress={onRemove} hitSlop={8} accessibilityRole="button">
-                    <MdiIcon name="trash-can-outline" size={22} color={r.ink} />
-                  </TouchableOpacity>
+                  <IconButton
+                    name="pencil-outline"
+                    size={22}
+                    accessibilityLabel={t('list_rename')}
+                    onPress={onRename}
+                  />
+                  <IconButton
+                    name="trash-can-outline"
+                    size={22}
+                    accessibilityLabel={t('list_remove')}
+                    onPress={onRemove}
+                  />
                 </>
                 )
               : null}

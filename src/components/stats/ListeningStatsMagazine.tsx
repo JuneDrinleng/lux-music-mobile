@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { Fragment, useCallback, useMemo, useState } from 'react'
-import { ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import { ScrollView, View, useWindowDimensions } from 'react-native'
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg'
 
 import { MdiIcon } from '@/components/common/MdiIcon'
@@ -10,6 +10,7 @@ import {
   BackButton,
   DeltaPill,
   Hairline,
+  MagSegmented,
   RankNumber,
   RankedRow,
   SectionHeader,
@@ -31,6 +32,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { buildStatsChartLayout, statsBucketLabel } from '@/utils/playHistory/chartLayout'
 import { type ChartBucket, type PlayRangeId, type RankedArtist, type RankedSong } from '@/utils/playHistory/range'
 import { type PlayHistorySong } from '@/utils/playHistory/types'
+import { formatMinutes } from '@/utils/formatMinutes'
 import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 
@@ -62,7 +64,7 @@ const useStyles = sharedLuxStyles(() => (createStyle({
   metaStrong: { fontWeight: '800' },
   metaSep: { width: 1, height: 14 },
   chartToggle: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  chartToggleItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  chartToggleItem: { flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 44, paddingHorizontal: 4 },
   chartToggleLabel: { fontWeight: '700' },
   chartArea: { width: '100%', height: 176, marginTop: 14 },
   bars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end' },
@@ -318,7 +320,7 @@ export const ListeningStatsMagazine = ({
   const statusBarHeight = useStatusbarHeight()
   const {
     t, range, setRange, now, luxSync, chartMode, onChartModeChange, stats, songs, artists,
-    hours, minutes, compareDiffMinutes, dailyAvgMs, durationText, durationParts, dateText, playSong,
+    compareDiffMinutes, dailyAvgMs, durationText, durationParts, dateText, playSong,
   } = model
 
   const rangeTabs = useMemo(
@@ -344,14 +346,29 @@ export const ListeningStatsMagazine = ({
 
   const chartToggle = (
     <View style={styles.chartToggle}>
-      <TouchableOpacity style={styles.chartToggleItem} activeOpacity={0.8} onPress={() => { onChartModeChange('bar') }} accessibilityLabel={t('stats_chart_bar')}>
-        <MdiIcon name="chart-bar" size={15} color={chartMode == 'bar' ? r.ink : r.quiet} />
-        <Text size={12} color={chartMode == 'bar' ? r.ink : r.quiet} style={styles.chartToggleLabel}>{t('stats_chart_bar_short')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.chartToggleItem} activeOpacity={0.8} onPress={() => { onChartModeChange('line') }} accessibilityLabel={t('stats_chart_line')}>
-        <MdiIcon name="chart-line" size={15} color={chartMode == 'line' ? r.ink : r.quiet} />
-        <Text size={12} color={chartMode == 'line' ? r.ink : r.quiet} style={styles.chartToggleLabel}>{t('stats_chart_line_short')}</Text>
-      </TouchableOpacity>
+      <MagSegmented
+        compact
+        items={[
+          { id: 'bar', label: t('stats_chart_bar_short') },
+          { id: 'line', label: t('stats_chart_line_short') },
+        ]}
+        value={chartMode}
+        onChange={(id) => { onChartModeChange(id as 'bar' | 'line') }}
+        renderItem={(item, selected) => (
+          <>
+            <MdiIcon
+              name={item.id === 'bar' ? 'chart-bar' : 'chart-line'}
+              size={15}
+              color={selected ? r.paper : r.ink}
+            />
+            <Text
+              size={12}
+              color={selected ? r.paper : r.ink}
+              style={styles.chartToggleLabel}
+            >{item.label}</Text>
+          </>
+        )}
+      />
     </View>
   )
 
@@ -379,21 +396,10 @@ export const ListeningStatsMagazine = ({
         {t('stats_duration_heading', { range: t(rangeLabelKey[range]) })}
       </Text>
       <View style={styles.bigRow}>
-        {hours > 0
-          ? (
-            <>
-              <Text size={magType.displayXL.size} color={r.display} style={styles.bigNumber}>{hours}</Text>
-              <Text size={30} color={r.display} style={styles.bigUnit}>{t('stats_unit_hour')}</Text>
-              <Text size={magType.displayXL.size} color={r.display} style={styles.bigNumber}>{minutes}</Text>
-              <Text size={30} color={r.display} style={styles.bigUnit}>{t('stats_unit_minute')}</Text>
-            </>
-            )
-          : (
-            <>
-              <Text size={magType.displayXL.size} color={r.display} style={styles.bigNumber}>{minutes}</Text>
-              <Text size={30} color={r.display} style={styles.bigUnit}>{t('stats_unit_minute')}</Text>
-            </>
-            )}
+        <Text size={magType.displayXL.size} color={r.display} style={styles.bigNumber}>
+          {formatMinutes(stats.listenedMs, true)}
+        </Text>
+        <Text size={30} color={r.display} style={styles.bigUnit}>{t('stats_unit_minute')}</Text>
       </View>
 
       <View style={styles.metaRow}>

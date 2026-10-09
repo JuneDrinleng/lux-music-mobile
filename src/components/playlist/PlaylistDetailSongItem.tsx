@@ -1,12 +1,12 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
-import { Checkbox, Hairline, SourceTag } from '@/components/magazine'
+import { Checkbox, Hairline, ICON_BUTTON_SIZE, IconButton, MagMenu, SourceTag } from '@/components/magazine'
 import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
@@ -144,6 +144,17 @@ const PlaylistDetailSongItem = ({
     }
   }, [song, listId])
 
+  const moreRef = useRef<View>(null)
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false)
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState({ top: 0, left: 0 })
+
+  const openMoreMenu = useCallback(() => {
+    moreRef.current?.measureInWindow((x, y, _w, h) => {
+      setMoreMenuAnchor({ top: y + h + 4, left: x })
+      setMoreMenuVisible(true)
+    })
+  }, [])
+
   const indexLabel = index < 9 ? `0${index + 1}` : String(index + 1)
   const subtitle = detailNote ?? [song.singer, song.meta.albumName].filter(Boolean).join(' · ')
 
@@ -193,6 +204,19 @@ const PlaylistDetailSongItem = ({
               <Text size={12} color={r.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
               )}
           {trailing}
+          {canEdit && !selecting && onRemove
+            ? (
+              <View ref={moreRef} collapsable={false}>
+                <IconButton
+                  name="dots-vertical"
+                  size={20}
+                  color={r.quiet}
+                  accessibilityLabel={t('more_actions')}
+                  onPress={openMoreMenu}
+                />
+              </View>
+              )
+            : null}
           {canEdit && !selecting
             ? (
               <TouchableOpacity
@@ -200,13 +224,27 @@ const PlaylistDetailSongItem = ({
                 activeOpacity={0.75}
                 delayLongPress={0}
                 onLongPress={onDragPressIn}
-                onPress={onRemove}
+                accessibilityRole="button"
+                accessibilityLabel={t('library_drag_sort')}
               >
                 <MdiIcon name="drag-horizontal-variant" size={18} color={r.quiet} />
               </TouchableOpacity>
               )
             : null}
         </TouchableOpacity>
+        {onRemove
+          ? (
+            <MagMenu
+              visible={moreMenuVisible}
+              onClose={() => { setMoreMenuVisible(false) }}
+              anchor={moreMenuAnchor}
+              items={[{ id: 'remove', label: t('list_remove') }]}
+              onChange={(id) => {
+                if (id === 'remove') onRemove()
+              }}
+            />
+            )
+          : null}
         {last ? null : <Hairline />}
       </Animated.View>
     </View>
@@ -278,8 +316,8 @@ const useLuxStyles = sharedLuxStyles(() => createStyle({
     justifyContent: 'center',
   },
   dragButton: {
-    width: 28,
-    height: 28,
+    width: ICON_BUTTON_SIZE,
+    height: ICON_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
