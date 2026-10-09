@@ -224,7 +224,7 @@
 
 需要输入的编辑（昵称、签名、同步地址）用居中白卡片：最大宽 360、圆角 24、标题 17。取消是灰底 `#f1f4fb`，确定是 `#c8e600` 底、`#111827` 字。同一结构也在 `src/components/common/PromptDialog.tsx`。
 
-缓存子页（`ResourceCacheSection.tsx`）沿用选项行：一行容量，一行清理。
+缓存子页（`ResourceCacheSection.tsx`）沿用选项行：一行容量，一行清理。音频缓存上限和图片缓存上限不再展开成单选。两行仍保留紫色图标圆和标题；标题右侧用 `accent.soft` 胶囊显示当前档，下面是满宽滑条。已滑过的轨道用 `accent.primary`，其余用 `surface.playerTrack`，拇指是 `bg.plain` 填色、`accent.primary` 描边。刻度只落在原来的档位上，当前刻度加粗。松手才写入 `player.cacheSize`（MB，0 显示为「关闭」，不写「0 MB」）和 `player.imageCacheCount`（胶囊带「张」，刻度只写数字）。
 
 ### 关于版本更新
 

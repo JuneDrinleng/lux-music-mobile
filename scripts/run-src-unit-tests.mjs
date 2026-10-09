@@ -28,6 +28,7 @@ const files = [
   'src/utils/playlistCoverMap.ts',
   'src/utils/localSongRows.ts',
   'src/utils/homeBootGate.ts',
+  'src/utils/cacheLimitSteps.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -94,6 +95,7 @@ const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
+const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -761,6 +763,71 @@ test('home first-screen lists and unknown counts', () => {
     isCached: (url) => url == cachedFull,
   }), cachedFull)
   assert.deepEqual(homeBoot.collectHomeWarmUrls([null, cachedFull, '  ', cachedFull, thumb]), [cachedFull, thumb])
+})
+
+test('cache limit sliders snap to the existing steps and never label zero as 0 MB', () => {
+  assert.deepEqual([...cacheSteps.AUDIO_CACHE_STEPS_MB], [0, 256, 512, 1024, 2048, 4096, 8192])
+  assert.deepEqual([...cacheSteps.IMAGE_CACHE_STEPS], [200, 400, 800, 1200, 2000])
+  assert.deepEqual(
+    cacheSteps.AUDIO_CACHE_STEPS_MB.map(mb => cacheSteps.formatAudioCacheLimit(mb, '关闭')),
+    ['关闭', '256MB', '512MB', '1GB', '2GB', '4GB', '8GB'],
+  )
+  assert.deepEqual(
+    cacheSteps.AUDIO_CACHE_STEPS_MB.map(mb => cacheSteps.formatAudioCacheLimit(mb, 'Off')),
+    ['Off', '256MB', '512MB', '1GB', '2GB', '4GB', '8GB'],
+  )
+  assert.equal(cacheSteps.formatAudioCacheLimit(0, '关闭'), '关闭')
+  assert.equal(cacheSteps.formatAudioCacheLimit(-4, '关闭'), '关闭')
+  assert.equal(cacheSteps.formatAudioCacheLimit(Number.NaN, '关闭'), '关闭')
+  assert.equal(cacheSteps.formatAudioCacheLimit(0, '关闭').includes('MB'), false)
+  assert.notEqual(cacheSteps.formatAudioCacheLimit(0, '关闭'), '0 MB')
+  assert.notEqual(cacheSteps.formatAudioCacheLimit(0, '关闭'), '0MB')
+  assert.deepEqual(cacheSteps.IMAGE_CACHE_STEPS.map(cacheSteps.formatImageCacheTick), ['200', '400', '800', '1200', '2000'])
+  for (const tick of cacheSteps.IMAGE_CACHE_STEPS.map(cacheSteps.formatImageCacheTick)) {
+    assert.equal(tick.includes('张'), false)
+    assert.equal(tick.includes('張'), false)
+  }
+
+  assert.equal(cacheSteps.nearestCacheStepIndex(0, 7), 0)
+  assert.equal(cacheSteps.nearestCacheStepIndex(1, 7), 6)
+  assert.equal(cacheSteps.nearestCacheStepIndex(0.5, 7), 3)
+  assert.equal(cacheSteps.nearestCacheStepIndex(Number.NaN, 7), 0)
+  assert.equal(cacheSteps.cacheStepFromRatio(cacheSteps.AUDIO_CACHE_STEPS_MB, 0.5), 1024)
+  assert.equal(cacheSteps.cacheStepFromRatio(cacheSteps.AUDIO_CACHE_STEPS_MB, 0), 0)
+  assert.equal(cacheSteps.cacheStepFromRatio(cacheSteps.AUDIO_CACHE_STEPS_MB, 1), 8192)
+  assert.equal(cacheSteps.indexForCacheStep(cacheSteps.AUDIO_CACHE_STEPS_MB, 1024), 3)
+  assert.equal(cacheSteps.indexForCacheStep(cacheSteps.AUDIO_CACHE_STEPS_MB, 0), 0)
+  assert.equal(cacheSteps.indexForCacheStep(cacheSteps.AUDIO_CACHE_STEPS_MB, 3000), 4)
+  assert.equal(cacheSteps.indexForCacheStep(cacheSteps.AUDIO_CACHE_STEPS_MB, 100), 0)
+  assert.equal(cacheSteps.indexForCacheStep(cacheSteps.IMAGE_CACHE_STEPS, 1000), 2)
+  assert.equal(cacheSteps.resolveCacheStepCommit(cacheSteps.AUDIO_CACHE_STEPS_MB, 0.5, 1024), null)
+  assert.equal(cacheSteps.resolveCacheStepCommit(cacheSteps.AUDIO_CACHE_STEPS_MB, 1, 1024), 8192)
+  assert.equal(cacheSteps.resolveCacheStepCommit(cacheSteps.AUDIO_CACHE_STEPS_MB, 0, 1024), 0)
+  assert.equal(cacheSteps.resolveCacheStepCommit(cacheSteps.AUDIO_CACHE_STEPS_MB, cacheSteps.cacheStepRatio(4, 7), 3000), 2048)
+  assert.equal(cacheSteps.resolveCacheStepCommit(cacheSteps.IMAGE_CACHE_STEPS, cacheSteps.cacheStepRatio(1, 5), 400), null)
+  assert.equal(cacheSteps.shouldCommitCacheStep(400, 400), false)
+  assert.equal(cacheSteps.shouldCommitCacheStep(400, 800), true)
+  for (let ratio = 0; ratio <= 1; ratio += 0.01) {
+    const audio = cacheSteps.cacheStepFromRatio(cacheSteps.AUDIO_CACHE_STEPS_MB, ratio)
+    const image = cacheSteps.cacheStepFromRatio(cacheSteps.IMAGE_CACHE_STEPS, ratio)
+    assert.equal(cacheSteps.AUDIO_CACHE_STEPS_MB.includes(audio), true)
+    assert.equal(cacheSteps.IMAGE_CACHE_STEPS.includes(image), true)
+  }
+
+  const readLang = (file) => JSON.parse(readFileSync(join(root, file), 'utf8').replace(/^\uFEFF/, ''))
+  const zh = readLang('src/lang/zh-cn.json')
+  const tw = readLang('src/lang/zh-tw.json')
+  const en = readLang('src/lang/en-us.json')
+  assert.equal(zh.setting_cache_audio_off, '关闭')
+  assert.equal(zh.setting_cache_image_count, '{count} 张')
+  assert.equal(tw.setting_cache_image_count, '{count} 張')
+  assert.match(en.setting_cache_image_count, /\{count\}/)
+  for (const id of lux.LUX_THEME_IDS) {
+    const colors = lux.luxThemeRegistry[id].colors
+    assert.ok(colorMath.contrastRatio(colors.ink.pill, colors.accent.soft) >= 4.5, id + ' chip')
+    assert.notEqual(colors.accent.primary.toLowerCase(), colors.surface.playerTrack.toLowerCase(), id + ' track')
+    assert.notEqual(colors.bg.plain.toLowerCase(), colors.accent.primary.toLowerCase(), id + ' thumb')
+  }
 })
 
 test('migrated screens reject new color literals', () => {

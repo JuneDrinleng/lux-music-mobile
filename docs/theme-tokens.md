@@ -67,6 +67,7 @@
 - `src/screens/Home/Vertical/SharedTopBar.tsx`
 - `src/screens/Home/Vertical/Tabs/HomeTab.tsx`
 - `src/screens/Home/Vertical/Tabs/PlaylistTab.tsx`
+- `src/screens/Home/Vertical/Tabs/CacheLimitSlider.tsx`
 - `src/screens/Home/Vertical/Tabs/ResourceCacheSection.tsx`
 - `src/screens/Home/Vertical/Tabs/SettingsTab.tsx`
 - `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`

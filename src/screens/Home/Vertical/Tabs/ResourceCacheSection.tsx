@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
@@ -16,14 +16,8 @@ import { restorePlaylistCoverCache } from '@/utils/playlistCoverPrefetch'
 import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
 import { updateSetting } from '@/core/common'
 import { useSettingValue } from '@/store/setting/hook'
-
-const AUDIO_CACHE_MB = [0, 256, 512, 1024, 2048, 4096, 8192]
-const IMAGE_CACHE_COUNTS = [200, 400, 800, 1200, 2000]
-
-const withCurrentChoice = (choices: number[], current: number) => {
-  if (choices.includes(current)) return choices
-  return [...choices, current].sort((left, right) => left - right)
-}
+import { AUDIO_CACHE_STEPS_MB, formatAudioCacheLimit, formatImageCacheTick, IMAGE_CACHE_STEPS } from '@/utils/cacheLimitSteps'
+import { CacheLimitSlider } from './CacheLimitSlider'
 
 const parseSettingNumber = (value: string | null | undefined, fallback: number) => {
   const parsed = parseInt(value ?? '', 10)
@@ -194,11 +188,9 @@ export const ResourceCacheDetail = memo(({
   const { colors } = useLuxTheme()
   const cacheSizeSetting = useSettingValue('player.cacheSize')
   const imageCountSetting = useSettingValue('player.imageCacheCount')
-  const [openLimit, setOpenLimit] = useState<null | 'audio' | 'image'>(null)
   const audioLimit = parseSettingNumber(cacheSizeSetting, 1024)
   const imageLimit = parseSettingNumber(imageCountSetting, 400)
-  const audioOptions = useMemo(() => withCurrentChoice(AUDIO_CACHE_MB, audioLimit), [audioLimit])
-  const imageOptions = useMemo(() => withCurrentChoice(IMAGE_CACHE_COUNTS, imageLimit), [imageLimit])
+  const audioOffLabel = t('setting_cache_audio_off')
 
   const handleSelectAudioLimit = useCallback((mb: number) => {
     updateSetting({ 'player.cacheSize': String(mb) })
@@ -254,67 +246,27 @@ export const ResourceCacheDetail = memo(({
         onPress={onCleanImage}
       />
       <View style={parentStyles.optionDetailDivider} />
-      <CacheIconRow
+      <CacheLimitSlider
         styles={parentStyles}
         icon="harddisk"
         title={t('setting_cache_audio_limit')}
-        subtitle={audioLimit == 0 ? t('setting_cache_audio_off') : `${audioLimit} MB`}
-        onPress={() => { setOpenLimit(current => current == 'audio' ? null : 'audio') }}
+        steps={AUDIO_CACHE_STEPS_MB}
+        value={audioLimit}
+        formatTick={mb => formatAudioCacheLimit(mb, audioOffLabel)}
+        formatChip={mb => formatAudioCacheLimit(mb, audioOffLabel)}
+        onCommit={handleSelectAudioLimit}
       />
-      {openLimit == 'audio'
-        ? <>
-            <View style={parentStyles.optionDetailRow}>
-              <Text size={12} color={colors.ink.secondary} style={parentStyles.optionDetailLabel}>{t('setting_cache_audio_limit_desc')}</Text>
-            </View>
-            {audioOptions.map(mb => {
-              const isActive = audioLimit == mb
-              return (
-                <TouchableOpacity
-                  key={mb}
-                  style={parentStyles.optionDetailRow}
-                  activeOpacity={0.84}
-                  onPress={() => { handleSelectAudioLimit(mb) }}
-                >
-                  <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={parentStyles.optionDetailText}>
-                    {mb == 0 ? t('setting_cache_audio_off') : `${mb} MB`}
-                  </Text>
-                  {isActive ? <View style={parentStyles.languageActiveDot} /> : null}
-                </TouchableOpacity>
-              )
-            })}
-          </>
-        : null}
       <View style={parentStyles.optionDetailDivider} />
-      <CacheIconRow
+      <CacheLimitSlider
         styles={parentStyles}
         icon="image-size-select-large"
         title={t('setting_cache_image_limit')}
-        subtitle={t('setting_cache_image_count', { count: imageLimit })}
-        onPress={() => { setOpenLimit(current => current == 'image' ? null : 'image') }}
+        steps={IMAGE_CACHE_STEPS}
+        value={imageLimit}
+        formatTick={formatImageCacheTick}
+        formatChip={count => t('setting_cache_image_count', { count })}
+        onCommit={handleSelectImageLimit}
       />
-      {openLimit == 'image'
-        ? <>
-            <View style={parentStyles.optionDetailRow}>
-              <Text size={12} color={colors.ink.secondary} style={parentStyles.optionDetailLabel}>{t('setting_cache_image_limit_desc')}</Text>
-            </View>
-            {imageOptions.map(count => {
-              const isActive = imageLimit == count
-              return (
-                <TouchableOpacity
-                  key={count}
-                  style={parentStyles.optionDetailRow}
-                  activeOpacity={0.84}
-                  onPress={() => { handleSelectImageLimit(count) }}
-                >
-                  <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={parentStyles.optionDetailText}>
-                    {t('setting_cache_image_count', { count })}
-                  </Text>
-                  {isActive ? <View style={parentStyles.languageActiveDot} /> : null}
-                </TouchableOpacity>
-              )
-            })}
-          </>
-        : null}
       <View style={parentStyles.optionDetailDivider} />
       <CacheIconRow
         styles={parentStyles}
