@@ -16,41 +16,62 @@ import {
   type ListRenderItem,
 } from 'react-native'
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
-import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import GlassSearchField from '@/components/search/GlassSearchField'
+import {
+  BackButton,
+  DOCK_BASE_HEIGHT,
+  EmptyState,
+  MagMenu,
+  RankNumber,
+  Rule,
+  SectionHeader,
+  TextTabs,
+  type MagMenuItem,
+  type MagTabItem,
+} from '@/components/magazine'
 import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
 import SearchSonglistResultRow from '@/components/search/SearchSonglistResultRow'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { addListMusics, getListMusics, removeListMusics } from '@/core/list'
 import { addMusicToQueueAndPlay } from '@/core/player/player'
 import { search as searchOnlineMusic } from '@/core/search/music'
 import { search as searchOnlineSonglist } from '@/core/search/songlist'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
-import { useI18n } from '@/lang'
+import { useI18n, type Message } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useSettingValue } from '@/store/setting/hook'
-import { type Source as OnlineSearchSource } from '@/store/search/music/state'
-import { type Source as OnlineSonglistSearchSource } from '@/store/search/songlist/state'
+import searchMusicState, { type Source as OnlineSearchSource } from '@/store/search/music/state'
+import searchSonglistState, { type Source as OnlineSonglistSearchSource } from '@/store/search/songlist/state'
 import settingState from '@/store/setting/state'
 import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
 import { type VerticalSearchPagePayload, type VerticalSearchSource } from '@/event/appEvent'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { debounce } from '@/utils'
 import musicSdk from '@/utils/musicSdk'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, SECTION_TO_LIST, magType } from '@/theme/magazineType'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 112
-const SEARCH_TYPE_BAR_HEIGHT = 36
-const SEARCH_TYPE_BAR_GAP = 14
-const SEARCH_HEADER_BOTTOM_GAP = 16
 type SearchResultItem = LX.Music.MusicInfoOnline
 type SearchResultType = 'music' | 'songlist'
+type PageSearchSource = VerticalSearchSource
+
+const SOURCE_OPTIONS: readonly PageSearchSource[] = ['all', 'kw', 'kg', 'tx', 'wy', 'mg']
+
+const sourceShortKey = (source: string): keyof Message => {
+  switch (source) {
+    case 'kw': return 'source_short_kw'
+    case 'kg': return 'source_short_kg'
+    case 'tx': return 'source_short_tx'
+    case 'wy': return 'source_short_wy'
+    case 'mg': return 'source_short_mg'
+    default: return `source_real_${source}` as keyof Message
+  }
+}
+
 export interface SearchPageRequest extends VerticalSearchPagePayload {
   token: number
 }
@@ -66,33 +87,64 @@ export default function SearchPage({
 }) {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
 
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
-  const searchSource = useSettingValue('search.defaultSource')
+  const gestureInsetBottom = useSystemGestureInsetBottom()
+  const defaultSearchSource = useSettingValue('search.defaultSource') as PageSearchSource
+  const [pageSearchSource, setPageSearchSource] = useState<PageSearchSource>(defaultSearchSource ?? 'all')
   const [searchText, setSearchText] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchResultType, setSearchResultType] = useState<SearchResultType>('music')
   const [searchLoading, setSearchLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [musicSearchResults, setMusicSearchResults] = useState<SearchResultItem[]>([])
   const [songlistSearchResults, setSonglistSearchResults] = useState<SearchSonglistItem[]>([])
+  const [musicTotal, setMusicTotal] = useState(0)
+  const [songlistTotal, setSonglistTotal] = useState(0)
+  const [musicPage, setMusicPage] = useState(1)
+  const [songlistPage, setSonglistPage] = useState(1)
   const [lovedSongMap, setLovedSongMap] = useState<Record<string, true>>({})
   const [isSearchInputEditing, setSearchInputEditing] = useState(false)
   const [searchHistoryList, setSearchHistoryList] = useState<string[]>([])
   const [searchTipList, setSearchTipList] = useState<string[]>([])
+  const [hotSearchList, setHotSearchList] = useState<string[]>([])
   const [searchTipLoading, setSearchTipLoading] = useState(false)
+  const [sourceMenuVisible, setSourceMenuVisible] = useState(false)
+  const [sourceMenuAnchor, setSourceMenuAnchor] = useState({ top: 0, left: 0, width: 168 })
   const [shouldRender, setShouldRender] = useState(visible)
   const searchRequestIdRef = useRef(0)
   const searchTipRequestIdRef = useRef(0)
+  const hotSearchRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
+  const sourceTriggerRef = useRef<View>(null)
   const requestTokenRef = useRef<number | null>(null)
   const searchLoadedKeyRef = useRef<Record<SearchResultType, string>>({
     music: '',
     songlist: '',
   })
   const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
+  const bottomPad = DOCK_BASE_HEIGHT + gestureInsetBottom
+
+  const sourceLabel = useMemo(() => {
+    if (pageSearchSource === 'all') return t('search_source_all')
+    return t(sourceShortKey(pageSearchSource))
+  }, [pageSearchSource, t])
+
+  const sourceMenuItems = useMemo((): MagMenuItem[] => (
+    SOURCE_OPTIONS.map((id) => ({
+      id,
+      label: id === 'all' ? t('search_source_all') : t(sourceShortKey(id)),
+    }))
+  ), [t])
+
+  const searchTypeTabs = useMemo((): MagTabItem[] => ([
+    { id: 'music', label: t('search_type_music') },
+    { id: 'songlist', label: t('search_type_songlist') },
+  ]), [t])
 
   const forceDismissSearchInput = useCallback(() => {
     searchInputRef.current?.blur()
@@ -102,6 +154,7 @@ export default function SearchPage({
     searchRequestIdRef.current += 1
     searchTipRequestIdRef.current += 1
     setSearchLoading(false)
+    setLoadingMore(false)
     setSearchTipLoading(false)
     setSearchTipList([])
     setSearchText('')
@@ -109,15 +162,21 @@ export default function SearchPage({
     setSearchResultType('music')
     setMusicSearchResults([])
     setSonglistSearchResults([])
+    setMusicTotal(0)
+    setSonglistTotal(0)
+    setMusicPage(1)
+    setSonglistPage(1)
     searchLoadedKeyRef.current.music = ''
     searchLoadedKeyRef.current.songlist = ''
     setSearchInputEditing(false)
+    setSourceMenuVisible(false)
+    setPageSearchSource(defaultSearchSource ?? 'all')
     global.app_event.verticalSearchStateUpdated({
       keyword: '',
-      source: searchSource ?? 'all',
+      source: defaultSearchSource ?? 'all',
     })
     forceDismissSearchInput()
-  }, [forceDismissSearchInput, searchSource])
+  }, [defaultSearchSource, forceDismissSearchInput])
 
   const refreshLovedSongMap = useCallback(async() => {
     const list = await getListMusics(LIST_IDS.LOVE)
@@ -170,7 +229,38 @@ export default function SearchPage({
       setSearchHistoryList(list)
     })
   }, [])
-  const requestSearchTips = useMemo(() => debounce((keyword: string, source: VerticalSearchSource) => {
+
+  const loadHotSearchList = useCallback((source: PageSearchSource) => {
+    const requestId = ++hotSearchRequestIdRef.current
+    const sdkSource = source === 'all' ? 'kw' : source
+    const api = (musicSdk as Record<string, { hotSearch?: { getList?: () => Promise<{ list?: string[] }> } } | undefined>)[sdkSource]
+    const fallback = (musicSdk as Record<string, { hotSearch?: { getList?: () => Promise<{ list?: string[] }> } | undefined }>).kw
+    const hotApi = api?.hotSearch?.getList ? api.hotSearch : fallback?.hotSearch
+    if (!hotApi?.getList) {
+      setHotSearchList([])
+      return
+    }
+    void hotApi.getList().then((data) => {
+      if (requestId !== hotSearchRequestIdRef.current) return
+      const list = Array.isArray(data?.list) ? data.list : []
+      setHotSearchList(
+        list
+          .map(item => typeof item == 'string' ? item.trim() : '')
+          .filter(Boolean)
+          .slice(0, 10),
+      )
+    }).catch(() => {
+      if (requestId !== hotSearchRequestIdRef.current) return
+      setHotSearchList([])
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!visible) return
+    loadHotSearchList(pageSearchSource)
+  }, [loadHotSearchList, pageSearchSource, visible])
+
+  const requestSearchTips = useMemo(() => debounce((keyword: string, source: PageSearchSource) => {
     const normalizedKeyword = keyword.trim()
     if (!normalizedKeyword) return
     const requestId = ++searchTipRequestIdRef.current
@@ -205,36 +295,59 @@ export default function SearchPage({
       if (requestId === searchTipRequestIdRef.current) setSearchTipLoading(false)
     })
   }, 220), [])
-  const runSearch = useCallback(async(keyword: string, source: VerticalSearchSource, type: SearchResultType) => {
+
+  const runSearch = useCallback(async(keyword: string, source: PageSearchSource, type: SearchResultType, page = 1, append = false) => {
     const requestId = ++searchRequestIdRef.current
-    setSearchLoading(true)
+    if (append) setLoadingMore(true)
+    else setSearchLoading(true)
     const lowerKeyword = keyword.trim().toLowerCase()
     const requestKey = `${type}__${source}__${lowerKeyword}`
     try {
       if (!lowerKeyword) {
         if (requestId !== searchRequestIdRef.current) return
-        if (type === 'songlist') setSonglistSearchResults([])
-        else setMusicSearchResults([])
+        if (type === 'songlist') {
+          setSonglistSearchResults([])
+          setSonglistTotal(0)
+          setSonglistPage(1)
+        } else {
+          setMusicSearchResults([])
+          setMusicTotal(0)
+          setMusicPage(1)
+        }
         searchLoadedKeyRef.current[type] = ''
         return
       }
       if (type === 'songlist') {
-        const results = await searchOnlineSonglist(lowerKeyword, 1, source as OnlineSonglistSearchSource)
+        const results = await searchOnlineSonglist(lowerKeyword, page, source as OnlineSonglistSearchSource)
         if (requestId !== searchRequestIdRef.current) return
-        setSonglistSearchResults(results)
+        setSonglistSearchResults(prev => append ? [...prev, ...results] : results)
+        setSonglistTotal(searchSonglistState.listInfos[source as OnlineSonglistSearchSource]?.total ?? results.length)
+        setSonglistPage(page)
       } else {
-        const results = await searchOnlineMusic(lowerKeyword, 1, source as OnlineSearchSource)
+        const results = await searchOnlineMusic(lowerKeyword, page, source as OnlineSearchSource)
         if (requestId !== searchRequestIdRef.current) return
-        setMusicSearchResults(results)
+        setMusicSearchResults(prev => append ? [...prev, ...results] : results)
+        setMusicTotal(searchMusicState.listInfos[source as OnlineSearchSource]?.total ?? results.length)
+        setMusicPage(page)
       }
       searchLoadedKeyRef.current[type] = requestKey
     } catch {
       if (requestId !== searchRequestIdRef.current) return
-      if (type === 'songlist') setSonglistSearchResults([])
-      else setMusicSearchResults([])
+      if (!append) {
+        if (type === 'songlist') {
+          setSonglistSearchResults([])
+          setSonglistTotal(0)
+        } else {
+          setMusicSearchResults([])
+          setMusicTotal(0)
+        }
+      }
       searchLoadedKeyRef.current[type] = requestKey
     } finally {
-      if (requestId === searchRequestIdRef.current) setSearchLoading(false)
+      if (requestId === searchRequestIdRef.current) {
+        setSearchLoading(false)
+        setLoadingMore(false)
+      }
     }
   }, [])
 
@@ -254,35 +367,43 @@ export default function SearchPage({
       loadSearchHistoryList()
       return
     }
-    requestSearchTips(keyword, searchSource)
-  }, [isSearchInputEditing, loadSearchHistoryList, requestSearchTips, searchSource])
+    requestSearchTips(keyword, pageSearchSource)
+  }, [isSearchInputEditing, loadSearchHistoryList, pageSearchSource, requestSearchTips])
+
   const handleSearchInputBlur = useCallback(() => {
     requestAnimationFrame(() => {
       setSearchInputEditing(false)
     })
   }, [])
+
   const handleClearSearchText = useCallback(() => {
     searchRequestIdRef.current += 1
     searchTipRequestIdRef.current += 1
     setSearchLoading(false)
+    setLoadingMore(false)
     setSearchTipLoading(false)
     setSearchTipList([])
     setSearchText('')
     setSearchKeyword('')
     setMusicSearchResults([])
     setSonglistSearchResults([])
+    setMusicTotal(0)
+    setSonglistTotal(0)
+    setMusicPage(1)
+    setSonglistPage(1)
     searchLoadedKeyRef.current.music = ''
     searchLoadedKeyRef.current.songlist = ''
     setSearchInputEditing(true)
     global.app_event.verticalSearchStateUpdated({
       keyword: '',
-      source: searchSource ?? 'all',
+      source: pageSearchSource,
     })
     loadSearchHistoryList()
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
     })
-  }, [loadSearchHistoryList, searchSource])
+  }, [loadSearchHistoryList, pageSearchSource])
+
   const handleSubmitSearch = useCallback((text: string) => {
     forceDismissSearchInput()
     const input = (text || searchText).trim()
@@ -291,11 +412,14 @@ export default function SearchPage({
     searchTipRequestIdRef.current += 1
     setSearchTipLoading(false)
     setSearchTipList([])
+    setSourceMenuVisible(false)
 
     if (!input) {
       setSearchKeyword('')
       setMusicSearchResults([])
       setSonglistSearchResults([])
+      setMusicTotal(0)
+      setSonglistTotal(0)
       searchLoadedKeyRef.current.music = ''
       searchLoadedKeyRef.current.songlist = ''
       requestAnimationFrame(() => {
@@ -309,16 +433,21 @@ export default function SearchPage({
     setSearchKeyword(input)
     setMusicSearchResults([])
     setSonglistSearchResults([])
+    setMusicTotal(0)
+    setSonglistTotal(0)
+    setMusicPage(1)
+    setSonglistPage(1)
     searchLoadedKeyRef.current.music = ''
     searchLoadedKeyRef.current.songlist = ''
     global.app_event.verticalSearchStateUpdated({
       keyword: input,
-      source: searchSource ?? 'all',
+      source: pageSearchSource,
     })
     void addHistoryWord(input)
-    void runSearch(input, searchSource ?? 'all', searchResultType)
+    void runSearch(input, pageSearchSource, searchResultType, 1, false)
     forceDismissSearchInput()
-  }, [forceDismissSearchInput, loadSearchHistoryList, runSearch, searchResultType, searchSource, searchText])
+  }, [forceDismissSearchInput, loadSearchHistoryList, pageSearchSource, runSearch, searchResultType, searchText])
+
   const handleBeginSearchInputEdit = useCallback(() => {
     setSearchInputEditing(true)
     const keyword = searchText.trim()
@@ -332,16 +461,19 @@ export default function SearchPage({
       loadSearchHistoryList()
       return
     }
-    requestSearchTips(keyword, searchSource ?? 'all')
-  }, [loadSearchHistoryList, requestSearchTips, searchSource, searchText])
+    requestSearchTips(keyword, pageSearchSource)
+  }, [loadSearchHistoryList, pageSearchSource, requestSearchTips, searchText])
+
   const handlePickSearchKeyword = useCallback((keyword: string) => {
     setSearchText(keyword)
     handleSubmitSearch(keyword)
   }, [handleSubmitSearch])
+
   const handleClearSearchHistoryList = useCallback(() => {
     clearHistoryList()
     setSearchHistoryList([])
   }, [])
+
   const handleRemoveSearchHistoryItem = useCallback((keyword: string) => {
     setSearchHistoryList((list) => {
       const index = list.indexOf(keyword)
@@ -352,9 +484,11 @@ export default function SearchPage({
       return nextList
     })
   }, [])
+
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     await addMusicToQueueAndPlay(song)
   }, [])
+
   const handleToggleSearchLoved = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     const songId = String(song.id)
     const isLoved = Boolean(lovedSongMap[songId])
@@ -376,6 +510,7 @@ export default function SearchPage({
       })
     }
   }, [lovedSongMap])
+
   const handleShowMusicAddModal = useCallback((song: LX.Music.MusicInfoOnline) => {
     musicAddModalRef.current?.show({
       musicInfo: song,
@@ -383,6 +518,7 @@ export default function SearchPage({
       isMove: false,
     })
   }, [])
+
   const handleOpenSonglistDetail = useCallback((item: SearchSonglistItem) => {
     global.app_event.openPlaylistDetail({
       type: 'onlineSonglist',
@@ -395,6 +531,7 @@ export default function SearchPage({
       play_count: item.play_count,
     })
   }, [])
+
   const handleSearchResultTypeChange = useCallback((nextValue: string) => {
     if (nextValue !== 'music' && nextValue !== 'songlist') return
     if (nextValue === searchResultType) return
@@ -404,36 +541,99 @@ export default function SearchPage({
     if (isSearchInputEditing || !searchKeyword) return
 
     const normalizedKeyword = searchKeyword.trim().toLowerCase()
-    const requestKey = `${nextValue}__${searchSource ?? 'all'}__${normalizedKeyword}`
+    const requestKey = `${nextValue}__${pageSearchSource}__${normalizedKeyword}`
     if (searchLoadedKeyRef.current[nextValue] === requestKey) return
 
-    void runSearch(searchKeyword, searchSource ?? 'all', nextValue)
-  }, [isSearchInputEditing, runSearch, searchKeyword, searchResultType, searchSource])
+    void runSearch(searchKeyword, pageSearchSource, nextValue, 1, false)
+  }, [isSearchInputEditing, pageSearchSource, runSearch, searchKeyword, searchResultType])
+
+  const handleSelectSource = useCallback((id: string) => {
+    if (!SOURCE_OPTIONS.includes(id as PageSearchSource)) return
+    const next = id as PageSearchSource
+    setPageSearchSource(next)
+    setSourceMenuVisible(false)
+    if (searchKeyword) {
+      searchLoadedKeyRef.current.music = ''
+      searchLoadedKeyRef.current.songlist = ''
+      global.app_event.verticalSearchStateUpdated({
+        keyword: searchKeyword,
+        source: next,
+      })
+      void runSearch(searchKeyword, next, searchResultType, 1, false)
+      return
+    }
+    const tipKeyword = searchText.trim()
+    if (tipKeyword && isSearchInputEditing) {
+      requestSearchTips(tipKeyword, next)
+    }
+    loadHotSearchList(next)
+  }, [isSearchInputEditing, loadHotSearchList, requestSearchTips, runSearch, searchKeyword, searchResultType, searchText])
+
+  const handleOpenSourceMenu = useCallback(() => {
+    sourceTriggerRef.current?.measureInWindow((x, y, w, h) => {
+      const menuWidth = 168
+      const left = Math.max(PAGE_GUTTER, Math.min(x + w - menuWidth, width - PAGE_GUTTER - menuWidth))
+      setSourceMenuAnchor({ top: y + h + 6, left, width: menuWidth })
+      setSourceMenuVisible(true)
+    })
+  }, [width])
+
+  const handleLoadMore = useCallback(() => {
+    if (searchLoading || loadingMore || !searchKeyword) return
+    if (searchResultType === 'music') {
+      if (musicSearchResults.length >= musicTotal && musicTotal > 0) return
+      void runSearch(searchKeyword, pageSearchSource, 'music', musicPage + 1, true)
+      return
+    }
+    if (songlistSearchResults.length >= songlistTotal && songlistTotal > 0) return
+    void runSearch(searchKeyword, pageSearchSource, 'songlist', songlistPage + 1, true)
+  }, [
+    loadingMore,
+    musicPage,
+    musicSearchResults.length,
+    musicTotal,
+    pageSearchSource,
+    runSearch,
+    searchKeyword,
+    searchLoading,
+    searchResultType,
+    songlistPage,
+    songlistSearchResults.length,
+    songlistTotal,
+  ])
 
   const initializeFromRequest = useCallback((payload: SearchPageRequest) => {
     const nextKeyword = payload.keyword?.trim() ?? ''
+    const nextSource = defaultSearchSource ?? 'all'
 
     searchRequestIdRef.current += 1
     searchTipRequestIdRef.current += 1
     setSearchLoading(false)
+    setLoadingMore(false)
     setSearchTipLoading(false)
     setSearchTipList([])
     setSearchText(nextKeyword)
     setSearchResultType('music')
+    setPageSearchSource(nextSource)
     setMusicSearchResults([])
     setSonglistSearchResults([])
+    setMusicTotal(0)
+    setSonglistTotal(0)
+    setMusicPage(1)
+    setSonglistPage(1)
     searchLoadedKeyRef.current.music = ''
     searchLoadedKeyRef.current.songlist = ''
+    loadHotSearchList(nextSource)
 
     if (payload.submit && nextKeyword) {
       setSearchInputEditing(false)
       setSearchKeyword(nextKeyword)
       global.app_event.verticalSearchStateUpdated({
         keyword: nextKeyword,
-        source: searchSource ?? 'all',
+        source: nextSource,
       })
       void addHistoryWord(nextKeyword)
-      void runSearch(nextKeyword, searchSource ?? 'all', 'music')
+      void runSearch(nextKeyword, nextSource, 'music', 1, false)
       forceDismissSearchInput()
       return
     }
@@ -447,8 +647,8 @@ export default function SearchPage({
       loadSearchHistoryList()
       return
     }
-    requestSearchTips(nextKeyword, searchSource ?? 'all')
-  }, [forceDismissSearchInput, loadSearchHistoryList, requestSearchTips, runSearch, searchSource])
+    requestSearchTips(nextKeyword, nextSource)
+  }, [defaultSearchSource, forceDismissSearchInput, loadHotSearchList, loadSearchHistoryList, requestSearchTips, runSearch])
 
   useEffect(() => {
     if (!visible || !request) return
@@ -463,32 +663,6 @@ export default function SearchPage({
     return true
   }, [handleClose, visible]))
 
-  const searchTypeItems = useMemo(() => ([
-    {
-      key: 'music',
-      accessibilityLabel: t('search_type_music'),
-      renderIcon: (active: boolean) => (
-        <MdiIcon
-          name="music-note"
-          size={16}
-          color={colors.ink.nearBlack}
-          style={!active ? styles.searchTypeIconInactive : undefined}
-        />
-      ),
-    },
-    {
-      key: 'songlist',
-      accessibilityLabel: t('search_type_songlist'),
-      renderIcon: (active: boolean) => (
-        <MdiIcon
-          name="playlist-music"
-          size={20}
-          color={colors.ink.nearBlack}
-          style={!active ? styles.searchTypeIconInactive : undefined}
-        />
-      ),
-    },
-  ]), [t, colors])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item, index }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     return (
@@ -497,104 +671,138 @@ export default function SearchPage({
         index={index}
         keyword={searchKeyword}
         isLoved={isLoved}
+        last={index === musicSearchResults.length - 1}
         onPress={() => { void handlePlaySearchSong(item) }}
         onToggleLoved={() => { void handleToggleSearchLoved(item) }}
         onAdd={() => { handleShowMusicAddModal(item) }}
       />
     )
-  }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap, searchKeyword])
-  const renderSonglistResultItem: ListRenderItem<SearchSonglistItem> = useCallback(({ item }) => {
+  }, [handlePlaySearchSong, handleShowMusicAddModal, handleToggleSearchLoved, lovedSongMap, musicSearchResults.length, searchKeyword])
+
+  const renderSonglistResultItem: ListRenderItem<SearchSonglistItem> = useCallback(({ item, index }) => {
     return (
       <SearchSonglistResultRow
         item={item}
         keyword={searchKeyword}
+        last={index === songlistSearchResults.length - 1}
         onPress={() => { handleOpenSonglistDetail(item) }}
       />
     )
-  }, [handleOpenSonglistDetail, searchKeyword])
+  }, [handleOpenSonglistDetail, searchKeyword, songlistSearchResults.length])
 
   const searchAssistKeyword = searchText.trim()
-  const searchAssistList = useMemo(() => {
-    return searchAssistKeyword ? searchTipList : searchHistoryList
-  }, [searchAssistKeyword, searchHistoryList, searchTipList])
+  const suggestionList = searchAssistKeyword ? searchTipList : hotSearchList
   const showInitialPage = isSearchInputEditing || !searchKeyword
-  const searchResultTitle = searchResultType === 'songlist' ? t('search_result_songlist_title') : t('search_result_music_title')
+  const resultTitle = searchResultType === 'songlist' ? t('search_result_songlist_title') : t('search_result_music_title')
+  const resultCount = searchResultType === 'songlist' ? songlistTotal : musicTotal
+  const resultMeta = resultCount > 0
+    ? (searchResultType === 'songlist'
+        ? t('search_about_songlist', { num: resultCount })
+        : t('search_about_music', { num: resultCount }))
+    : undefined
+  const canLoadMore = searchResultType === 'music'
+    ? musicSearchResults.length > 0 && (musicTotal === 0 || musicSearchResults.length < musicTotal)
+    : songlistSearchResults.length > 0 && (songlistTotal === 0 || songlistSearchResults.length < songlistTotal)
 
   const searchHeader = useMemo(() => {
     return (
-      <View style={[styles.searchResultHeader, { paddingTop: statusBarHeight + 18 }]}>
+      <View style={[styles.searchResultHeader, { paddingTop: statusBarHeight + 10 }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={handleClose}>
-            <View style={styles.backBubble}>
-              <View style={styles.backInner}>
-                <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.searchDock}>
-            <GlassSearchField style={styles.searchField} contentStyle={styles.searchContent}>
-                <MdiIcon name="magnify" rawSize={17} color={colors.ink.searchIcon} />
-                {isSearchInputEditing
-                  ? <View style={styles.searchInputSlot}>
-                      <TextInput
-                        ref={searchInputRef}
-                        style={styles.searchInput}
-                        value={searchText}
-                        onChangeText={handleSearchTextChange}
-                        disableFullscreenUI
-                        blurOnSubmit
-                        autoFocus
-                        underlineColorAndroid="transparent"
-                        selectionColor={colors.ink.searchIcon}
-                        onBlur={handleSearchInputBlur}
-                        onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
-                        returnKeyType="search"
-                        placeholder={t('me_search_placeholder')}
-                        placeholderTextColor={colors.ink.quiet}
-                      />
-                    </View>
-                  : <TouchableOpacity style={styles.searchInputTrigger} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
-                      <Text size={13} color={searchText ? colors.ink.input : colors.ink.quiet} numberOfLines={1} style={styles.searchInputText}>
-                        {searchText || t('me_search_placeholder')}
-                      </Text>
-                    </TouchableOpacity>}
-                <TouchableOpacity
-                  style={styles.clearSearchButton}
-                  activeOpacity={0.8}
-                  onPress={handleClearSearchText}
-                  disabled={!searchText.length && !searchKeyword.length}
+          <BackButton onPress={handleClose} accessibilityLabel={t('back')} />
+        </View>
+
+        <View style={styles.searchUnderline}>
+          <MdiIcon name="magnify" size={24} color={r.ink} />
+          {isSearchInputEditing
+            ? (
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchInput}
+                value={searchText}
+                onChangeText={handleSearchTextChange}
+                disableFullscreenUI
+                blurOnSubmit
+                autoFocus
+                underlineColorAndroid="transparent"
+                selectionColor={r.ink}
+                cursorColor={r.ink}
+                onBlur={handleSearchInputBlur}
+                onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
+                returnKeyType="search"
+                placeholder={t('me_search_placeholder')}
+                placeholderTextColor={r.quiet}
+              />
+              )
+            : (
+              <TouchableOpacity style={styles.searchInputTrigger} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
+                <Text
+                  size={magType.searchInput.size}
+                  color={searchText ? r.ink : r.quiet}
+                  numberOfLines={1}
+                  style={styles.searchInputText}
                 >
-                  <MdiIcon
-                    name="close"
-                    rawSize={16}
-                    color={searchText.length || searchKeyword.length ? colors.ink.searchIcon : colors.ink.searchClearIdle}
-                  />
-                </TouchableOpacity>
-            </GlassSearchField>
+                  {searchText || t('me_search_placeholder')}
+                </Text>
+              </TouchableOpacity>
+              )}
+          {searchText.length || searchKeyword.length
+            ? (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                activeOpacity={0.7}
+                onPress={handleClearSearchText}
+                hitSlop={8}
+              >
+                <MdiIcon name="close-circle" size={20} color={r.quiet} />
+              </TouchableOpacity>
+              )
+            : null}
+        </View>
+
+        <View style={styles.filterRow}>
+          <TextTabs
+            items={searchTypeTabs}
+            value={searchResultType}
+            onChange={handleSearchResultTypeChange}
+            style={styles.searchTabs}
+          />
+          <View ref={sourceTriggerRef} collapsable={false}>
+            <TouchableOpacity
+              style={styles.sourceTrigger}
+              activeOpacity={0.7}
+              onPress={handleOpenSourceMenu}
+            >
+              <Text size={13} color={r.muted} style={styles.sourceTriggerText}>
+                {t('search_source_filter', { name: sourceLabel })}
+              </Text>
+              <MdiIcon name="chevron-down" size={16} color={r.quiet} />
+            </TouchableOpacity>
           </View>
         </View>
-        {!showInitialPage
-          ? <View style={styles.searchTypeBar}>
-              <Text size={22} color={colors.ink.subpageTitle} style={styles.searchTypeTitle}>{searchResultTitle}</Text>
-              <SegmentedIconSwitch
-                value={searchResultType}
-                items={searchTypeItems}
-                onChange={handleSearchResultTypeChange}
-                style={styles.searchTypeSwitch}
-                itemWidth={42}
-                itemHeight={30}
-                padding={3}
-                backgroundColor={colors.surface.segment}
-                borderColor={colors.line.segment}
-                thumbColor={colors.accent.primary}
-                thumbBorderColor={colors.accent.thumbBorder}
-                thumbShadowColor={colors.shadow.segment}
-              />
-            </View>
-          : null}
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, showInitialPage, statusBarHeight, t, colors])
+  }, [
+    handleBeginSearchInputEdit,
+    handleClearSearchText,
+    handleClose,
+    handleOpenSourceMenu,
+    handleSearchInputBlur,
+    handleSearchResultTypeChange,
+    handleSearchTextChange,
+    handleSubmitSearch,
+    isSearchInputEditing,
+    r.ink,
+    r.muted,
+    r.quiet,
+    searchKeyword.length,
+    searchResultType,
+    searchText,
+    searchTypeTabs,
+    sourceLabel,
+    statusBarHeight,
+    styles,
+    t,
+  ])
 
   const panelTranslateX = useMemo(() => pageAnim.interpolate({
     inputRange: [0, 1],
@@ -604,52 +812,31 @@ export default function SearchPage({
     inputRange: [0, 1],
     outputRange: [0.86, 1],
   }), [pageAnim])
-  const searchHeaderHeight = statusBarHeight + 18 + 44 + SEARCH_HEADER_BOTTOM_GAP + (showInitialPage ? 0 : SEARCH_TYPE_BAR_GAP + SEARCH_TYPE_BAR_HEIGHT)
-  const renderInitialItem = useCallback((keyword: string, index: number) => {
-    const isSuggestion = Boolean(searchAssistKeyword)
+
+  const searchHeaderHeight = statusBarHeight + 10 + 40 + 14 + 40 + 18 + 36
+
+  const renderSuggestionItem = useCallback((keyword: string, index: number) => {
     return (
       <TouchableOpacity
         key={`${keyword}_${index}`}
-        style={[
-          styles.initialRow,
-          index < searchAssistList.length - 1 ? styles.initialRowSpacing : null,
-        ]}
-        activeOpacity={0.82}
+        style={styles.suggestRow}
+        activeOpacity={0.7}
         onPress={() => { handlePickSearchKeyword(keyword) }}
-        onLongPress={!isSuggestion ? () => { handleRemoveSearchHistoryItem(keyword) } : undefined}
       >
-        <View style={styles.initialRowIcon}>
-          {isSuggestion
-            ? <Icon name="search-2" rawSize={15} color={colors.ink.historyIcon} />
-            : <MaterialCommunityIcon name="history" size={16} color={colors.ink.historyIcon} />}
-        </View>
-        <View style={styles.initialRowBody}>
-          <Text size={16} color={colors.ink.subpageTitle} numberOfLines={1} style={styles.initialRowTitle}>{keyword}</Text>
-        </View>
-        {isSuggestion
-          ? <MaterialCommunityIcon
-              name="arrow-top-left"
-              size={16}
-              color={colors.ink.suggestArrow}
-            />
-          : <TouchableOpacity
-              style={styles.initialRowDismiss}
-              activeOpacity={0.72}
-              onPress={() => { handleRemoveSearchHistoryItem(keyword) }}
-            >
-              <MaterialCommunityIcon name="close" size={16} color={colors.ink.suggestArrow} />
-            </TouchableOpacity>}
+        <RankNumber rank={index + 1} width={36} />
+        <Text size={magType.rowTitle.size} color={r.ink} numberOfLines={1} style={styles.suggestTitle}>{keyword}</Text>
+        <MdiIcon name="arrow-top-right" size={16} color={r.quiet} />
       </TouchableOpacity>
     )
-  }, [handlePickSearchKeyword, handleRemoveSearchHistoryItem, searchAssistKeyword, searchAssistList.length, colors])
+  }, [handlePickSearchKeyword, r.ink, r.quiet, styles])
+
   const initialView = useMemo(() => {
-    const sectionTitle = searchAssistKeyword ? t('search_suggestions_title') : t('search_recent_title')
     return (
       <ScrollView
         style={styles.initialScroll}
         contentContainerStyle={[
           styles.initialContent,
-          { paddingTop: searchHeaderHeight, paddingBottom: 22 + BOTTOM_DOCK_BASE_HEIGHT },
+          { paddingTop: searchHeaderHeight, paddingBottom: 22 + bottomPad },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -657,37 +844,116 @@ export default function SearchPage({
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <View style={styles.initialSectionHeader}>
-          <Text size={22} color={colors.ink.subpageTitle} style={styles.initialSectionTitle}>
-            {sectionTitle}
-          </Text>
-          {!searchAssistKeyword && searchHistoryList.length
-            ? <TouchableOpacity
-                style={styles.initialSectionAction}
-                activeOpacity={0.82}
-                onPress={handleClearSearchHistoryList}
-              >
-                <Text size={12} color={colors.ink.olive} style={styles.initialSectionActionText}>{t('search_clear_all')}</Text>
-              </TouchableOpacity>
-            : null}
-        </View>
-
-        <View style={styles.initialList}>
-          {searchTipLoading && searchAssistKeyword
-            ? <View style={styles.initialEmpty}>
-                <Text size={13} color={colors.ink.searching}>{t('me_searching')}</Text>
+        {!searchAssistKeyword
+          ? (
+            <View>
+              <SectionHeader
+                title={t('search_recent_title')}
+                showRule={false}
+                style={styles.recentHeader}
+                trailing={searchHistoryList.length
+                  ? (
+                    <TouchableOpacity activeOpacity={0.7} onPress={handleClearSearchHistoryList} hitSlop={8}>
+                      <Text size={magType.sectionMeta.size} color={r.muted} style={styles.clearHistoryText}>
+                        {t('search_clear_all')}
+                      </Text>
+                    </TouchableOpacity>
+                    )
+                  : undefined}
+              />
+              <View style={styles.chipWrap}>
+                {searchHistoryList.length
+                  ? searchHistoryList.map((keyword, index) => (
+                    <TouchableOpacity
+                      key={`${keyword}_${index}`}
+                      style={styles.historyChip}
+                      activeOpacity={0.82}
+                      onPress={() => { handlePickSearchKeyword(keyword) }}
+                      onLongPress={() => { handleRemoveSearchHistoryItem(keyword) }}
+                    >
+                      <MdiIcon name="history" size={14} color={r.quiet} />
+                      <Text size={13} color={r.ink} style={styles.historyChipText} numberOfLines={1}>{keyword}</Text>
+                    </TouchableOpacity>
+                  ))
+                  : <Text size={13} color={r.faint}>{t('me_search_hint')}</Text>}
               </View>
-            : searchAssistList.length
-              ? searchAssistList.map((keyword, index) => renderInitialItem(keyword, index))
-              : <View style={styles.initialEmpty}>
-                  <Text size={13} color={colors.ink.searching}>
-                    {searchAssistKeyword ? t('me_search_no_match') : t('me_search_hint')}
-                  </Text>
-                </View>}
+              <Rule compact />
+            </View>
+            )
+          : null}
+
+        <SectionHeader
+          title={t('search_suggestions_title')}
+          meta={searchAssistKeyword ? undefined : t('search_hot_meta')}
+          showRule={Boolean(searchAssistKeyword)}
+          compactRule={Boolean(searchAssistKeyword)}
+          style={searchAssistKeyword ? undefined : styles.suggestHeader}
+        />
+
+        <View style={styles.suggestList}>
+          {searchTipLoading && searchAssistKeyword
+            ? (
+              <EmptyState
+                eyebrow="LOADING"
+                title={t('me_searching')}
+              />
+              )
+            : suggestionList.length
+              ? suggestionList.map((keyword, index) => renderSuggestionItem(keyword, index))
+              : (
+                <EmptyState
+                  eyebrow="EMPTY"
+                  title={searchAssistKeyword ? t('me_search_no_match') : t('me_search_hint')}
+                />
+                )}
         </View>
       </ScrollView>
     )
-  }, [searchHeaderHeight, searchAssistKeyword, t, searchHistoryList.length, searchTipLoading, searchAssistList, handleClearSearchHistoryList, renderInitialItem, colors])
+  }, [
+    bottomPad,
+    handleClearSearchHistoryList,
+    handlePickSearchKeyword,
+    handleRemoveSearchHistoryItem,
+    r.faint,
+    r.ink,
+    r.muted,
+    r.quiet,
+    renderSuggestionItem,
+    searchAssistKeyword,
+    searchHeaderHeight,
+    searchHistoryList,
+    searchTipLoading,
+    styles,
+    suggestionList,
+    t,
+  ])
+
+  const listHeader = useMemo(() => (
+    <SectionHeader
+      title={resultTitle}
+      meta={resultMeta}
+      showRule={false}
+      style={styles.resultSectionHeader}
+    />
+  ), [resultMeta, resultTitle, styles.resultSectionHeader])
+
+  const listFooter = useMemo(() => {
+    if (!canLoadMore && !loadingMore) return null
+    return (
+      <TouchableOpacity
+        style={styles.loadMore}
+        activeOpacity={0.7}
+        onPress={handleLoadMore}
+        disabled={loadingMore || searchLoading}
+      >
+        <View style={styles.loadMoreLine} />
+        <Text size={13} color={r.muted} style={styles.loadMoreText}>
+          {loadingMore ? t('me_searching') : t('search_load_more')}
+        </Text>
+        <View style={styles.loadMoreLine} />
+      </TouchableOpacity>
+    )
+  }, [canLoadMore, handleLoadMore, loadingMore, r.muted, searchLoading, styles, t])
 
   if (!shouldRender) return null
 
@@ -709,21 +975,23 @@ export default function SearchPage({
         {showInitialPage
           ? initialView
           : searchResultType === 'songlist'
-            ? <FlatList
+            ? (
+              <FlatList
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + BOTTOM_DOCK_BASE_HEIGHT },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
                 ]}
                 data={songlistSearchResults}
                 renderItem={renderSonglistResultItem}
                 keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
+                ListHeaderComponent={listHeader}
+                ListFooterComponent={listFooter}
                 ListEmptyComponent={(
-                  <View style={styles.searchResultStatus}>
-                    <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
-                      {searchLoading ? t('me_searching') : t('me_search_no_match')}
-                    </Text>
-                  </View>
+                  <EmptyState
+                    eyebrow={searchLoading ? 'LOADING' : 'NO RESULT · 0'}
+                    title={searchLoading ? t('me_searching') : t('me_search_no_match')}
+                  />
                 )}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -735,21 +1003,24 @@ export default function SearchPage({
                 alwaysBounceVertical={false}
                 overScrollMode="never"
               />
-            : <FlatList
+              )
+            : (
+              <FlatList
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + BOTTOM_DOCK_BASE_HEIGHT },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
                 ]}
                 data={musicSearchResults}
                 renderItem={renderSearchResultItem}
                 keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
+                ListHeaderComponent={listHeader}
+                ListFooterComponent={listFooter}
                 ListEmptyComponent={(
-                  <View style={styles.searchResultStatus}>
-                    <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
-                      {searchLoading ? t('me_searching') : t('me_search_no_match')}
-                    </Text>
-                  </View>
+                  <EmptyState
+                    eyebrow={searchLoading ? 'LOADING' : 'NO RESULT · 0'}
+                    title={searchLoading ? t('me_searching') : t('me_search_no_match')}
+                  />
                 )}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -760,386 +1031,185 @@ export default function SearchPage({
                 bounces={false}
                 alwaysBounceVertical={false}
                 overScrollMode="never"
-              />}
+              />
+              )}
       </View>
+      <MagMenu
+        visible={sourceMenuVisible}
+        onClose={() => { setSourceMenuVisible(false) }}
+        items={sourceMenuItems}
+        value={pageSearchSource}
+        onChange={handleSelectSource}
+        anchor={sourceMenuAnchor}
+      />
       <MusicAddModal ref={musicAddModalRef} />
     </Animated.View>
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  overlayRoot: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: APP_LAYER_INDEX.controls - 1,
-    backgroundColor: colors.bg.app,
-  },
-  searchModeRoot: {
-    flex: 1,
-    backgroundColor: colors.bg.app,
-  },
-  searchResultHeader: {
-    position: 'relative',
-    overflow: 'visible',
-    paddingHorizontal: 18,
-    paddingBottom: SEARCH_HEADER_BOTTOM_GAP,
-  },
-  searchResultHeaderFloating: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: APP_LAYER_INDEX.controls,
-    elevation: 0,
-    backgroundColor: colors.bg.app,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  searchTypeBar: {
-    minHeight: SEARCH_TYPE_BAR_HEIGHT,
-    marginTop: SEARCH_TYPE_BAR_GAP,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  searchTypeTitle: {
-    fontWeight: '700',
-    letterSpacing: -0.2,
-    paddingRight: 12,
-    flexShrink: 1,
-  },
-  searchTypeSwitch: {
-    marginLeft: 12,
-  },
-  searchTypeIcon: {
-    width: 20,
-    height: 20,
-    opacity: 1,
-  },
-  searchTypeIconMusic: {
-    width: 16,
-    height: 16,
-  },
-  searchTypeIconInactive: {
-    opacity: 0.45,
-  },
-  searchResultList: {
-    flex: 1,
-    backgroundColor: colors.bg.app,
-  },
-  searchResultContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-  },
-  initialScroll: {
-    flex: 1,
-    backgroundColor: colors.bg.app,
-  },
-  initialContent: {
-    paddingHorizontal: 18,
-  },
-  initialSectionHeader: {
-    minHeight: 32,
-    marginTop: 16,
-    marginBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  initialSectionTitle: {
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  initialSectionAction: {
-    minHeight: 28,
-    paddingHorizontal: 2,
-    justifyContent: 'center',
-  },
-  initialSectionActionText: {
-    fontWeight: '700',
-  },
-  initialList: {
-    paddingBottom: 6,
-  },
-  initialRow: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  initialRowSpacing: {
-    marginBottom: 0,
-  },
-  initialRowIcon: {
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  initialRowBody: {
-    flex: 1,
-    marginRight: 10,
-  },
-  initialRowTitle: {
-    fontWeight: '700',
-  },
-  initialRowDismiss: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initialEmpty: {
-    minHeight: 104,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    backgroundColor: colors.surface.card,
-  },
-  searchAssistPanel: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: APP_LAYER_INDEX.controls - 1,
-    elevation: 0,
-    backgroundColor: colors.surface.card,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  searchAssistTitleRow: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  searchAssistClearBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchAssistContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingBottom: 8,
-  },
-  searchAssistChip: {
-    maxWidth: '100%',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.line.neutral,
-    backgroundColor: colors.surface.card,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  searchAssistChipText: {
-    maxWidth: 280,
-  },
-  searchAssistEmpty: {
-    minHeight: 96,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButton: {
-    borderRadius: 22,
-  },
-  backBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.backBubble,
-    padding: 2,
-  },
-  backInner: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: colors.surface.backInner,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchDock: {
-    flex: 1,
-    marginLeft: 12,
-    position: 'relative',
-    zIndex: 8,
-  },
-  searchField: {
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.searchField.border,
-    backgroundColor: colors.surface.search,
-  },
-  searchContent: {
-    flex: 1,
-    paddingLeft: 14,
-    paddingRight: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  searchInput: {
-    height: '100%',
-    paddingHorizontal: 0,
-    margin: 0,
-    backgroundColor: 'transparent',
-    color: colors.ink.input,
-    fontSize: 14,
-    lineHeight: 18,
-    paddingVertical: 0,
-    includeFontPadding: false,
-  },
-  searchInputSlot: {
-    flex: 1,
-    height: '100%',
-    marginLeft: 10,
-    justifyContent: 'center',
-  },
-  searchInputTrigger: {
-    flex: 1,
-    height: '100%',
-    marginLeft: 10,
-    justifyContent: 'center',
-  },
-  searchInputText: {
-    lineHeight: 18,
-  },
-  clearSearchButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  songItem: {
-    minHeight: 70,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 7,
-    marginBottom: 1,
-  },
-  songMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  songPic: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
-    shadowColor: colors.shadow.softCard,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  songlistItem: {
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 7,
-    marginBottom: 1,
-  },
-  songlistPic: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
-    shadowColor: colors.shadow.softCard,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-  },
-  songInfo: {
-    flex: 1,
-    marginLeft: 13,
-    marginRight: 12,
-  },
-  songlistInfo: {
-    flex: 1,
-    marginLeft: 13,
-    marginRight: 12,
-  },
-  songMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  songlistMetaText: {
-    flex: 1,
-  },
-  songSource: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: colors.line.neutral,
-    marginRight: 6,
-    fontWeight: '600',
-  },
-  listTitle: {
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  searchSongActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 0,
-  },
-  searchSongInterval: {
-    marginRight: 6,
-    minWidth: 42,
-    textAlign: 'right',
-  },
-  songActionBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.glass.fill52,
-    borderWidth: 1,
-    borderColor: colors.glass.stroke,
-  },
-  searchAddText: {
-    lineHeight: 19,
-    fontWeight: '700',
-  },
-  searchResultStatus: {
-    width: '100%',
-    minHeight: 132,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginTop: 4,
-  },
-  searchResultStatusText: {
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  emptyCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.line.searchEmpty,
-    backgroundColor: colors.surface.searchEmpty,
-    shadowColor: colors.shadow.searchCard,
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 104,
-    marginTop: 4,
-  },
-})))
+const useLuxStyles = sharedLuxStyles((colors) => {
+  const r = magazineRoles(colors)
+  return createStyle({
+    overlayRoot: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: APP_LAYER_INDEX.controls - 1,
+      backgroundColor: r.paper,
+    },
+    searchModeRoot: {
+      flex: 1,
+      backgroundColor: r.paper,
+    },
+    searchResultHeader: {
+      position: 'relative',
+      overflow: 'visible',
+      paddingHorizontal: PAGE_GUTTER,
+      paddingBottom: 0,
+    },
+    searchResultHeaderFloating: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: APP_LAYER_INDEX.controls,
+      elevation: 0,
+      backgroundColor: r.paper,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+    },
+    searchUnderline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 14,
+      borderBottomWidth: 1.5,
+      borderBottomColor: r.ink,
+      paddingBottom: 8,
+      gap: 10,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: magType.searchInput.size,
+      fontWeight: '800',
+      color: r.ink,
+      paddingVertical: 0,
+      includeFontPadding: false,
+      margin: 0,
+      backgroundColor: 'transparent',
+    },
+    searchInputTrigger: {
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 30,
+    },
+    searchInputText: {
+      fontWeight: '800',
+    },
+    clearSearchButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterRow: {
+      marginTop: 18,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    searchTabs: {
+      flexShrink: 1,
+    },
+    sourceTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingBottom: 10,
+    },
+    sourceTriggerText: {
+      fontWeight: '600',
+    },
+    searchResultList: {
+      flex: 1,
+      backgroundColor: r.paper,
+    },
+    searchResultContent: {
+      paddingHorizontal: PAGE_GUTTER,
+      paddingBottom: 16,
+    },
+    resultSectionHeader: {
+      marginTop: 18,
+      marginBottom: SECTION_TO_LIST,
+    },
+    initialScroll: {
+      flex: 1,
+      backgroundColor: r.paper,
+    },
+    initialContent: {
+      paddingHorizontal: PAGE_GUTTER,
+    },
+    recentHeader: {
+      marginTop: 18,
+    },
+    chipWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: SECTION_TO_LIST,
+      marginBottom: 4,
+    },
+    historyChip: {
+      height: 30,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: r.hairline,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '100%',
+    },
+    historyChipText: {
+      fontWeight: '600',
+      maxWidth: 220,
+    },
+    clearHistoryText: {
+      fontWeight: '600',
+    },
+    suggestHeader: {
+      marginTop: 4,
+    },
+    suggestList: {
+      marginTop: SECTION_TO_LIST,
+    },
+    suggestRow: {
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+    },
+    suggestTitle: {
+      flex: 1,
+      fontWeight: '700',
+      minWidth: 0,
+    },
+    loadMore: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      paddingVertical: 22,
+    },
+    loadMoreLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: r.hairline,
+    },
+    loadMoreText: {
+      fontWeight: '600',
+    },
+  })
+})
