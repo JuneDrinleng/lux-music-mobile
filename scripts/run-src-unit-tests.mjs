@@ -29,6 +29,13 @@ const files = [
   'src/utils/localSongRows.ts',
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
+  'src/utils/playHistory/types.ts',
+  'src/utils/playHistory/threshold.ts',
+  'src/utils/playHistory/session.ts',
+  'src/utils/playHistory/merge.ts',
+  'src/utils/playHistory/range.ts',
+  'src/utils/playHistory/backup.ts',
+  'src/utils/playHistory/wire.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -96,6 +103,12 @@ const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
+const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
+const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
+const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
+const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
+const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
+const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -836,6 +849,104 @@ test('cache limit sliders snap to the existing steps and never label zero as 0 M
       assert.notEqual(colors.line.white.toLowerCase(), colors.surface.card.toLowerCase(), id + ' thumb on card')
     }
   }
+})
+
+test('play history counting, rolling range, merge, and backup', () => {
+  assert.equal(playThreshold.playCountThresholdMs(null), 30_000)
+  assert.equal(playThreshold.playCountThresholdMs(0), 30_000)
+  assert.equal(playThreshold.playCountThresholdMs(40_000), 20_000)
+  assert.equal(playThreshold.playCountThresholdMs(120_000), 30_000)
+  assert.equal(playThreshold.qualifiesAsPlay(20_000, 40_000), true)
+  assert.equal(playThreshold.qualifiesAsPlay(19_999, 40_000), false)
+  assert.equal(playThreshold.qualifiesAsPlay(30_000, null), true)
+  assert.equal(playThreshold.qualifiesAsPlay(0, 180_000), false)
+  assert.equal(playThreshold.intervalToMs('1:30'), 90_000)
+  assert.equal(playThreshold.intervalToMs('--/--'), null)
+
+  let session = playSession.createListenSession(0)
+  session = playSession.sampleListenSession(session, 1_000, 0, true)
+  session = playSession.sampleListenSession(session, 2_000, 1_000, true)
+  assert.equal(session.listenedMs, 1_000)
+  const pausedAt = session.lastAt
+  const pausedPos = session.lastPositionMs
+  session = playSession.sampleListenSession(session, pausedAt + 5_000, pausedPos, false)
+  assert.equal(session.listenedMs, 1_000)
+  session = playSession.sampleListenSession(session, pausedAt + 6_000, pausedPos, true)
+  session = playSession.sampleListenSession(session, pausedAt + 7_000, pausedPos + 30_000, true)
+  assert.equal(session.listenedMs, 1_000)
+  session = playSession.sampleListenSession(session, session.lastAt + 1_000, session.lastPositionMs + 2_000, true)
+  assert.equal(session.listenedMs, 3_000)
+
+  const song = { source: 'tx', songmid: 'm1', name: '晚风邮局', singer: '林小屿', img: 'https://example.test/a.jpg' }
+  const record = (deviceId, startedAt, listenedMs, singer = song.singer) => ({
+    id: `${deviceId}:${startedAt}`,
+    deviceId,
+    startedAt,
+    endedAt: startedAt + listenedMs,
+    listenedMs,
+    song: { ...song, singer },
+  })
+  const now = new Date(2026, 9, 9, 20, 16, 0).getTime()
+  const oct2 = new Date(2026, 9, 2, 12, 0, 0).getTime()
+  const oct3 = new Date(2026, 9, 3, 12, 0, 0).getTime()
+  const days7 = playRange.rangeBounds('days7', now)
+  assert.equal(playRange.recordInBounds(record('dev', oct3, 60_000), days7), true)
+  assert.equal(playRange.recordInBounds(record('dev', oct2, 60_000), days7), false)
+  const starts = playRange.last7DayStarts(now)
+  assert.equal(starts.length, 7)
+  assert.equal(new Date(starts[0]).getDate(), 3)
+  assert.equal(new Date(starts[6]).getDate(), 9)
+  const monday = new Date(2026, 9, 5, 8, 0, 0).getTime()
+  assert.ok(monday > starts[0])
+  const stats = playRange.buildRangeStats([
+    record('dev', oct3, 60_000),
+    record('dev', oct2, 120_000),
+    record('other', oct3 + 1000, 60_000, '林小屿、苏禾'),
+  ], 'days7', now)
+  assert.equal(stats.playCount, 2)
+  assert.equal(stats.days[0].minutes, 2)
+  assert.equal(stats.days[6].isToday, true)
+  assert.equal(stats.days.filter(day => day.isToday).length, 1)
+  assert.equal(stats.artists.some(artist => artist.name == '苏禾'), true)
+
+  const shorter = record('dev', 10, 30_000)
+  const longer = record('dev', 10, 80_000)
+  const other = record('phone', 20, 40_000)
+  const merged = playMerge.mergePlayRecords([shorter, other], [longer, { id: '' }])
+  assert.equal(merged.length, 2)
+  assert.equal(merged.find(item => item.id == 'dev:10').listenedMs, 80_000)
+  assert.deepEqual(merged.map(item => item.id), ['dev:10', 'phone:20'])
+
+  const document = playBackup.buildLuxBackup({
+    records: [shorter, longer, other],
+    playlists: { defaultList: [{ id: 'default' }], loveList: [], userList: [{ id: 'mine' }] },
+    settings: { 'common.langId': 'zh-cn' },
+    exportedAt: 99,
+  })
+  const parsed = playBackup.parseLuxBackup(JSON.parse(JSON.stringify(document)))
+  assert.equal(parsed.version, 1)
+  assert.equal(parsed.playHistory.length, 2)
+  assert.equal(parsed.playHistory.find(item => item.id == 'dev:10').listenedMs, 80_000)
+  assert.equal(parsed.settings['common.langId'], 'zh-cn')
+  const imported = playBackup.importPlayHistory([record('tablet', 30, 50_000)], parsed)
+  assert.deepEqual(imported.map(item => item.id), ['dev:10', 'phone:20', 'tablet:30'])
+  assert.equal(playBackup.parseLuxBackup({ type: 'luxDataBackup', version: 2 }), null)
+  assert.equal(playBackup.parseLuxBackup({ ...document, playHistory: [{ id: 'bad' }] }), null)
+
+  assert.equal(playWire.PLAY_HISTORY_PUSH, 'playHistory:push')
+  assert.equal(playWire.PLAY_HISTORY_PULL, 'playHistory:pull')
+  assert.equal(playWire.toWireRecord(longer).id, 'dev:10')
+  assert.equal(playWire.toWireRecord({ ...longer, id: 'not-the-contract' }), null)
+  const batches = playWire.chunkWireRecords([
+    ...Array.from({ length: 500 }, (_, index) => record('dev', index + 1, 30_000)),
+    { ...longer, id: 'bad' },
+  ])
+  assert.equal(batches.length, 1)
+  assert.equal(batches[0].length, 500)
+  const overflow = playWire.chunkWireRecords(Array.from({ length: 501 }, (_, index) => record('dev', index + 1, 30_000)))
+  assert.equal(overflow.length, 2)
+  assert.equal(overflow[0].length, 500)
+  assert.equal(overflow[1].length, 1)
 })
 
 test('migrated screens reject new color literals', () => {

@@ -11,6 +11,7 @@ import { setSyncStatus } from '@/core/sync'
 import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
+import { setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
 
 let status: LX.Sync.Status = {
   status: false,
@@ -144,6 +145,21 @@ const heartbeatTools = {
 
 
 let client: LX.Sync.Socket | null
+const readyListeners = new Set<() => void>()
+
+export const onSyncSocketReady = (listener: () => void): (() => void) => {
+  readyListeners.add(listener)
+  if (client?.isReady) listener()
+  return () => { readyListeners.delete(listener) }
+}
+
+export const getReadySyncSocket = (): LX.Sync.Socket | null => {
+  return client?.isReady ? client : null
+}
+
+const notifySyncReady = () => {
+  for (const listener of readyListeners) listener()
+}
 // let listSyncPromise: Promise<void>
 export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   client = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))}`) as LX.Sync.Socket
@@ -166,6 +182,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
           message: '',
         })
         heartbeatTools.failedNum = 0
+        // Return first so the server finishes the handshake, then pull and push.
+        setTimeout(notifySyncReady, 0)
       },
     },
     timeout: 120 * 1000,
@@ -229,6 +247,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     // const store = getStore()
     // global.lx.syncKeyInfo = keyInfo
     client!.isReady = false
+    setPlayHistoryFeatureEnabled(false)
     client!.moduleReadys = {
       list: false,
       dislike: false,
@@ -240,6 +259,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     })
   })
   client.addEventListener('close', ({ code }) => {
+    if (client) client.isReady = false
+    setPlayHistoryFeatureEnabled(false)
     const err = new Error('closed')
     try {
       for (const handler of closeEvents) void handler(err)

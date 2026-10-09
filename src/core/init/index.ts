@@ -6,6 +6,7 @@ import initTheme from './theme'
 import initI18n from './i18n'
 import initUserApi from './userApi'
 import initPlayer from './player'
+import initPlayHistory from './playHistory'
 import dataInit from './dataInit'
 import initSync from './sync'
 import initCommonState from './common'
@@ -98,6 +99,8 @@ export default async() => {
   bootLog('Playback Service Registered.')
   await initPlayer(setting)
   bootLog('Player inited.')
+  await initPlayHistory().catch(error => { bootLog(`Play history init failed: ${error instanceof Error ? error.message : error}`) })
+  bootLog('Play history inited.')
   await dataInit(setting)
   bootLog('Data inited.')
   await primeImageCacheIndex().catch(() => {})

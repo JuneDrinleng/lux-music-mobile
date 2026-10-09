@@ -17,4 +17,5 @@ export const modules = {
 export const featureVersion = {
   list: 1,
   dislike: 1,
+  playHistory: 1,
 } as const

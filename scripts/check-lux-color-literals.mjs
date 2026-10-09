@@ -14,6 +14,7 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/components/common/SegmentedIconSwitch.tsx',
   'src/components/player/PlayerBar/index.tsx',
   'src/components/playlist/LocalSongsDetail.tsx',
+  'src/components/stats/ListeningStatsPage.tsx',
   'src/components/playlist/PlaylistDetailHeader.tsx',
   'src/components/playlist/PlaylistDetailOverlay.tsx',
   'src/components/playlist/PlaylistDetailScene.tsx',

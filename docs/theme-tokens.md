@@ -46,6 +46,7 @@
 - `src/components/common/SegmentedIconSwitch.tsx`
 - `src/components/player/PlayerBar/index.tsx`
 - `src/components/playlist/PlaylistDetailHeader.tsx`
+- `src/components/stats/ListeningStatsPage.tsx`
 - `src/components/playlist/PlaylistDetailOverlay.tsx`
 - `src/components/playlist/PlaylistDetailScene.tsx`
 - `src/components/playlist/PlaylistDetailSongItem.tsx`

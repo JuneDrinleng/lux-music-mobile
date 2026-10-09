@@ -90,6 +90,11 @@ export const storageDataPrefix = {
 
   dislikeList: '@dislike_list',
 
+  playHistory: '@play_history',
+  playHistoryDevice: '@play_history_device',
+  playHistoryCursor: '@play_history_cursor',
+  playHistoryAvatars: '@play_history_avatars',
+
   userApi: '@user_api__',
   userAvatar: '@user_avatar',
   userName: '@user_name',
