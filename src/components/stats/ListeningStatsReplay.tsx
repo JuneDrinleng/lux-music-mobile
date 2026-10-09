@@ -7,7 +7,15 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native'
-import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg'
+import Svg, {
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg'
 
 import Image from '@/components/common/Image'
 import { MdiIcon } from '@/components/common/MdiIcon'
@@ -44,6 +52,13 @@ import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 
 import { ArtistFace } from './ArtistFace'
+import {
+  REPLAY_SEAM_HEIGHT,
+  buildSeamStops,
+  resolveReplayBlockPalette,
+  type ReplayBlockId,
+  type ReplayBlockPalette,
+} from './replayPalette'
 import { type ListeningStatsModel } from './useListeningStatsModel'
 import {
   sharePeriodKey,
@@ -74,23 +89,13 @@ const sumListenedMs = (records: readonly PlayRecord[], bounds: RangeBounds): num
   return listenedMs
 }
 
-type StoryBgRole = 'accent' | 'paper' | 'ink' | 'accentSoft'
-
-type ReplayStoryId =
-  | 'cover'
-  | 'topSong'
-  | 'topArtist'
-  | 'topLists'
-  | 'timeOfDay'
-  | 'rhythm'
-  | 'sources'
-  | 'closing'
-
-const STORY_BG_CYCLE: StoryBgRole[] = ['accent', 'paper', 'ink', 'accentSoft']
+type ReplayStoryId = ReplayBlockId
 
 const MIN_RANK_SONGS = 3
 const BAR_MAX = 96
 const RADIAL_SIZE = 228
+/** Half of seam height — keeps copy out of the soft blend zone. */
+const SECTION_PAD_Y = REPLAY_SEAM_HEIGHT / 2
 
 const useStyles = sharedLuxStyles(() => (createStyle({
   root: { flex: 1 },
@@ -101,14 +106,21 @@ const useStyles = sharedLuxStyles(() => (createStyle({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: TOP_BAR_MARGIN_TOP,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   scroll: { flex: 1 },
   section: {
     width: '100%',
     paddingHorizontal: PAGE_GUTTER,
-    paddingTop: 22,
-    paddingBottom: 36,
+    paddingTop: SECTION_PAD_Y,
+    paddingBottom: SECTION_PAD_Y,
+  },
+  seam: {
+    width: '100%',
+    height: REPLAY_SEAM_HEIGHT,
+    marginTop: -SECTION_PAD_Y,
+    marginBottom: -SECTION_PAD_Y,
+    zIndex: 1,
   },
   vinylWrap: { position: 'absolute', right: -48, top: 40, opacity: 0.35 },
   vinylOuter: { width: 220, height: 220, borderRadius: 110, borderWidth: 2 },
@@ -120,7 +132,7 @@ const useStyles = sharedLuxStyles(() => (createStyle({
   metaText: { fontWeight: '600' },
   footerStats: { marginTop: 34, gap: 10 },
   footerLine: { fontWeight: '700' },
-  screenEyebrow: { fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
+  screenEyebrow: { fontWeight: '700', letterSpacing: 2 },
   screenTitle: { fontWeight: '800', letterSpacing: -0.3, marginTop: 8, lineHeight: 30 },
   screenLead: { marginTop: 10, lineHeight: 22 },
   no1Cover: {
@@ -163,50 +175,6 @@ const useStyles = sharedLuxStyles(() => (createStyle({
   empty: { paddingVertical: 22, alignItems: 'center' },
 })))
 
-const bgColor = (role: StoryBgRole, r: ReturnType<typeof magazineRoles>): string => {
-  if (role === 'accent') return r.accent
-  if (role === 'paper') return r.paper
-  if (role === 'ink') return r.ink
-  return r.accentSoft
-}
-
-const storyPalette = (role: StoryBgRole, r: ReturnType<typeof magazineRoles>) => {
-  if (role === 'ink') {
-    return {
-      display: r.onInk,
-      ink: r.onInk,
-      muted: r.quiet,
-      eyebrow: r.quiet,
-      faint: r.quiet,
-      bar: r.onInk,
-      barMuted: r.hairline,
-      barPeak: r.accent,
-    }
-  }
-  if (role === 'accent') {
-    return {
-      display: r.onAccent,
-      ink: r.onAccent,
-      muted: r.onAccent,
-      eyebrow: r.onAccent,
-      faint: r.onAccent,
-      bar: r.ink,
-      barMuted: r.hairline,
-      barPeak: r.ink,
-    }
-  }
-  return {
-    display: r.display,
-    ink: r.ink,
-    muted: r.muted,
-    eyebrow: r.eyebrow,
-    faint: r.faint,
-    bar: r.ink,
-    barMuted: r.hairline,
-    barPeak: r.accent,
-  }
-}
-
 const buildStoryOrder = (songCount: number): ReplayStoryId[] => {
   const pages: ReplayStoryId[] = ['cover']
   if (songCount >= MIN_RANK_SONGS) {
@@ -216,6 +184,41 @@ const buildStoryOrder = (songCount: number): ReplayStoryId[] => {
   return pages
 }
 
+const BlockSeam = ({
+  from,
+  to,
+  width,
+  styles,
+}: {
+  from: string
+  to: string
+  width: number
+  styles: ReturnType<typeof useStyles>
+}) => {
+  const height = scaleSizeH(REPLAY_SEAM_HEIGHT)
+  const stops = buildSeamStops(from, to)
+  const gradId = `replay-seam-${from}-${to}`.replace(/[^a-zA-Z0-9_-]/g, '')
+  return (
+    <View style={styles.seam} pointerEvents="none">
+      <Svg width={width} height={height}>
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            {stops.map((stop, index) => (
+              <Stop
+                key={index}
+                offset={`${Math.round(stop.offset * 100)}%`}
+                stopColor={stop.color}
+                stopOpacity={1}
+              />
+            ))}
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={height} fill={`url(#${gradId})`} />
+      </Svg>
+    </View>
+  )
+}
+
 const RhythmBars = ({
   buckets,
   palette,
@@ -223,7 +226,7 @@ const RhythmBars = ({
   width,
 }: {
   buckets: ChartBucket[]
-  palette: ReturnType<typeof storyPalette>
+  palette: ReplayBlockPalette
   styles: ReturnType<typeof useStyles>
   width: number
 }) => {
@@ -270,7 +273,7 @@ const WeekdayBars = ({
   t,
 }: {
   weekdayMs: number[]
-  palette: ReturnType<typeof storyPalette>
+  palette: ReplayBlockPalette
   styles: ReturnType<typeof useStyles>
   t: (key: string) => string
 }) => {
@@ -309,7 +312,7 @@ const TimeRadial = ({
   styles,
 }: {
   slots: ChartBucket[]
-  palette: ReturnType<typeof storyPalette>
+  palette: ReplayBlockPalette
   styles: ReturnType<typeof useStyles>
 }) => {
   const size = scaleSizeW(RADIAL_SIZE)
@@ -415,7 +418,7 @@ export const ListeningStatsReplay = ({
   const chartInnerWidth = windowWidth - scaleSizeW(PAGE_GUTTER * 2)
 
   const renderTopSong = (
-    palette: ReturnType<typeof storyPalette>,
+    palette: ReplayBlockPalette,
     top: RankedSong,
   ) => {
     const parts = durationParts(top.listenedMs)
@@ -453,7 +456,7 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderTopArtist = (palette: ReturnType<typeof storyPalette>, top: RankedArtist) => {
+  const renderTopArtist = (palette: ReplayBlockPalette, top: RankedArtist) => {
     const parts = durationParts(top.listenedMs)
     return (
       <>
@@ -474,7 +477,7 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderTopLists = (palette: ReturnType<typeof storyPalette>) => {
+  const renderTopLists = (palette: ReplayBlockPalette) => {
     const topSongs = replay.stats.songs.slice(0, 5)
     const topArtists = replay.stats.artists.slice(0, 5)
     return (
@@ -531,19 +534,15 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderCover = (palette: ReturnType<typeof storyPalette>, bgRole: StoryBgRole) => {
+  const renderCover = (palette: ReplayBlockPalette) => {
     const dailyParts = durationParts(dailyAvgMs)
     return (
       <>
-        {bgRole === 'accent'
-          ? (
-            <View style={styles.vinylWrap} pointerEvents="none">
-              <View style={[styles.vinylOuter, { borderColor: palette.ink }]}>
-                <View style={[styles.vinylInner, { borderColor: palette.ink }]} />
-              </View>
-            </View>
-            )
-          : null}
+        <View style={styles.vinylWrap} pointerEvents="none">
+          <View style={[styles.vinylOuter, { borderColor: palette.ink }]}>
+            <View style={[styles.vinylInner, { borderColor: palette.ink }]} />
+          </View>
+        </View>
         <Text size={magType.eyebrow.size} color={palette.eyebrow} style={styles.screenEyebrow}>
           {t('stats_replay_story_kicker_cover')}
         </Text>
@@ -580,7 +579,7 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderTimeOfDay = (palette: ReturnType<typeof storyPalette>) => {
+  const renderTimeOfDay = (palette: ReplayBlockPalette) => {
     const lateParts = durationParts(replay.lateNightMs)
     return (
       <>
@@ -605,7 +604,7 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderRhythm = (palette: ReturnType<typeof storyPalette>) => (
+  const renderRhythm = (palette: ReplayBlockPalette) => (
     <>
       <Text size={magType.eyebrow.size} color={palette.eyebrow} style={styles.screenEyebrow}>
         {t('stats_replay_story_kicker_rhythm')}
@@ -627,7 +626,7 @@ export const ListeningStatsReplay = ({
     return translated !== shortKey ? translated : source.toUpperCase()
   }
 
-  const renderSources = (palette: ReturnType<typeof storyPalette>) => {
+  const renderSources = (palette: ReplayBlockPalette) => {
     const rows = replay.sources.slice(0, 6)
     if (!rows.length) {
       return (
@@ -669,7 +668,7 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderClosing = (palette: ReturnType<typeof storyPalette>) => {
+  const renderClosing = (palette: ReplayBlockPalette) => {
     const topSong = replay.stats.songs[0]
     const topArtist = replay.stats.artists[0]
     const total = formatMinutes(stats.listenedMs, true)
@@ -702,8 +701,8 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderSectionBody = (id: ReplayStoryId, palette: ReturnType<typeof storyPalette>, bgRole: StoryBgRole) => {
-    if (id === 'cover') return renderCover(palette, bgRole)
+  const renderSectionBody = (id: ReplayStoryId, palette: ReplayBlockPalette) => {
+    if (id === 'cover') return renderCover(palette)
     if (id === 'topSong' && songs[0]) return renderTopSong(palette, songs[0])
     if (id === 'topArtist' && artists[0]) return renderTopArtist(palette, artists[0])
     if (id === 'topLists') return renderTopLists(palette)
@@ -713,6 +712,11 @@ export const ListeningStatsReplay = ({
     if (id === 'closing') return renderClosing(palette)
     return null
   }
+
+  const blockPalettes = useMemo(
+    () => storyOrder.map(id => resolveReplayBlockPalette(magazineRoles(colors), id)),
+    [colors, storyOrder],
+  )
 
   return (
     <View style={[styles.root, { backgroundColor: r.paper, paddingTop: statusBarHeight, paddingBottom: bottomPadding }]}>
@@ -729,14 +733,25 @@ export const ListeningStatsReplay = ({
         overScrollMode="never"
       >
         {storyOrder.map((id, index) => {
-          const bgRole = STORY_BG_CYCLE[index % STORY_BG_CYCLE.length]
-          const palette = storyPalette(bgRole, r)
-          const backgroundColor = bgColor(bgRole, r)
-          const body: ReactNode = renderSectionBody(id, palette, bgRole)
+          const palette = blockPalettes[index]
+          const body: ReactNode = renderSectionBody(id, palette)
+          const nextPalette = blockPalettes[index + 1]
           return (
-            <View key={id} style={[styles.section, { backgroundColor }]}>
-              {body}
-            </View>
+            <Fragment key={id}>
+              <View style={[styles.section, { backgroundColor: palette.bg }]}>
+                {body}
+              </View>
+              {nextPalette
+                ? (
+                  <BlockSeam
+                    from={palette.bg}
+                    to={nextPalette.bg}
+                    width={windowWidth}
+                    styles={styles}
+                  />
+                  )
+                : null}
+            </Fragment>
           )
         })}
       </ScrollView>
