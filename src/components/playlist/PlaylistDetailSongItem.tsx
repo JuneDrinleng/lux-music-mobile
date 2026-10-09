@@ -60,6 +60,8 @@ const PlaylistDetailSongItem = ({
   const { colors } = useLuxTheme()
 
   const coverForSong = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
+    const direct = currentSong.meta.picUrl?.trim() ?? ''
+    if (currentSong.source == 'local' && direct && !/^https?:\/\//i.test(direct)) return direct
     return resolvePlaylistRowCover({
       source: currentSong.source,
       picUrl: currentSong.meta.picUrl,
@@ -147,7 +149,9 @@ const PlaylistDetailSongItem = ({
           <Image
             style={styles.cover}
             url={displayCoverUrl}
-            cachePin={song.source != 'local' && isRetainedPlaylistSong(song.source, song.id)}
+            cachePin={song.source == 'local'
+              ? /^https?:\/\//i.test(displayCoverUrl ?? '')
+              : isRetainedPlaylistSong(song.source, song.id)}
             onError={handleCoverError}
           />
           <View style={styles.info}>
