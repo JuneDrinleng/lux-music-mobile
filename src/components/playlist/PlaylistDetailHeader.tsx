@@ -46,11 +46,14 @@ interface PlaylistDetailHeaderProps {
   sourceTone?: SourceTone | null
   canRename: boolean
   actionLabel?: string | null
+  actionIcon?: string
   actionDisabled?: boolean
   onBack: () => void
   onRename?: () => void
   onRemove?: () => void
   onActionPress?: () => void
+  onToggleSelect?: () => void
+  selecting?: boolean
 }
 
 export default ({
@@ -64,11 +67,14 @@ export default ({
   sourceTone,
   canRename,
   actionLabel,
+  actionIcon = 'import',
   actionDisabled = false,
   onBack,
   onRename,
   onRemove,
   onActionPress,
+  onToggleSelect,
+  selecting = false,
 }: PlaylistDetailHeaderProps) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
@@ -139,6 +145,13 @@ export default ({
       <View style={[styles.sectionHeader, { backgroundColor: appBg }]}>
         <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{sectionTitle}</Text>
         <View style={styles.sectionActions}>
+          {onToggleSelect
+            ? (
+                <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onToggleSelect}>
+                  <MdiIcon name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'} size={15} color={colors.ink.nearBlack} />
+                </TouchableOpacity>
+              )
+            : null}
           {actionLabel
             ? (
                 <TouchableOpacity
@@ -151,7 +164,7 @@ export default ({
                   ]}
                 >
                   <MdiIcon
-                    name="import"
+                    name={actionIcon}
                     size={18}
                     color={colors.ink.nearBlack}
                     style={actionDisabled ? styles.actionIconDisabled : undefined}

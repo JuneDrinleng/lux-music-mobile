@@ -17,7 +17,12 @@ import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheSpan;
+import androidx.media3.datasource.cache.ContentMetadata;
 import androidx.media3.datasource.cache.SimpleCache;
+
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.WritableMap;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 
@@ -125,6 +130,36 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
             }
         } else {
             Log.d(Utils.LOG, "Cache is not initialized.");
+        }
+        promise.resolve(null);
+    }
+
+    public void listCachedEntries(Promise promise) {
+        WritableArray result = Arguments.createArray();
+        if (cache == null) {
+            promise.resolve(result);
+            return;
+        }
+        for (String key : cache.getKeys()) {
+            long cachedBytes = cache.getCachedBytes(key, 0, C.LENGTH_UNSET);
+            long contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(key));
+            boolean fullyCached = contentLength != C.LENGTH_UNSET && contentLength > 0 && cachedBytes >= contentLength;
+            WritableMap item = Arguments.createMap();
+            item.putString("key", key);
+            item.putDouble("cachedBytes", cachedBytes);
+            item.putBoolean("fullyCached", fullyCached);
+            result.pushMap(item);
+        }
+        promise.resolve(result);
+    }
+
+    public void removeCachedResource(String key, Promise promise) {
+        if (cache != null && key != null && !key.isEmpty()) {
+            try {
+                cache.removeResource(key);
+            } catch (Exception e) {
+                Log.e(Utils.LOG, e.getMessage());
+            }
         }
         promise.resolve(null);
     }

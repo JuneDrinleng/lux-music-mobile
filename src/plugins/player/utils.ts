@@ -194,6 +194,19 @@ export const setMaxCacheSize = async(mb: number) => {
   const value = Number.isFinite(mb) ? Math.max(0, mb) : 0
   await TrackPlayer.setMaxCacheSize(value * 1024)
 }
+
+export interface CachedAudioEntry {
+  key: string
+  cachedBytes: number
+  fullyCached: boolean
+}
+
+export const listCachedEntries = async(): Promise<CachedAudioEntry[]> => {
+  const rows = await TrackPlayer.listCachedEntries()
+  return Array.isArray(rows) ? rows : []
+}
+
+export const removeCachedResource = async(key: string) => TrackPlayer.removeCachedResource(key)
 export const migratePlayerCache = async() => {
   const newCachePath = privateStorageDirectoryPath + '/TrackPlayer'
   if (await existsFile(newCachePath)) return

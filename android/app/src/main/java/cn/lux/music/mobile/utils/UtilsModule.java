@@ -15,7 +15,9 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -521,6 +523,58 @@ public class UtilsModule extends ReactContextBaseJavaModule {
   public void setSystemBarIconStyle(String style) {
     SystemBars.setDarkIcons(!"light".equals(style));
     SystemBars.apply(getCurrentActivity());
+  }
+
+  /** Audio the media store can see. Rows without a file path are skipped. */
+  @ReactMethod
+  public void listDeviceAudio(Promise promise) {
+    WritableArray result = Arguments.createArray();
+    Uri collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+    String[] projection = new String[] {
+      MediaStore.Audio.Media.DISPLAY_NAME,
+      MediaStore.Audio.Media.TITLE,
+      MediaStore.Audio.Media.ARTIST,
+      MediaStore.Audio.Media.ALBUM,
+      MediaStore.Audio.Media.DURATION,
+      MediaStore.Audio.Media.SIZE,
+      MediaStore.Audio.Media.DATA,
+    };
+    try (Cursor cursor = reactContext.getContentResolver().query(
+      collection,
+      projection,
+      MediaStore.Audio.Media.IS_MUSIC + " != 0",
+      null,
+      MediaStore.Audio.Media.TITLE + " ASC"
+    )) {
+      if (cursor == null) {
+        promise.resolve(result);
+        return;
+      }
+      int nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME);
+      int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
+      int artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
+      int albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+      int durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
+      int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
+      int dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
+      while (cursor.moveToNext()) {
+        String path = cursor.getString(dataCol);
+        if (path == null || path.length() == 0) continue;
+        WritableMap item = Arguments.createMap();
+        item.putString("path", path);
+        item.putString("displayName", cursor.isNull(nameCol) ? "" : cursor.getString(nameCol));
+        item.putString("title", cursor.isNull(titleCol) ? "" : cursor.getString(titleCol));
+        item.putString("artist", cursor.isNull(artistCol) ? "" : cursor.getString(artistCol));
+        item.putString("album", cursor.isNull(albumCol) ? "" : cursor.getString(albumCol));
+        item.putDouble("durationMs", cursor.isNull(durationCol) ? 0 : cursor.getLong(durationCol));
+        item.putDouble("size", cursor.isNull(sizeCol) ? 0 : cursor.getLong(sizeCol));
+        result.pushMap(item);
+      }
+    } catch (Exception e) {
+      promise.reject("audio_scan_failed", e);
+      return;
+    }
+    promise.resolve(result);
   }
 }
 

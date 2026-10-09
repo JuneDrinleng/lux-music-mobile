@@ -434,6 +434,24 @@ function setMaxCacheSize(maxCacheSizeKb) {
         });
     });
 }
+function listCachedEntries() {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/, []];
+            return [2 /*return*/, TrackPlayer.listCachedEntries()];
+        });
+    });
+}
+function removeCachedResource(key) {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/];
+            return [2 /*return*/, TrackPlayer.removeCachedResource(key)];
+        });
+    });
+}
 exports.default = {
     // MARK: - General API
     setupPlayer: setupPlayer,
@@ -476,5 +494,7 @@ exports.default = {
     isCached: isCached,
     getCacheSize: getCacheSize,
     clearCache: clearCache,
-    setMaxCacheSize: setMaxCacheSize
+    setMaxCacheSize: setMaxCacheSize,
+    listCachedEntries: listCachedEntries,
+    removeCachedResource: removeCachedResource
 };

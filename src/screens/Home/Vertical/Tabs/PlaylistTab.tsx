@@ -1685,7 +1685,10 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       <TouchableOpacity
         style={styles.quickActionItem}
         activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
+        onPress={() => {
+          global.app_event.closePlaylistDetail()
+          global.app_event.openLocalSongs()
+        }}
       >
         <View style={styles.quickActionIconWrap}>
           <MdiIcon name="download" size={36} color={colors.ink.icon} />
