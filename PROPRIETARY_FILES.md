@@ -1,7 +1,7 @@
 <!-- Lux Repository Notice: registry of files explicitly marked as Lux Proprietary. See LICENSE-NOTICE.md. -->
 # Lux Proprietary 文件清单
 
-最后更新：2026-10-08
+最后更新：2026-10-09
 
 本清单用于明确标记本仓库中由 Lux Music 维护者保留权利的内容。
 未出现在本清单中的文件，默认按仓库主许可证与 `LICENSE-NOTICE.md` 执行。
@@ -153,6 +153,8 @@
 | `src/theme/luxThemePreference.ts` | `code` | Lux 本机主题 id 存储，不进入同步，上游无对应文件 | `2026-10-08` |
 | `android/app/src/main/java/cn/lux/music/mobile/utils/SystemBars.java` | `code` | Lux 按主题切换系统栏图标深浅，栏本身保持透明 | `2026-10-08` |
 | `docs/theme-tokens.md` | `doc` | 默认黄绿令牌与新美化页面色值的对照，供后续替换硬编码 | `2026-10-08` |
+| `src/utils/cacheLimitSteps.ts` | `code` | Lux 独立实现的缓存上限档位、刻度文案和松手提交判断，上游无对应文件 | `2026-10-09` |
+| `src/screens/Home/Vertical/Tabs/CacheLimitSlider.tsx` | `code` | Lux 独立实现的缓存上限滑条，拇指连续拖动、档位吸附，上游无对应文件 | `2026-10-09` |
 
 ## 维护模板
 
