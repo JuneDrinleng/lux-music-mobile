@@ -694,26 +694,194 @@ test('lime token paths still match the inventory table', () => {
   }
 })
 
-test('local songs page keeps device files and cached audio in one list', () => {
+test('local songs page keeps device files and only complete cached audio', () => {
   const rows = localSongRows.mergeLocalSongRows([
     { id: '/music/a.mp3', source: 'local', size: 1200 },
     { id: '/music/a.mp3', source: 'local', size: 1200 },
   ], [
     { cacheKey: 'local_/music/a.mp3_local', cachedBytes: 1200, fullyCached: true, source: 'local', id: '/music/a.mp3' },
-    { cacheKey: 'wy_88_320k', cachedBytes: 4000, fullyCached: false, source: 'wy', id: '88' },
-    { cacheKey: 'wy_88_320k', cachedBytes: 4000, fullyCached: false, source: 'wy', id: '88' },
+    { cacheKey: 'wy_wy_88_128k', cachedBytes: 1000, fullyCached: true, source: null, id: null },
+    { cacheKey: 'wy_wy_88_320k', cachedBytes: 4000, fullyCached: true, source: null, id: null },
+    { cacheKey: 'wy_wy_88_flac', cachedBytes: 9000, fullyCached: false, source: null, id: null },
+    { cacheKey: 'kw_kw_569249599_128k', cachedBytes: 1800, fullyCached: false, source: null, id: null },
     { cacheKey: 'orphan', cachedBytes: 10, fullyCached: false, source: null, id: null },
   ])
   assert.deepEqual(rows.map(row => row.rowKey), [
     'device:local_/music/a.mp3',
-    'cache:wy_88_320k',
-    'cache:orphan',
+    'cache:wy_wy_88',
   ])
   assert.equal(rows[0].origin, 'device')
+  assert.equal(rows[0].cacheKeys.length, 0)
   assert.equal(rows[1].playable, true)
-  assert.equal(rows[1].fullyCached, false)
-  assert.equal(rows[2].playable, false)
+  assert.equal(rows[1].fullyCached, true)
+  assert.equal(rows[1].source, 'wy')
+  assert.equal(rows[1].id, 'wy_88')
+  assert.equal(rows[1].quality, '320k')
+  assert.equal(rows[1].cacheKey, 'wy_wy_88_320k')
+  assert.deepEqual(rows[1].cacheKeys, ['wy_wy_88_128k', 'wy_wy_88_320k', 'wy_wy_88_flac'])
+  assert.equal(rows.some(row => row.fullyCached == false), false)
+  assert.equal(rows.some(row => String(row.cacheKey).includes('569249599')), false)
   assert.deepEqual(localSongRows.cacheKeysForSong('wy', '88', ['128k']), ['wy_88_128k'])
+  const usage = localSongRows.summarizeLocalSongUsage(rows)
+  assert.equal(usage.count, 2)
+  assert.equal(usage.deviceBytes, 1200)
+  assert.equal(usage.cacheBytes, 4000)
+  assert.equal(usage.totalBytes, 5200)
+  assert.equal(localSongRows.summarizeLocalSongUsage([]).totalBytes, 0)
+  assert.equal(localSongRows.summarizeLocalSongUsage([
+    { origin: 'device', size: null },
+    { origin: 'cache', size: 0 },
+  ]).count, 2)
+})
+
+test('audio cache keys parse source, song id and quality', () => {
+  const wy = localSongRows.parseAudioCacheKey('wy_wy_3339519499_128k')
+  assert.equal(wy.source, 'wy')
+  assert.equal(wy.id, 'wy_3339519499')
+  assert.equal(wy.songmid, '3339519499')
+  assert.equal(wy.quality, '128k')
+  assert.equal(wy.hash, null)
+  const kw = localSongRows.parseAudioCacheKey('kw_kw_569249599_128k')
+  assert.equal(kw.source, 'kw')
+  assert.equal(kw.id, 'kw_569249599')
+  assert.equal(kw.songmid, '569249599')
+  assert.equal(kw.quality, '128k')
+  const tx = localSongRows.parseAudioCacheKey('tx_tx_003nOs2y3Duyij_flac24bit')
+  assert.equal(tx.source, 'tx')
+  assert.equal(tx.songmid, '003nOs2y3Duyij')
+  assert.equal(tx.quality, 'flac24bit')
+  const kg = localSongRows.parseAudioCacheKey('kg_321_abcdef_320k')
+  assert.equal(kg.source, 'kg')
+  assert.equal(kg.id, '321_abcdef')
+  assert.equal(kg.songmid, '321')
+  assert.equal(kg.hash, 'abcdef')
+  assert.equal(kg.quality, '320k')
+  const local = localSongRows.parseAudioCacheKey('local_/sdcard/Music/a_b.mp3_local')
+  assert.equal(local.source, 'local')
+  assert.equal(local.id, '/sdcard/Music/a_b.mp3')
+  assert.equal(local.quality, 'local')
+  assert.equal(localSongRows.parseAudioCacheKey('orphan'), null)
+  assert.equal(localSongRows.parseAudioCacheKey('wy_wy_1'), null)
+  assert.equal(localSongRows.fallbackCacheSongName('wy_wy_3339519499_128k'), '3339519499')
+  assert.equal(localSongRows.fallbackCacheSongName('wy_wy_3339519499_128k').includes('wy_wy_'), false)
+  assert.equal(localSongRows.fallbackCacheSongName('local_/sdcard/Music/a_b.mp3_local'), 'a_b')
+})
+
+test('cached song metadata follows list, history, store, fetch, then a readable fallback', () => {
+  assert.deepEqual([...localSongRows.CACHED_META_LOOKUP_ORDER], [
+    'userList', 'listenList', 'playHistory', 'metaStore', 'fetched', 'fallback',
+  ])
+  const key = 'wy_wy_3339519499_128k'
+  const song = (name, source = 'wy', id = 'wy_3339519499', songmid = '3339519499') => ({
+    id,
+    source,
+    name,
+    singer: `${name} singer`,
+    interval: '03:21',
+    meta: { songId: songmid, albumName: 'album', picUrl: `https://img.example/${name}.jpg` },
+  })
+  const catalogs = {
+    userLists: [song('from-user')],
+    listenList: [song('from-listen')],
+    playHistory: [song('from-history')],
+    metaStore: [song('from-store')],
+    keyedMeta: song('from-key'),
+    fetched: song('from-fetch'),
+  }
+  assert.equal(localSongRows.resolveCachedSongMetadata({ cacheKey: key, ...catalogs }).via, 'userList')
+  assert.equal(localSongRows.resolveCachedSongMetadata({ cacheKey: key, ...catalogs }).musicInfo.name, 'from-user')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    listenList: catalogs.listenList,
+    playHistory: catalogs.playHistory,
+    metaStore: catalogs.metaStore,
+    keyedMeta: catalogs.keyedMeta,
+    fetched: catalogs.fetched,
+  }).via, 'listenList')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    userLists: [song('other-user', 'kw', 'kw_1', '1')],
+    listenList: catalogs.listenList,
+  }).musicInfo.name, 'from-listen')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    playHistory: catalogs.playHistory,
+    keyedMeta: catalogs.keyedMeta,
+    fetched: catalogs.fetched,
+  }).via, 'playHistory')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    metaStore: catalogs.metaStore,
+    fetched: catalogs.fetched,
+  }).via, 'metaStore')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    keyedMeta: catalogs.keyedMeta,
+    fetched: catalogs.fetched,
+  }).musicInfo.name, 'from-key')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    fetched: catalogs.fetched,
+  }).via, 'fetched')
+  const bySongmid = song('by-mid', 'wy', 'different-id', '3339519499')
+  const exact = song('exact-id')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    userLists: [bySongmid, exact],
+  }).musicInfo.name, 'exact-id')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    userLists: [bySongmid],
+  }).musicInfo.name, 'by-mid')
+  const aligned = localSongRows.alignCachedSong(bySongmid, localSongRows.parseAudioCacheKey(key))
+  assert.equal(aligned.name, 'by-mid')
+  assert.equal(aligned.id, 'wy_3339519499')
+  assert.equal(aligned.source, 'wy')
+  assert.equal(localSongRows.alignCachedSong(exact, localSongRows.parseAudioCacheKey(key)), exact)
+  const rawKey = song(key)
+  const fallback = localSongRows.resolveCachedSongMetadata({
+    cacheKey: key,
+    userLists: [rawKey],
+    keyedMeta: rawKey,
+    fetched: rawKey,
+    unknownName: '未知歌曲',
+  })
+  assert.equal(fallback.via, 'fallback')
+  assert.equal(fallback.musicInfo.source, 'wy')
+  assert.equal(fallback.musicInfo.name, '3339519499')
+  assert.equal(fallback.musicInfo.name == key, false)
+  assert.equal(fallback.musicInfo.interval, null)
+  const unknown = localSongRows.resolveCachedSongMetadata({ cacheKey: 'not-a-key', unknownName: '未知歌曲' })
+  assert.equal(unknown.via, 'fallback')
+  assert.equal(unknown.musicInfo.name, '未知歌曲')
+  assert.equal(unknown.musicInfo.name == 'not-a-key', false)
+})
+
+test('complete cache filter keeps one best full copy and drops partial songs', () => {
+  const groups = localSongRows.groupCompleteCaches([
+    { cacheKey: 'wy_wy_1_flac', cachedBytes: 9000, fullyCached: false, source: null, id: null },
+    { cacheKey: 'wy_wy_1_128k', cachedBytes: 100, fullyCached: true, source: null, id: null },
+    { cacheKey: 'wy_wy_1_320k', cachedBytes: 400, fullyCached: true, source: null, id: null },
+    { cacheKey: 'tx_tx_003nOs2y3Duyij_128k', cachedBytes: 50, fullyCached: false, source: null, id: null },
+    { cacheKey: 'kw_kw_9_flac24bit', cachedBytes: 10, fullyCached: true, source: null, id: null },
+    { cacheKey: 'kw_kw_9_128k', cachedBytes: 9999, fullyCached: true, source: null, id: null },
+    { cacheKey: 'mg_mg_7_128k', cachedBytes: 20, fullyCached: true, source: null, id: null },
+    { cacheKey: 'mg_mg_7_128k', cachedBytes: 20, fullyCached: true, source: null, id: null },
+  ])
+  assert.deepEqual(groups.map(group => group.cacheKey), [
+    'wy_wy_1_320k',
+    'kw_kw_9_flac24bit',
+    'mg_mg_7_128k',
+  ])
+  assert.equal(groups.every(group => group.fullyCached == true), true)
+  assert.deepEqual(groups[0].cacheKeys, ['wy_wy_1_flac', 'wy_wy_1_128k', 'wy_wy_1_320k'])
+  assert.deepEqual(groups[2].cacheKeys, ['mg_mg_7_128k'])
+  const tied = localSongRows.groupCompleteCaches([
+    { cacheKey: 'wy_wy_2_128k', cachedBytes: 10, fullyCached: true, source: null, id: null },
+    { cacheKey: 'wy_wy_2_128k', cachedBytes: 80, fullyCached: true, source: 'wy', id: 'wy_2' },
+  ])
+  assert.equal(tied.length, 1)
+  assert.equal(tied[0].cachedBytes, 80)
 })
 
 test('home boot is ready only when counts and covers are both ready', () => {

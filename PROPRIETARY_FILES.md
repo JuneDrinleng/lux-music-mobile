@@ -132,6 +132,7 @@
 | `src/core/music/reuseMusicUrl.ts` | `code` | Lux 独立实现的播放地址复用，未过期或已缓存则直接使用，上游无对应文件 | `2026-10-09` |
 | `src/core/list/enforceListenListLimit.ts` | `code` | Lux 独立实现的试听列表 50 首上限，通过既有删除动作同步，上游无对应文件 | `2026-10-09` |
 | `src/utils/localSongRows.ts` | `code` | Lux 独立实现的本地歌曲页行合并，设备文件与已缓存音频同一列表，上游无对应文件 | `2026-10-09` |
+| `src/utils/cachedSongInfo.ts` | `code` | Lux 独立实现的缓存歌曲资料查找与按 songmid 回源，上游无对应文件 | `2026-10-09` |
 | `src/utils/audioCacheIndex.ts` | `code` | Lux 独立实现的播放时缓存键到歌曲信息的索引，上游无对应文件 | `2026-10-09` |
 | `src/utils/localSongLibrary.ts` | `code` | Lux 独立实现的设备歌曲库与扫描导入，上游无对应文件 | `2026-10-09` |
 | `src/components/playlist/LocalSongsDetail.tsx` | `code` | Lux 独立实现的本地歌曲页，复用歌单详情头与歌曲行，上游无对应文件 | `2026-10-09` |

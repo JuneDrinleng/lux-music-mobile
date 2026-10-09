@@ -46,16 +46,22 @@ const scheduleWrite = () => {
   }, 400)
 }
 
+/** Remember which song a cache key belongs to. The key is the audio cache key, not a display name. */
+export const rememberAudioCacheEntry = async(key: string, musicInfo: LX.Music.MusicInfo) => {
+  if (!key || !musicInfo?.id || !musicInfo.source) return
+  if (!musicInfo.name?.trim() || musicInfo.name == key) return
+  const list = await loadAudioCacheIndex()
+  const next = list.filter(item => item.key != key)
+  next.push({ key, musicInfo })
+  memory = next.slice(-2000)
+  scheduleWrite()
+}
+
 /** Remember which song a cache key belongs to. Called when a track is built for playback. */
 export const rememberAudioCacheSong = async(musicInfo: LX.Player.PlayMusic) => {
   const raw = rawMusicInfo(musicInfo)
   if (!raw?.id || !raw.source) return
-  const key = getTrackCacheKey(musicInfo)
-  const list = await loadAudioCacheIndex()
-  const next = list.filter(item => item.key != key)
-  next.push({ key, musicInfo: raw })
-  memory = next.slice(-2000)
-  scheduleWrite()
+  await rememberAudioCacheEntry(getTrackCacheKey(musicInfo), raw)
 }
 
 export const forgetAudioCacheKeys = async(keys: readonly string[]) => {
