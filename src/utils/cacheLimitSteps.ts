@@ -27,6 +27,33 @@ export const cacheStepRatio = (index: number, count: number): number => {
 }
 
 /**
+ * Thumb / tick center x on the track. Same mapping as the thumb:
+ * `cacheStepRatio(i, n) × trackWidth`. See design-system-magazine §10.2.
+ */
+export const cacheTickCenterX = (index: number, count: number, trackWidth: number): number => {
+  if (!(trackWidth > 0)) return 0
+  return cacheStepRatio(index, count) * trackWidth
+}
+
+/**
+ * Left edge for a tick label centered on the thumb x, clamped to track edges.
+ * Do not use evenly spaced flex cells — that drifts mid-track (e.g. 1GB).
+ */
+export const cacheTickLabelLeft = (
+  index: number,
+  count: number,
+  trackWidth: number,
+  labelWidth: number,
+): number => {
+  if (!(trackWidth > 0)) return 0
+  const centerX = cacheTickCenterX(index, count, trackWidth)
+  if (!(labelWidth > 0)) return centerX
+  if (labelWidth >= trackWidth) return 0
+  const half = labelWidth / 2
+  return Math.min(Math.max(0, centerX - half), trackWidth - labelWidth)
+}
+
+/**
  * Exact steps stay on their tick. A stored value outside the list (older builds)
  * displays on the nearest tick and is not rewritten until the user releases the slider.
  * Equal distance keeps the smaller step.
