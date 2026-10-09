@@ -15,7 +15,7 @@ import { Hairline } from './Hairline'
 import { IconButton } from './IconButton'
 
 /**
- * Magazine bottom dock shell (§4.16): paper + top ink rule.
+ * Magazine bottom dock shell (§4.16): paper + progress track (no top ink hairline).
  * Player strip (64) + nav (58). Page PRs wire real PlayerBar / BottomNav content into slots.
  */
 
@@ -41,8 +41,7 @@ const useStyles = sharedLuxStyles((colors) => {
   return createStyle({
     dock: {
       backgroundColor: r.paper,
-      borderTopWidth: 1,
-      borderTopColor: r.ink,
+      // Progress track separates the mini bar; no top ink hairline.
       overflow: 'visible',
     },
     progressBand: {
@@ -109,14 +108,6 @@ const useStyles = sharedLuxStyles((colors) => {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    navMark: {
-      position: 'absolute',
-      top: 0,
-      width: 24,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: r.accent,
     },
   })
 })
@@ -208,7 +199,6 @@ export const Dock = memo(({
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={item.label}
                   >
-                    {on ? <View style={styles.navMark} /> : null}
                     <MdiIcon name={item.icon} size={NAV_ICON_SIZE} color={on ? r.ink : r.quiet} />
                   </TouchableOpacity>
                 )

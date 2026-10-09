@@ -13,7 +13,7 @@ import { useI18n } from '@/lang'
 import { storageDataPrefix } from '@/config/constant'
 import { getData } from '@/plugins/storage'
 import { getSyncHost } from '@/plugins/sync/data'
-import appIcon from '../../../assets/img/ic_launcher.png'
+import defaultAvatar from '../../../assets/img/DefaultAvatar.png'
 
 let launchSyncHint = false
 const appVersion = process.versions?.app ?? '0.3.1'
@@ -51,7 +51,7 @@ export default memo(() => {
   return (
     <View style={[styles.container, { backgroundColor: r.paper }]}>
       <View style={styles.main}>
-        <Image source={appIcon} style={styles.mark} accessibilityIgnoresInvertColors />
+        <Image source={defaultAvatar} style={styles.mark} accessibilityIgnoresInvertColors />
         <Text size={magType.h1.size} color={r.display} style={styles.title}>Lux{'\n'}Music</Text>
         <Text
           size={magType.eyebrow.size}
