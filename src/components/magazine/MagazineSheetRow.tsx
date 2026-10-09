@@ -60,6 +60,7 @@ const useStyles = sharedLuxStyles((colors) => {
 export const MagazineSheetRow = memo(({
   leading,
   coverUri,
+  /** Pass 0 to hide the cover slot (add-to-playlist rows). Default 40. */
   coverSize = 40,
   title,
   subtitle,
@@ -89,15 +90,13 @@ export const MagazineSheetRow = memo(({
       {current ? <View style={styles.currentMark} /> : null}
       <View style={styles.row}>
         {leading}
-        {coverUri != null || coverSize
+        {coverSize > 0
           ? (
-              coverUri
-                ? (
-                <View style={[styles.cover, { width: coverSize, height: coverSize }]}>
-                  <Image url={coverUri} style={{ width: coverSize, height: coverSize, borderRadius: 6 }} />
-                </View>
-                  )
-                : null
+            <View style={[styles.cover, { width: coverSize, height: coverSize }]}>
+              {coverUri
+                ? <Image url={coverUri} style={{ width: coverSize, height: coverSize, borderRadius: 6 }} />
+                : null}
+            </View>
             )
           : null}
         <View style={styles.text}>
@@ -123,7 +122,7 @@ export const MagazineSheetRow = memo(({
     <View>
       {onPress
         ? (
-          <TouchableOpacity activeOpacity={0.7} onPress={onPress} disabled={disabled && !onPress}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
             {body}
           </TouchableOpacity>
           )

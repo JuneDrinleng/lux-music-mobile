@@ -33,7 +33,7 @@ export const TextButton = memo(({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={{ opacity: disabled ? 0.55 : 1 }}
+      style={{ opacity: disabled ? 0.55 : 1, minHeight: 44, justifyContent: 'center' }}
     >
       <Text
         size={magType.textButton.size}

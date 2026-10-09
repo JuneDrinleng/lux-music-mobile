@@ -1,10 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
+import { useEffect, useRef, useState } from 'react'
 import { View } from 'react-native'
-import Input, { type InputType } from '@/components/common/Input'
-import { confirmDialog, createStyle } from '@/utils/tools'
-import { useI18n } from '@/lang'
+
+import { UnderlineInput } from '@/components/magazine'
 import { createUserList } from '@/core/list'
+import { useI18n } from '@/lang'
 import listState from '@/store/list/state'
+import { confirmDialog } from '@/utils/tools'
 
 export default ({ isEdit, onHide, defaultName, onCreated }: {
   isEdit: boolean
@@ -13,17 +16,11 @@ export default ({ isEdit, onHide, defaultName, onCreated }: {
   onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
 }) => {
   const [text, setText] = useState('')
-  const inputRef = useRef<InputType>(null)
   const isSubmittingRef = useRef(false)
   const t = useI18n()
 
   useEffect(() => {
-    if (isEdit) {
-      setText(defaultName ?? '')
-      requestAnimationFrame(() => {
-        inputRef.current?.focus()
-      })
-    }
+    if (isEdit) setText(defaultName ?? '')
   }, [defaultName, isEdit])
 
   const handleSubmitEditing = async() => {
@@ -47,39 +44,19 @@ export default ({ isEdit, onHide, defaultName, onCreated }: {
     }
   }
 
-  return isEdit
-    ? (
-      <View style={styles.imputContainer}>
-        <Input
-          placeholder={t('list_create_input_placeholder')}
-          value={text}
-          onChangeText={setText}
-          ref={inputRef}
-          onBlur={handleSubmitEditing}
-          onSubmitEditing={handleSubmitEditing}
-          style={styles.input}
-        />
-      </View>
-      )
-    : null
-}
+  if (!isEdit) return null
 
-const styles = createStyle({
-  imputContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    paddingRight: 10,
-    marginBottom: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 14,
-    borderRadius: 12,
-    textAlign: 'left',
-    height: '100%',
-    paddingHorizontal: 14,
-  },
-})
+  return (
+    <View style={{ minHeight: 56, justifyContent: 'center', paddingVertical: 8 }}>
+      <UnderlineInput
+        value={text}
+        onChangeText={setText}
+        placeholder={t('list_create_input_placeholder')}
+        autoFocus
+        onBlur={() => { void handleSubmitEditing() }}
+        onSubmitEditing={() => { void handleSubmitEditing() }}
+        returnKeyType="done"
+      />
+    </View>
+  )
+}

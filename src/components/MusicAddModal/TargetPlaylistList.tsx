@@ -1,183 +1,154 @@
-import { useMemo, useState } from 'react'
-import { ScrollView, TouchableOpacity, View } from 'react-native'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import Button from '@/components/common/Button'
+import { useMemo, useState } from 'react'
+import { FlatList, View } from 'react-native'
+
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
+import { MagazineSheetRow } from '@/components/magazine'
 import { LIST_IDS } from '@/config/constant'
 import { useI18n } from '@/lang'
 import { useMyList, useMusicExistsList } from '@/store/list/hook'
-import { useTheme } from '@/store/theme/hook'
-import { useWindowSize } from '@/utils/hooks'
-import { createStyle, toast } from '@/utils/tools'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { toast } from '@/utils/tools'
+
 import CreateUserList from './CreateUserList'
 
-const CONTENT_PADDING = 16
-const CONTENT_MAX_WIDTH = 328
-
-const getListTone = (listId: string) => {
+const listIconName = (listId: string) => {
   switch (listId) {
     case LIST_IDS.LOVE:
-      return { icon: 'heart', iconColor: '#cf385b', iconBg: '#fce7ef' }
+      return 'heart-outline'
     case LIST_IDS.DEFAULT:
-      return { icon: 'play-circle', iconColor: '#556b96', iconBg: '#e8eefb' }
+      return 'play-circle-outline'
     default:
-      return { icon: 'music-note-eighth', iconColor: '#8a6745', iconBg: '#f5eee3' }
+      return 'music-note-eighth'
   }
 }
 
-const useTargetItemWidth = () => {
-  const windowSize = useWindowSize()
-
-  return useMemo(() => {
-    const availableWidth = Math.min(windowSize.width - 48, CONTENT_MAX_WIDTH + CONTENT_PADDING * 2) - CONTENT_PADDING * 2
-    return availableWidth
-  }, [windowSize])
+const IconBlock = ({
+  name,
+  dashed = false,
+}: {
+  name: string
+  dashed?: boolean
+}) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  return (
+    <View style={{
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: dashed ? 'transparent' : r.placeholder,
+      borderWidth: dashed ? 1.5 : 0,
+      borderColor: r.ink,
+      borderStyle: dashed ? 'dashed' : 'solid',
+    }}>
+      <MdiIcon name={name} size={18} color={r.ink} />
+    </View>
+  )
 }
 
-const CreatePlaylistItem = ({
-  width,
+const CreatePlaylistRow = ({
   defaultName,
   onCreated,
+  last,
 }: {
-  width: number
   defaultName?: string
   onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
+  last?: boolean
 }) => {
   const [isEdit, setEdit] = useState(false)
-  const theme = useTheme()
   const t = useI18n()
 
-  return (
-    <View style={{ ...styles.listItem, width }}>
-      <TouchableOpacity
-        style={{
-          ...styles.button,
-          borderColor: theme['c-primary-light-200-alpha-700'],
-          borderStyle: 'dashed',
-          backgroundColor: theme['c-main-background'],
-          justifyContent: 'center',
-        }}
-        onPress={() => { setEdit(true) }}
-      >
-        <Text style={{ opacity: isEdit ? 0 : 1, fontWeight: '600' }} numberOfLines={1} size={14} color={theme['c-button-font']}>
-          {t('list_create')}
-        </Text>
-      </TouchableOpacity>
-      {isEdit
-        ? (
-            <CreateUserList
-              isEdit={isEdit}
-              onHide={() => { setEdit(false) }}
-              defaultName={defaultName}
-              onCreated={onCreated}
-            />
-          )
-        : null}
-    </View>
-  )
-}
-
-const TargetPlaylistItemBase = ({
-  listInfo,
-  width,
-  disabled = false,
-  actionIcon = 'plus',
-  actionColor = '#202515',
-  actionBackground = '#eef4d4',
-  onPress,
-}: {
-  listInfo: LX.List.MyListInfo
-  width: number
-  disabled?: boolean
-  actionIcon?: string
-  actionColor?: string
-  actionBackground?: string
-  onPress: (listInfo: LX.List.MyListInfo) => void
-}) => {
-  const theme = useTheme()
-  const tone = getListTone(listInfo.id)
-
-  return (
-    <View style={{ ...styles.listItem, width }}>
-      <Button
-        style={{
-          ...styles.button,
-          backgroundColor: theme['c-main-background'],
-          borderColor: disabled ? theme['c-border-background'] : theme['c-primary-light-200-alpha-700'],
-          opacity: disabled ? 0.58 : 1,
-        }}
-        onPress={() => { onPress(listInfo) }}
-      >
-        <View style={{ ...styles.iconWrap, backgroundColor: tone.iconBg }}>
-          <MaterialCommunityIcon name={tone.icon} size={18} color={tone.iconColor} />
-        </View>
-        <View style={styles.content}>
-          <Text numberOfLines={1} size={14} color={theme['c-font']} style={styles.title}>{listInfo.name}</Text>
-          <Text numberOfLines={1} size={11} color={theme['c-500']}>
-            {listInfo.id === LIST_IDS.LOVE
-              ? global.i18n.t('list_name_love')
-              : listInfo.id === LIST_IDS.DEFAULT
-                ? global.i18n.t('list_name_default')
-                : global.i18n.t('me_playlist_list')}
-          </Text>
-        </View>
-        <View style={{ ...styles.actionWrap, backgroundColor: actionBackground }}>
-          <MaterialCommunityIcon name={actionIcon} size={16} color={actionColor} />
-        </View>
-      </Button>
-    </View>
-  )
-}
-
-const SingleTargetPlaylistItem = ({
-  listInfo,
-  musicInfo,
-  width,
-  onPress,
-}: {
-  listInfo: LX.List.MyListInfo
-  musicInfo: LX.Music.MusicInfo
-  width: number
-  onPress: (listInfo: LX.List.MyListInfo) => void
-}) => {
-  const isExists = useMusicExistsList(listInfo, musicInfo)
-
-  const handlePress = (nextListInfo: LX.List.MyListInfo) => {
-    if (isExists) {
-      toast(global.i18n.t('list_add_tip_exists'))
-      return
-    }
-    onPress(nextListInfo)
+  if (isEdit) {
+    return (
+      <CreateUserList
+        isEdit={isEdit}
+        onHide={() => { setEdit(false) }}
+        defaultName={defaultName}
+        onCreated={onCreated}
+      />
+    )
   }
 
   return (
-    <TargetPlaylistItemBase
-      listInfo={listInfo}
-      width={width}
-      disabled={isExists}
-      actionIcon={isExists ? 'check' : 'plus'}
-      actionColor={isExists ? '#7b8494' : '#202515'}
-      actionBackground={isExists ? '#ecf0f4' : '#eef4d4'}
-      onPress={handlePress}
+    <MagazineSheetRow
+      coverSize={0}
+      title={t('list_create')}
+      last={last}
+      onPress={() => { setEdit(true) }}
+      leading={<IconBlock name="plus" dashed />}
     />
   )
 }
 
-const MultiTargetPlaylistItem = ({
+const SingleTargetRow = ({
   listInfo,
-  width,
+  musicInfo,
+  last,
   onPress,
 }: {
   listInfo: LX.List.MyListInfo
-  width: number
+  musicInfo: LX.Music.MusicInfo
+  last: boolean
   onPress: (listInfo: LX.List.MyListInfo) => void
 }) => {
+  const isExists = useMusicExistsList(listInfo, musicInfo)
+  const t = useI18n()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+
   return (
-    <TargetPlaylistItemBase
-      listInfo={listInfo}
-      width={width}
-      onPress={onPress}
+    <MagazineSheetRow
+      coverSize={0}
+      title={listInfo.name}
+      last={last}
+      disabled={isExists}
+      onPress={() => {
+        if (isExists) {
+          toast(t('list_add_tip_exists'))
+          return
+        }
+        onPress(listInfo)
+      }}
+      leading={<IconBlock name={listIconName(listInfo.id)} />}
+      trailing={
+        isExists
+          ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MdiIcon name="check" size={18} color={r.faint} />
+              <Text size={12} color={r.faint} style={{ fontWeight: '600' }}>{t('sheet_already_in_list')}</Text>
+            </View>
+            )
+          : <MdiIcon name="plus-circle-outline" size={22} color={r.ink} />
+      }
+    />
+  )
+}
+
+const MultiTargetRow = ({
+  listInfo,
+  last,
+  onPress,
+}: {
+  listInfo: LX.List.MyListInfo
+  last: boolean
+  onPress: (listInfo: LX.List.MyListInfo) => void
+}) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  return (
+    <MagazineSheetRow
+      coverSize={0}
+      title={listInfo.name}
+      last={last}
+      onPress={() => { onPress(listInfo) }}
+      leading={<IconBlock name={listIconName(listInfo.id)} />}
+      trailing={<MdiIcon name="plus-circle-outline" size={22} color={r.ink} />}
     />
   )
 }
@@ -188,7 +159,13 @@ export interface TargetPlaylistListProps {
   defaultNewListName?: string
   onCreated?: (listInfo: LX.List.UserListInfo) => void | Promise<void>
   onPress: (listInfo: LX.List.MyListInfo) => void
+  /** When true, omit create-list row (move mode). */
+  allowCreate?: boolean
 }
+
+type RowItem =
+  | { kind: 'create' }
+  | { kind: 'list', list: LX.List.MyListInfo }
 
 export default ({
   musicInfo,
@@ -196,94 +173,56 @@ export default ({
   defaultNewListName,
   onCreated,
   onPress,
+  allowCreate = true,
 }: TargetPlaylistListProps) => {
   const allList = useMyList()
-  const theme = useTheme()
-  const t = useI18n()
-  const itemWidth = useTargetItemWidth()
   const targetLists = useMemo(() => {
     if (!excludeListId) return allList
     return allList.filter(list => list.id != excludeListId)
   }, [allList, excludeListId])
 
+  const rows = useMemo((): RowItem[] => {
+    const next: RowItem[] = []
+    if (allowCreate && onCreated) next.push({ kind: 'create' })
+    for (const list of targetLists) next.push({ kind: 'list', list })
+    return next
+  }, [allowCreate, onCreated, targetLists])
+
   return (
-    <View style={styles.section}>
-      <Text size={12} color={theme['c-500']} style={styles.sectionTitle}>{t('me_playlist_list')}</Text>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
-        <View style={styles.list} onStartShouldSetResponder={() => true}>
-          <CreatePlaylistItem width={itemWidth} defaultName={defaultNewListName} onCreated={onCreated} />
-          {targetLists.map(info => musicInfo
-            ? (
-                <SingleTargetPlaylistItem
-                  key={info.id}
-                  listInfo={info}
-                  musicInfo={musicInfo}
-                  onPress={onPress}
-                  width={itemWidth}
-                />
-              )
-            : (
-                <MultiTargetPlaylistItem
-                  key={info.id}
-                  listInfo={info}
-                  onPress={onPress}
-                  width={itemWidth}
-                />
-              ))}
-        </View>
-      </ScrollView>
-    </View>
+    <FlatList
+      data={rows}
+      keyExtractor={(item, index) => item.kind === 'create' ? 'create' : item.list.id + String(index)}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 8 }}
+      renderItem={({ item, index }) => {
+        const last = index >= rows.length - 1
+        if (item.kind === 'create') {
+          return (
+            <CreatePlaylistRow
+              defaultName={defaultNewListName}
+              onCreated={onCreated}
+              last={last}
+            />
+          )
+        }
+        return musicInfo
+          ? (
+            <SingleTargetRow
+              listInfo={item.list}
+              musicInfo={musicInfo}
+              last={last}
+              onPress={onPress}
+            />
+            )
+          : (
+            <MultiTargetRow
+              listInfo={item.list}
+              last={last}
+              onPress={onPress}
+            />
+            )
+      }}
+    />
   )
 }
-
-export const styles = createStyle({
-  section: {
-    flex: 1,
-    paddingHorizontal: CONTENT_PADDING,
-    paddingBottom: 16,
-  },
-  sectionTitle: {
-    marginBottom: 12,
-    fontWeight: '600',
-  },
-  list: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  listItem: {
-    paddingRight: 10,
-    marginBottom: 10,
-  },
-  button: {
-    minHeight: 66,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    borderWidth: 1,
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-    marginLeft: 10,
-    marginRight: 10,
-  },
-  title: {
-    fontWeight: '700',
-    marginBottom: 3,
-  },
-  actionWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})

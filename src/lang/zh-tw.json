@@ -970,5 +970,14 @@
   "library_sort_oldest_short": "最早更新",
   "library_sort_custom_short": "自訂排序",
   "library_sort_custom_note": "拖動卡片即切換到此項",
-  "library_sort_menu_title": "排序"
+  "library_sort_menu_title": "排序",
+  "sheet_import_eyebrow": "匯入 · 到「{name}」",
+  "sheet_import_meta": "{num} 首歌曲 · 已排除重複",
+  "sheet_import_figure_unit": "首可匯入",
+  "sheet_import_from": "來自「{name}」",
+  "sheet_queue_eyebrow": "播放佇列 · 正在播放 {num}",
+  "sheet_add_eyebrow": "加入到歌單",
+  "sheet_move_eyebrow": "移動到歌單",
+  "sheet_add_meta": "點歌單即加入",
+  "sheet_already_in_list": "已在列表"
 }
