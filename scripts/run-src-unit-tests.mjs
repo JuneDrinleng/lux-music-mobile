@@ -38,6 +38,8 @@ const files = [
   'src/utils/playHistory/chartMode.ts',
   'src/utils/playHistory/backup.ts',
   'src/utils/playHistory/wire.ts',
+  'src/plugins/sync/deviceIdentity.ts',
+  'src/plugins/sync/client/credentials.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -113,6 +115,8 @@ const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
 const playChartMode = require(join(outDir, 'src/utils/playHistory/chartMode.js'))
 const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
+const deviceIdentity = require(join(outDir, 'src/plugins/sync/deviceIdentity.js'))
+const syncCredentials = require(join(outDir, 'src/plugins/sync/client/credentials.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -1261,6 +1265,402 @@ test('local song cover cache keeps hits and expires misses', () => {
     version: 1,
     entries: { '  ': { url: 'https://img.example/a.jpg', savedAt: now }, bad: { url: '', savedAt: now } },
   })), {})
+})
+
+test('sync device UUID sets the version and variant without altering its random bytes', () => {
+  const bytes = Uint8Array.from({ length: 16 }, (_, index) => index)
+  const original = [...bytes]
+  assert.equal(deviceIdentity.uuidV4FromBytes(bytes), '00010203-0405-4607-8809-0a0b0c0d0e0f')
+  assert.deepEqual([...bytes], original)
+  assert.equal(deviceIdentity.uuidV4FromBytes(Array(16).fill(255)), 'ffffffff-ffff-4fff-bfff-ffffffffffff')
+  for (const invalid of [[], Array(15).fill(0), Array(17).fill(0), [...Array(15).fill(0), -1], [...Array(15).fill(0), 256], [...Array(15).fill(0), 1.5]]) {
+    assert.throws(() => deviceIdentity.uuidV4FromBytes(invalid))
+  }
+})
+
+test('simultaneous sync logins receive one device UUID only after it is persisted', async() => {
+  const deviceId = '00010203-0405-4607-8809-0a0b0c0d0e0f'
+  let stored = null
+  let readCount = 0
+  let createCount = 0
+  let writeCount = 0
+  let releasedCount = 0
+  let beginWrite
+  let finishWrite
+  const writeStarted = new Promise(resolve => { beginWrite = resolve })
+  const writeAllowed = new Promise(resolve => { finishWrite = resolve })
+  const storage = {
+    read: async() => { readCount++; return stored },
+    create: async() => { createCount++; return deviceId },
+    write: async(value) => {
+      writeCount++
+      beginWrite()
+      await writeAllowed
+      stored = value
+    },
+  }
+  const getDeviceId = deviceIdentity.createPersistedDeviceIdGetter(storage)
+  const requests = Array.from({ length: 3 }, async() => {
+    const result = await getDeviceId()
+    releasedCount++
+    return result
+  })
+  await writeStarted
+  assert.equal(stored, null)
+  assert.equal(releasedCount, 0)
+  assert.equal(readCount, 1)
+  assert.equal(createCount, 1)
+  assert.equal(writeCount, 1)
+  finishWrite()
+  assert.deepEqual(await Promise.all(requests), [deviceId, deviceId, deviceId])
+  assert.equal(stored, deviceId)
+  assert.equal(await getDeviceId(), deviceId)
+  const afterRestart = deviceIdentity.createPersistedDeviceIdGetter(storage)
+  assert.equal(await afterRestart(), deviceId)
+  assert.equal(createCount, 1)
+  assert.equal(writeCount, 1)
+})
+
+test('sync identity read failures never create a replacement UUID', async() => {
+  const deviceId = '00010203-0405-4607-8809-0a0b0c0d0e0f'
+  const readError = new Error('storage unavailable')
+  let reads = 0
+  const getDeviceId = deviceIdentity.createPersistedDeviceIdGetter({
+    read: async() => {
+      if (++reads == 1) throw readError
+      return deviceId
+    },
+    create: async() => assert.fail('a failed read must not create a new identity'),
+    write: async() => assert.fail('a failed read must not overwrite the existing identity'),
+  })
+  await assert.rejects(getDeviceId(), error => error === readError)
+  assert.equal(await getDeviceId(), deviceId)
+  assert.equal(reads, 2)
+})
+
+test('sync identity write failures do not expose an unpersisted UUID and retry the same value', async() => {
+  const deviceId = '00010203-0405-4607-8809-0a0b0c0d0e0f'
+  const writeError = new Error('disk full')
+  let stored = null
+  let creates = 0
+  const attemptedWrites = []
+  const getDeviceId = deviceIdentity.createPersistedDeviceIdGetter({
+    read: async() => stored,
+    create: async() => { creates++; return deviceId },
+    write: async(value) => {
+      attemptedWrites.push(value)
+      if (attemptedWrites.length == 1) throw writeError
+      stored = value
+    },
+  })
+  await assert.rejects(getDeviceId(), error => error === writeError)
+  assert.equal(stored, null)
+  assert.equal(await getDeviceId(), deviceId)
+  assert.equal(stored, deviceId)
+  assert.equal(creates, 1)
+  assert.deepEqual(attemptedWrites, [deviceId, deviceId])
+})
+
+test('invalid persisted or generated sync identities fail without overwriting storage', async() => {
+  for (const saved of ['', 'corrupt-value', '00010203-0405-1607-8809-0a0b0c0d0e0f']) {
+    const getDeviceId = deviceIdentity.createPersistedDeviceIdGetter({
+      read: async() => saved,
+      create: async() => assert.fail('do not rotate a corrupt persisted identity'),
+      write: async() => assert.fail('do not overwrite a corrupt persisted identity'),
+    })
+    await assert.rejects(getDeviceId(), /Invalid saved sync device ID/)
+  }
+  const getInvalidDeviceId = deviceIdentity.createPersistedDeviceIdGetter({
+    read: async() => null,
+    create: async() => 'not-a-uuid',
+    write: async() => assert.fail('do not persist an invalid generated identity'),
+  })
+  await assert.rejects(getInvalidDeviceId(), /Invalid generated sync device ID/)
+})
+
+test('both sync credential requests include the stable installation identity', () => {
+  const deviceId = '00010203-0405-4607-8809-0a0b0c0d0e0f'
+  assert.deepEqual(syncCredentials.buildLuxKeyRequest(deviceId, 'My phone'), {
+    deviceId,
+    deviceName: 'My phone',
+    platform: 'lux_music_mobile',
+  })
+  assert.deepEqual(syncCredentials.buildLuxKeyRequest(deviceId, 'My phone', 'saved-client'), {
+    deviceId,
+    deviceName: 'My phone',
+    platform: 'lux_music_mobile',
+    clientId: 'saved-client',
+  })
+  const message = syncCredentials.buildLxAuthMessage('lx-music auth::', 'public-key', 'My phone', deviceId)
+  const lines = message.split('\n')
+  assert.deepEqual(lines, ['lx-music auth::', 'public-key', 'My phone', 'lx_music_mobile', deviceId])
+  // Existing LX servers read the first four lines by position.
+  assert.equal(lines.slice(0, 4).join('\n'), 'lx-music auth::\npublic-key\nMy phone\nlx_music_mobile')
+  const multilineName = syncCredentials.buildLxAuthMessage('lx-music auth::', 'public-key', 'My\r\nphone', deviceId).split('\n')
+  assert.equal(multilineName.length, 5)
+  assert.equal(multilineName[2], 'My  phone')
+  assert.equal(multilineName[4], deviceId)
+})
+
+test('sync credential fallback distinguishes rejection from network and server failures', () => {
+  const rejected = (code, text) => syncCredentials.isKeyRejection(code, text, 'Auth failed', 'Blocked IP')
+  assert.equal(rejected(401, ''), true)
+  assert.equal(rejected(403, 'Forbidden'), true)
+  assert.equal(rejected(400, 'Auth failed'), true)
+  assert.equal(rejected(200, 'Auth failed'), true)
+  for (const code of [200, 400, 401, 403, 429, 500, 502, 503]) {
+    assert.equal(rejected(code, 'Blocked IP'), false, `blocked IP response ${code}`)
+  }
+  for (const code of [429, 500, 502, 503]) {
+    assert.equal(rejected(code, 'Auth failed'), false, `transient response ${code}`)
+  }
+  assert.equal(rejected(200, 'encrypted hello'), false)
+  assert.equal(rejected(404, 'Not found'), false)
+})
+
+test('new sync credentials are not released before the local save succeeds', async() => {
+  const fresh = { clientId: 'new-client', key: 'new-key', serverName: 'Server' }
+  let startSave
+  let finishSave
+  let released = false
+  const saving = new Promise(resolve => { startSave = resolve })
+  const saveAllowed = new Promise(resolve => { finishSave = resolve })
+  const result = syncCredentials.reuseOrRequestKey({
+    saved: null,
+    verify: async() => assert.fail('there is no saved key to verify'),
+    request: async(previousClientId) => {
+      assert.equal(previousClientId, undefined)
+      return fresh
+    },
+    save: async(key) => {
+      assert.deepEqual(key, fresh)
+      startSave()
+      await saveAllowed
+    },
+  }).then(key => { released = true; return key })
+  await saving
+  assert.equal(released, false)
+  finishSave()
+  assert.deepEqual(await result, fresh)
+
+  const storageError = new Error('cannot save credentials')
+  await assert.rejects(syncCredentials.reuseOrRequestKey({
+    saved: null,
+    verify: async() => assert.fail('there is no saved key to verify'),
+    request: async() => fresh,
+    save: async() => { throw storageError },
+  }), error => error === storageError)
+})
+
+test('sync reconnect, re-login, restart and server switching reuse each saved key', async() => {
+  let stored = null
+  let requests = 0
+  let verifications = 0
+  const storage = {
+    read: async() => stored == null ? null : JSON.parse(stored),
+    write: async(keys) => { stored = JSON.stringify(keys) },
+    remove: async() => { stored = null },
+  }
+  let store = syncCredentials.createCredentialStore(storage)
+  const connect = async(serverId, mode = 'lux', accountId = 'alice') => {
+    const id = syncCredentials.credentialStorageKey(serverId, mode, accountId)
+    return syncCredentials.reuseOrRequestKey({
+      saved: await store.get(id),
+      verify: async(key) => {
+        verifications++
+        assert.equal(key.serverName, serverId)
+      },
+      request: async(previousClientId) => {
+        assert.equal(previousClientId, undefined)
+        requests++
+        return { clientId: `client-${requests}`, key: `key-${requests}`, serverName: serverId }
+      },
+      save: async(key) => store.set(id, key),
+    })
+  }
+  const firstServer = await connect('server-a')
+  assert.deepEqual(await connect('server-a'), firstServer)
+  assert.deepEqual(await connect('server-a'), firstServer)
+  const secondServer = await connect('server-b')
+  assert.notEqual(secondServer.clientId, firstServer.clientId)
+  assert.deepEqual(await connect('server-a'), firstServer)
+  // A recreated store has no in-memory keys, as after an app restart.
+  store = syncCredentials.createCredentialStore(storage)
+  assert.deepEqual(await connect('server-b'), secondServer)
+  assert.deepEqual(await connect('server-a'), firstServer)
+  assert.equal(requests, 2)
+  assert.equal(verifications, 5)
+  const otherAccount = await connect('server-a', 'lux', 'bob')
+  const lxAccount = await connect('server-a', 'lx', 'alice')
+  assert.notEqual(otherAccount.clientId, firstServer.clientId)
+  assert.notEqual(lxAccount.clientId, firstServer.clientId)
+  assert.deepEqual(await connect('server-a'), firstServer)
+  assert.equal(requests, 4)
+})
+
+test('rejected sync credentials request a replacement once using the old client ID', async() => {
+  const old = { clientId: 'saved-client', key: 'revoked-key', serverName: 'Server' }
+  const fresh = { ...old, key: 'replacement-key' }
+  const events = []
+  const result = await syncCredentials.reuseOrRequestKey({
+    saved: old,
+    verify: async(key) => {
+      assert.deepEqual(key, old)
+      events.push('verify')
+      throw new syncCredentials.CredentialRejectedError('Auth failed')
+    },
+    request: async(previousClientId) => {
+      assert.equal(previousClientId, old.clientId)
+      events.push('request')
+      return fresh
+    },
+    save: async(key) => {
+      assert.deepEqual(key, fresh)
+      events.push('save')
+    },
+  })
+  assert.deepEqual(result, fresh)
+  assert.deepEqual(events, ['verify', 'request', 'save'])
+})
+
+test('saved sync keys survive transient verification errors without requesting credentials', async() => {
+  const saved = { clientId: 'saved-client', key: 'saved-key', serverName: 'Server' }
+  for (const message of ['Network request failed', 'Timed out', 'HTTP 500', 'HTTP 429', 'Blocked IP', 'Auth failed']) {
+    const verificationError = new Error(message)
+    await assert.rejects(syncCredentials.reuseOrRequestKey({
+      saved,
+      verify: async() => { throw verificationError },
+      request: async() => assert.fail(`must not replace a saved key after ${message}`),
+      save: async() => assert.fail(`must not overwrite a saved key after ${message}`),
+    }), error => error === verificationError)
+  }
+})
+
+test('credential request failures propagate once without saving or repeated retries', async() => {
+  const requestError = new Error('server unavailable')
+  let requests = 0
+  await assert.rejects(syncCredentials.reuseOrRequestKey({
+    saved: { clientId: 'old-client' },
+    verify: async() => { throw new syncCredentials.CredentialRejectedError('Auth failed') },
+    request: async(previousClientId) => {
+      assert.equal(previousClientId, 'old-client')
+      requests++
+      throw requestError
+    },
+    save: async() => assert.fail('no credentials were received'),
+  }), error => error === requestError)
+  assert.equal(requests, 1)
+})
+
+test('credential storage scopes cannot collide between servers, modes or accounts', () => {
+  const identities = [
+    ['server-a', 'lux', 'alice'],
+    ['server-b', 'lux', 'alice'],
+    ['server-a', 'lx', 'alice'],
+    ['server-a', 'lux', 'bob'],
+    ['server-a:lux', 'lux', 'bob'],
+    ['server-a', 'lux', 'lux:bob'],
+    ['["server-a","lux","alice"]', 'lux', 'alice'],
+  ]
+  const keys = identities.map(args => syncCredentials.credentialStorageKey(...args))
+  assert.equal(new Set(keys).size, identities.length)
+})
+
+test('Lux credential migration reuses only the selected account and reconciles unowned legacy IDs', () => {
+  const scoped = { clientId: 'scoped-alice', key: 'scoped-key', luxUserId: 'alice' }
+  const sameOwner = { clientId: 'legacy-alice', key: 'legacy-key', luxUserId: 'alice' }
+  const otherOwner = { clientId: 'legacy-bob', key: 'other-key', luxUserId: 'bob' }
+  const unowned = { clientId: 'legacy-unowned', key: 'unowned-key' }
+  const lxCredential = { clientId: 'legacy-lx', key: 'lx-key', lxAuthCodeHash: 'code-hash' }
+  assert.deepEqual(syncCredentials.selectLuxCredential(scoped, otherOwner, 'alice'), {
+    saved: scoped,
+    previousClientId: undefined,
+  })
+  assert.deepEqual(syncCredentials.selectLuxCredential(null, sameOwner, 'alice'), {
+    saved: sameOwner,
+    previousClientId: undefined,
+  })
+  assert.deepEqual(syncCredentials.selectLuxCredential(null, unowned, 'alice'), {
+    saved: null,
+    previousClientId: unowned.clientId,
+  })
+  for (const legacy of [null, otherOwner, lxCredential]) {
+    assert.deepEqual(syncCredentials.selectLuxCredential(null, legacy, 'alice'), {
+      saved: null,
+      previousClientId: undefined,
+    })
+  }
+})
+
+test('LX credential migration distinguishes automatic reconnects from explicit account selection', () => {
+  const scoped = { clientId: 'scoped-lx', key: 'scoped-key', lxAuthCodeHash: 'alice-code' }
+  const knownLegacy = { clientId: 'legacy-lx', key: 'legacy-key', lxAuthCodeHash: 'alice-code' }
+  const unowned = { clientId: 'legacy-unowned', key: 'unowned-key' }
+  const luxCredential = { clientId: 'legacy-lux', key: 'lux-key', luxUserId: 'alice' }
+  assert.deepEqual(syncCredentials.selectLxCredential(scoped, null, 'alice-code'), scoped)
+  assert.deepEqual(syncCredentials.selectLxCredential(scoped, null, ''), scoped)
+  assert.deepEqual(syncCredentials.selectLxCredential(null, knownLegacy, 'alice-code'), knownLegacy)
+  assert.deepEqual(syncCredentials.selectLxCredential(null, knownLegacy, ''), knownLegacy)
+  assert.deepEqual(syncCredentials.selectLxCredential(null, unowned, ''), unowned)
+  assert.equal(syncCredentials.selectLxCredential(null, unowned, 'alice-code'), null)
+  assert.equal(syncCredentials.selectLxCredential(null, knownLegacy, 'bob-code'), null)
+  assert.equal(syncCredentials.selectLxCredential(null, luxCredential, ''), null)
+  assert.equal(syncCredentials.selectLxCredential(null, luxCredential, 'alice-code'), null)
+  assert.equal(syncCredentials.selectLxCredential(null, null, 'alice-code'), null)
+})
+
+test('concurrent credential writes preserve every server and pending reads await persistence', async() => {
+  let stored = null
+  let startWrite
+  let finishWrite
+  let returned = false
+  const writing = new Promise(resolve => { startWrite = resolve })
+  const writeAllowed = new Promise(resolve => { finishWrite = resolve })
+  const store = syncCredentials.createCredentialStore({
+    read: async() => stored == null ? null : JSON.parse(stored),
+    write: async(keys) => {
+      startWrite()
+      await writeAllowed
+      stored = JSON.stringify(keys)
+    },
+    remove: async() => { stored = null },
+  })
+  const first = { clientId: 'first', key: 'key-a' }
+  const second = { clientId: 'second', key: 'key-b' }
+  const writes = [store.set('server-a', first), store.set('server-b', second)]
+  const read = store.get('server-b').then(key => { returned = true; return key })
+  await writing
+  assert.equal(returned, false)
+  finishWrite()
+  await Promise.all(writes)
+  assert.deepEqual(await read, second)
+  assert.deepEqual(await store.get('server-a'), first)
+  assert.deepEqual(await store.get('server-b'), second)
+  assert.equal(await store.get('toString'), null)
+})
+
+test('credential storage recovers its write queue after failure and orders explicit clearing', async() => {
+  const storageError = new Error('disk full')
+  let stored = null
+  let writes = 0
+  const store = syncCredentials.createCredentialStore({
+    read: async() => stored == null ? null : JSON.parse(stored),
+    write: async(keys) => {
+      if (++writes == 1) throw storageError
+      stored = JSON.stringify(keys)
+    },
+    remove: async() => { stored = null },
+  })
+  await assert.rejects(store.set('failed-server', { clientId: 'not-saved' }), error => error === storageError)
+  assert.equal(await store.get('failed-server'), null)
+  const operations = [
+    store.set('before-clear', { clientId: 'removed' }),
+    store.clear(),
+    store.set('after-clear', { clientId: 'retained' }),
+  ]
+  await Promise.all(operations)
+  assert.equal(await store.get('before-clear'), null)
+  assert.deepEqual(await store.get('after-clear'), { clientId: 'retained' })
 })
 
 test('migrated screens reject new color literals', () => {

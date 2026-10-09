@@ -175,6 +175,9 @@
 | `src/utils/playHistory/playback.ts` | `code` | Lux 从听歌记录回到播放，上游无对应文件 | `2026-10-09` |
 | `src/plugins/sync/playHistorySync.ts` | `code` | Lux 听歌记录的 Lux 同步通道，上游无对应文件 | `2026-10-09` |
 | `src/plugins/sync/playHistoryFlag.ts` | `code` | Lux 听歌记录能力是否在本次连接启用，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/deviceIdentity.ts` | `code` | Lux 同步安装 UUID 与持久化初始化逻辑，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/deviceId.ts` | `code` | Lux 同步安装标识的本机存储与安全随机来源，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/client/credentials.ts` | `code` | Lux 同步凭据复用、账号隔离与串行存储逻辑，上游无对应文件 | `2026-10-09` |
 | `src/components/stats/ListeningStatsPage.tsx` | `code` | Lux 听歌统计页，上游无对应文件 | `2026-10-09` |
 | `src/components/stats/useTodayListening.ts` | `code` | Lux 今日听歌时长，上游无对应文件 | `2026-10-09` |
 | `src/core/init/playHistory.ts` | `code` | Lux 听歌记录的启动入口，上游无对应文件 | `2026-10-09` |
