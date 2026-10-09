@@ -24,6 +24,7 @@ const files = [
   'src/utils/imageCachePolicy.ts',
   'src/utils/playlistCoverQueue.ts',
   'src/utils/playlistCoverMap.ts',
+  'src/utils/homeBootGate.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -86,6 +87,7 @@ const LIME_COLOR_LITERALS = [
 const cachePolicy = require(join(outDir, 'src/utils/imageCachePolicy.js'))
 const coverQueue = require(join(outDir, 'src/utils/playlistCoverQueue.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
+const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -579,6 +581,68 @@ test('lime token paths still match the inventory table', () => {
   for (const row of rows) {
     assert.equal(resolvePath(row[1]), row[2], row[1])
   }
+})
+
+test('home boot is ready only when counts and covers are both ready', () => {
+  assert.equal(homeBoot.homeBootIsReady({ countsReady: false, coversReady: false }), false)
+  assert.equal(homeBoot.homeBootIsReady({ countsReady: true, coversReady: false }), false)
+  assert.equal(homeBoot.homeBootIsReady({ countsReady: false, coversReady: true }), false)
+  assert.equal(homeBoot.homeBootIsReady({ countsReady: true, coversReady: true }), true)
+})
+
+test('home boot does not wait past the splash hold when everything is already cached', () => {
+  const input = { launchStartedAt: 0, preloadStartedAt: 0, readyAt: 80 }
+  assert.equal(homeBoot.homeBootRevealAt(input), homeBoot.HOME_LAUNCH_HOLD_MS)
+  assert.equal(homeBoot.homeBootExtraWaitMs(input), 0)
+  assert.equal(homeBoot.homeCoverSettleAt(80, false), 80)
+  assert.equal(homeBoot.HOME_BOOT_COVER_FADE_MS, presentation.COVER_FADE_MS)
+})
+
+test('home boot caps the extra wait after the splash hold', () => {
+  const missed = { launchStartedAt: 0, preloadStartedAt: 3000, readyAt: null }
+  assert.equal(homeBoot.homeBootRevealAt(missed), homeBoot.HOME_LAUNCH_HOLD_MS + homeBoot.HOME_BOOT_EXTRA_WAIT_MS)
+  assert.equal(homeBoot.homeBootExtraWaitMs(missed), homeBoot.HOME_BOOT_EXTRA_WAIT_MS)
+  const earlyBudget = { launchStartedAt: 0, preloadStartedAt: 0, readyAt: null }
+  assert.equal(homeBoot.homeBootExtraWaitMs(earlyBudget), 0)
+  const partial = { launchStartedAt: 0, preloadStartedAt: 2000, readyAt: null }
+  assert.equal(homeBoot.homeBootExtraWaitMs(partial), 1000)
+  const readyDuringExtra = { launchStartedAt: 0, preloadStartedAt: 3000, readyAt: 3700 }
+  assert.equal(homeBoot.homeBootRevealAt(readyDuringExtra), 3700)
+  assert.equal(homeBoot.homeBootExtraWaitMs(readyDuringExtra), 200)
+  for (let preloadStartedAt = 0; preloadStartedAt <= 8000; preloadStartedAt += 250) {
+    const extra = homeBoot.homeBootExtraWaitMs({ launchStartedAt: 0, preloadStartedAt, readyAt: null })
+    assert.ok(extra >= 0 && extra <= homeBoot.HOME_BOOT_EXTRA_WAIT_MS)
+    assert.ok(homeBoot.homeBootRevealAt({ launchStartedAt: 0, preloadStartedAt, readyAt: null }) >= homeBoot.HOME_LAUNCH_HOLD_MS)
+  }
+  assert.equal(homeBoot.homeCoverSettleAt(1000, true), 1000 + homeBoot.HOME_BOOT_COVER_FADE_MS)
+})
+
+test('home first-screen lists and unknown counts', () => {
+  assert.deepEqual(homeBoot.selectHomeFirstListIds([
+    { id: 'default' },
+    { id: 'love' },
+    { id: 'custom-a' },
+    { id: 'custom-b' },
+  ]), ['love', 'default', 'custom-a'])
+  assert.equal(homeBoot.formatHomeDailyMeta('我的收藏', null, '0 首'), '我的收藏')
+  assert.equal(homeBoot.formatHomeDailyMeta('我的收藏', 0, '0 首'), '我的收藏 · 0 首')
+  assert.equal(homeBoot.formatHomeDailyMeta('我的收藏', 12, '12 首'), '我的收藏 · 12 首')
+  const thumb = 'https://imge.kugou.com/stdmusic/240/a.jpg'
+  const resolved = homeBoot.resolveHomeListCover([
+    { source: 'kg', id: '1', picUrl: null, albumId: '9' },
+  ], {
+    mapped: () => ({ url: 'https://imge.kugou.com/stdmusic/400/a.jpg', thumbUrl: thumb }),
+    isCached: () => false,
+  })
+  assert.equal(resolved, thumb)
+  const cachedFull = 'https://p.example/full.jpg'
+  assert.equal(homeBoot.resolveHomeListCover([
+    { source: 'wy', id: '2', picUrl: cachedFull },
+  ], {
+    mapped: () => null,
+    isCached: (url) => url == cachedFull,
+  }), cachedFull)
+  assert.deepEqual(homeBoot.collectHomeWarmUrls([null, cachedFull, '  ', cachedFull, thumb]), [cachedFull, thumb])
 })
 
 test('migrated screens reject new color literals', () => {
