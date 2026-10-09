@@ -709,6 +709,16 @@ test('local songs page keeps device files and only complete cached audio', () =>
   assert.equal(rows.some(row => row.fullyCached == false), false)
   assert.equal(rows.some(row => String(row.cacheKey).includes('569249599')), false)
   assert.deepEqual(localSongRows.cacheKeysForSong('wy', '88', ['128k']), ['wy_88_128k'])
+  const usage = localSongRows.summarizeLocalSongUsage(rows)
+  assert.equal(usage.count, 2)
+  assert.equal(usage.deviceBytes, 1200)
+  assert.equal(usage.cacheBytes, 4000)
+  assert.equal(usage.totalBytes, 5200)
+  assert.equal(localSongRows.summarizeLocalSongUsage([]).totalBytes, 0)
+  assert.equal(localSongRows.summarizeLocalSongUsage([
+    { origin: 'device', size: null },
+    { origin: 'cache', size: 0 },
+  ]).count, 2)
 })
 
 test('audio cache keys parse source, song id and quality', () => {

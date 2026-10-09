@@ -3,8 +3,11 @@
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, type ListRenderItem } from 'react-native'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
+import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { getSourceTone } from '@/components/search/sourceTone'
 import { LIST_IDS } from '@/config/constant'
@@ -20,10 +23,11 @@ import {
   rememberResolvedCacheSong,
   withCachedCover,
 } from '@/utils/cachedSongInfo'
-import { sizeFormate } from '@/utils/common'
+import { arrShuffle, sizeFormate } from '@/utils/common'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
+import { rgbaHex } from '@/theme/luxColorMath'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 import {
@@ -31,6 +35,7 @@ import {
   mergeLocalSongRows,
   parseAudioCacheKey,
   resolveCachedSongMetadata,
+  summarizeLocalSongUsage,
   type MergedLocalSong,
 } from '@/utils/localSongRows'
 import {
@@ -39,7 +44,6 @@ import {
   importFolderIntoLibrary,
   removeDeviceSongs,
 } from '@/utils/localSongLibrary'
-import PlaylistDetailHeader from './PlaylistDetailHeader'
 import PlaylistDetailSongItem from './PlaylistDetailSongItem'
 
 interface PageRow extends MergedLocalSong {
@@ -77,6 +81,120 @@ const requestAudioPermission = async() => {
   if (await PermissionsAndroid.check(permission)) return true
   const result = await PermissionsAndroid.request(permission)
   return result == PermissionsAndroid.RESULTS.GRANTED
+}
+
+const HERO_GRADIENT_ID = 'localSongsHero'
+
+interface LocalSongsOverviewProps {
+  statusBarHeight: number
+  metaText: string
+  deviceLabel: string
+  cacheLabel: string
+  deviceBytes: number
+  cacheBytes: number
+  selecting: boolean
+  onBack: () => void
+  onPlayAll: () => void
+  onShuffle: () => void
+  onToggleSelect: () => void
+  onScan: () => void
+}
+
+const LocalSongsOverview = ({
+  statusBarHeight,
+  metaText,
+  deviceLabel,
+  cacheLabel,
+  deviceBytes,
+  cacheBytes,
+  selecting,
+  onBack,
+  onPlayAll,
+  onShuffle,
+  onToggleSelect,
+  onScan,
+}: LocalSongsOverviewProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+  const t = useI18n()
+  return (
+    <View>
+      <View style={[styles.backRow, { paddingTop: statusBarHeight + 18 }]}>
+        <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={onBack}>
+          <View style={styles.backButtonInner}>
+            <Icon name="chevron-left" rawSize={22} color={colors.ink.input} />
+          </View>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.heroShadow}>
+        <View style={styles.hero}>
+          <View style={styles.heroFill} pointerEvents="none">
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id={HERO_GRADIENT_ID} x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor={colors.accent.soft} />
+                  <Stop offset="0.58" stopColor={colors.surface.importSelected} />
+                  <Stop offset="1" stopColor={colors.surface.card} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill={`url(#${HERO_GRADIENT_ID})`} />
+            </Svg>
+          </View>
+          <View style={styles.heroBlob} pointerEvents="none" />
+          <View style={styles.heroRow}>
+            <View style={styles.tile}>
+              <MdiIcon name="folder-music" size={46} color={colors.ink.chipActive} />
+            </View>
+            <View style={styles.heroText}>
+              <Text size={22} color={colors.ink.strong} style={styles.heroTitle} numberOfLines={1}>
+                {t('local_songs_title')}
+              </Text>
+              <Text size={12} color={colors.ink.meta} style={styles.heroMeta} numberOfLines={2}>{metaText}</Text>
+              <View style={styles.bar}>
+                {deviceBytes > 0 ? <View style={[styles.barDevice, { flex: deviceBytes }]} /> : null}
+                {cacheBytes > 0 ? <View style={[styles.barCache, { flex: cacheBytes }]} /> : null}
+              </View>
+              <View style={styles.legend}>
+                <View style={styles.legendItem}>
+                  <View style={styles.dotDevice} />
+                  <Text size={11} color={colors.ink.secondary} style={styles.legendLabel} numberOfLines={1}>{deviceLabel}</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={styles.dotCache} />
+                  <Text size={11} color={colors.ink.secondary} style={styles.legendLabel} numberOfLines={1}>{cacheLabel}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          <View style={styles.heroButtons}>
+            <TouchableOpacity style={styles.playAll} activeOpacity={0.82} onPress={onPlayAll}>
+              <MdiIcon name="play" size={20} color={colors.ink.onAccent} />
+              <Text size={15} color={colors.ink.onAccent} style={styles.btnLabel} numberOfLines={1}>{t('play_all')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shuffle} activeOpacity={0.82} onPress={onShuffle}>
+              <MdiIcon name="shuffle-variant" size={19} color={colors.ink.list} />
+              <Text size={15} color={colors.ink.list} style={styles.btnLabel} numberOfLines={1}>{t('play_list_random')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      <View style={styles.sectionHeader}>
+        <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{t('me_songs')}</Text>
+        <View style={styles.sectionActions}>
+          <TouchableOpacity style={styles.sectionIcon} activeOpacity={0.8} onPress={onToggleSelect}>
+            <MdiIcon
+              name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'}
+              size={16}
+              color={colors.ink.nearBlack}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sectionIcon} activeOpacity={0.8} onPress={onScan}>
+            <MdiIcon name="folder-search" size={19} color={colors.ink.nearBlack} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  )
 }
 
 export interface LocalSongsDetailProps {
@@ -314,6 +432,23 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     () => rows.filter(row => selected[row.rowKey]),
     [rows, selected],
   )
+  const usage = useMemo(() => summarizeLocalSongUsage(rows), [rows])
+
+  const playPage = useCallback(async(shuffle: boolean) => {
+    const playable = rowsRef.current.filter(item => item.playable)
+    if (!playable.length) {
+      toast(rowsRef.current.length ? t('local_songs_play_missing') : t('me_no_songs'))
+      return
+    }
+    const queue = shuffle ? arrShuffle(playable.slice()) : playable
+    setCachedPagePlayQualities(queue.filter(item => item.origin == 'cache').map(item => ({
+      source: item.musicInfo.source,
+      id: item.musicInfo.id,
+      quality: item.quality,
+    })))
+    await setTempList('local-songs', queue.map(item => item.musicInfo))
+    await playList(LIST_IDS.TEMP, 0)
+  }, [t])
 
   const renderItem: ListRenderItem<PageRow> = useCallback(({ item }) => {
     return (
@@ -332,25 +467,27 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     )
   }, [colors, handlePlay, noteFor, removeRows, selected, selecting])
 
-  const header = useMemo(() => (
-    <PlaylistDetailHeader
+  const header = (
+    <LocalSongsOverview
       statusBarHeight={statusBarHeight}
-      cover={null}
-      name={t('local_songs_title')}
-      metaText={loading ? t('me_loading_songs') : t('local_songs_meta', { count: rows.length })}
-      sectionTitle={t('me_songs')}
-      canRename={false}
-      actionLabel={t('local_songs_scan')}
-      actionIcon="folder-search"
+      metaText={loading
+        ? t('me_loading_songs')
+        : t('local_songs_usage', { count: usage.count, size: sizeFormate(usage.totalBytes) })}
+      deviceLabel={t('local_songs_usage_device', { size: sizeFormate(usage.deviceBytes) })}
+      cacheLabel={t('local_songs_usage_cache', { size: sizeFormate(usage.cacheBytes) })}
+      deviceBytes={usage.deviceBytes}
+      cacheBytes={usage.cacheBytes}
+      selecting={selecting}
       onBack={handleClose}
-      onActionPress={() => { void handleScan() }}
+      onPlayAll={() => { void playPage(false) }}
+      onShuffle={() => { void playPage(true) }}
       onToggleSelect={() => {
         setSelecting(current => !current)
         setSelected({})
       }}
-      selecting={selecting}
+      onScan={() => { void handleScan() }}
     />
-  ), [handleClose, handleScan, loading, rows.length, selecting, statusBarHeight, t])
+  )
 
   return (
     <View style={styles.root}>
@@ -409,6 +546,191 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     right: 18,
     minHeight: 52,
     borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface.card,
+    padding: 2,
+    shadowColor: colors.shadow.ink,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  backButtonInner: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: colors.surface.avatar,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroShadow: {
+    borderRadius: 24,
+    marginBottom: 18,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.card,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  hero: {
+    borderRadius: 24,
+    padding: 18,
+    overflow: 'hidden',
+  },
+  heroFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  heroBlob: {
+    position: 'absolute',
+    right: -40,
+    top: -50,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: rgbaHex(colors.accent.primary, 0.18),
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tile: {
+    width: 92,
+    height: 92,
+    borderRadius: 18,
+    backgroundColor: colors.accent.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.ink.olive,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  heroText: {
+    flex: 1,
+    marginLeft: 16,
+    minWidth: 0,
+  },
+  heroTitle: {
+    fontWeight: '800',
+  },
+  heroMeta: {
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  bar: {
+    height: 6,
+    borderRadius: 3,
+    marginTop: 10,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    backgroundColor: rgbaHex(colors.surface.card, 0.8),
+  },
+  barDevice: {
+    height: '100%',
+    backgroundColor: colors.ink.olive,
+  },
+  barCache: {
+    height: '100%',
+    backgroundColor: colors.accent.primary,
+  },
+  legend: {
+    marginTop: 5,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  legendLabel: {
+    flexShrink: 1,
+  },
+  dotDevice: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 4,
+    backgroundColor: colors.ink.olive,
+  },
+  dotCache: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 4,
+    backgroundColor: colors.accent.primary,
+  },
+  heroButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  playAll: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.accent.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    shadowColor: colors.accent.highlight,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  shuffle: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.glass.fill78,
+    borderWidth: 1,
+    borderColor: colors.glass.backBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  btnLabel: {
+    fontWeight: '700',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+  },
+  sectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sectionIcon: {
+    width: 26,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },

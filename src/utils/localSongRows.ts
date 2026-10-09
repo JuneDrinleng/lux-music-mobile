@@ -242,6 +242,32 @@ export const mergeLocalSongRows = (
   return rows
 }
 
+export interface LocalSongUsage {
+  count: number
+  deviceBytes: number
+  cacheBytes: number
+  totalBytes: number
+}
+
+/** Sum the rows the page actually lists. Partial caches never reach this list. */
+export const summarizeLocalSongUsage = (
+  rows: ReadonlyArray<{ origin: LocalSongOrigin, size: number | null }>,
+): LocalSongUsage => {
+  let deviceBytes = 0
+  let cacheBytes = 0
+  for (const row of rows) {
+    const size = row.size != null && row.size > 0 ? row.size : 0
+    if (row.origin == 'device') deviceBytes += size
+    else cacheBytes += size
+  }
+  return {
+    count: rows.length,
+    deviceBytes,
+    cacheBytes,
+    totalBytes: deviceBytes + cacheBytes,
+  }
+}
+
 export const CACHE_LOOKUP_QUALITIES = ['128k', '320k', 'flac', 'flac24bit', '192k', 'ape', 'wav', 'local'] as const
 
 export const cacheKeysForSong = (source: string, id: string, qualities: readonly string[] = CACHE_LOOKUP_QUALITIES) => {
