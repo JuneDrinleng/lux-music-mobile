@@ -10,6 +10,7 @@ import PlayQueueSheet from './PlayQueueSheet'
 import PlayDetailOverlay from './PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
+import LocalSongsDetail from '@/components/playlist/LocalSongsDetail'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
@@ -62,6 +63,7 @@ export default () => {
   const bottomInset = useSystemGestureInsetBottom()
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
+  const [localSongsOpen, setLocalSongsOpen] = useState(false)
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
 
@@ -79,17 +81,33 @@ export default () => {
     const handleClosePlaylistDetail = () => {
       setPlaylistDetailRequest(null)
     }
+    const handleOpenLocalSongs = () => {
+      setPlaylistDetailRequest(null)
+      setLocalSongsOpen(true)
+    }
+    const handleCloseLocalSongs = () => {
+      setLocalSongsOpen(false)
+    }
     global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
     global.app_event.on('closePlaylistDetail', handleClosePlaylistDetail)
+    global.app_event.on('openLocalSongs', handleOpenLocalSongs)
+    global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
       global.app_event.off('closePlaylistDetail', handleClosePlaylistDetail)
+      global.app_event.off('openLocalSongs', handleOpenLocalSongs)
+      global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
     }
   }, [])
 
   const handleClosePlaylistDetail = useCallback(() => {
     setPlaylistDetailRequest(null)
     global.app_event.closePlaylistDetail()
+  }, [])
+
+  const handleCloseLocalSongs = useCallback(() => {
+    setLocalSongsOpen(false)
+    global.app_event.closeLocalSongs()
   }, [])
 
   return (
@@ -101,6 +119,14 @@ export default () => {
             <PlaylistDetailView
               detail={playlistDetailRequest}
               onClose={handleClosePlaylistDetail}
+              bottomPadding={bottomLayerHeight}
+            />
+          </View>
+        : null}
+      {localSongsOpen
+        ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
+            <LocalSongsDetail
+              onClose={handleCloseLocalSongs}
               bottomPadding={bottomLayerHeight}
             />
           </View>

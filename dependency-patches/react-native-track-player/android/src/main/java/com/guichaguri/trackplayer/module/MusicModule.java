@@ -366,6 +366,30 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
+    public void listCachedEntries(final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).listCachedEntries(callback);
+                return;
+            }
+            callback.resolve(Arguments.createArray());
+        });
+    }
+
+    @ReactMethod
+    public void removeCachedResource(String key, final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).removeCachedResource(key, callback);
+                return;
+            }
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
     public void skip(final int index, final Promise callback) {
         waitForConnection(() -> binder.getPlayback().skip(index, callback));
     }

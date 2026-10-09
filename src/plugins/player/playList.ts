@@ -7,6 +7,7 @@ import { defaultUrl } from '@/config'
 import settingState from '@/store/setting/state'
 import playerState from '@/store/player/state'
 import { getTrackCacheKey } from './cache'
+import { rememberAudioCacheSong } from '@/utils/audioCacheIndex'
 
 
 const list: LX.Player.Track[] = []
@@ -52,6 +53,7 @@ const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Track['url'
   const cacheKey = getTrackCacheKey(musicInfo)
   const lyric = getCurrentFullLyric(mInfo.id)
   if (url) {
+    void rememberAudioCacheSong(musicInfo)
     track.push({
       id: `${mInfo.id}__//${Math.random()}__//${url}`,
       url,

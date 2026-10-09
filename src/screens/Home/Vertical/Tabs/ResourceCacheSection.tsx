@@ -315,6 +315,16 @@ export const ResourceCacheDetail = memo(({
             })}
           </>
         : null}
+      <View style={parentStyles.optionDetailDivider} />
+      <CacheIconRow
+        styles={parentStyles}
+        icon="file-music-outline"
+        title={t('setting_cache_open_local')}
+        onPress={() => {
+          global.app_event.closePlaylistDetail()
+          global.app_event.openLocalSongs()
+        }}
+      />
     </>
   )
 })

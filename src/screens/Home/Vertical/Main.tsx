@@ -34,6 +34,8 @@ const Main = () => {
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
   const [playlistDetailVisible, setPlaylistDetailVisible] = useState(false)
+  const [localSongsVisible, setLocalSongsVisible] = useState(false)
+  const detailCovering = playlistDetailVisible || localSongsVisible
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -45,6 +47,7 @@ const Main = () => {
   useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
+      if (localSongsVisible) global.app_event.closeLocalSongs()
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -56,11 +59,12 @@ const Main = () => {
     return () => {
       global.state_event.off('navActiveIdUpdated', handleNavUpdate)
     }
-  }, [playlistDetailVisible])
+  }, [localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
+      if (localSongsVisible) global.app_event.closeLocalSongs()
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -78,17 +82,23 @@ const Main = () => {
       global.app_event.off('openVerticalSearchPage', handleOpenSearchPage)
       global.app_event.off('closeVerticalSearchPage', handleCloseSearchPage)
     }
-  }, [playlistDetailVisible])
+  }, [localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpen = () => { setPlaylistDetailVisible(true) }
     const handleClose = () => { setPlaylistDetailVisible(false) }
 
+    const handleOpenLocalSongs = () => { setLocalSongsVisible(true) }
+    const handleCloseLocalSongs = () => { setLocalSongsVisible(false) }
     global.app_event.on('openPlaylistDetail', handleOpen)
     global.app_event.on('closePlaylistDetail', handleClose)
+    global.app_event.on('openLocalSongs', handleOpenLocalSongs)
+    global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpen)
       global.app_event.off('closePlaylistDetail', handleClose)
+      global.app_event.off('openLocalSongs', handleOpenLocalSongs)
+      global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
     }
   }, [])
 
@@ -103,7 +113,7 @@ const Main = () => {
 
   // Hide SharedTopBar whenever playlist detail is open so the detail header's
   // back button is the only top-left control (including HomeTab → detail).
-  const sharedTopBarVisible = !searchPageVisible && !playlistDetailVisible && (
+  const sharedTopBarVisible = !searchPageVisible && !detailCovering && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
@@ -124,7 +134,7 @@ const Main = () => {
         ref={pagerViewRef}
         initialPage={activeIndexRef.current}
         onPageSelected={onPageSelected}
-        scrollEnabled={!searchPageVisible && !playlistDetailVisible}
+        scrollEnabled={!searchPageVisible && !detailCovering}
         offscreenPageLimit={1}
         style={styles.pagerView}
       >

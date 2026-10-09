@@ -6,6 +6,25 @@ const { UtilsModule } = NativeModules
 
 export const exitApp = UtilsModule.exitApp
 
+export interface DeviceAudioFile {
+  path: string
+  displayName: string
+  title: string
+  artist: string
+  album: string
+  durationMs: number
+  size: number
+}
+
+export const listDeviceAudio = async(): Promise<DeviceAudioFile[]> => {
+  if (typeof UtilsModule?.listDeviceAudio != 'function') return []
+  const rows: unknown = await UtilsModule.listDeviceAudio()
+  if (!Array.isArray(rows)) return []
+  return rows.filter((row): row is DeviceAudioFile => {
+    return Boolean(row) && typeof row == 'object' && typeof (row as DeviceAudioFile).path == 'string'
+  })
+}
+
 export const getSupportedAbis = UtilsModule.getSupportedAbis
 
 export interface BuildInfo {

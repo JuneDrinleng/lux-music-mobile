@@ -39,6 +39,8 @@ declare function isCached(url: string, cacheKey?: string | null): Promise<boolea
 declare function getCacheSize(): Promise<number>;
 declare function clearCache(): Promise<void>;
 declare function setMaxCacheSize(maxCacheSizeKb: number): Promise<void>;
+declare function listCachedEntries(): Promise<Array<{ key: string, cachedBytes: number, fullyCached: boolean }>>;
+declare function removeCachedResource(key: string): Promise<void>;
 declare const _default: {
     setupPlayer: typeof setupPlayer;
     destroy: typeof destroy;
@@ -77,5 +79,7 @@ declare const _default: {
     getCacheSize: typeof getCacheSize;
     clearCache: typeof clearCache;
     setMaxCacheSize: typeof setMaxCacheSize;
+    listCachedEntries: typeof listCachedEntries;
+    removeCachedResource: typeof removeCachedResource;
 };
 export default _default;

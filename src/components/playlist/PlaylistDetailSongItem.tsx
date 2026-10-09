@@ -31,6 +31,9 @@ interface PlaylistDetailSongItemProps {
   listId?: string | null
   isGhost?: boolean
   canEdit?: boolean
+  detailNote?: string | null
+  selecting?: boolean
+  selected?: boolean
   onLayout: (event: LayoutChangeEvent) => void
   onPress: () => void
   onDragPressIn?: (event: GestureResponderEvent) => void
@@ -45,6 +48,9 @@ const PlaylistDetailSongItem = ({
   listId = null,
   isGhost = false,
   canEdit = false,
+  detailNote = null,
+  selecting = false,
+  selected = false,
   onLayout,
   onPress,
   onDragPressIn,
@@ -135,6 +141,9 @@ const PlaylistDetailSongItem = ({
           activeOpacity={0.8}
           onPress={onPress}
         >
+          {selecting
+            ? <MdiIcon name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={18} color={colors.ink.icon} style={styles.selectMark} />
+            : null}
           <Image
             style={styles.cover}
             url={displayCoverUrl}
@@ -149,6 +158,9 @@ const PlaylistDetailSongItem = ({
               </Text>
               <Text size={11} color={colors.ink.meta} numberOfLines={1}>{song.singer}</Text>
             </View>
+            {detailNote
+              ? <Text size={11} color={colors.ink.secondary} numberOfLines={1} style={styles.detailNote}>{detailNote}</Text>
+              : null}
           </View>
         </TouchableOpacity>
         <View style={styles.actions}>
@@ -217,6 +229,12 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  detailNote: {
+    marginTop: 2,
+  },
+  selectMark: {
+    marginRight: 8,
+  },
   sourceBadge: {
     borderRadius: 10,
     overflow: 'hidden',
@@ -263,6 +281,9 @@ export default memo(PlaylistDetailSongItem, (prev, next) => {
     prev.listId === next.listId &&
     prev.isGhost === next.isGhost &&
     prev.canEdit === next.canEdit &&
+    prev.detailNote === next.detailNote &&
+    prev.selecting === next.selecting &&
+    prev.selected === next.selected &&
     prev.onLayout === next.onLayout &&
     prev.onPress === next.onPress &&
     prev.onDragPressIn === next.onDragPressIn &&

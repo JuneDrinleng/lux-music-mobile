@@ -26,6 +26,7 @@ const files = [
   'src/utils/musicUrlCache.ts',
   'src/utils/listenListLimit.ts',
   'src/utils/playlistCoverMap.ts',
+  'src/utils/localSongRows.ts',
   'src/utils/homeBootGate.ts',
 ]
 
@@ -91,6 +92,7 @@ const coverQueue = require(join(outDir, 'src/utils/playlistCoverQueue.js'))
 const musicUrlCache = require(join(outDir, 'src/utils/musicUrlCache.js'))
 const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
+const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
@@ -675,6 +677,28 @@ test('lime token paths still match the inventory table', () => {
   for (const row of rows) {
     assert.equal(resolvePath(row[1]), row[2], row[1])
   }
+})
+
+test('local songs page keeps device files and cached audio in one list', () => {
+  const rows = localSongRows.mergeLocalSongRows([
+    { id: '/music/a.mp3', source: 'local', size: 1200 },
+    { id: '/music/a.mp3', source: 'local', size: 1200 },
+  ], [
+    { cacheKey: 'local_/music/a.mp3_local', cachedBytes: 1200, fullyCached: true, source: 'local', id: '/music/a.mp3' },
+    { cacheKey: 'wy_88_320k', cachedBytes: 4000, fullyCached: false, source: 'wy', id: '88' },
+    { cacheKey: 'wy_88_320k', cachedBytes: 4000, fullyCached: false, source: 'wy', id: '88' },
+    { cacheKey: 'orphan', cachedBytes: 10, fullyCached: false, source: null, id: null },
+  ])
+  assert.deepEqual(rows.map(row => row.rowKey), [
+    'device:local_/music/a.mp3',
+    'cache:wy_88_320k',
+    'cache:orphan',
+  ])
+  assert.equal(rows[0].origin, 'device')
+  assert.equal(rows[1].playable, true)
+  assert.equal(rows[1].fullyCached, false)
+  assert.equal(rows[2].playable, false)
+  assert.deepEqual(localSongRows.cacheKeysForSong('wy', '88', ['128k']), ['wy_88_128k'])
 })
 
 test('home boot is ready only when counts and covers are both ready', () => {
