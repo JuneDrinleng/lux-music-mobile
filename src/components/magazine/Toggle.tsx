@@ -23,7 +23,7 @@ export const Toggle = memo(({
     <TouchableOpacity
       activeOpacity={0.7}
       disabled={disabled}
-      onPress={() => onChange(!value)}
+      onPress={() => { onChange(!value) }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       style={{

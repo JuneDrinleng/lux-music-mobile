@@ -58,17 +58,15 @@ export const SectionHeader = memo(({
       {showRule ? <Rule compact={compactRule} /> : null}
       <View style={styles.head}>
         <Text size={magType.section.size} color={r.display} style={styles.title}>{title}</Text>
-        {trailing
-          ? trailing
-          : linkLabel
-            ? (
-              <TouchableOpacity activeOpacity={0.7} onPress={onLinkPress}>
-                <Text size={magType.sectionMeta.size} color={r.ink} style={styles.link}>{linkLabel}</Text>
-              </TouchableOpacity>
-              )
-            : meta
-              ? <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.meta}>{meta}</Text>
-              : null}
+        {trailing ?? (linkLabel != null
+          ? (
+            <TouchableOpacity activeOpacity={0.7} onPress={onLinkPress}>
+              <Text size={magType.sectionMeta.size} color={r.ink} style={styles.link}>{linkLabel}</Text>
+            </TouchableOpacity>
+            )
+          : meta != null
+            ? <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.meta}>{meta}</Text>
+            : null)}
       </View>
     </View>
   )

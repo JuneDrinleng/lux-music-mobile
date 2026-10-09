@@ -91,13 +91,13 @@ export const MagazineSheetRow = memo(({
         {leading}
         {coverUri != null || coverSize
           ? (
-            coverUri
-              ? (
+              coverUri
+                ? (
                 <View style={[styles.cover, { width: coverSize, height: coverSize }]}>
                   <Image url={coverUri} style={{ width: coverSize, height: coverSize, borderRadius: 6 }} />
                 </View>
-                )
-              : null
+                  )
+                : null
             )
           : null}
         <View style={styles.text}>
@@ -109,9 +109,9 @@ export const MagazineSheetRow = memo(({
           >{title}</Text>
           {subtitle
             ? (
-              typeof subtitle === 'string'
-                ? <Text size={12} color={disabled ? r.faint : r.muted} style={styles.sub} numberOfLines={1}>{subtitle}</Text>
-                : <View style={styles.sub}>{subtitle}</View>
+                typeof subtitle === 'string'
+                  ? <Text size={12} color={disabled ? r.faint : r.muted} style={styles.sub} numberOfLines={1}>{subtitle}</Text>
+                  : <View style={styles.sub}>{subtitle}</View>
               )
             : null}
         </View>

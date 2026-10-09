@@ -29,7 +29,7 @@ export const UnderlineInput = memo(({
   const r = magazineRoles(colors)
   const [focused, setFocused] = useState(false)
   const underlineColor = error ? r.danger : focused ? r.ink : r.hairline
-  const underlineWidth = error || focused ? 1.5 : 1
+  const underlineWidth = (error != null && error !== '') || focused ? 1.5 : 1
   return (
     <View>
       {label

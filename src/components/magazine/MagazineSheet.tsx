@@ -306,8 +306,8 @@ export const MagazineSheet = memo(({
             {loading
               ? <EmptyState eyebrow="LOADING" title={empty?.text ?? '…'} />
               : !children && empty
-                ? <EmptyState eyebrow={empty.eyebrow} title={empty.text} />
-                : children}
+                  ? <EmptyState eyebrow={empty.eyebrow} title={empty.text} />
+                  : children}
           </ScrollView>
           {footer
             ? (

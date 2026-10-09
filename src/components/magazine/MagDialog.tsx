@@ -113,7 +113,7 @@ export const MagDialog = memo(({
               ? <Text size={14} color={r.muted} style={styles.message}>{message}</Text>
               : null}
             {children ? <View style={styles.body}>{children}</View> : null}
-            {(cancelLabel || confirmLabel)
+            {(cancelLabel != null || confirmLabel != null)
               ? (
                 <View style={styles.actions}>
                   {cancelLabel

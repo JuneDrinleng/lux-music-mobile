@@ -20,7 +20,7 @@ export const SkeletonRow = memo(({ last = false }: { last?: boolean }) => {
       Animated.timing(pulse, { toValue: 0.45, duration: 700, useNativeDriver: true }),
     ]))
     loop.start()
-    return () => loop.stop()
+    return () => { loop.stop() }
   }, [pulse])
   return (
     <View>
@@ -47,7 +47,7 @@ export const MagLoadingBar = memo(({ label = 'LOADING' }: { label?: string }) =>
       useNativeDriver: true,
     }))
     loop.start()
-    return () => loop.stop()
+    return () => { loop.stop() }
   }, [slide])
   return (
     <View style={{ paddingHorizontal: PAGE_GUTTER, paddingVertical: 18 }}>

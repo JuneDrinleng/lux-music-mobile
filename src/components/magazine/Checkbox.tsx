@@ -39,7 +39,7 @@ export const Checkbox = memo(({
     <TouchableOpacity
       activeOpacity={0.7}
       disabled={disabled}
-      onPress={() => onChange(!checked)}
+      onPress={() => { onChange(!checked) }}
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled }}
     >

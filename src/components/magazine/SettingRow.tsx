@@ -12,42 +12,39 @@ import { createStyle } from '@/utils/tools'
 
 import { Hairline } from './Hairline'
 
-const useStyles = sharedLuxStyles((colors) => {
-  const r = magazineRoles(colors)
-  return createStyle({
-    row: {
-      minHeight: SETTING_ROW_MIN_HEIGHT,
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 10,
-      gap: 12,
-    },
-    iconWrap: {
-      width: ICON_BLOCK,
-      height: ICON_BLOCK,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    text: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      fontWeight: '700',
-    },
-    subtitle: {
-      marginTop: 2,
-    },
-    value: {
-      fontWeight: '600',
-      marginRight: 4,
-    },
-    dangerTitle: {
-      fontWeight: '700',
-    },
-  })
-})
+const useStyles = sharedLuxStyles(() => createStyle({
+  row: {
+    minHeight: SETTING_ROW_MIN_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 12,
+  },
+  iconWrap: {
+    width: ICON_BLOCK,
+    height: ICON_BLOCK,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    flex: 1,
+    minWidth: 0,
+  },
+  title: {
+    fontWeight: '700',
+  },
+  subtitle: {
+    marginTop: 2,
+  },
+  value: {
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  dangerTitle: {
+    fontWeight: '700',
+  },
+}))
 
 export const SettingRow = memo(({
   icon,

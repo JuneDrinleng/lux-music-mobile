@@ -74,7 +74,7 @@ export const TextTabs = memo(({
             key={item.id}
             style={[styles.tab, on ? styles.tabOn : null]}
             activeOpacity={0.7}
-            onPress={() => onChange(item.id)}
+            onPress={() => { onChange(item.id) }}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
           >
