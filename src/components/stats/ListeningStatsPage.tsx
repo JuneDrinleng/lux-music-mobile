@@ -17,6 +17,7 @@ import { type LuxColors } from '@/theme/luxTokens'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { getSyncMode } from '@/utils/data'
 import { lookupArtistAvatar } from '@/utils/playHistory/artistAvatar'
+import { buildStatsChartLayout, statsBucketLabel } from '@/utils/playHistory/chartLayout'
 import { DEFAULT_STATS_CHART_MODE, normalizeStatsChartMode, type StatsChartMode } from '@/utils/playHistory/chartMode'
 import { playHistorySong } from '@/utils/playHistory/playback'
 import {
@@ -58,16 +59,6 @@ const compareKey = {
   month: 'stats_compare_month',
   year: 'stats_compare_year',
 } as const
-
-const weekdayKey = [
-  'stats_weekday_0',
-  'stats_weekday_1',
-  'stats_weekday_2',
-  'stats_weekday_3',
-  'stats_weekday_4',
-  'stats_weekday_5',
-  'stats_weekday_6',
-] as const
 
 const pad2 = (value: number) => (value < 10 ? `0${value}` : String(value))
 
@@ -173,6 +164,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flex: 1,
   },
   figureSplit: {
+    // Do not inherit figure's flex: 1: Yoga gives this non-growing column a zero basis.
     width: 112,
     flexGrow: 0,
     flexShrink: 0,
@@ -250,6 +242,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     fontWeight: '600',
   },
   chartArea: {
+    width: '100%',
     height: 176,
   },
   bars: {
@@ -297,6 +290,10 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     paddingHorizontal: 5,
     borderRadius: 9,
     overflow: 'hidden',
+  },
+  hourLabel: {
+    maxWidth: '100%',
+    paddingHorizontal: 0,
   },
   lineWrap: {
     flex: 1,
@@ -435,47 +432,6 @@ const ArtistFace = ({ name, fallback }: { name: string, fallback?: string }) => 
   )
 }
 
-const bucketLabel = (
-  bucket: ChartBucket,
-  range: PlayRangeId,
-  t: (key: string, params?: Record<string, string | number>) => string,
-): { text: string, highlight: boolean, show: boolean } => {
-  if (bucket.kind == 'hour2') {
-    const show = bucket.hour % 6 == 0
-    return {
-      text: show ? t('stats_hour_label', { hour: bucket.hour }) : '',
-      highlight: bucket.isCurrent,
-      show,
-    }
-  }
-  if (bucket.kind == 'day') {
-    if (range == 'days7') {
-      return {
-        text: bucket.isCurrent ? t('stats_today') : t(weekdayKey[bucket.weekday]),
-        highlight: bucket.isCurrent,
-        show: true,
-      }
-    }
-    return {
-      text: String(bucket.dayOfMonth),
-      highlight: bucket.isCurrent,
-      show: bucket.isCurrent || bucket.dayOfMonth == 1 || bucket.dayOfMonth % 5 == 0,
-    }
-  }
-  if (bucket.kind == 'month') {
-    return {
-      text: t('stats_month_label', { month: bucket.month + 1 }),
-      highlight: bucket.isCurrent,
-      show: true,
-    }
-  }
-  return {
-    text: String(bucket.year),
-    highlight: bucket.isCurrent,
-    show: true,
-  }
-}
-
 const ListeningChart = ({
   buckets,
   range,
@@ -491,23 +447,24 @@ const ListeningChart = ({
   colors: LuxColors
   t: (key: string, params?: Record<string, string | number>) => string
 }) => {
-  const maxMinutes = buckets.reduce((max, bucket) => Math.max(max, bucket.minutes), 0)
-  const plotHeight = scaleSizeH(118)
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+  const { width: windowWidth } = useWindowDimensions()
+  const width = measuredWidth || Math.max(1, windowWidth - scaleSizeW(72))
+  const maxHeight = scaleSizeH(BAR_MAX)
+  const plotHeight = maxHeight + scaleSizeH(12)
   const labelReserve = scaleSizeH(28)
-  const width = Math.max(scaleSizeW(280), buckets.length * scaleSizeW(18))
+  const { points, slotWidth } = buildStatsChartLayout(buckets, width, maxHeight, scaleSizeH(4))
+  const onLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
+    const nextWidth = event.nativeEvent.layout.width
+    if (Number.isFinite(nextWidth) && nextWidth > 0) setMeasuredWidth(nextWidth)
+  }, [])
 
   if (mode == 'line') {
-    const points = buckets.map((bucket, index) => {
-      const x = buckets.length <= 1 ? width / 2 : (index / (buckets.length - 1)) * (width - 8) + 4
-      const ratio = maxMinutes <= 0 || bucket.minutes <= 0 ? 0 : bucket.minutes / maxMinutes
-      const y = plotHeight - ratio * (plotHeight - 10) - 6
-      return { x, y, bucket }
-    })
-    const polyline = points.map(point => `${point.x},${point.y}`).join(' ')
+    const polyline = points.map(point => `${point.x},${point.y + scaleSizeH(6)}`).join(' ')
     return (
-      <View style={styles.chartArea}>
+      <View style={styles.chartArea} onLayout={onLayout}>
         <View style={styles.lineWrap}>
-          <Svg width="100%" height={plotHeight} viewBox={`0 0 ${width} ${plotHeight}`} preserveAspectRatio="none">
+          <Svg width={width} height={plotHeight} viewBox={`0 0 ${width} ${plotHeight}`}>
             <Line
               x1={4}
               y1={plotHeight - 1}
@@ -523,7 +480,7 @@ const ListeningChart = ({
               <Circle
                 key={point.bucket.start}
                 cx={point.x}
-                cy={point.y}
+                cy={point.y + scaleSizeH(6)}
                 r={point.bucket.isCurrent ? 4.5 : 3.2}
                 fill={point.bucket.isCurrent ? colors.accent.primary : colors.surface.card}
                 stroke={colors.accent.primary}
@@ -533,7 +490,7 @@ const ListeningChart = ({
           </Svg>
           <View style={[styles.bars, { height: labelReserve, alignItems: 'flex-start' }]}>
             {buckets.map(bucket => {
-              const label = bucketLabel(bucket, range, t)
+              const label = statsBucketLabel(bucket, range, t)
               return (
                 <View key={bucket.start} style={styles.barColumn}>
                   {label.show
@@ -541,8 +498,10 @@ const ListeningChart = ({
                       <Text
                         size={10}
                         color={label.highlight ? colors.ink.onAccent : colors.ink.faint}
-                        style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null]}
+                        style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null, bucket.kind == 'hour2' ? styles.hourLabel : null]}
                         numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.7}
                       >{label.text}</Text>
                       )
                     : <Text size={10} color={colors.ink.faint} style={styles.dayLabel}> </Text>}
@@ -556,25 +515,25 @@ const ListeningChart = ({
   }
 
   return (
-    <View style={styles.chartArea}>
+    <View style={styles.chartArea} onLayout={onLayout}>
       <View style={styles.bars}>
-        {buckets.map(bucket => {
-          const empty = bucket.minutes <= 0
-          const height = empty || maxMinutes <= 0 ? 4 : Math.max(4, Math.round(bucket.minutes / maxMinutes * BAR_MAX))
-          const label = bucketLabel(bucket, range, t)
+        {points.map(({ bucket, empty, height }) => {
+          const label = statsBucketLabel(bucket, range, t)
           return (
             <View key={bucket.start} style={styles.barColumn}>
               <Text size={10} color={bucket.isCurrent ? colors.ink.strong : colors.ink.meta} style={styles.barValue}>
-                {empty || buckets.length > 14 ? ' ' : String(bucket.minutes)}
+                {empty || buckets.length > 14 ? ' ' : bucket.minutes > 0 ? String(bucket.minutes) : t('stats_minute_less_than_one')}
               </Text>
-              <View style={[styles.bar, empty ? styles.barEmpty : bucket.isCurrent ? styles.barToday : null, { height: scaleSizeH(height) }]} />
+              <View style={[styles.bar, empty ? styles.barEmpty : bucket.isCurrent ? styles.barToday : null, { height: empty ? scaleSizeH(4) : height, width: Math.min(scaleSizeW(10), slotWidth * 0.6) }]} />
               {label.show
                 ? (
                   <Text
                     size={10}
                     color={label.highlight ? colors.ink.onAccent : colors.ink.faint}
-                    style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null]}
+                    style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null, bucket.kind == 'hour2' ? styles.hourLabel : null]}
                     numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
                   >{label.text}</Text>
                   )
                 : <Text size={10} color={colors.ink.faint} style={styles.dayLabel}> </Text>}
@@ -783,7 +742,7 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
                       {minutes}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_minute')}</Text>
                     </Text>
                   </View>
-                  <View style={[styles.figure, styles.figureSplit]}>
+                  <View style={styles.figureSplit}>
                     <Text size={12} color={colors.ink.secondary} style={styles.figureLabel}>{t('stats_play_count')}</Text>
                     <Text size={30} color={colors.ink.pageTitle} style={styles.figureValue}>
                       {stats.playCount}<Text size={14} color={colors.ink.list} style={styles.figureUnit}>{t('stats_unit_count')}</Text>

@@ -370,6 +370,7 @@
   "stats_daily_unit": "Minutes",
   "stats_hour_label": "{hour}:00",
   "stats_month_label": "{month}",
+  "stats_minute_less_than_one": "<1",
   "stats_chart_bar": "Bar chart",
   "stats_chart_line": "Line chart",
   "stats_today": "Today",

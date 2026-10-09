@@ -5,14 +5,11 @@
 import { storageDataPrefix } from '@/config/constant'
 import { getTrackCacheKey } from '@/plugins/player/cache'
 import { getData, saveData } from '@/plugins/storage'
+import { createCachedSongIndex, type CachedSongIndexEntry } from '@/utils/cachedSongMetadata'
 
-export interface AudioCacheIndexEntry {
-  key: string
-  musicInfo: LX.Music.MusicInfo
-}
+export type AudioCacheIndexEntry = CachedSongIndexEntry<LX.Music.MusicInfo>
 
-let memory: AudioCacheIndexEntry[] | null = null
-let loading: Promise<AudioCacheIndexEntry[]> | null = null
+let pendingWrite: AudioCacheIndexEntry[] | null = null
 let writeTimer: ReturnType<typeof setTimeout> | null = null
 
 const rawMusicInfo = (musicInfo: LX.Player.PlayMusic): LX.Music.MusicInfo => {
@@ -20,42 +17,27 @@ const rawMusicInfo = (musicInfo: LX.Player.PlayMusic): LX.Music.MusicInfo => {
 }
 
 const readAudioCacheIndex = async() => {
-  try {
-    const stored = await getData<AudioCacheIndexEntry[]>(storageDataPrefix.audioCacheIndex)
-    const next = Array.isArray(stored)
-      ? stored.filter(item => Boolean(item?.key && item.musicInfo?.id && item.musicInfo.source))
-      : []
-    memory = next
-    return next
-  } finally {
-    loading = null
-  }
+  const stored = await getData<AudioCacheIndexEntry[]>(storageDataPrefix.audioCacheIndex)
+  return Array.isArray(stored)
+    ? stored.filter(item => Boolean(item?.key && item.musicInfo?.id && item.musicInfo.source))
+    : []
 }
 
-export const loadAudioCacheIndex = async(): Promise<AudioCacheIndexEntry[]> => {
-  if (memory) return memory
-  loading ??= readAudioCacheIndex()
-  return await loading
-}
-
-const scheduleWrite = () => {
+const scheduleWrite = (entries: AudioCacheIndexEntry[]) => {
+  pendingWrite = entries
   if (writeTimer) return
   writeTimer = setTimeout(() => {
     writeTimer = null
-    if (memory) void saveData(storageDataPrefix.audioCacheIndex, memory)
+    if (pendingWrite) void saveData(storageDataPrefix.audioCacheIndex, pendingWrite)
   }, 400)
 }
 
+const index = createCachedSongIndex(readAudioCacheIndex, scheduleWrite)
+
+export const loadAudioCacheIndex = index.load
+
 /** Remember which song a cache key belongs to. The key is the audio cache key, not a display name. */
-export const rememberAudioCacheEntry = async(key: string, musicInfo: LX.Music.MusicInfo) => {
-  if (!key || !musicInfo?.id || !musicInfo.source) return
-  if (!musicInfo.name?.trim() || musicInfo.name == key) return
-  const list = await loadAudioCacheIndex()
-  const next = list.filter(item => item.key != key)
-  next.push({ key, musicInfo })
-  memory = next.slice(-2000)
-  scheduleWrite()
-}
+export const rememberAudioCacheEntry = index.remember
 
 /** Remember which song a cache key belongs to. Called when a track is built for playback. */
 export const rememberAudioCacheSong = async(musicInfo: LX.Player.PlayMusic) => {
@@ -64,10 +46,4 @@ export const rememberAudioCacheSong = async(musicInfo: LX.Player.PlayMusic) => {
   await rememberAudioCacheEntry(getTrackCacheKey(musicInfo), raw)
 }
 
-export const forgetAudioCacheKeys = async(keys: readonly string[]) => {
-  if (!keys.length) return
-  const drop = new Set(keys)
-  const list = await loadAudioCacheIndex()
-  memory = list.filter(item => !drop.has(item.key))
-  scheduleWrite()
-}
+export const forgetAudioCacheKeys = index.forget

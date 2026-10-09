@@ -370,6 +370,7 @@
   "stats_daily_unit": "單位：分鐘",
   "stats_hour_label": "{hour}時",
   "stats_month_label": "{month}月",
+  "stats_minute_less_than_one": "<1",
   "stats_chart_bar": "柱狀圖",
   "stats_chart_line": "折線圖",
   "stats_today": "今天",

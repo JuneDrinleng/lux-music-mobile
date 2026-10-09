@@ -370,6 +370,7 @@
   "stats_daily_unit": "单位：分钟",
   "stats_hour_label": "{hour}时",
   "stats_month_label": "{month}月",
+  "stats_minute_less_than_one": "<1",
   "stats_chart_bar": "柱状图",
   "stats_chart_line": "折线图",
   "stats_today": "今天",

@@ -59,6 +59,12 @@ export interface ParsedAudioCacheKey {
   hash: string | null
 }
 
+/** Kuwo catalogs also use MUSIC_ rid values; keep the original cache id for playback. */
+export const normalizeCachedSongId = (source: string, id: string | number): string => {
+  const value = String(id).trim()
+  return source == 'kw' ? value.replace(/^(?:(?:kw|MUSIC)_)+/i, '') : value
+}
+
 /**
  * Cache keys are `${source}_${musicId}_${quality}`.
  * Online ids already include the source (`wy_3339519499`), except kg (`audioId_hash`).
@@ -85,6 +91,8 @@ export const parseAudioCacheKey = (cacheKey: string): ParsedAudioCacheKey | null
       hash = id.slice(split + 1) || null
     }
   }
+  if (!songmid) return null
+  songmid = normalizeCachedSongId(source, songmid)
   if (!songmid) return null
   return { cacheKey, source, id, songmid, quality, hash }
 }
@@ -307,6 +315,11 @@ export const songMatchesCacheKey = (
   parsed: ParsedAudioCacheKey,
 ): boolean => {
   if (!song?.source || song.source != parsed.source) return false
+  if (parsed.source == 'kw') {
+    const songmid = normalizeCachedSongId('kw', parsed.songmid)
+    return normalizeCachedSongId('kw', song.id) == songmid ||
+      (song.meta?.songId != null && normalizeCachedSongId('kw', song.meta.songId) == songmid)
+  }
   if (song.id == parsed.id || song.id == parsed.songmid) return true
   const songId = song.meta?.songId
   if (songId != null && String(songId) == parsed.songmid) return true
@@ -314,9 +327,14 @@ export const songMatchesCacheKey = (
   return false
 }
 
-const usableCachedName = (song: CachedSongIdentity, cacheKey: string) => {
+export const hasCachedSongMetadata = (song: CachedSongIdentity, cacheKey: string) => {
   const name = song.name?.trim() ?? ''
   if (!name || name == cacheKey) return false
+  const parsed = parseAudioCacheKey(cacheKey)
+  // Playing an unresolved row must not turn its id placeholder into permanent metadata.
+  if (parsed && parsed.source != 'local' && !song.singer?.trim()) {
+    if (name == parsed.id || normalizeCachedSongId(parsed.source, name) == parsed.songmid) return false
+  }
   return true
 }
 
@@ -327,7 +345,7 @@ const pickMatch = <T extends CachedSongIdentity>(
   if (!songs) return null
   let songmidHit: T | null = null
   for (const song of songs) {
-    if (!usableCachedName(song, parsed.cacheKey) || !songMatchesCacheKey(song, parsed)) continue
+    if (!hasCachedSongMetadata(song, parsed.cacheKey) || !songMatchesCacheKey(song, parsed)) continue
     if (song.id == parsed.id) return song
     songmidHit ??= song
   }
@@ -377,7 +395,7 @@ const keyedMetaHit = <T extends CachedSongIdentity>(
   parsed: ParsedAudioCacheKey | null,
   cacheKey: string,
 ): T | null => {
-  if (!keyed?.id || !keyed.source || !usableCachedName(keyed, cacheKey)) return null
+  if (!keyed?.id || !keyed.source || !hasCachedSongMetadata(keyed, cacheKey)) return null
   if (!parsed || songMatchesCacheKey(keyed, parsed)) return keyed
   return null
 }
@@ -405,7 +423,7 @@ export const resolveCachedSongMetadata = <T extends CachedSongIdentity>(
     const stored = pickMatch(input.metaStore, parsed)
     if (stored) return { via: 'metaStore', parsed, musicInfo: stored }
     const fetched = input.fetched
-    if (fetched && songMatchesCacheKey(fetched, parsed) && usableCachedName(fetched, input.cacheKey)) {
+    if (fetched && songMatchesCacheKey(fetched, parsed) && hasCachedSongMetadata(fetched, input.cacheKey)) {
       return { via: 'fetched', parsed, musicInfo: fetched }
     }
   } else {

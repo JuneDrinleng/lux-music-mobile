@@ -2,21 +2,25 @@
 
 // Lux Proprietary
 
-import { LIST_IDS } from '@/config/constant'
+import { LIST_IDS, storageDataPrefix } from '@/config/constant'
 import { getListMusics } from '@/core/list'
+import { getData } from '@/plugins/storage'
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
 import { rememberAudioCacheEntry, loadAudioCacheIndex } from '@/utils/audioCacheIndex'
+import { cachedSongsFromPlayRecords, createCachedSongMetadataFetcher } from '@/utils/cachedSongMetadata'
 import { formatPlayTime, sizeFormate } from '@/utils/common'
 import { toNewMusicInfo } from '@/utils'
-import { httpFetch } from '@/utils/request'
 import { type ParsedAudioCacheKey } from '@/utils/localSongRows'
 import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getMusicInfo as getKgMusicInfo } from '@/utils/musicSdk/kg/musicInfo'
+import { getMusicInfo as getKwMusicInfo } from '@/utils/musicSdk/kw/musicInfo'
 import { formatSinger } from '@/utils/musicSdk/kw/util'
 import { getMusicInfo as getMgMusicInfo } from '@/utils/musicSdk/mg/musicInfo'
 import txMusicInfo from '@/utils/musicSdk/tx/musicInfo'
 import wyMusicInfo from '@/utils/musicSdk/wy/musicInfo'
+import { isPlayRecord } from '@/utils/playHistory/merge'
+import { getPlayRecords, playHistoryStoreReady } from '@/utils/playHistory/store'
 
 const FETCH_TIMEOUT_MS = 8000
 
@@ -58,6 +62,14 @@ export const loadCachedSongCatalog = async(): Promise<CachedSongCatalog> => {
     if (song) playHistory.push(song)
   }
   playHistory.push(...await getListMusics(LIST_IDS.TEMP).catch(() => [] as LX.Music.MusicInfo[]))
+  const storedHistory = playHistoryStoreReady()
+    ? getPlayRecords()
+    : await getData<unknown>(storageDataPrefix.playHistory).catch(() => null)
+  if (Array.isArray(storedHistory)) {
+    // Kuwo can play by rid alone; other sources need fields absent from history (e.g. kg hash).
+    const kwRecords = storedHistory.filter(isPlayRecord).filter(record => record.song.source == 'kw')
+    playHistory.push(...cachedSongsFromPlayRecords(kwRecords) as LX.Music.MusicInfo[])
+  }
   const index = await loadAudioCacheIndex()
   return {
     userLists,
@@ -181,23 +193,19 @@ const fetchWy = async(songmid: string) => {
   })
 }
 
-interface KwMusicInfoBody {
-  code?: number
-  data?: {
-    name?: string
-    artist?: unknown
-    duration?: unknown
-    album?: string
-    albumid?: string | number
-    albumId?: string | number
-    pic?: string
-    pic120?: string
-  }
+interface KwMusicInfo {
+  name?: string
+  artist?: unknown
+  duration?: unknown
+  album?: string
+  albumid?: string | number
+  albumId?: string | number
+  pic?: string
+  pic120?: string
 }
 
 const fetchKw = async(songmid: string) => {
-  const { body } = await httpFetch(`http://www.kuwo.cn/api/www/music/musicInfo?mid=${encodeURIComponent(songmid)}`).promise as { body?: KwMusicInfoBody }
-  const info = body?.code == 200 ? body.data : null
+  const info = await getKwMusicInfo(songmid).promise as KwMusicInfo
   if (!info?.name) return null
   const duration = Number(info.duration)
   const seconds = Number.isFinite(duration) ? (duration > 10000 ? duration / 1000 : duration) : 0
@@ -242,21 +250,13 @@ const fetchBySongmid = async(parsed: ParsedAudioCacheKey): Promise<LX.Music.Musi
   }
 }
 
-const inflight = new Map<string, Promise<LX.Music.MusicInfo | null>>()
-
 /** Ask the source for name, singer, cover and duration when nothing local knows this cache key. */
-export const fetchCachedSongMusicInfo = async(parsed: ParsedAudioCacheKey): Promise<LX.Music.MusicInfo | null> => {
-  const pending = inflight.get(parsed.cacheKey)
-  if (pending) return await pending
-  const next = withTimeout(fetchBySongmid(parsed)).then(info => {
-    if (!info?.name?.trim() || info.name == parsed.cacheKey) return null
-    return ensureCachedQuality(info, parsed.quality)
-  }).catch(() => null).finally(() => {
-    inflight.delete(parsed.cacheKey)
-  })
-  inflight.set(parsed.cacheKey, next)
-  return await next
-}
+export const fetchCachedSongMusicInfo = createCachedSongMetadataFetcher<LX.Music.MusicInfo>({
+  loadStored: async() => (await loadAudioCacheIndex()).map(entry => entry.musicInfo),
+  fetch: async(parsed) => withTimeout(fetchBySongmid(parsed)),
+  prepare: (song, parsed) => ensureCachedQuality(song, parsed.quality),
+  persist: rememberAudioCacheEntry,
+})
 
 export const rememberResolvedCacheSong = async(cacheKey: string, musicInfo: LX.Music.MusicInfo) => {
   await rememberAudioCacheEntry(cacheKey, musicInfo)
