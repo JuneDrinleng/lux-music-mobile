@@ -2,20 +2,23 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, type ListRenderItem, type ViewToken } from 'react-native'
+import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, useWindowDimensions, type ListRenderItem, type ViewToken } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
+import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
 import { getSourceTone } from '@/components/search/sourceTone'
 import { LIST_IDS } from '@/config/constant'
 import { playList } from '@/core/player/player'
 import { setTempList } from '@/core/list'
 import { setCachedPagePlayQualities } from '@/core/music/utils'
 import { useI18n } from '@/lang'
+import { initial as playerInitial, isInitialized } from '@/plugins/player'
 import { listCachedEntries, removeCachedResource } from '@/plugins/player/utils'
+import settingState from '@/store/setting/state'
 import { forgetAudioCacheKeys } from '@/utils/audioCacheIndex'
 import {
   fetchCachedSongMusicInfo,
@@ -44,9 +47,25 @@ import {
   importFolderIntoLibrary,
   removeDeviceSongs,
 } from '@/utils/localSongLibrary'
-import { useDetailSceneTransition } from './detailSceneTransition'
 import PlaylistDetailSongItem from './PlaylistDetailSongItem'
 import { requestDeviceSongCover } from '@/utils/localSongCoverLookup'
+
+/** Open the native audio cache so listCachedEntries sees files from earlier sessions. */
+const ensurePlayerCacheReadable = async() => {
+  if (isInitialized()) return
+  const cacheSizeRaw = settingState.setting['player.cacheSize']
+  const cacheSize = cacheSizeRaw ? parseInt(cacheSizeRaw, 10) : 0
+  await playerInitial({
+    volume: settingState.setting['player.volume'],
+    playRate: settingState.setting['player.playbackRate'],
+    cacheSize: Number.isFinite(cacheSize) ? Math.max(0, cacheSize) : 0,
+    isHandleAudioFocus: settingState.setting['player.isHandleAudioFocus'],
+    isEnableAudioOffload: settingState.setting['player.isEnableAudioOffload'],
+  })
+  for (let attempt = 0; attempt < 40 && !isInitialized(); attempt += 1) {
+    await new Promise<void>(resolve => setTimeout(resolve, 50))
+  }
+}
 
 interface PageRow extends MergedLocalSong {
   musicInfo: LX.Music.MusicInfo
@@ -209,6 +228,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const { colors } = useLuxTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
+  const { width } = useWindowDimensions()
   const choosePathRef = useRef<ChoosePathType>(null)
   const [rows, setRows] = useState<PageRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -217,7 +237,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const reloadGeneration = useRef(0)
-  const { style: sceneStyle, requestClose } = useDetailSceneTransition('local-songs')
+  const { style: sceneStyle, requestClose } = useOverlaySlideTransition(width)
   const coverViewabilityConfig = useRef({ itemVisiblePercentThreshold: 25, minimumViewTime: 60 }).current
 
   const hydrateRemoteMeta = useCallback(async(pending: PageRow[], generation: number) => {
@@ -246,6 +266,8 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     const generation = ++reloadGeneration.current
     setLoading(true)
     try {
+      await ensurePlayerCacheReadable().catch(() => {})
+      if (generation != reloadGeneration.current) return
       const devices = await collectDeviceSongs()
       const caches = await listCachedEntries().catch(() => [])
       const catalog = await loadCachedSongCatalog()

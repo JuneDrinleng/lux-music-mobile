@@ -136,7 +136,9 @@
 | `src/utils/audioCacheIndex.ts` | `code` | Lux 独立实现的播放时缓存键到歌曲信息的索引，上游无对应文件 | `2026-10-09` |
 | `src/utils/localSongLibrary.ts` | `code` | Lux 独立实现的设备歌曲库与扫描导入，上游无对应文件 | `2026-10-09` |
 | `src/components/playlist/LocalSongsDetail.tsx` | `code` | Lux 独立实现的本地歌曲页，复用歌单详情头与歌曲行，上游无对应文件 | `2026-10-09` |
-| `src/components/playlist/detailSceneTransition.ts` | `code` | Lux 独立实现的歌单详情与本地歌曲共用开关动画，上游无对应文件 | `2026-10-09` |
+| `src/components/playlist/detailSceneTransition.ts` | `code` | Lux 独立实现的歌单详情开关动画（淡入上移），上游无对应文件 | `2026-10-09` |
+| `src/components/common/overlaySlideTransition.ts` | `code` | Lux 独立实现的听歌统计 / 本地歌曲横向滑入滑出动画，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/chartMode.ts` | `code` | Lux 听歌统计图柱状/折线模式归一化，上游无对应文件 | `2026-10-09` |
 | `src/utils/localSongCoverMatch.ts` | `code` | Lux 独立实现的本地歌曲歌名歌手解析与封面匹配，上游无对应文件 | `2026-10-09` |
 | `src/utils/localSongCoverLookup.ts` | `code` | Lux 独立实现的设备歌曲封面检索、负缓存与钉住，上游无对应文件 | `2026-10-09` |
 | `scripts/check-lux-color-literals.mjs` | `code` | Lux 独立新增的竖屏颜色字面量回退检查，上游无对应文件 | `2026-10-08` |

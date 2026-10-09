@@ -35,6 +35,7 @@ const files = [
   'src/utils/playHistory/session.ts',
   'src/utils/playHistory/merge.ts',
   'src/utils/playHistory/range.ts',
+  'src/utils/playHistory/chartMode.ts',
   'src/utils/playHistory/backup.ts',
   'src/utils/playHistory/wire.ts',
 ]
@@ -109,6 +110,7 @@ const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js')
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
+const playChartMode = require(join(outDir, 'src/utils/playHistory/chartMode.js'))
 const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
 
@@ -1074,10 +1076,47 @@ test('play history counting, rolling range, merge, and backup', () => {
     record('other', oct3 + 1000, 60_000, '林小屿、苏禾'),
   ], 'days7', now)
   assert.equal(stats.playCount, 2)
-  assert.equal(stats.days[0].minutes, 2)
-  assert.equal(stats.days[6].isToday, true)
-  assert.equal(stats.days.filter(day => day.isToday).length, 1)
+  assert.equal(stats.chart[0].minutes, 2)
+  assert.equal(stats.chart[6].isCurrent, true)
+  assert.equal(stats.chart.filter(day => day.isCurrent).length, 1)
   assert.equal(stats.artists.some(artist => artist.name == '苏禾'), true)
+
+  const todayMorning = new Date(2026, 9, 9, 8, 30, 0).getTime()
+  const todayEvening = new Date(2026, 9, 9, 19, 10, 0).getTime()
+  const todayStats = playRange.buildRangeStats([
+    record('dev', todayMorning, 120_000),
+    record('dev', todayEvening, 60_000),
+    record('dev', oct3, 90_000),
+  ], 'today', now)
+  assert.equal(todayStats.chart.length, 12)
+  assert.equal(todayStats.chart[0].kind, 'hour2')
+  assert.equal(todayStats.chart[0].hour, 0)
+  assert.equal(todayStats.chart[4].hour, 8)
+  assert.equal(todayStats.chart[4].minutes, 2)
+  assert.equal(todayStats.chart[9].hour, 18)
+  assert.equal(todayStats.chart[9].minutes, 1)
+  assert.equal(todayStats.chart.filter(bucket => bucket.isCurrent).length, 1)
+  assert.equal(todayStats.chart.find(bucket => bucket.isCurrent).hour, 20)
+  assert.equal(todayStats.playCount, 2)
+
+  const hourly = playRange.buildTodayHourlyBuckets([
+    record('dev', todayMorning, 180_000),
+  ], now)
+  assert.equal(hourly.length, 12)
+  assert.equal(hourly[4].minutes, 3)
+  assert.equal(hourly.every(bucket => bucket.kind == 'hour2'), true)
+
+  assert.equal(playChartMode.normalizeStatsChartMode('bar'), 'bar')
+  assert.equal(playChartMode.normalizeStatsChartMode('line'), 'line')
+  assert.equal(playChartMode.normalizeStatsChartMode('nope'), 'bar')
+  assert.equal(playChartMode.normalizeStatsChartMode(null), 'bar')
+  assert.equal(playChartMode.normalizeStatsChartMode(undefined), 'bar')
+  assert.equal(playChartMode.DEFAULT_STATS_CHART_MODE, 'bar')
+  // Persistence is normalize → storage string → normalize again.
+  const savedMode = playChartMode.normalizeStatsChartMode('line')
+  assert.equal(playChartMode.normalizeStatsChartMode(JSON.parse(JSON.stringify(savedMode))), 'line')
+  const savedBar = playChartMode.normalizeStatsChartMode('unexpected')
+  assert.equal(playChartMode.normalizeStatsChartMode(JSON.parse(JSON.stringify(savedBar))), 'bar')
 
   const shorter = record('dev', 10, 30_000)
   const longer = record('dev', 10, 80_000)

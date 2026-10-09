@@ -1,28 +1,35 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Animated, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import Svg, { Circle, Line, Polyline } from 'react-native-svg'
 
 import Image from '@/components/common/Image'
 import { MdiIcon } from '@/components/common/MdiIcon'
+import SegmentedIconSwitch, { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import Text from '@/components/common/Text'
+import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
+import { storageDataPrefix } from '@/config/constant'
 import { useI18n } from '@/lang'
+import { getData, saveData } from '@/plugins/storage'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { getSyncMode } from '@/utils/data'
 import { lookupArtistAvatar } from '@/utils/playHistory/artistAvatar'
+import { DEFAULT_STATS_CHART_MODE, normalizeStatsChartMode, type StatsChartMode } from '@/utils/playHistory/chartMode'
 import { playHistorySong } from '@/utils/playHistory/playback'
 import {
   buildRangeStats,
   startOfLocalDay,
+  type ChartBucket,
   type PlayRangeId,
   type RankedArtist,
   type RankedSong,
 } from '@/utils/playHistory/range'
 import { getPlayRecords, subscribePlayHistory } from '@/utils/playHistory/store'
 import { type PlayHistorySong } from '@/utils/playHistory/types'
-import { scaleSizeH } from '@/utils/pixelRatio'
+import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
 import { createStyle, toast } from '@/utils/tools'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 
@@ -227,13 +234,26 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   sectionLinkText: {
     fontWeight: '600',
   },
-  chart: {
+  chartBlock: {
+    marginTop: 14,
     paddingTop: 14,
-    paddingBottom: 12,
-    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.line.divider,
+  },
+  chartToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  chartUnit: {
+    fontWeight: '600',
+  },
+  chartArea: {
+    height: 176,
   },
   bars: {
-    height: 176,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
@@ -242,6 +262,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    minWidth: 0,
   },
   barValue: {
     height: 14,
@@ -249,8 +270,8 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     marginBottom: 4,
   },
   bar: {
-    width: 24,
-    borderRadius: 8,
+    width: 10,
+    borderRadius: 5,
     backgroundColor: colors.surface.segment,
   },
   barToday: {
@@ -273,9 +294,12 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     backgroundColor: colors.accent.primary,
     color: colors.ink.onAccent,
     fontWeight: '700',
-    paddingHorizontal: 7,
+    paddingHorizontal: 5,
     borderRadius: 9,
     overflow: 'hidden',
+  },
+  lineWrap: {
+    flex: 1,
   },
   list: {
     paddingVertical: 4,
@@ -411,28 +435,170 @@ const ArtistFace = ({ name, fallback }: { name: string, fallback?: string }) => 
   )
 }
 
+const bucketLabel = (
+  bucket: ChartBucket,
+  range: PlayRangeId,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): { text: string, highlight: boolean, show: boolean } => {
+  if (bucket.kind == 'hour2') {
+    const show = bucket.hour % 6 == 0
+    return {
+      text: show ? t('stats_hour_label', { hour: bucket.hour }) : '',
+      highlight: bucket.isCurrent,
+      show,
+    }
+  }
+  if (bucket.kind == 'day') {
+    if (range == 'days7') {
+      return {
+        text: bucket.isCurrent ? t('stats_today') : t(weekdayKey[bucket.weekday]),
+        highlight: bucket.isCurrent,
+        show: true,
+      }
+    }
+    return {
+      text: String(bucket.dayOfMonth),
+      highlight: bucket.isCurrent,
+      show: bucket.isCurrent || bucket.dayOfMonth == 1 || bucket.dayOfMonth % 5 == 0,
+    }
+  }
+  if (bucket.kind == 'month') {
+    return {
+      text: t('stats_month_label', { month: bucket.month + 1 }),
+      highlight: bucket.isCurrent,
+      show: true,
+    }
+  }
+  return {
+    text: String(bucket.year),
+    highlight: bucket.isCurrent,
+    show: true,
+  }
+}
+
+const ListeningChart = ({
+  buckets,
+  range,
+  mode,
+  styles,
+  colors,
+  t,
+}: {
+  buckets: ChartBucket[]
+  range: PlayRangeId
+  mode: StatsChartMode
+  styles: ReturnType<typeof useLuxStyles>
+  colors: LuxColors
+  t: (key: string, params?: Record<string, string | number>) => string
+}) => {
+  const maxMinutes = buckets.reduce((max, bucket) => Math.max(max, bucket.minutes), 0)
+  const plotHeight = scaleSizeH(118)
+  const labelReserve = scaleSizeH(28)
+  const width = Math.max(scaleSizeW(280), buckets.length * scaleSizeW(18))
+
+  if (mode == 'line') {
+    const points = buckets.map((bucket, index) => {
+      const x = buckets.length <= 1 ? width / 2 : (index / (buckets.length - 1)) * (width - 8) + 4
+      const ratio = maxMinutes <= 0 || bucket.minutes <= 0 ? 0 : bucket.minutes / maxMinutes
+      const y = plotHeight - ratio * (plotHeight - 10) - 6
+      return { x, y, bucket }
+    })
+    const polyline = points.map(point => `${point.x},${point.y}`).join(' ')
+    return (
+      <View style={styles.chartArea}>
+        <View style={styles.lineWrap}>
+          <Svg width="100%" height={plotHeight} viewBox={`0 0 ${width} ${plotHeight}`} preserveAspectRatio="none">
+            <Line
+              x1={4}
+              y1={plotHeight - 1}
+              x2={width - 4}
+              y2={plotHeight - 1}
+              stroke={colors.line.divider}
+              strokeWidth={1}
+            />
+            {polyline
+              ? <Polyline points={polyline} fill="none" stroke={colors.accent.primary} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+              : null}
+            {points.map(point => (
+              <Circle
+                key={point.bucket.start}
+                cx={point.x}
+                cy={point.y}
+                r={point.bucket.isCurrent ? 4.5 : 3.2}
+                fill={point.bucket.isCurrent ? colors.accent.primary : colors.surface.card}
+                stroke={colors.accent.primary}
+                strokeWidth={point.bucket.isCurrent ? 0 : 2}
+              />
+            ))}
+          </Svg>
+          <View style={[styles.bars, { height: labelReserve, alignItems: 'flex-start' }]}>
+            {buckets.map(bucket => {
+              const label = bucketLabel(bucket, range, t)
+              return (
+                <View key={bucket.start} style={styles.barColumn}>
+                  {label.show
+                    ? (
+                      <Text
+                        size={10}
+                        color={label.highlight ? colors.ink.onAccent : colors.ink.faint}
+                        style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null]}
+                        numberOfLines={1}
+                      >{label.text}</Text>
+                      )
+                    : <Text size={10} color={colors.ink.faint} style={styles.dayLabel}> </Text>}
+                </View>
+              )
+            })}
+          </View>
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.chartArea}>
+      <View style={styles.bars}>
+        {buckets.map(bucket => {
+          const empty = bucket.minutes <= 0
+          const height = empty || maxMinutes <= 0 ? 4 : Math.max(4, Math.round(bucket.minutes / maxMinutes * BAR_MAX))
+          const label = bucketLabel(bucket, range, t)
+          return (
+            <View key={bucket.start} style={styles.barColumn}>
+              <Text size={10} color={bucket.isCurrent ? colors.ink.strong : colors.ink.meta} style={styles.barValue}>
+                {empty || buckets.length > 14 ? ' ' : String(bucket.minutes)}
+              </Text>
+              <View style={[styles.bar, empty ? styles.barEmpty : bucket.isCurrent ? styles.barToday : null, { height: scaleSizeH(height) }]} />
+              {label.show
+                ? (
+                  <Text
+                    size={10}
+                    color={label.highlight ? colors.ink.onAccent : colors.ink.faint}
+                    style={[styles.dayLabel, label.highlight ? styles.dayLabelToday : null]}
+                    numberOfLines={1}
+                  >{label.text}</Text>
+                  )
+                : <Text size={10} color={colors.ink.faint} style={styles.dayLabel}> </Text>}
+            </View>
+          )
+        })}
+      </View>
+    </View>
+  )
+}
+
 const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPageProps) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const { width } = useWindowDimensions()
-  const progress = useRef(new Animated.Value(0)).current
-  const closing = useRef(false)
+  const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const [range, setRange] = useState<PlayRangeId>('days7')
   const [listMode, setListMode] = useState<null | 'songs' | 'artists'>(null)
   const [records, setRecords] = useState(() => getPlayRecords())
   const [now, setNow] = useState(() => Date.now())
   const [luxSync, setLuxSync] = useState(false)
-
-  useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 248,
-      easing: Easing.bezier(0.22, 0.84, 0.22, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [progress])
+  const [chartMode, setChartMode] = useState<StatsChartMode>(DEFAULT_STATS_CHART_MODE)
 
   useEffect(() => subscribePlayHistory(() => {
     setRecords(getPlayRecords())
@@ -455,24 +621,46 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    void getData<unknown>(storageDataPrefix.statsChartMode).then(value => {
+      if (alive) setChartMode(normalizeStatsChartMode(value))
+    })
+    return () => { alive = false }
+  }, [])
+
   const stats = useMemo(() => buildRangeStats(records, range, now), [now, range, records])
+
+  const chartSwitchItems = useMemo<SegmentedIconSwitchItem[]>(() => [
+    {
+      key: 'bar',
+      accessibilityLabel: t('stats_chart_bar'),
+      renderIcon: (active) => (
+        <MdiIcon name="chart-bar" rawSize={16} color={active ? colors.ink.strong : colors.ink.chipIdle} />
+      ),
+    },
+    {
+      key: 'line',
+      accessibilityLabel: t('stats_chart_line'),
+      renderIcon: (active) => (
+        <MdiIcon name="chart-line" rawSize={16} color={active ? colors.ink.strong : colors.ink.chipIdle} />
+      ),
+    },
+  ], [colors.ink.chipIdle, colors.ink.strong, t])
+
+  const onChartModeChange = useCallback((value: string) => {
+    const next = normalizeStatsChartMode(value)
+    setChartMode(next)
+    void saveData(storageDataPrefix.statsChartMode, next)
+  }, [])
 
   const requestClose = useCallback(() => {
     if (listMode) {
       setListMode(null)
       return
     }
-    if (closing.current) return
-    closing.current = true
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: 220,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) onClose()
-    })
-  }, [listMode, onClose, progress])
+    animateClose(onClose)
+  }, [animateClose, listMode, onClose])
 
   useBackHandler(useCallback(() => {
     requestClose()
@@ -522,18 +710,12 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
 
   const hours = Math.floor(Math.floor(stats.listenedMs / 60_000) / 60)
   const minutes = Math.floor(stats.listenedMs / 60_000) % 60
-  const maxMinutes = stats.days.reduce((max, day) => Math.max(max, day.minutes), 0)
   const title = listMode == 'songs' ? t('stats_all_songs') : listMode == 'artists' ? t('stats_all_artists') : t('stats_title')
   const songs = listMode == 'songs' ? stats.songs : stats.songs.slice(0, 5)
   const artists = listMode == 'artists' ? stats.artists : stats.artists.slice(0, 5)
 
-  const translateX = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [width, 0],
-  })
-
   return (
-    <Animated.View style={[styles.root, { opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }), transform: [{ translateX }] }]}>
+    <Animated.View style={[styles.root, sceneStyle]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 34 + bottomPadding }]}
@@ -619,31 +801,26 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
                     : null}
                   <Text size={12} color={colors.ink.secondary}>{t('stats_daily_avg', { duration: durationText(stats.dayCount ? stats.listenedMs / stats.dayCount : 0, true) })}</Text>
                 </View>
-              </View>
-
-              <View style={styles.sectionHeader}>
-                <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{t('stats_daily_title')}</Text>
-                <Text size={12} color={colors.ink.secondary}>{t('stats_daily_unit')}</Text>
-              </View>
-              <View style={[styles.card, styles.chart]}>
-                <View style={styles.bars}>
-                  {stats.days.map(day => {
-                    const empty = day.minutes <= 0
-                    const height = empty || maxMinutes <= 0 ? 4 : Math.max(4, Math.round(day.minutes / maxMinutes * BAR_MAX))
-                    return (
-                      <View key={day.start} style={styles.barColumn}>
-                        <Text size={11} color={day.isToday ? colors.ink.strong : colors.ink.meta} style={styles.barValue}>
-                          {empty ? ' ' : String(day.minutes)}
-                        </Text>
-                        <View style={[styles.bar, empty ? styles.barEmpty : day.isToday ? styles.barToday : null, { height: scaleSizeH(height) }]} />
-                        <Text
-                          size={11}
-                          color={day.isToday ? colors.ink.onAccent : colors.ink.faint}
-                          style={[styles.dayLabel, day.isToday ? styles.dayLabelToday : null]}
-                        >{day.isToday ? t('stats_today') : t(weekdayKey[day.weekday])}</Text>
-                      </View>
-                    )
-                  })}
+                <View style={styles.chartBlock}>
+                  <View style={styles.chartToolbar}>
+                    <Text size={12} color={colors.ink.secondary} style={styles.chartUnit}>{t('stats_daily_unit')}</Text>
+                    <SegmentedIconSwitch
+                      value={chartMode}
+                      items={chartSwitchItems}
+                      onChange={onChartModeChange}
+                      itemWidth={32}
+                      itemHeight={26}
+                      padding={2}
+                    />
+                  </View>
+                  <ListeningChart
+                    buckets={stats.chart}
+                    range={range}
+                    mode={chartMode}
+                    styles={styles}
+                    colors={colors}
+                    t={t}
+                  />
                 </View>
               </View>
 
