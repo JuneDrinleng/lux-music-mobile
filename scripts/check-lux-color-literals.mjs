@@ -83,6 +83,7 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/screens/Home/Vertical/Tabs/ResourceCacheSection.tsx',
   'src/screens/Home/Vertical/Tabs/SettingsTab.tsx',
   'src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx',
+  'src/utils/formatMinutes.ts',
   'src/screens/Home/Vertical/index.tsx',
   'src/screens/PlayDetail/Vertical/Lyric.tsx',
   'src/screens/PlayDetail/Vertical/Pic.tsx',

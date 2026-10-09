@@ -1,89 +1,30 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, useCallback, useEffect, useState } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { View } from 'react-native'
 
 import Text from '@/components/common/Text'
-import { MdiIcon } from '@/components/common/MdiIcon'
+import { SectionHeader, SettingRow } from '@/components/magazine'
+import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { clearCache, getCacheSize, setMaxCacheSize } from '@/plugins/player/utils'
-import { sizeFormate } from '@/utils'
-import { clearMusicUrl } from '@/utils/data'
-import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
-import { clearImageCacheFiles, getImageCacheSize, resetImageCache, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
-import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { restorePlaylistCoverCache } from '@/utils/playlistCoverPrefetch'
-import { confirmDialog, createStyle, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
-import { updateSetting } from '@/core/common'
 import { useSettingValue } from '@/store/setting/hook'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { sizeFormate } from '@/utils'
 import { AUDIO_CACHE_STEPS_MB, formatAudioCacheLimit, formatImageCacheTick, IMAGE_CACHE_STEPS } from '@/utils/cacheLimitSteps'
-import { CacheLimitSlider } from './CacheLimitSlider'
+import { clearMusicUrl } from '@/utils/data'
+import { clearImageCacheFiles, getImageCacheSize, resetImageCache, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
+import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
+import { restorePlaylistCoverCache } from '@/utils/playlistCoverPrefetch'
+import {
+  confirmDialog,
+  resetIgnoringBatteryOptimizationCheck,
+  resetNotificationPermissionCheck,
+  toast,
+} from '@/utils/tools'
 
-const useCacheCardStyles = sharedLuxStyles(colors => createStyle({
-  shadow: {
-    borderRadius: 18,
-    backgroundColor: colors.surface.card,
-    shadowColor: colors.shadow.card,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  card: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: colors.surface.card,
-  },
-  iconRow: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-  },
-  plainRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  noteRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-  },
-  noteText: {
-    lineHeight: 18,
-  },
-  rowLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 10,
-    minWidth: 0,
-  },
-  title: {
-    fontWeight: '700',
-    lineHeight: 20,
-    marginBottom: 0,
-  },
-  subtitle: {
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  plainDivider: {
-    height: 1,
-    marginLeft: 18,
-    marginRight: 18,
-    backgroundColor: colors.line.divider,
-  },
-  iconDivider: {
-    height: 1,
-    marginLeft: 72,
-    marginRight: 18,
-    backgroundColor: colors.line.divider,
-  },
-}))
+import { CacheLimitSlider } from './CacheLimitSlider'
 
 const parseSettingNumber = (value: string | null | undefined, fallback: number) => {
   const parsed = parseInt(value ?? '', 10)
@@ -91,7 +32,7 @@ const parseSettingNumber = (value: string | null | undefined, fallback: number) 
 }
 
 interface ResourceCacheDetailProps {
-  styles: Record<string, any>
+  styles?: Record<string, unknown>
   cacheSizeLabel: string
   cleaning: boolean
   cleaningAudio: boolean
@@ -102,39 +43,6 @@ interface ResourceCacheDetailProps {
   onClean: () => void
   onCleanAudio: () => void
   onCleanImage: () => void
-}
-
-interface CacheIconRowProps {
-  styles: Record<string, any>
-  icon: string
-  title: string
-  subtitle?: string
-  disabled?: boolean
-  onPress?: () => void
-}
-
-const CacheIconRow = ({ styles, icon, title, subtitle, disabled, onPress }: CacheIconRowProps) => {
-  const { colors } = useLuxTheme()
-  const cardStyles = useCacheCardStyles()
-  const body = (
-    <View style={cardStyles.rowLeft}>
-      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-        <MdiIcon name={icon} size={24} color={colors.ink.icon} />
-      </View>
-      <View style={styles.groupRowTextWrap}>
-        <Text size={15} color={disabled ? colors.ink.quiet : colors.ink.list} style={cardStyles.title}>{title}</Text>
-        {subtitle
-          ? <Text size={12} color={colors.ink.secondary} style={cardStyles.subtitle} numberOfLines={4}>{subtitle}</Text>
-          : null}
-      </View>
-    </View>
-  )
-  if (!onPress) return <View style={cardStyles.iconRow}>{body}</View>
-  return (
-    <TouchableOpacity style={cardStyles.iconRow} activeOpacity={0.84} onPress={onPress} disabled={disabled}>
-      {body}
-    </TouchableOpacity>
-  )
 }
 
 export const useResourceCache = () => {
@@ -239,7 +147,6 @@ export const useResourceCache = () => {
 }
 
 export const ResourceCacheDetail = memo(({
-  styles: parentStyles,
   cacheSizeLabel,
   cleaning,
   cleaningAudio,
@@ -253,12 +160,13 @@ export const ResourceCacheDetail = memo(({
 }: ResourceCacheDetailProps) => {
   const t = useI18n()
   const { colors } = useLuxTheme()
-  const cardStyles = useCacheCardStyles()
+  const r = magazineRoles(colors)
   const cacheSizeSetting = useSettingValue('player.cacheSize')
   const imageCountSetting = useSettingValue('player.imageCacheCount')
   const audioLimit = parseSettingNumber(cacheSizeSetting, 1024)
   const imageLimit = parseSettingNumber(imageCountSetting, 400)
   const audioOffLabel = t('setting_cache_audio_off')
+  const purple = r.iconWrap.purple
 
   const handleSelectAudioLimit = useCallback((mb: number) => {
     updateSetting({ 'player.cacheSize': String(mb) })
@@ -274,50 +182,47 @@ export const ResourceCacheDetail = memo(({
   }, [])
 
   return (
-    <View style={cardStyles.shadow}>
-      <View style={cardStyles.card}>
-      <View style={cardStyles.plainRow}>
-        <Text size={15} color={colors.ink.list} style={[cardStyles.title, parentStyles.optionDetailLabel]}>{cacheSizeLabel}</Text>
-      </View>
-      <View style={cardStyles.plainDivider} />
-      <TouchableOpacity
-        style={cardStyles.plainRow}
-        activeOpacity={0.84}
-        onPress={onClean}
-        disabled={!canClean || cleaning}
-      >
-        <Text size={15} color={cleaning ? colors.ink.quiet : colors.ink.list} style={[cardStyles.title, parentStyles.optionDetailLabel]}>
-          {t('setting_other_cache_clear_btn')}
-        </Text>
-      </TouchableOpacity>
-      <View style={cardStyles.plainDivider} />
-      <View style={cardStyles.noteRow}>
-        <Text size={12} color={colors.ink.secondary} style={cardStyles.noteText}>{t('setting_cache_separate_note')}</Text>
-      </View>
-      <View style={cardStyles.plainDivider} />
-      <CacheIconRow styles={parentStyles} icon="waveform" title={t('setting_cache_audio_title')} subtitle={audioCacheLabel || t('setting_other_cache_getting')} />
-      <View style={cardStyles.iconDivider} />
-      <CacheIconRow
-        styles={parentStyles}
+    <View>
+      <SectionHeader title={t('setting_cache_management')} meta="CACHE" showRule={false} />
+      <Text size={15} color={r.list} style={{ fontWeight: '700', marginTop: 8, marginBottom: 4 }}>
+        {cacheSizeLabel}
+      </Text>
+      <SettingRow
+        icon="broom"
+        iconBg={purple}
+        title={t('setting_other_cache_clear_btn')}
+        onPress={canClean && !cleaning ? onClean : undefined}
+      />
+      <Text size={12} color={r.muted} style={{ lineHeight: 18, marginVertical: 10 }}>
+        {t('setting_cache_separate_note')}
+      </Text>
+      <SettingRow
+        icon="waveform"
+        iconBg={purple}
+        title={t('setting_cache_audio_title')}
+        subtitle={audioCacheLabel || t('setting_other_cache_getting')}
+      />
+      <SettingRow
         icon="music-note-off"
+        iconBg={purple}
         title={t('setting_cache_audio_clear')}
-        disabled={cleaningAudio}
-        onPress={onCleanAudio}
+        onPress={cleaningAudio ? undefined : onCleanAudio}
       />
-      <View style={cardStyles.iconDivider} />
-      <CacheIconRow styles={parentStyles} icon="image-multiple-outline" title={t('setting_cache_image_title')} subtitle={imageCacheLabel || t('setting_other_cache_getting')} />
-      <View style={cardStyles.iconDivider} />
-      <CacheIconRow
-        styles={parentStyles}
+      <SettingRow
+        icon="image-multiple-outline"
+        iconBg={purple}
+        title={t('setting_cache_image_title')}
+        subtitle={imageCacheLabel || t('setting_other_cache_getting')}
+      />
+      <SettingRow
         icon="image-off-outline"
+        iconBg={purple}
         title={t('setting_cache_image_clear')}
-        disabled={cleaningImage}
-        onPress={onCleanImage}
+        onPress={cleaningImage ? undefined : onCleanImage}
       />
-      <View style={cardStyles.iconDivider} />
       <CacheLimitSlider
-        styles={parentStyles}
         icon="harddisk"
+        iconBg={purple}
         title={t('setting_cache_audio_limit')}
         steps={AUDIO_CACHE_STEPS_MB}
         value={audioLimit}
@@ -325,10 +230,9 @@ export const ResourceCacheDetail = memo(({
         formatChip={mb => formatAudioCacheLimit(mb, audioOffLabel)}
         onCommit={handleSelectAudioLimit}
       />
-      <View style={cardStyles.iconDivider} />
       <CacheLimitSlider
-        styles={parentStyles}
         icon="image-size-select-large"
+        iconBg={purple}
         title={t('setting_cache_image_limit')}
         steps={IMAGE_CACHE_STEPS}
         value={imageLimit}
@@ -336,17 +240,16 @@ export const ResourceCacheDetail = memo(({
         formatChip={count => t('setting_cache_image_count', { count })}
         onCommit={handleSelectImageLimit}
       />
-      <View style={cardStyles.iconDivider} />
-      <CacheIconRow
-        styles={parentStyles}
-        icon="file-music-outline"
+      <SettingRow
+        icon="folder-download-outline"
+        iconBg={purple}
         title={t('setting_cache_open_local')}
         onPress={() => {
           global.app_event.closePlaylistDetail()
           global.app_event.openLocalSongs()
         }}
+        last
       />
-      </View>
     </View>
   )
 })
