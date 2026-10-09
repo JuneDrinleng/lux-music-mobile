@@ -26,6 +26,15 @@ export const cacheStepRatio = (index: number, count: number): number => {
   return clamped / (count - 1)
 }
 
+/** Where a tick label sits under its step. Ends stay inside the track; middles center on the thumb. */
+export type CacheTickAlign = 'start' | 'center' | 'end'
+
+export const cacheTickAlign = (index: number, count: number): CacheTickAlign => {
+  if (count <= 1 || index <= 0) return 'start'
+  if (index >= count - 1) return 'end'
+  return 'center'
+}
+
 /**
  * Exact steps stay on their tick. A stored value outside the list (older builds)
  * displays on the nearest tick and is not rewritten until the user releases the slider.

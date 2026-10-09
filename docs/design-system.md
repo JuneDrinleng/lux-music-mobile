@@ -224,11 +224,11 @@
 
 需要输入的编辑（昵称、签名、同步地址）用居中白卡片：最大宽 360、圆角 24、标题 17。取消是灰底 `#f1f4fb`，确定是 `#c8e600` 底、`#111827` 字。同一结构也在 `src/components/common/PromptDialog.tsx`。
 
-缓存子页（`ResourceCacheSection.tsx`）沿用选项行：一行容量，一行清理。音频缓存上限和图片缓存上限不再展开成单选。两行仍保留紫色图标圆和标题；标题右侧用 `accent.soft` 胶囊显示当前档，下面是满宽滑条。已滑过的轨道用 `accent.primary`，其余用 `surface.playerTrack`，拇指是 `bg.plain` 填色、`accent.primary` 描边。刻度只落在原来的档位上，当前刻度加粗。松手才写入 `player.cacheSize`（MB，0 显示为「关闭」，不写「0 MB」）和 `player.imageCacheCount`（胶囊带「张」，刻度只写数字）。
+缓存子页（`ResourceCacheSection.tsx`）整页是一张白卡片：`surface.card`、圆角 24，没有阴影，浮在页面底上。卡片里仍是选项行，没有第二级标题。一行容量，一行清理；音频缓存、清理音频缓存、图片缓存、清理图片缓存、本地歌曲都还在原位。音频缓存上限和图片缓存上限不再展开成单选。两行仍保留紫色图标圆（`iconWrap.purple`）和标题；标题同一行右侧是 `accent.soft` 胶囊，字色 `ink.pill`、字号 12、字重 700，显示当前档。胶囊下面是满宽滑条，轨道高 6。已滑过的部分用 `accent.primary`，其余用 `surface.playerTrack`。拇指直径 24，填色是 `line.white`（浅色为白，墨夜为近白，避免和深色卡片合成一块），描边 3、颜色 `accent.primary`，压在轨道上。刻度在轨道下面，字号 11，位置跟档位对齐：第一档靠左，最后一档靠右，中间档的中心对准拇指。当前刻度加粗、颜色 `ink.list`，其余 `ink.quiet`。拖动时拇指连续移动，胶囊和加粗刻度吸附到档位；松手才写入 `player.cacheSize`（MB，0 显示为「关闭」，不写「0 MB」；1024 显示为「1GB」）和 `player.imageCacheCount`（胶囊带「张」，刻度只写数字）。
 
 ### 关于版本更新
 
-设置里的版本子页按三个分组标题组织。页面大标题仍是「关于版本更新」（22 / 700 / `#1a1c1e`，`profileDetailTitle`）。分组标题用区块标题这一级（18 / 700 / `#111827`），样式复用 `SettingsTab` 的 `cardTitle`，左缘与 `optionDetailRow` 一样缩进 18。不要用设置主页的 11 号灰色 `sectionEyebrow`，否则会比版本号和日志分类更弱。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`。行、分割线和圆点复用 `SettingsTab` 的子页样式。缓存管理、语言这些二级页没有第二级标题，也没有白色圆角分组卡片；这一页有三组，所以只加了区块标题，分组本身仍是 `#eef0fb` 上的 `sectionCard` / `sectionGroup`。
+设置里的版本子页按三个分组标题组织。页面大标题仍是「关于版本更新」（22 / 700 / `#1a1c1e`，`profileDetailTitle`）。分组标题用区块标题这一级（18 / 700 / `#111827`），样式复用 `SettingsTab` 的 `cardTitle`，左缘与 `optionDetailRow` 一样缩进 18。不要用设置主页的 11 号灰色 `sectionEyebrow`，否则会比版本号和日志分类更弱。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`。行、分割线和圆点复用 `SettingsTab` 的子页样式。语言这类二级页没有第二级标题，也没有白色圆角分组卡片。缓存管理整页是一张白卡片，见上文。关于版本更新这一页有三组，所以只加了区块标题，分组本身仍是 `#eef0fb` 上的 `sectionCard` / `sectionGroup`。
 
 1. **当前版本信息**：版本号是 15 / 700 / `#20242d`（`groupRowTitle`，与缓存行同一级），通道名和发布日期是 13 / `#767d89`。
 2. **更新通道**：稳定版 / 开发版两行单选，选中项右侧 `#c8e600` 圆点。

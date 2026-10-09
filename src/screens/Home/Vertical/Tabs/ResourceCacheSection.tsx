@@ -11,13 +11,21 @@ import { sizeFormate } from '@/utils'
 import { clearMusicUrl } from '@/utils/data'
 import { getAppCacheSize, clearAppCache } from '@/utils/nativeModules/cache'
 import { clearImageCacheFiles, getImageCacheSize, resetImageCache, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
-import { useLuxTheme } from '@/theme/LuxTheme'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { restorePlaylistCoverCache } from '@/utils/playlistCoverPrefetch'
-import { confirmDialog, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
+import { confirmDialog, createStyle, resetIgnoringBatteryOptimizationCheck, resetNotificationPermissionCheck, toast } from '@/utils/tools'
 import { updateSetting } from '@/core/common'
 import { useSettingValue } from '@/store/setting/hook'
 import { AUDIO_CACHE_STEPS_MB, formatAudioCacheLimit, formatImageCacheTick, IMAGE_CACHE_STEPS } from '@/utils/cacheLimitSteps'
 import { CacheLimitSlider } from './CacheLimitSlider'
+
+const useCacheCardStyles = sharedLuxStyles(colors => createStyle({
+  card: {
+    backgroundColor: colors.surface.card,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+}))
 
 const parseSettingNumber = (value: string | null | undefined, fallback: number) => {
   const parsed = parseInt(value ?? '', 10)
@@ -186,6 +194,7 @@ export const ResourceCacheDetail = memo(({
 }: ResourceCacheDetailProps) => {
   const t = useI18n()
   const { colors } = useLuxTheme()
+  const cardStyles = useCacheCardStyles()
   const cacheSizeSetting = useSettingValue('player.cacheSize')
   const imageCountSetting = useSettingValue('player.imageCacheCount')
   const audioLimit = parseSettingNumber(cacheSizeSetting, 1024)
@@ -206,7 +215,7 @@ export const ResourceCacheDetail = memo(({
   }, [])
 
   return (
-    <>
+    <View style={cardStyles.card}>
       <View style={parentStyles.optionDetailRow}>
         <Text size={15} color={colors.ink.list} style={[parentStyles.groupRowTitle, parentStyles.optionDetailLabel]}>{cacheSizeLabel}</Text>
       </View>
@@ -277,6 +286,6 @@ export const ResourceCacheDetail = memo(({
           global.app_event.openLocalSongs()
         }}
       />
-    </>
+    </View>
   )
 })
