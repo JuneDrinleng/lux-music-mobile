@@ -16,6 +16,7 @@ import { useComponentIds } from '@/store/common/hook'
 import { type PlaylistDetailPayload } from '@/event/appEvent'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
+import { shouldHoldSplashChrome, subscribeHomeBootSplashHidden } from '@/utils/homeFirstScreenBoot'
 
 const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
@@ -62,10 +63,14 @@ export default () => {
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
+  const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
+
+  useEffect(() => subscribeHomeBootSplashHidden(() => { setHoldSplashChrome(false) }), [])
 
   useEffect(() => {
-    setSystemBarIconStyle(mode === 'dark' ? 'light' : 'dark')
-  }, [mode])
+    // The splash artwork is still the light launch screen. Keep dark glyphs until it fades.
+    setSystemBarIconStyle(holdSplashChrome ? 'dark' : (mode === 'dark' ? 'light' : 'dark'))
+  }, [holdSplashChrome, mode])
 
   useEffect(() => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
@@ -89,7 +94,7 @@ export default () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={holdSplashChrome || mode !== 'dark' ? 'dark-content' : 'light-content'} />
       <Content />
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>

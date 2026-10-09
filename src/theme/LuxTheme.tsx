@@ -23,8 +23,29 @@ const LuxThemeContext = createContext<LuxThemeControls>({
   setLuxTheme: () => {},
 })
 
+let bootedTheme: LuxTheme | null = null
+let bootedThemePromise: Promise<LuxTheme> | null = null
+
+/** Read the saved theme before the first home paint so 墨夜 does not open on the lime theme. */
+export const primeLuxThemeForBoot = async(): Promise<LuxTheme> => {
+  if (bootedTheme) return bootedTheme
+  if (!bootedThemePromise) {
+    bootedThemePromise = readLuxThemeId().then(id => {
+      const theme = luxThemeRegistry[id]
+      bootedTheme = theme
+      return theme
+    }).catch((err: unknown) => {
+      bootedThemePromise = null
+      throw err
+    })
+  }
+  return bootedThemePromise
+}
+
+export const peekBootedLuxTheme = (): LuxTheme => bootedTheme ?? limeTheme
+
 export const LuxThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<LuxTheme>(limeTheme)
+  const [theme, setTheme] = useState<LuxTheme>(() => peekBootedLuxTheme())
 
   useEffect(() => {
     let cancelled = false

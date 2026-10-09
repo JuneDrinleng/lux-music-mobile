@@ -12,10 +12,11 @@ import { getData } from '@/plugins/storage'
 import { getSyncHost } from '@/plugins/sync/data'
 
 const STATUS_TEXT = 'Sync...'
+let launchSyncHint = false
 
 export default memo(() => {
   const theme = useTheme()
-  const [showSyncHint, setShowSyncHint] = useState(false)
+  const [showSyncHint, setShowSyncHint] = useState(launchSyncHint)
 
   useEffect(() => {
     let isUnmounted = false
@@ -25,7 +26,8 @@ export default memo(() => {
       getSyncHost(),
     ]).then(([setting, syncHost]) => {
       if (isUnmounted) return
-      setShowSyncHint(Boolean(setting?.['sync.enable'] && syncHost))
+      launchSyncHint = Boolean(setting?.['sync.enable'] && syncHost)
+      setShowSyncHint(launchSyncHint)
     })
 
     return () => {

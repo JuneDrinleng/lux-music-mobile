@@ -165,7 +165,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
   })
 }
 
-export async function pushHomeScreen() {
+export async function pushHomeScreen(options?: { immediate?: boolean, backgroundColor?: string }) {
   /*
     Navigation.setDefaultOptions({
       topBar: {
@@ -200,6 +200,7 @@ export async function pushHomeScreen() {
   */
 
   const theme = themeState.theme
+  const immediate = options?.immediate == true
   return Navigation.setRoot({
     root: {
       stack: {
@@ -223,33 +224,43 @@ export async function pushHomeScreen() {
                 backgroundColor: 'transparent',
               },
               layout: {
-                componentBackgroundColor: theme['c-content-background'],
+                componentBackgroundColor: options?.backgroundColor ?? theme['c-content-background'],
               },
               animations: {
-                setRoot: {
-                  enter: {
-                    enabled: true,
-                    waitForRender: true,
-                    alpha: {
-                      from: 0,
-                      to: 1,
-                      duration: 280,
+                setRoot: immediate
+                  ? {
+                      enter: {
+                        enabled: false,
+                        waitForRender: true,
+                      },
+                      exit: {
+                        enabled: false,
+                      },
+                    }
+                  : {
+                      enter: {
+                        enabled: true,
+                        waitForRender: true,
+                        alpha: {
+                          from: 0,
+                          to: 1,
+                          duration: 280,
+                        },
+                        translationY: {
+                          from: 18,
+                          to: 0,
+                          duration: 280,
+                        },
+                      },
+                      exit: {
+                        enabled: true,
+                        alpha: {
+                          from: 1,
+                          to: 0,
+                          duration: 220,
+                        },
+                      },
                     },
-                    translationY: {
-                      from: 18,
-                      to: 0,
-                      duration: 280,
-                    },
-                  },
-                  exit: {
-                    enabled: true,
-                    alpha: {
-                      from: 1,
-                      to: 0,
-                      duration: 220,
-                    },
-                  },
-                },
               },
             },
           },

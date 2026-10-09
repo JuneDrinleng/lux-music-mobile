@@ -15,11 +15,6 @@ import { storageDataPrefix } from '@/config/constant'
 console.log('starting app...')
 listenLaunchEvent()
 
-const LAUNCH_SCREEN_MIN_DURATION = 3500
-const delay = async(ms: number) => new Promise<void>(resolve => {
-  setTimeout(resolve, ms)
-})
-
 void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize]) => {
   global.lx.fontSize = fontSize
   bootLog('Font size setting loaded.')
@@ -76,8 +71,22 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
     })
 
     if (!isLaunchScreenShown) return
+    const bootModulePromise = import('@/utils/homeFirstScreenBoot')
+    void bootModulePromise.then(mod => { void mod.primeHomeBootTheme() })
     await handleInit()
     if (!isInited) return
+
+    const { homeBootDeadline } = await import('@/utils/homeBootGate')
+    const {
+      armHomeBootSplash,
+      markHomeBootRevealed,
+      peekHomeBootBackground,
+      raceWithDeadline,
+      startHomeFirstScreenBoot,
+      waitUntilHomeBootReveal,
+    } = await bootModulePromise
+    const preloadStartedAt = Date.now()
+    const boot = startHomeFirstScreenBoot()
 
     const pushSyncLoginScreen = async() => {
       global.lx._onLoginConfirmed = handlePushedHomeScreen
@@ -115,10 +124,19 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
       return
     }
 
-    const remainDuration = LAUNCH_SCREEN_MIN_DURATION - (Date.now() - launchStartedAt)
-    if (remainDuration > 0) await delay(remainDuration)
-
-    await navigations.pushHomeScreen().then(() => {
+    const deadline = homeBootDeadline(launchStartedAt, preloadStartedAt)
+    await raceWithDeadline(boot.mount, deadline)
+    armHomeBootSplash()
+    await navigations.pushHomeScreen({
+      immediate: true,
+      backgroundColor: peekHomeBootBackground(),
+    }).then(async() => {
+      await waitUntilHomeBootReveal({
+        launchStartedAt,
+        preloadStartedAt,
+        covers: boot.covers,
+      })
+      markHomeBootRevealed()
       global.lx.isShowingLaunchScreen = false
       void handlePushedHomeScreen()
     }).catch((err: any) => {

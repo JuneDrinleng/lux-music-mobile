@@ -22,7 +22,10 @@ import leaderboardState, { type BoardItem } from '@/store/leaderboard/state'
 import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboard/listAction'
 import { pickMusicCover } from '@/utils/musicCover'
 import { getPicUrl } from '@/core/music/online'
-import { cacheImageUri, getCachedImageUri } from '@/utils/imageCache'
+import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
+import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@/utils/homeBootGate'
+import { getHomePlaylistMetaSnapshot, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
+import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getData, saveData } from '@/plugins/storage'
 import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { limeColors, type LuxColors, type LuxHomeCard, type LuxHeroCard } from '@/theme/luxTokens'
@@ -96,7 +99,7 @@ interface FeaturedCard {
   eyebrow: string
   title: string
   subtitle: string
-  count: number
+  count: number | null
   cover: string | null
   tone: LuxHeroCard
 }
@@ -127,11 +130,9 @@ const LB_FILTER_IDS: LbFilterId[] = ['new', 'trending', 'top']
 
 const getTone = (index: number, colors: LuxColors = limeColors) => readCardTones(colors)[index % readCardTones(colors).length]
 
-const pickCover = (list: LX.Music.MusicInfo[]) => {
-  for (const song of list) {
-    if (song.meta.picUrl) return song.meta.picUrl
-  }
-  return null
+const homeCoverLookup = {
+  mapped: (song: HomeCoverSong) => peekPlaylistCover(song.source, song.id),
+  isCached: (url: string) => peekCachedImageUri(url) != null,
 }
 
 const createLbSourceState = (state: Partial<LbSourceState> = {}): LbSourceState => ({
@@ -403,7 +404,7 @@ const AllContent = memo(({
                 <View style={styles.featuredBottomRow}>
                   <View style={styles.featuredContent}>
                     <Text size={12} color={card.tone.textSoft} style={styles.featuredSubtitle}>{card.subtitle}</Text>
-                    <Text size={11} color={card.tone.textSoft} style={styles.featuredCount}>{t('home_daily_tracks', { count: card.count })}</Text>
+                    <Text size={11} color={card.tone.textSoft} style={styles.featuredCount}>{card.count == null ? ' ' : t('home_daily_tracks', { count: card.count })}</Text>
 
                     <View style={styles.featuredActions}>
                       <TouchableOpacity
@@ -462,7 +463,7 @@ const AllContent = memo(({
                 </View>
                 <View style={styles.dailyInfo}>
                   <Text size={15} color={colors.ink.rowTitle} style={styles.dailyTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text size={12} color={colors.ink.rowMeta} numberOfLines={1}>{`${item.tag} · ${t('home_daily_tracks', { count: meta?.count ?? 0 })}`}</Text>
+                  <Text size={12} color={colors.ink.rowMeta} numberOfLines={1}>{formatHomeDailyMeta(item.tag, meta ? meta.count : null, meta ? t('home_daily_tracks', { count: meta.count }) : '')}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.dailyPlayButton}
@@ -860,7 +861,7 @@ export default memo(() => {
   const linkedPlaylistId = useLinkedPlaylistId()
   const [displayName, setDisplayName] = useState(DEFAULT_USER_NAME)
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
-  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>({})
+  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>(getHomePlaylistMetaSnapshot)
   const playlistMetaRequestRef = useRef(0)
   const topPadding = statusBarHeight + 18 + 44 + 16
   const gestureInsetBottom = useSystemGestureInsetBottom()
@@ -985,7 +986,7 @@ export default memo(() => {
       return {
         id: item.id,
         count: musics.length,
-        cover: pickCover(musics),
+        cover: resolveHomeListCover(musics.map(toHomeCoverSong), homeCoverLookup),
       }
     }))
 
@@ -998,15 +999,22 @@ export default memo(() => {
         cover: item.cover,
       }
     }
-    // Pre-warm runtime image cache so Image components resolve synchronously
+    setPlaylistMetaMap(next)
     const coverUrls = Object.values(next)
       .map(item => item.cover)
       .filter((url): url is string => Boolean(url))
     if (coverUrls.length) {
-      await Promise.all(coverUrls.map(async url => cacheImageUri(url).catch(() => null)))
+      void Promise.all(coverUrls.map(async url => cacheImageUri(url).catch(() => null)))
     }
-    setPlaylistMetaMap(next)
   }, [libraryItems])
+
+  useEffect(() => {
+    return subscribeHomePlaylistMeta(() => {
+      const snapshot = getHomePlaylistMetaSnapshot()
+      if (!Object.keys(snapshot).length) return
+      setPlaylistMetaMap(prev => ({ ...prev, ...snapshot }))
+    })
+  }, [])
 
   useEffect(() => {
     void refreshPlaylistMeta()
@@ -1311,8 +1319,9 @@ export default memo(() => {
       ? currentMusic.metadata.musicInfo
       : currentMusic
     : null
-  const featuredCover = currentMusicInfo?.meta.picUrl ?? (featuredItem ? playlistMetaMap[featuredItem.id]?.cover : null) ?? null
-  const featuredStat = featuredItem ? playlistMetaMap[featuredItem.id]?.count ?? 0 : 0
+  const featuredMeta = featuredItem ? playlistMetaMap[featuredItem.id] : undefined
+  const featuredCover = currentMusicInfo?.meta.picUrl ?? featuredMeta?.cover ?? null
+  const featuredStat = featuredItem ? (featuredMeta ? featuredMeta.count : null) : 0
   const isPlaylistCurrent = useCallback((listId: string | null | undefined) => {
     if (!listId || !linkedPlaylistId) return false
     return linkedPlaylistId === listId
@@ -1335,7 +1344,7 @@ export default memo(() => {
         eyebrow: item.tag,
         title: item.title,
         subtitle: item.subtitle,
-        count: playlistMetaMap[item.id]?.count ?? 0,
+        count: playlistMetaMap[item.id] ? playlistMetaMap[item.id].count : null,
         cover: playlistMetaMap[item.id]?.cover ?? null,
         tone: heroCardTones[(index + 1) % heroCardTones.length],
       })),
