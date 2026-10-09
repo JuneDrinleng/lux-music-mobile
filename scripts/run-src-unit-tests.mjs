@@ -990,6 +990,28 @@ test('cache limit sliders snap to the existing steps and never label zero as 0 M
   assert.equal(cacheSteps.cacheStepRatio(0, 7), 0)
   assert.equal(cacheSteps.cacheStepRatio(6, 7), 1)
   assert.equal(cacheSteps.cacheStepRatio(4, 5), 1)
+
+  // §10.2: tick center x === thumb x (same cacheStepRatio × trackWidth).
+  // Mid steps must not use evenly spaced flex cells (1GB was left of its label).
+  const trackW = 300
+  assert.equal(cacheSteps.cacheTickCenterX(0, 7, trackW), 0)
+  assert.equal(cacheSteps.cacheTickCenterX(3, 7, trackW), 150)
+  assert.equal(cacheSteps.cacheTickCenterX(6, 7, trackW), 300)
+  assert.equal(cacheSteps.cacheTickCenterX(3, 7, trackW), cacheSteps.cacheStepRatio(3, 7) * trackW)
+  // Centered label when it fits; clamped at edges only.
+  assert.equal(cacheSteps.cacheTickLabelLeft(3, 7, trackW, 40), 130)
+  assert.equal(cacheSteps.cacheTickLabelLeft(0, 7, trackW, 40), 0)
+  assert.equal(cacheSteps.cacheTickLabelLeft(6, 7, trackW, 40), 260)
+  assert.equal(cacheSteps.cacheTickLabelLeft(3, 7, trackW, 0), 150)
+  assert.equal(cacheSteps.cacheTickLabelLeft(1, 5, 200, 30), cacheSteps.cacheTickCenterX(1, 5, 200) - 15)
+  // Unclamped mid-step: label center equals thumb center (±0.5px).
+  for (let i = 1; i < 6; i++) {
+    const labelW = 36
+    const left = cacheSteps.cacheTickLabelLeft(i, 7, trackW, labelW)
+    const thumbX = cacheSteps.cacheTickCenterX(i, 7, trackW)
+    const labelCenter = left + labelW / 2
+    assert.ok(Math.abs(labelCenter - thumbX) <= 0.5, `tick ${i} label center ${labelCenter} vs thumb ${thumbX}`)
+  }
   assert.equal(cacheSteps.nearestCacheStepIndex(0, 7), 0)
   assert.equal(cacheSteps.nearestCacheStepIndex(1, 7), 6)
   assert.equal(cacheSteps.nearestCacheStepIndex(0.5, 7), 3)
