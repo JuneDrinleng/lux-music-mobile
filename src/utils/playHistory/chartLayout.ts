@@ -21,6 +21,8 @@ export const statsBucketLabel = (
   let show = true
   if (bucket.kind == 'hour2') {
     text = t('stats_hour_label', { hour: bucket.hour })
+    // Editorial axis: 0 / 6 / 12 / 18 only; current slot stays highlighted via the bar fill.
+    show = bucket.hour % 6 == 0
   } else if (bucket.kind == 'day') {
     if (range == 'days7') text = bucket.isCurrent ? t('stats_today') : t(weekdayKeys[bucket.weekday])
     else {

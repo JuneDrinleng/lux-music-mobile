@@ -41,6 +41,8 @@ import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
+import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
+import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -107,7 +109,11 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
+  const statsPageStyleLabel = (id: StatsPageStyle) => (
+    id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
+  )
   const {
     cleaning: isCleaningResourceCache,
     cleaningAudio: isCleaningAudioCache,
@@ -331,6 +337,10 @@ export default () => {
     t('setting_lux_theme_lavender'),
     t('setting_lux_theme_oat_milk'),
     t('setting_lux_theme_ink_night'),
+    t('setting_stats_page_style'),
+    t('setting_stats_page_style_magazine'),
+    t('setting_stats_page_style_replay'),
+    t('setting_stats_page_style_local_only'),
   )
   const showSearchAndPlayerSection = matchesSettingsSearch(
     t('setting_search_and_play'),
@@ -400,6 +410,7 @@ export default () => {
     switch (activeOptionDetail) {
       case 'language': return t('setting_basic_lang')
       case 'theme': return t('setting_lux_theme')
+      case 'statsPageStyle': return t('setting_stats_page_style')
       case 'searchSource': return t('setting_search_source')
       case 'gender': return t('setting_profile_gender')
       case 'player': return t('setting_custom_source_title')
@@ -616,6 +627,9 @@ export default () => {
   }
   const handleOpenThemeDetail = () => {
     setActiveOptionDetail('theme')
+  }
+  const handleOpenStatsPageStyleDetail = () => {
+    setActiveOptionDetail('statsPageStyle')
   }
   const handleOpenSearchSourceDetail = () => {
     setActiveOptionDetail('searchSource')
@@ -870,6 +884,19 @@ export default () => {
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_lux_theme')}</Text>
                         <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{luxThemeLabel(luxThemeId)}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenStatsPageStyleDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
+                        <MdiIcon name="newspaper-variant-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_stats_page_style')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{statsPageStyleLabel(statsPageStyle)}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
@@ -1210,6 +1237,27 @@ export default () => {
                             {isActive ? <View style={styles.languageActiveDot} /> : null}
                           </TouchableOpacity>
                           {index < LUX_THEME_IDS.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                        </View>
+                      )
+                    })}
+                  </>
+                : null}
+              {activeOptionDetail === 'statsPageStyle'
+                ? <>
+                    <Text size={12} color={colors.ink.secondary} style={styles.themeLocalNote}>{t('setting_stats_page_style_local_only')}</Text>
+                    {STATS_PAGE_STYLES.map((id, index) => {
+                      const isActive = statsPageStyle === id
+                      return (
+                        <View key={id}>
+                          <TouchableOpacity
+                            style={styles.optionDetailRow}
+                            activeOpacity={0.84}
+                            onPress={() => { setStatsPageStyle(id) }}
+                          >
+                            <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{statsPageStyleLabel(id)}</Text>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                          {index < STATS_PAGE_STYLES.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
                         </View>
                       )
                     })}

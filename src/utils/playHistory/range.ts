@@ -61,7 +61,6 @@ export interface RangeStats {
   bounds: RangeBounds
   previousBounds: RangeBounds | null
   listenedMs: number
-  playCount: number
   previousListenedMs: number
   /** Elapsed local days in the window, used for the daily average. */
   dayCount: number
@@ -280,16 +279,14 @@ const dayCountFor = (range: PlayRangeId, now: number, records: readonly PlayReco
   return Math.max(1, Math.round((startOfLocalDay(now) - startOfLocalDay(earliest)) / DAY_MS) + 1)
 }
 
-const sumInBounds = (records: readonly PlayRecord[], bounds: RangeBounds | null): { listenedMs: number, playCount: number } => {
-  if (!bounds) return { listenedMs: 0, playCount: 0 }
+const sumInBounds = (records: readonly PlayRecord[], bounds: RangeBounds | null): { listenedMs: number } => {
+  if (!bounds) return { listenedMs: 0 }
   let listenedMs = 0
-  let playCount = 0
   for (const record of records) {
     if (!recordInBounds(record, bounds)) continue
     listenedMs += record.listenedMs
-    playCount += 1
   }
-  return { listenedMs, playCount }
+  return { listenedMs }
 }
 
 export const buildRangeStats = (records: readonly PlayRecord[], range: PlayRangeId, now: number): RangeStats => {
@@ -335,26 +332,25 @@ export const buildRangeStats = (records: readonly PlayRecord[], range: PlayRange
     }
   }
 
-  const rankedSongs = [...songs.values()].sort((a, b) => b.playCount - a.playCount || b.listenedMs - a.listenedMs || a.song.name.localeCompare(b.song.name))
+  const rankedSongs = [...songs.values()].sort((a, b) => b.listenedMs - a.listenedMs || b.playCount - a.playCount || a.song.name.localeCompare(b.song.name))
   for (const artist of artists.values()) {
     let bestImg: string | undefined
-    let bestCount = -1
+    let bestMs = -1
     for (const song of rankedSongs) {
       if (!artistNames(song.song.singer).includes(artist.name) || !song.song.img) continue
-      if (song.playCount > bestCount) {
-        bestCount = song.playCount
+      if (song.listenedMs > bestMs) {
+        bestMs = song.listenedMs
         bestImg = song.song.img
       }
     }
     if (bestImg) artist.fallbackImg = bestImg
   }
-  const rankedArtists = [...artists.values()].sort((a, b) => b.playCount - a.playCount || b.listenedMs - a.listenedMs || a.name.localeCompare(b.name))
+  const rankedArtists = [...artists.values()].sort((a, b) => b.listenedMs - a.listenedMs || b.playCount - a.playCount || a.name.localeCompare(b.name))
 
   return {
     bounds,
     previousBounds,
     listenedMs: current.listenedMs,
-    playCount: current.playCount,
     previousListenedMs: previous.listenedMs,
     dayCount: dayCountFor(range, now, selected),
     songs: rankedSongs,
