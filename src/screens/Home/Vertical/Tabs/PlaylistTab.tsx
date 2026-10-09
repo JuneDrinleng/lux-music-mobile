@@ -28,6 +28,7 @@ import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
 import PlaylistDetailHeader from '@/components/playlist/PlaylistDetailHeader'
 import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
+import { useTodayListenedMinutes } from '@/components/stats/useTodayListening'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
 import { usePlaylistCardDrag } from '@/components/playlist/hooks/usePlaylistCardDrag'
 import { createSongRowKeyStore, stableSongRowKey } from '@/components/playlist/songRowKey'
@@ -188,6 +189,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const { colors } = useLuxTheme()
 
   const t = useI18n()
+  const todayListenedMinutes = useTodayListenedMinutes()
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
@@ -1658,7 +1660,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         <Text size={13} color={colors.ink.option} numberOfLines={2}>{signature || defaultSignature}</Text>
         <View style={styles.profileHeroMetaRow}>
           <View style={styles.profileHeroMetaPill}>
-            <Text size={12} color={colors.ink.pill} style={styles.profileHeroMetaText}>{t('me_today_listening', { num: 70 })}</Text>
+            <Text size={12} color={colors.ink.pill} style={styles.profileHeroMetaText}>{t('me_today_listening', { num: todayListenedMinutes })}</Text>
           </View>
         </View>
       </View>
@@ -1698,7 +1700,11 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       <TouchableOpacity
         style={styles.quickActionItem}
         activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
+        onPress={() => {
+          global.app_event.closePlaylistDetail()
+          global.app_event.closeLocalSongs()
+          global.app_event.openListeningStats()
+        }}
       >
         <View style={styles.quickActionIconWrap}>
           <MdiIcon name="chart-bar" size={36} color={colors.ink.icon} />

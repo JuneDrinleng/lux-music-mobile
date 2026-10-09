@@ -11,6 +11,7 @@ import PlayDetailOverlay from './PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import LocalSongsDetail from '@/components/playlist/LocalSongsDetail'
+import ListeningStatsPage from '@/components/stats/ListeningStatsPage'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
@@ -64,6 +65,7 @@ export default () => {
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
   const [localSongsOpen, setLocalSongsOpen] = useState(false)
+  const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
 
@@ -76,6 +78,8 @@ export default () => {
 
   useEffect(() => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
+      setLocalSongsOpen(false)
+      setListeningStatsOpen(false)
       setPlaylistDetailRequest(payload)
     }
     const handleClosePlaylistDetail = () => {
@@ -83,20 +87,33 @@ export default () => {
     }
     const handleOpenLocalSongs = () => {
       setPlaylistDetailRequest(null)
+      setListeningStatsOpen(false)
       setLocalSongsOpen(true)
     }
     const handleCloseLocalSongs = () => {
       setLocalSongsOpen(false)
     }
+    const handleOpenListeningStats = () => {
+      setPlaylistDetailRequest(null)
+      setLocalSongsOpen(false)
+      setListeningStatsOpen(true)
+    }
+    const handleCloseListeningStats = () => {
+      setListeningStatsOpen(false)
+    }
     global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
     global.app_event.on('closePlaylistDetail', handleClosePlaylistDetail)
     global.app_event.on('openLocalSongs', handleOpenLocalSongs)
     global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
+    global.app_event.on('openListeningStats', handleOpenListeningStats)
+    global.app_event.on('closeListeningStats', handleCloseListeningStats)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
       global.app_event.off('closePlaylistDetail', handleClosePlaylistDetail)
       global.app_event.off('openLocalSongs', handleOpenLocalSongs)
       global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
+      global.app_event.off('openListeningStats', handleOpenListeningStats)
+      global.app_event.off('closeListeningStats', handleCloseListeningStats)
     }
   }, [])
 
@@ -108,6 +125,11 @@ export default () => {
   const handleCloseLocalSongs = useCallback(() => {
     setLocalSongsOpen(false)
     global.app_event.closeLocalSongs()
+  }, [])
+
+  const handleCloseListeningStats = useCallback(() => {
+    setListeningStatsOpen(false)
+    global.app_event.closeListeningStats()
   }, [])
 
   return (
@@ -127,6 +149,14 @@ export default () => {
         ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
             <LocalSongsDetail
               onClose={handleCloseLocalSongs}
+              bottomPadding={bottomLayerHeight}
+            />
+          </View>
+        : null}
+      {listeningStatsOpen
+        ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
+            <ListeningStatsPage
+              onClose={handleCloseListeningStats}
               bottomPadding={bottomLayerHeight}
             />
           </View>

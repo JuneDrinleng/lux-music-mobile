@@ -37,6 +37,8 @@ import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
+import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
+import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 
@@ -78,6 +80,8 @@ export default () => {
   const headerHeight = headerTopPadding + 44 + 16
   const detailSceneWidth = Dimensions.get('window').width
   const sourceRef = useRef<SourceType>(null)
+  const backupPathRef = useRef<ChoosePathType>(null)
+  const backupModeRef = useRef<'export' | 'import'>('export')
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
@@ -351,6 +355,10 @@ export default () => {
     t('setting_other_cache_clear_btn'),
     t('setting_other_cache_size'),
     resourceCacheSizeLabel,
+    t('setting_export_data'),
+    t('setting_export_data_desc'),
+    t('setting_import_data'),
+    t('setting_import_data_desc'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -708,6 +716,32 @@ export default () => {
     handleGetAppCacheSize()
     setActiveOptionDetail('resourceCache')
   }, [handleGetAppCacheSize])
+  const handleExportData = useCallback(() => {
+    backupModeRef.current = 'export'
+    backupPathRef.current?.show({
+      title: t('setting_export_data_pick'),
+      dirOnly: true,
+      isPersist: true,
+    })
+  }, [t])
+  const handleImportData = useCallback(() => {
+    backupModeRef.current = 'import'
+    backupPathRef.current?.show({
+      title: t('setting_import_data_pick'),
+      filter: ['json'],
+    })
+  }, [t])
+  const handleBackupPath = useCallback((path: string) => {
+    if (backupModeRef.current == 'export') {
+      void exportLuxBackupFile(path).then(file => {
+        toast(t('setting_export_data_success', { path: file }))
+      }).catch(() => { toast(t('setting_export_data_fail')) })
+      return
+    }
+    void importLuxBackupFile(path).then(result => {
+      toast(t(result == 'ok' ? 'setting_import_data_success' : 'setting_import_data_invalid'))
+    }).catch(() => { toast(t('setting_import_data_fail')) })
+  }, [t])
   const handleSelectReleaseChannel = (value: 'stable' | 'dev') => {
     updateSetting({ 'common.releaseChannel': value })
     void (async() => {
@@ -928,6 +962,32 @@ export default () => {
                       <View style={styles.groupRowTextWrap}>
                         <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
                         <Text size={12} color={colors.ink.secondary} numberOfLines={2}>{resourceCacheSizeLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleExportData}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="database-export-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_export_data')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_export_data_desc')}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleImportData}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="database-import-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_import_data')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_import_data_desc')}</Text>
                       </View>
                     </View>
                     <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
@@ -1522,6 +1582,7 @@ export default () => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )
 }

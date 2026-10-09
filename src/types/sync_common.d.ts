@@ -6,6 +6,9 @@ declare namespace LX {
   namespace Sync {
     type ServerSyncActions = WarpPromiseRecord<{
       onFeatureChanged: (feature: EnabledFeatures) => void
+      /** One message2call path segment. Enabled only after the client returns playHistory: true. */
+      'playHistory:push': (payload: LX.Sync.PlayHistory.PushRequest) => LX.Sync.PlayHistory.PushResult
+      'playHistory:pull': (payload?: LX.Sync.PlayHistory.PullRequest) => LX.Sync.PlayHistory.PullResult
     }>
     type ServerSyncHandlerActions<Socket> = WarpSyncHandlerActions<Socket, ServerSyncActions>
 

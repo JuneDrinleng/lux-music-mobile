@@ -571,6 +571,7 @@ export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
 }
 export const setSyncMode = async(mode: LX.Sync.Mode) => {
   await saveData(syncModePrefix, mode)
+  global.app_event?.syncModeUpdated(mode)
 }
 export const getLuxAuth = async() => getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {

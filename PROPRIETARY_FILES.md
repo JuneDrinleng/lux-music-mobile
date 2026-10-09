@@ -156,6 +156,23 @@
 | `docs/theme-tokens.md` | `doc` | 默认黄绿令牌与新美化页面色值的对照，供后续替换硬编码 | `2026-10-08` |
 | `src/utils/cacheLimitSteps.ts` | `code` | Lux 独立实现的缓存上限档位、刻度文案和松手提交判断，上游无对应文件 | `2026-10-09` |
 | `src/screens/Home/Vertical/Tabs/CacheLimitSlider.tsx` | `code` | Lux 独立实现的缓存上限滑条，拇指连续拖动、档位吸附，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/types.ts` | `code` | Lux 听歌记录与服务端共用的记录形状，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/threshold.ts` | `code` | Lux 播放计数门槛，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/session.ts` | `code` | Lux 单次播放的实际收听计时，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/merge.ts` | `code` | Lux 按记录 id 合并去重，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/range.ts` | `code` | Lux 听歌统计的时间范围与榜单汇总，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/backup.ts` | `code` | Lux 数据备份文档的组装与解析，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/backupIO.ts` | `code` | Lux 数据备份的导出与导入，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/store.ts` | `code` | Lux 本机听歌记录存储，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/tracker.ts` | `code` | Lux 播放会话记入听歌记录，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/wire.ts` | `code` | Lux 听歌记录同步载荷校验与分批，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/artistAvatar.ts` | `code` | Lux 按歌手名查找并缓存头像，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/playback.ts` | `code` | Lux 从听歌记录回到播放，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/playHistorySync.ts` | `code` | Lux 听歌记录的 Lux 同步通道，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/playHistoryFlag.ts` | `code` | Lux 听歌记录能力是否在本次连接启用，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsPage.tsx` | `code` | Lux 听歌统计页，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/useTodayListening.ts` | `code` | Lux 今日听歌时长，上游无对应文件 | `2026-10-09` |
+| `src/core/init/playHistory.ts` | `code` | Lux 听歌记录的启动入口，上游无对应文件 | `2026-10-09` |
 
 ## 维护模板
 

@@ -79,6 +79,8 @@ declare global {
       interface EnabledFeatures {
         list?: false | ListConfig
         dislike?: false | DislikeConfig
+        /** Lux only. Omitted for LX connection-code sync and for servers that do not advertise the feature. */
+        playHistory?: true
       }
       type SupportedFeatures = Partial<{ [k in keyof EnabledFeatures]: number }>
     }
