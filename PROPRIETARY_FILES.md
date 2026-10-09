@@ -181,6 +181,13 @@
 | `src/plugins/sync/deviceId.ts` | `code` | Lux 同步安装标识的本机存储与安全随机来源，上游无对应文件 | `2026-10-09` |
 | `src/plugins/sync/client/credentials.ts` | `code` | Lux 同步凭据复用、账号隔离与串行存储逻辑，上游无对应文件 | `2026-10-09` |
 | `src/components/stats/ListeningStatsPage.tsx` | `code` | Lux 听歌统计页，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsMagazine.tsx` | `code` | Lux 听歌统计杂志风布局，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsReplay.tsx` | `code` | Lux 听歌统计年度回顾风布局，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ArtistFace.tsx` | `code` | Lux 听歌统计歌手头像，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/statsShared.ts` | `code` | Lux 听歌统计共享文案键，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/useListeningStatsModel.ts` | `code` | Lux 听歌统计共享数据与样式偏好，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/statsPageStyle.ts` | `code` | Lux 听歌统计页样式枚举，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/statsPageStyleStore.ts` | `code` | Lux 听歌统计页样式本机存储，上游无对应文件 | `2026-10-09` |
 | `src/components/stats/useTodayListening.ts` | `code` | Lux 今日听歌时长，上游无对应文件 | `2026-10-09` |
 | `src/core/init/playHistory.ts` | `code` | Lux 听歌记录的启动入口，上游无对应文件 | `2026-10-09` |
 

@@ -37,6 +37,7 @@ const files = [
   'src/utils/playHistory/merge.ts',
   'src/utils/playHistory/range.ts',
   'src/utils/playHistory/chartMode.ts',
+  'src/utils/playHistory/statsPageStyle.ts',
   'src/utils/playHistory/chartLayout.ts',
   'src/utils/playHistory/backup.ts',
   'src/utils/playHistory/wire.ts',
@@ -116,6 +117,7 @@ const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
 const playChartMode = require(join(outDir, 'src/utils/playHistory/chartMode.js'))
+const playStatsPageStyle = require(join(outDir, 'src/utils/playHistory/statsPageStyle.js'))
 const playChartLayout = require(join(outDir, 'src/utils/playHistory/chartLayout.js'))
 const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
@@ -1128,6 +1130,15 @@ test('play history counting, rolling range, merge, and backup', () => {
   const savedBar = playChartMode.normalizeStatsChartMode('unexpected')
   assert.equal(playChartMode.normalizeStatsChartMode(JSON.parse(JSON.stringify(savedBar))), 'bar')
 
+  assert.equal(playStatsPageStyle.DEFAULT_STATS_PAGE_STYLE, 'magazine')
+  assert.equal(playStatsPageStyle.normalizeStatsPageStyle('magazine'), 'magazine')
+  assert.equal(playStatsPageStyle.normalizeStatsPageStyle('replay'), 'replay')
+  assert.equal(playStatsPageStyle.normalizeStatsPageStyle('nope'), 'magazine')
+  assert.equal(playStatsPageStyle.normalizeStatsPageStyle(null), 'magazine')
+  assert.deepEqual(playStatsPageStyle.STATS_PAGE_STYLES, ['magazine', 'replay'])
+  const savedReplay = playStatsPageStyle.normalizeStatsPageStyle('replay')
+  assert.equal(playStatsPageStyle.normalizeStatsPageStyle(JSON.parse(JSON.stringify(savedReplay))), 'replay')
+
   const shorter = record('dev', 10, 30_000)
   const longer = record('dev', 10, 80_000)
   const other = record('phone', 20, 40_000)
@@ -1882,7 +1893,7 @@ test('today chart retains 32 minutes, displays short listens, and positions slot
   }
 })
 
-test('all today slot labels and the current non-six-hour slot remain visible in every language even with no plays', () => {
+test('today axis labels keep 0/6/12/18 ticks, highlight the current slot, and stay localized', () => {
   const now = new Date(2026, 9, 9, 20, 16).getTime()
   const buckets = playRange.buildTodayHourlyBuckets([], now)
   const expectedHours = Array.from({ length: 12 }, (_, index) => index * 2)
@@ -1890,11 +1901,17 @@ test('all today slot labels and the current non-six-hour slot remain visible in 
   for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
     const translate = chartTestTranslate(locale)
     const labels = buckets.map(bucket => playChartLayout.statsBucketLabel(bucket, 'today', translate))
-    assert.equal(labels.every(label => label.show && label.text.length > 0), true, locale)
-    assert.deepEqual(labels.map(label => label.text), expectedHours.map(hour => translate('stats_hour_label', { hour })), locale)
+    assert.deepEqual(labels.map(label => label.show), expectedHours.map(hour => hour % 6 == 0), locale)
+    assert.deepEqual(
+      labels.filter(label => label.show).map(label => label.text),
+      [0, 6, 12, 18].map(hour => translate('stats_hour_label', { hour })),
+      locale,
+    )
     assert.equal(labels.filter(label => label.highlight).length, 1, locale)
     assert.equal(labels[10].highlight, true, locale)
+    assert.equal(labels[10].show, false, locale)
     assert.equal(translate('stats_minute_less_than_one'), '<1', locale)
+    assert.equal(translate('stats_hour_end').length > 0, true, locale)
   }
 })
 
@@ -1924,7 +1941,8 @@ test('bar and line modes share finite geometry across all ranges, singleton and 
         assert.ok(point.x >= 0 && point.x <= geometry.width)
         assert.ok(point.height >= 0 && point.height <= 118)
         const label = playChartLayout.statsBucketLabel(point.bucket, scenario.range, chartTestTranslate('en-us'))
-        if (point.bucket.isCurrent) assert.equal(label.show && label.highlight, true)
+        if (point.bucket.isCurrent) assert.equal(label.highlight, true)
+        if (point.bucket.kind == 'hour2' && point.bucket.hour % 6 == 0) assert.equal(label.show, true)
       }
       if (lastGeometry) assert.deepEqual(geometry, lastGeometry)
       lastGeometry = geometry

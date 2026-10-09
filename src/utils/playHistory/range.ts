@@ -332,20 +332,20 @@ export const buildRangeStats = (records: readonly PlayRecord[], range: PlayRange
     }
   }
 
-  const rankedSongs = [...songs.values()].sort((a, b) => b.playCount - a.playCount || b.listenedMs - a.listenedMs || a.song.name.localeCompare(b.song.name))
+  const rankedSongs = [...songs.values()].sort((a, b) => b.listenedMs - a.listenedMs || b.playCount - a.playCount || a.song.name.localeCompare(b.song.name))
   for (const artist of artists.values()) {
     let bestImg: string | undefined
-    let bestCount = -1
+    let bestMs = -1
     for (const song of rankedSongs) {
       if (!artistNames(song.song.singer).includes(artist.name) || !song.song.img) continue
-      if (song.playCount > bestCount) {
-        bestCount = song.playCount
+      if (song.listenedMs > bestMs) {
+        bestMs = song.listenedMs
         bestImg = song.song.img
       }
     }
     if (bestImg) artist.fallbackImg = bestImg
   }
-  const rankedArtists = [...artists.values()].sort((a, b) => b.playCount - a.playCount || b.listenedMs - a.listenedMs || a.name.localeCompare(b.name))
+  const rankedArtists = [...artists.values()].sort((a, b) => b.listenedMs - a.listenedMs || b.playCount - a.playCount || a.name.localeCompare(b.name))
 
   return {
     bounds,

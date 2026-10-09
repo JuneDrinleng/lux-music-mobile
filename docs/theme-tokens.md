@@ -47,6 +47,9 @@
 - `src/components/player/PlayerBar/index.tsx`
 - `src/components/playlist/PlaylistDetailHeader.tsx`
 - `src/components/stats/ListeningStatsPage.tsx`
+- `src/components/stats/ListeningStatsMagazine.tsx`
+- `src/components/stats/ListeningStatsReplay.tsx`
+- `src/components/stats/ArtistFace.tsx`
 - `src/components/playlist/PlaylistDetailOverlay.tsx`
 - `src/components/playlist/PlaylistDetailScene.tsx`
 - `src/components/playlist/PlaylistDetailSongItem.tsx`
