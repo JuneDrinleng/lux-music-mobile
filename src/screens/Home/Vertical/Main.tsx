@@ -120,10 +120,9 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  // Hide SharedTopBar whenever playlist detail is open so the detail header's
-  // back button is the only top-left control (including HomeTab → detail).
+  // Home owns MagTopBar (scrolls with content). Hide SharedTopBar on home and
+  // whenever playlist detail is open so the detail header is the only top control.
   const sharedTopBarVisible = !searchPageVisible && !detailCovering && (
-    activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
   )
