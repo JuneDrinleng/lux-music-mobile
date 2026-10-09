@@ -417,6 +417,7 @@
   "stats_compare_label_days7": "較前 7 天",
   "stats_compare_label_month": "較上月",
   "stats_compare_label_year": "較去年",
+  "stats_compare_label_year_same_period": "較去年同期",
   "stats_compare_flat": "持平",
   "stats_daily_avg": "日均 {duration}",
   "stats_daily_avg_prefix": "日均 ",

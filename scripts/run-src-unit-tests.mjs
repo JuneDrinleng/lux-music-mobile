@@ -2155,6 +2155,8 @@ test('compact MagSegmented keeps short visual height, auto flexBasis, and ≥44 
   assert.equal(layout.cellFlex.flexGrow, 0)
   assert.equal(layout.cellFlex.flexShrink, 0)
   assert.equal(layout.cellFlex.flexBasis, 'auto')
+  // flex:1 leaves flexBasis:0 — composing it with compact overrides still collapsed labels on device.
+  assert.notEqual(layout.cellFlex.flexBasis, 0)
   assert.ok(magSegmentedLayout.magSegmentedCompactHitHeight() >= 44)
   assert.ok(layout.paddingHorizontal >= 8 && layout.paddingHorizontal <= 12)
   assert.ok(layout.labelSize >= 12 && layout.labelSize <= 13)

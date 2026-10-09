@@ -417,6 +417,7 @@
   "stats_compare_label_days7": "vs previous 7 days",
   "stats_compare_label_month": "vs last month",
   "stats_compare_label_year": "vs last year",
+  "stats_compare_label_year_same_period": "vs same period last year",
   "stats_compare_flat": "No change",
   "stats_daily_avg": "avg {duration}",
   "stats_daily_avg_prefix": "avg ",
