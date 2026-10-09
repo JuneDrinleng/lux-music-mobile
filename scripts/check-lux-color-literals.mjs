@@ -18,6 +18,7 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/components/magazine/Hairline.tsx',
   'src/components/magazine/MagDialog.tsx',
   'src/components/magazine/MagMenu.tsx',
+  'src/components/magazine/MagSegmented.tsx',
   'src/components/magazine/MagSlider.tsx',
   'src/components/magazine/MagTopBar.tsx',
   'src/components/magazine/MagazineSheet.tsx',

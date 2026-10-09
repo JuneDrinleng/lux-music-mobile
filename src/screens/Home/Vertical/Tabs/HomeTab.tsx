@@ -2,7 +2,7 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
@@ -10,11 +10,12 @@ import {
   DeltaPill,
   EmptyState,
   Hairline,
+  MagSegmented,
   MagTopBar,
   RankedRow,
   SectionHeader,
+  SkeletonRow,
   TextButton,
-  TextTabs,
 } from '@/components/magazine'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import { weekdayKey } from '@/components/stats/statsShared'
@@ -294,21 +295,6 @@ const useYesterdayListenedMinutes = (): number => {
 
 // ---------- Animation utilities ----------
 
-const usePulseAnim = (): Animated.Value => {
-  const anim = useRef(new Animated.Value(0.45)).current
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: 0.9, duration: 780, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.45, duration: 780, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    )
-    loop.start()
-    return () => { loop.stop() }
-  }, [anim])
-  return anim
-}
-
 const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
   const anim = useRef(new Animated.Value(0)).current
   useEffect(() => {
@@ -328,48 +314,6 @@ const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
     </Animated.View>
   )
 })
-
-const SKELETON_TEXT_WIDTHS = [
-  { title: '65%', sub: '44%' },
-  { title: '52%', sub: '36%' },
-  { title: '68%', sub: '48%' },
-  { title: '58%', sub: '40%' },
-  { title: '62%', sub: '38%' },
-] as const
-const SkeletonTextRows = memo(({ pulse }: { pulse: Animated.Value }) => {
-  const skeletonStyles = useSkeletonStyles()
-  return (
-  <>
-    {SKELETON_TEXT_WIDTHS.map((w, i) => (
-      <View key={i} style={skeletonStyles.textRow}>
-        <Animated.View style={[skeletonStyles.rankNum, { opacity: pulse }]} />
-        <Animated.View style={[skeletonStyles.cover, { opacity: pulse }]} />
-        <View style={skeletonStyles.info}>
-          <Animated.View style={[skeletonStyles.line, { width: w.title, marginBottom: 6, opacity: pulse }]} />
-          <Animated.View style={[skeletonStyles.lineSm, { width: w.sub, opacity: pulse }]} />
-        </View>
-      </View>
-    ))}
-  </>
-  )
-})
-
-const SkeletonTitle = memo(({ pulse }: { pulse: Animated.Value }) => {
-  const skeletonStyles = useSkeletonStyles()
-  return (
-  <Animated.View style={[skeletonStyles.title, { opacity: pulse }]} />
-  )
-})
-
-const useSkeletonStyles = sharedLuxStyles((colors: LuxColors) => ({
-  textRow: { minHeight: 64, flexDirection: 'row' as const, alignItems: 'center' as const, paddingVertical: 12 },
-  cover: { width: COVER_LIST, height: COVER_LIST, borderRadius: 6, backgroundColor: colors.surface.skeleton, marginLeft: 4 },
-  info: { flex: 1, marginLeft: 12, marginRight: 12 },
-  line: { height: 13, borderRadius: 6, backgroundColor: colors.surface.skeleton },
-  lineSm: { height: 11, borderRadius: 6, backgroundColor: colors.surface.skeleton },
-  rankNum: { width: 26, height: 18, borderRadius: 4, backgroundColor: colors.surface.skeleton },
-  title: { height: 22, width: '55%' as const, borderRadius: 6, backgroundColor: colors.surface.skeleton },
-}))
 
 // ---------- AllContent ----------
 interface AllContentProps {
@@ -495,6 +439,14 @@ interface LbContentProps {
   activeFilter: LbFilterId
 }
 
+const ChartRowSkeleton = memo(({ count = LB_PREVIEW_LIMIT }: { count?: number }) => (
+  <View>
+    {Array.from({ length: count }, (_, index) => (
+      <SkeletonRow key={index} last={index === count - 1} />
+    ))}
+  </View>
+))
+
 const LbContent = memo(({
   lbAllData,
   activeFilter,
@@ -503,7 +455,6 @@ const LbContent = memo(({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const t = useI18n()
-  const pulse = usePulseAnim()
   const handleLbPlay = useCallback((boardId: string, songs: LX.Music.MusicInfoOnline[], index: number) => {
     void handleLbPlayAction(boardId, songs, index)
   }, [])
@@ -523,7 +474,7 @@ const LbContent = memo(({
 
   return (
     <View>
-      {leaderboardState.sources.map(src => {
+      {leaderboardState.sources.map((src, sourceIndex) => {
         const srcData = lbAllData[activeFilter]?.[src]
         const boardId = srcData?.boardId ?? ''
         const boardName = srcData?.boardName ?? ''
@@ -533,15 +484,18 @@ const LbContent = memo(({
         const showSongSkeleton = settledFilter !== activeFilter || showLoading
         const sourceLabel = t(`source_real_${src}`)
         const boardMeta = t('home_board_meta', { source: sourceLabel })
+        const firstSection = sourceIndex === 0
 
         return (
           <View key={src} style={styles.lbSourceSection}>
-            {showLoading
+            {showSongSkeleton
               ? (
-                <View>
-                  <Hairline style={styles.sectionRule} />
-                  <SkeletonTitle pulse={pulse} />
-                </View>
+                <>
+                  {!firstSection
+                    ? <SectionHeader title={boardName || '—'} showRule />
+                    : null}
+                  <ChartRowSkeleton />
+                </>
                 )
               : (
                 <>
@@ -549,31 +503,27 @@ const LbContent = memo(({
                     title={boardName || '—'}
                     linkLabel={t('home_action_see_all_arrow')}
                     onLinkPress={() => { handleViewAll(src, boardId, boardName) }}
+                    showRule={!firstSection}
                   />
                   <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.boardMeta}>{boardMeta}</Text>
+                  <ContentReveal key={`${src}-${activeFilter}`}>
+                    {songs.length
+                      ? songs.map((song, index) => (
+                        <RankedRow
+                          key={song.id}
+                          rank={index + 1}
+                          title={song.name}
+                          subtitle={song.singer}
+                          coverUri={pickMusicCover(song)}
+                          last={index === songs.length - 1}
+                          onPress={() => { handleLbPlay(boardId, srcData?.songs ?? songs, index) }}
+                          trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
+                        />
+                      ))
+                      : <EmptyState title={t('home_charts_empty')} />}
+                  </ContentReveal>
                 </>
                 )}
-
-            {showSongSkeleton
-              ? <View style={styles.lbSpinnerArea}>
-                  <ActivityIndicator size="large" color={r.quiet} />
-                </View>
-              : <ContentReveal key={`${src}-${activeFilter}`}>
-                  {songs.length
-                    ? songs.map((song, index) => (
-                      <RankedRow
-                        key={song.id}
-                        rank={index + 1}
-                        title={song.name}
-                        subtitle={song.singer}
-                        coverUri={pickMusicCover(song)}
-                        last={index === songs.length - 1}
-                        onPress={() => { handleLbPlay(boardId, srcData?.songs ?? songs, index) }}
-                        trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
-                      />
-                    ))
-                    : <EmptyState title={t('home_charts_empty')} />}
-                </ContentReveal>}
           </View>
         )
       })}
@@ -597,7 +547,6 @@ const OtherContent = memo(({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const t = useI18n()
-  const pulse = usePulseAnim()
   const handleLbPlay = useCallback((boardId: string, songs: LX.Music.MusicInfoOnline[], index: number) => {
     void handleLbPlayAction(boardId, songs, index)
   }, [])
@@ -609,11 +558,6 @@ const OtherContent = memo(({
   const [isSwitching, setIsSwitching] = useState(true)
   const switchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevSourceRef = useRef(selectedOtherSource)
-
-  const sourceTabs = useMemo(() => leaderboardState.sources.map(src => ({
-    id: src,
-    label: SOURCE_SHORT_LABELS[src] ?? src,
-  })), [])
 
   useEffect(() => {
     switchTimerRef.current = setTimeout(() => {
@@ -636,91 +580,102 @@ const OtherContent = memo(({
     }, 200)
   }, [selectedOtherSource])
 
+  const handleSourcePress = useCallback((src: LX.OnlineSource) => {
+    if (src === selectedOtherSource) return
+    setIsSwitching(true)
+    if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
+    switchTimerRef.current = setTimeout(() => {
+      setIsSwitching(false)
+      switchTimerRef.current = null
+    }, 400)
+    onSourceChange(src)
+  }, [onSourceChange, selectedOtherSource])
+
+  const srcState = lbOtherData[selectedOtherSource]
+  const srcBoards = !srcState || (srcState.loading && !srcState.entries.length) ? undefined : srcState.entries
+  const showBoardSkeleton = isSwitching || !srcBoards
+
   return (
     <View>
-      <TextTabs
-        items={sourceTabs}
-        value={selectedOtherSource}
-        onChange={(id) => {
-          const src = id as LX.OnlineSource
-          if (src === selectedOtherSource) return
-          setIsSwitching(true)
-          if (switchTimerRef.current) clearTimeout(switchTimerRef.current)
-          switchTimerRef.current = setTimeout(() => {
-            setIsSwitching(false)
-            switchTimerRef.current = null
-          }, 400)
-          onSourceChange(src)
-        }}
-        small
-        scroll
-        style={styles.sourceTabs}
-      />
-      {(() => {
-        const srcState = lbOtherData[selectedOtherSource]
-        const srcBoards = !srcState || (srcState.loading && !srcState.entries.length) ? undefined : srcState.entries
+      <View style={styles.sourceLine} accessibilityRole="tablist">
+        <Text size={13} color={r.muted} style={styles.sourceLabel}>{t('home_source_label')}</Text>
+        <View style={styles.sourceOptions}>
+          {leaderboardState.sources.map((src, index) => {
+            const selected = src === selectedOtherSource
+            const label = SOURCE_SHORT_LABELS[src] ?? src
+            return (
+              <View key={src} style={styles.sourceOptionWrap}>
+                {index > 0
+                  ? <Text size={13} color={r.quiet} style={styles.sourceSlash}>{' / '}</Text>
+                  : null}
+                <TouchableOpacity
+                  style={styles.sourceOption}
+                  activeOpacity={0.7}
+                  onPress={() => { handleSourcePress(src) }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                >
+                  {selected ? <View style={styles.sourceDot} /> : null}
+                  <Text
+                    size={13}
+                    color={r.ink}
+                    style={selected ? styles.sourceOptionOn : styles.sourceOptionOff}
+                  >{label}</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          })}
+        </View>
+      </View>
 
-        if (isSwitching || !srcBoards) {
-          return (
-            <View style={styles.spinnerContainer}>
-              <ActivityIndicator size="large" color={r.quiet} />
-            </View>
-          )
-        }
-        if (!srcBoards.length) {
-          return <EmptyState title={t('home_charts_empty')} />
-        }
-        return (
-          <ContentReveal key={selectedOtherSource}>
-            {srcBoards.map(entry => {
-              const { boardId, boardName, songs: allSongs, loading } = entry
-              const songs = allSongs.slice(0, LB_PREVIEW_LIMIT)
-              const showLoading = loading && !songs.length
-              const boardMeta = t('home_board_meta', { source: t(`source_real_${selectedOtherSource}`) })
-              return (
-            <View key={boardId} style={styles.lbSourceSection}>
-              {showLoading
-                ? (
-                  <View>
-                    <Hairline style={styles.sectionRule} />
-                    <SkeletonTitle pulse={pulse} />
+      {showBoardSkeleton
+        ? <ChartRowSkeleton />
+        : !srcBoards.length
+            ? <EmptyState title={t('home_charts_empty')} />
+            : (
+            <ContentReveal key={selectedOtherSource}>
+              {srcBoards.map((entry, boardIndex) => {
+                const { boardId, boardName, songs: allSongs, loading } = entry
+                const songs = allSongs.slice(0, LB_PREVIEW_LIMIT)
+                const showLoading = loading && !songs.length
+                const boardMeta = t('home_board_meta', { source: t(`source_real_${selectedOtherSource}`) })
+                const firstSection = boardIndex === 0
+                return (
+                  <View key={boardId} style={styles.lbSourceSection}>
+                    {showLoading
+                      ? <ChartRowSkeleton />
+                      : (
+                        <>
+                          <SectionHeader
+                            title={boardName || '—'}
+                            linkLabel={t('home_action_see_all_arrow')}
+                            onLinkPress={() => { handleViewAll(selectedOtherSource, boardId, boardName) }}
+                            showRule={!firstSection}
+                          />
+                          <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.boardMeta}>{boardMeta}</Text>
+                          <ContentReveal key={boardId}>
+                            {songs.length
+                              ? songs.map((song, index) => (
+                                <RankedRow
+                                  key={song.id}
+                                  rank={index + 1}
+                                  title={song.name}
+                                  subtitle={song.singer}
+                                  coverUri={pickMusicCover(song)}
+                                  last={index === songs.length - 1}
+                                  onPress={() => { handleLbPlay(boardId, allSongs, index) }}
+                                  trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
+                                />
+                              ))
+                              : <EmptyState title={t('home_charts_empty')} />}
+                          </ContentReveal>
+                        </>
+                        )}
                   </View>
-                  )
-                : (
-                  <>
-                    <SectionHeader
-                      title={boardName || '—'}
-                      linkLabel={t('home_action_see_all_arrow')}
-                      onLinkPress={() => { handleViewAll(selectedOtherSource, boardId, boardName) }}
-                    />
-                    <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.boardMeta}>{boardMeta}</Text>
-                  </>
-                  )}
-
-              {showLoading
-                ? <SkeletonTextRows pulse={pulse} />
-                : <ContentReveal key={boardId}>
-                    {songs.length
-                      ? songs.map((song, index) => (
-                        <RankedRow
-                          key={song.id}
-                          rank={index + 1}
-                          title={song.name}
-                          subtitle={song.singer}
-                          coverUri={pickMusicCover(song)}
-                          last={index === songs.length - 1}
-                          onPress={() => { handleLbPlay(boardId, allSongs, index) }}
-                          trailing={<MdiIcon name="dots-vertical" size={20} color={r.quiet} />}
-                        />
-                      ))
-                      : <EmptyState title={t('home_charts_empty')} />}
-                  </ContentReveal>}
-            </View>
-              )
-            })}
-          </ContentReveal>
-        )
-      })()}
+                )
+              })}
+            </ContentReveal>
+              )}
     </View>
   )
 })
@@ -1342,12 +1297,11 @@ export default memo(() => {
           </Text>
         </View>
 
-        <TextTabs
+        <MagSegmented
           items={filterTabs}
           value={activeFilter}
           onChange={handleFilterChange}
-          scroll
-          style={styles.filterTabs}
+          style={styles.filterSegmented}
         />
 
         <View>
@@ -1424,9 +1378,50 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => {
     metaText: {
       fontWeight: '600',
     },
-    filterTabs: {
+    filterSegmented: {
       marginTop: TABS_AFTER_EYEBROW,
-      marginBottom: 22,
+      marginBottom: 14,
+    },
+    sourceLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 12,
+      gap: 8,
+    },
+    sourceLabel: {
+      fontWeight: '600',
+    },
+    sourceOptions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      flexShrink: 1,
+    },
+    sourceOptionWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    sourceSlash: {
+      fontWeight: '400',
+    },
+    sourceOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+    },
+    sourceDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: r.accent,
+    },
+    sourceOptionOn: {
+      fontWeight: '800',
+    },
+    sourceOptionOff: {
+      fontWeight: '600',
     },
     discoverKicker: {
       fontWeight: '700',
@@ -1503,31 +1498,14 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    sourceTabs: {
-      marginBottom: 8,
-    },
     lbSourceSection: {
       marginBottom: 8,
-    },
-    sectionRule: {
-      marginTop: 34,
-      marginBottom: 12,
     },
     boardMeta: {
       fontWeight: '600',
       letterSpacing: 1,
       marginTop: 4,
       marginBottom: 2,
-    },
-    spinnerContainer: {
-      minHeight: 200,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-    },
-    lbSpinnerArea: {
-      minHeight: 160,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
     },
   })
 })
