@@ -89,15 +89,22 @@ export const usePlaylistImport = ({
     })
   }, [])
 
-  const handleToggleSelectAllImportSongs = useCallback(() => {
-    if (!importCandidates.length) return
-    setImportSelectedMap(() => {
-      if (areAllImportSongsSelected) return {}
-      const next: Record<string, true> = {}
-      for (const candidate of importCandidates) next[candidate.id] = true
+  const handleToggleSelectAllImportSongs = useCallback((visibleIds?: string[]) => {
+    const targets = visibleIds?.length
+      ? visibleIds
+      : importCandidates.map(candidate => candidate.id)
+    if (!targets.length) return
+    setImportSelectedMap((prev) => {
+      const allVisibleSelected = targets.every(id => prev[id])
+      const next = { ...prev }
+      if (allVisibleSelected) {
+        for (const id of targets) delete next[id]
+      } else {
+        for (const id of targets) next[id] = true
+      }
       return next
     })
-  }, [areAllImportSongsSelected, importCandidates])
+  }, [importCandidates])
 
   const handleImportSelectedSongs = useCallback(async() => {
     if (!selectedListId || importSubmitting) return

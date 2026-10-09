@@ -19,7 +19,6 @@ import {
   MagMenu,
   MagSegmented,
   MagTopBar,
-  SectionHeader,
 } from '@/components/magazine'
 import { MAG_SEGMENTED_COMPACT } from '@/components/magazine/magSegmentedLayout'
 import PlaylistLibraryCard, { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
@@ -70,6 +69,8 @@ export interface PlaylistLibrarySceneProps {
   onPlayPlaylistPress: (listId: string | null | undefined) => (event: GestureResponderEvent) => void
   onCreateList: (value: string) => Promise<boolean>
 }
+
+const TOOLBAR_VISUAL_H = 30
 
 export default ({
   t,
@@ -150,29 +151,6 @@ export default ({
     })
   }, [])
 
-  /** Visual ~34pt pill; hitSlop expands the touch target to ≥44. */
-  const createPill = (
-    <TouchableOpacity
-      activeOpacity={0.75}
-      onPress={onShowCreateListModal}
-      accessibilityRole="button"
-      accessibilityLabel={t('me_create_new')}
-      hitSlop={{ top: 5, bottom: 5, left: 6, right: 6 }}
-      style={{
-        height: 34,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        backgroundColor: r.ink,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text size={13} color={r.onInk} style={{ fontWeight: '800' }}>
-        {t('library_create_new')}
-      </Text>
-    </TouchableOpacity>
-  )
-
   return (
     <View style={{ flex: 1, backgroundColor: r.paper }} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
       <ScrollView
@@ -213,24 +191,26 @@ export default ({
         {quickActionsRow}
 
         <View ref={playlistSectionRef} onLayout={onPlaylistSectionLayout} style={{ marginTop: 16 }}>
-          <SectionHeader
-            title={t('me_my_playlists')}
-            trailing={createPill}
-            showRule={false}
-          />
+          <Text
+            size={magType.section.size}
+            color={r.display}
+            style={{ fontWeight: '800', letterSpacing: -0.3 }}
+          >
+            {t('me_my_playlists')}
+          </Text>
           <Text
             size={magType.sectionMeta.size}
             color={r.eyebrow}
-            style={{ fontWeight: '600', letterSpacing: 1, marginTop: 6, marginBottom: 10 }}
+            style={{ fontWeight: '600', letterSpacing: 1, marginTop: 6, marginBottom: 12 }}
           >
             {sectionMeta}
           </Text>
 
+          {/* Row: [宫格|列表] left · 排序 + ＋新建 right — shared centerline ~28–32. */}
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            minHeight: 44,
             marginBottom: 12,
             gap: 10,
           }}>
@@ -257,26 +237,48 @@ export default ({
                 </>
               )}
             />
-            <TouchableOpacity
-              ref={sortAnchorRef}
-              activeOpacity={0.7}
-              onPress={openSortMenu}
-              accessibilityRole="button"
-              accessibilityLabel={t('library_sort_trigger', { sort: sortShortLabel })}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              style={{
-                justifyContent: 'center',
-                paddingHorizontal: 4,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 2,
-              }}
-            >
-              <Text size={13} color={r.ink} style={{ fontWeight: '700' }}>
-                {t('library_sort_trigger', { sort: sortShortLabel })}
-              </Text>
-              <MdiIcon name="chevron-down" size={18} color={r.ink} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity
+                ref={sortAnchorRef}
+                activeOpacity={0.7}
+                onPress={openSortMenu}
+                accessibilityRole="button"
+                accessibilityLabel={t('library_sort_trigger', { sort: sortShortLabel })}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                style={{
+                  height: TOOLBAR_VISUAL_H,
+                  justifyContent: 'center',
+                  paddingHorizontal: 2,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <Text size={13} color={r.ink} style={{ fontWeight: '700' }}>
+                  {t('library_sort_trigger', { sort: sortShortLabel })}
+                </Text>
+                <MdiIcon name="chevron-down" size={18} color={r.ink} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={onShowCreateListModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('me_create_new')}
+                hitSlop={{ top: 7, bottom: 7, left: 6, right: 6 }}
+                style={{
+                  height: TOOLBAR_VISUAL_H,
+                  paddingHorizontal: 12,
+                  borderRadius: 999,
+                  backgroundColor: r.ink,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text size={13} color={r.onInk} style={{ fontWeight: '800' }}>
+                  {t('library_create_new')}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={isPlaylistListMode

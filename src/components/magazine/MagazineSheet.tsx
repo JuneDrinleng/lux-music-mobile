@@ -4,7 +4,9 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import {
   Animated,
   Easing,
+  Keyboard,
   Modal,
+  Platform,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -48,6 +50,8 @@ export interface MagazineSheetProps {
   meta?: string
   figure?: { value: string, unit?: string }
   headerAction?: { text: string, tone?: 'ink' | 'danger', disabled?: boolean, onPress: () => void }
+  /** Rendered above the meta / action tool row (e.g. import search). */
+  toolExtra?: ReactNode
   subject?: ReactNode
   sectionLabel?: string
   /** FlatList / custom list body. Prefer this over nesting scrollables. */
@@ -138,6 +142,10 @@ const useStyles = sharedLuxStyles((colors) => {
       opacity: 0.9,
       marginTop: 8,
     },
+    toolExtra: {
+      marginTop: 10,
+      marginBottom: 2,
+    },
     toolRow: {
       minHeight: 40,
       flexDirection: 'row',
@@ -207,6 +215,7 @@ export const MagazineSheet = memo(({
   meta,
   figure,
   headerAction,
+  toolExtra,
   subject,
   sectionLabel,
   children,
@@ -219,10 +228,35 @@ export const MagazineSheet = memo(({
   const r = magazineRoles(colors)
   const t = useI18n()
   const { height: winH } = useWindowDimensions()
-  const panelH = useMemo(() => Math.floor(winH * heightRatio), [winH, heightRatio])
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const panelH = useMemo(() => {
+    const base = Math.floor(winH * heightRatio)
+    if (keyboardHeight <= 0) return base
+    // Keep the sheet above the keyboard without covering the footer / list badly.
+    return Math.max(Math.floor(winH * 0.42), base - keyboardHeight)
+  }, [winH, heightRatio, keyboardHeight])
   const anim = useRef(new Animated.Value(0)).current
   const [mounted, setMounted] = useState(visible)
   const closingRef = useRef(false)
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0)
+      return
+    }
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0)
+    })
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0)
+    })
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [visible])
 
   useEffect(() => {
     if (visible) {
@@ -308,6 +342,9 @@ export const MagazineSheet = memo(({
                   )
                 : null}
             <View style={styles.toolRule} />
+            {toolExtra
+              ? <View style={styles.toolExtra}>{toolExtra}</View>
+              : null}
             <View style={styles.toolRow}>
               <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
               {headerAction

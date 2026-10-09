@@ -2,7 +2,7 @@
 
 // Lux Proprietary
 import { memo, useEffect, useRef, useState } from 'react'
-import { Animated, Easing, View } from 'react-native'
+import { Animated, Easing, Image, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { MagLoadingBar } from '@/components/magazine'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -13,6 +13,7 @@ import { useI18n } from '@/lang'
 import { storageDataPrefix } from '@/config/constant'
 import { getData } from '@/plugins/storage'
 import { getSyncHost } from '@/plugins/sync/data'
+import appIcon from '../../../assets/img/ic_launcher.png'
 
 let launchSyncHint = false
 const appVersion = process.versions?.app ?? '0.3.1'
@@ -50,9 +51,7 @@ export default memo(() => {
   return (
     <View style={[styles.container, { backgroundColor: r.paper }]}>
       <View style={styles.main}>
-        <View style={[styles.mark, { backgroundColor: r.ink }]}>
-          <Text size={30} color={r.accent} style={styles.markLetter}>L</Text>
-        </View>
+        <Image source={appIcon} style={styles.mark} accessibilityIgnoresInvertColors />
         <Text size={magType.h1.size} color={r.display} style={styles.title}>Lux{'\n'}Music</Text>
         <Text
           size={magType.eyebrow.size}
@@ -97,12 +96,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
     width: 56,
     height: 56,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 22,
-  },
-  markLetter: {
-    fontWeight: '800',
   },
   title: {
     fontWeight: '800',

@@ -20,8 +20,7 @@ import { createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
-import SeekBar from './components/SeekBar'
-import { PLAYER_ICON_TAP } from './PlayerChrome'
+import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
 
 export default ({ active }: { active: boolean }) => {
   const styles = useLuxStyles()
@@ -196,34 +195,32 @@ export default ({ active }: { active: boolean }) => {
         onScrollToIndexFailed={() => {}}
       />
 
-      <View style={[styles.bottomPanel, { backgroundColor: r.paper }]}>
-        <SeekBar progress={progress} duration={maxPlayTime} />
-        <View style={styles.timeRow}>
-          <Text size={11} color={r.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
-          <Text size={11} color={r.faint} style={styles.timeText}>{maxPlayTimeStr}</Text>
-        </View>
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
-            <Icon name={playModeIcon} rawSize={22} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
-            <Icon name="prevMusic" rawSize={26} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.playBtn, { backgroundColor: r.ink }]}
-            activeOpacity={0.85}
-            onPress={togglePlay}
-          >
-            <Icon name={isPlay ? 'pause' : 'play'} rawSize={26} color={r.onInk} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
-            <Icon name="nextMusic" rawSize={26} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleShowMusicAddModal}>
-            <MdiIcon name="playlist-plus" size={24} color={r.ink} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <PlayerTransport
+        progress={progress}
+        duration={maxPlayTime}
+        nowPlayTimeStr={nowPlayTimeStr}
+        maxPlayTimeStr={maxPlayTimeStr}
+      >
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
+          <Icon name={playModeIcon} rawSize={22} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
+          <Icon name="prevMusic" rawSize={26} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.playBtn, { backgroundColor: r.ink }]}
+          activeOpacity={0.85}
+          onPress={togglePlay}
+        >
+          <Icon name={isPlay ? 'pause' : 'play'} rawSize={26} color={r.onInk} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
+          <Icon name="nextMusic" rawSize={26} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleShowMusicAddModal}>
+          <MdiIcon name="playlist-plus" size={24} color={r.ink} />
+        </TouchableOpacity>
+      </PlayerTransport>
       <MusicAddModal ref={musicAddModalRef} />
     </View>
   )
@@ -291,36 +288,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     marginTop: 40,
     textAlign: 'center',
   },
-  bottomPanel: {
-    paddingHorizontal: PAGE_GUTTER,
-    paddingTop: 8,
-    paddingBottom: 18,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  timeText: {
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  iconBtn: {
-    width: PLAYER_ICON_TAP,
-    height: PLAYER_ICON_TAP,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  iconBtn: playerTransportControlStyles.iconBtn,
+  playBtn: playerTransportControlStyles.playBtn,
 })))

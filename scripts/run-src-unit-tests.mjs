@@ -34,6 +34,7 @@ const files = [
   'src/utils/cacheLimitSteps.ts',
   'src/utils/formatMinutes.ts',
   'src/components/magazine/magSegmentedLayout.ts',
+  'src/components/stats/replayPalette.ts',
   'src/utils/playHistory/types.ts',
   'src/utils/playHistory/threshold.ts',
   'src/utils/playHistory/session.ts',
@@ -118,6 +119,7 @@ const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
 const formatMinutesMod = require(join(outDir, 'src/utils/formatMinutes.js'))
 const magSegmentedLayout = require(join(outDir, 'src/components/magazine/magSegmentedLayout.js'))
+const replayPalette = require(join(outDir, 'src/components/stats/replayPalette.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
@@ -2155,9 +2157,41 @@ test('compact MagSegmented keeps short visual height, auto flexBasis, and ≥44 
   assert.equal(layout.cellFlex.flexGrow, 0)
   assert.equal(layout.cellFlex.flexShrink, 0)
   assert.equal(layout.cellFlex.flexBasis, 'auto')
+  // flex:1 leaves flexBasis:0 — composing it with compact overrides still collapsed labels on device.
+  assert.notEqual(layout.cellFlex.flexBasis, 0)
   assert.ok(magSegmentedLayout.magSegmentedCompactHitHeight() >= 44)
   assert.ok(layout.paddingHorizontal >= 8 && layout.paddingHorizontal <= 12)
   assert.ok(layout.labelSize >= 12 && layout.labelSize <= 13)
+})
+
+test('replay P2 palette mixes paper/accentSoft/accent and keeps text contrast', () => {
+  // Warm oat_milk reference tokens from approved preview P2 (not product literals).
+  const roles = {
+    paper: '#f6f1ea',
+    accentSoft: '#f0d5b8',
+    accent: '#a65d28',
+    ink: '#1a1c1e',
+    display: '#16181f',
+    onInk: '#fdf8f2',
+    onAccent: '#ffffff',
+    muted: '#767d89',
+    eyebrow: '#838995',
+    faint: '#9ca3af',
+    quiet: '#6b7280',
+    hairline: '#e1e6ef',
+  }
+  const order = ['cover', 'topSong', 'topArtist', 'topLists', 'timeOfDay', 'rhythm', 'sources', 'closing']
+  const expected = ['#f6f1ea', '#f5eade', '#f3e3d1', '#f2dcc5', '#f0d5b8', '#dab18d', '#c48d62', '#a65d28']
+  const bgs = []
+  for (let i = 0; i < order.length; i++) {
+    const palette = replayPalette.resolveReplayBlockPalette(roles, order[i])
+    bgs.push(palette.bg.toLowerCase())
+    assert.ok(colorMath.contrastRatio(palette.display, palette.bg) >= 4.5, order[i] + ' display')
+    assert.ok(colorMath.contrastRatio(palette.muted, palette.bg) >= 4.5, order[i] + ' muted')
+  }
+  assert.deepEqual(bgs, expected)
+  assert.equal(replayPalette.buildSeamStops('#f6f1ea', '#f5eade').length, 9)
+  assert.equal(replayPalette.seamEase(0.5), 0.5)
 })
 
 test('migrated screens reject new color literals', () => {

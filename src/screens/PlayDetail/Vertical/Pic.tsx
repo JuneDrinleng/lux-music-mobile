@@ -18,13 +18,11 @@ import { useMyList } from '@/store/list/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { useWindowSize } from '@/utils/hooks'
-import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
-import SeekBar from './components/SeekBar'
-import { PLAYER_ICON_TAP } from './PlayerChrome'
+import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
 
 const TONEARM_OUT_ANGLE = '18deg'
 const TONEARM_IN_ANGLE = '-2deg'
@@ -32,16 +30,12 @@ const TONEARM_PIVOT_X = 104
 const TONEARM_PIVOT_Y = 15
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
-/** Controls sit above safe-area + this design padding. */
-const PLAYER_BOTTOM_PAD = 24
-/** Non-record content reservation (eyebrow / title / lyrics / progress / controls + min gaps). */
+/** Non-record content above the pinned transport (eyebrow / title / lyrics + min gaps). */
 const PLAYER_RESERVED_ABOVE = 38
 const PLAYER_RESERVED_TITLE = 90
 const PLAYER_RESERVED_LYRIC = 48 + 14
-const PLAYER_RESERVED_PROGRESS = 40
-const PLAYER_RESERVED_CONTROLS = 56
-/** Min flex gaps always present: after record / title / progress. */
-const PLAYER_RESERVED_GAPS = 30 + 18 + 10
+/** Min flex gaps: after record / title / lyric. */
+const PLAYER_RESERVED_GAPS = 30 + 18 + 14
 const PLAYER_DISC_MIN = 200
 
 const sourceShortKey = (source: string): keyof Message => {
@@ -84,10 +78,8 @@ export default ({ active }: { componentId: string, active: boolean }) => {
   const [currentCover, setCurrentCover] = useState(musicInfo.pic)
   const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const [isLoved, setIsLoved] = useState(false)
-  const [pageHeight, setPageHeight] = useState(0)
+  const [scrollHeight, setScrollHeight] = useState(0)
   const winSize = useWindowSize()
-  const bottomInset = useSystemGestureInsetBottom()
-  const bottomPad = bottomInset + PLAYER_BOTTOM_PAD
 
   const currentLyric = lyricLines[line]?.text ?? ''
   const nextLyric = lyricLines[line + 1]?.text ?? ''
@@ -97,14 +89,12 @@ export default ({ active }: { componentId: string, active: boolean }) => {
     const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
     const reservedBelow = PLAYER_RESERVED_TITLE +
       (hasLyricPreview ? PLAYER_RESERVED_LYRIC : 0) +
-      PLAYER_RESERVED_PROGRESS +
-      PLAYER_RESERVED_CONTROLS +
       PLAYER_RESERVED_GAPS
-    const heightBased = pageHeight > 0
-      ? pageHeight - bottomPad - PLAYER_RESERVED_ABOVE - reservedBelow
+    const heightBased = scrollHeight > 0
+      ? scrollHeight - PLAYER_RESERVED_ABOVE - reservedBelow
       : widthBased
     return Math.max(PLAYER_DISC_MIN, Math.min(widthBased, heightBased))
-  }, [bottomPad, hasLyricPreview, pageHeight, winSize.width])
+  }, [hasLyricPreview, scrollHeight, winSize.width])
 
   const source = getMusicSource(playMusicInfo.musicInfo)
   const sourceLabel = source && source !== 'local' ? t(sourceShortKey(source)) : ''
@@ -353,18 +343,16 @@ export default ({ active }: { componentId: string, active: boolean }) => {
   }, [togglePlayMethod])
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: r.paper }]}
-      onLayout={(event) => {
-        const next = event.nativeEvent.layout.height
-        if (next > 0 && next !== pageHeight) setPageHeight(next)
-      }}
-    >
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        onLayout={(event) => {
+          const next = event.nativeEvent.layout.height
+          if (next > 0 && next !== scrollHeight) setScrollHeight(next)
+        }}
       >
         <Text
           size={magType.eyebrow.size}
@@ -510,40 +498,35 @@ export default ({ active }: { componentId: string, active: boolean }) => {
               <View style={styles.flexGapLyric} />
             </>
             )
-          : null}
-
-        <View>
-          <SeekBar progress={progress} duration={maxPlayTime} />
-          <View style={styles.timeRow}>
-            <Text size={11} color={r.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
-            <Text size={11} color={r.faint} style={styles.timeText}>{maxPlayTimeStr}</Text>
-          </View>
-        </View>
-
-        <View style={styles.flexGapProgress} />
-
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
-            <Icon name={playModeIcon} rawSize={22} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
-            <Icon name="prevMusic" rawSize={28} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.playBtn, { backgroundColor: r.ink }]}
-            activeOpacity={0.85}
-            onPress={handleTogglePlay}
-          >
-            <Icon name={isPlay ? 'pause' : 'play'} rawSize={28} color={r.onInk} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
-            <Icon name="nextMusic" rawSize={28} color={r.ink} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
-            <MdiIcon name="playlist-music" size={24} color={r.ink} />
-          </TouchableOpacity>
-        </View>
+          : <View style={styles.flexGapLyric} />}
       </ScrollView>
+
+      <PlayerTransport
+        progress={progress}
+        duration={maxPlayTime}
+        nowPlayTimeStr={nowPlayTimeStr}
+        maxPlayTimeStr={maxPlayTimeStr}
+      >
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
+          <Icon name={playModeIcon} rawSize={22} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
+          <Icon name="prevMusic" rawSize={28} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.playBtn, { backgroundColor: r.ink }]}
+          activeOpacity={0.85}
+          onPress={handleTogglePlay}
+        >
+          <Icon name={isPlay ? 'pause' : 'play'} rawSize={28} color={r.onInk} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
+          <Icon name="nextMusic" rawSize={28} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
+          <MdiIcon name="playlist-music" size={24} color={r.ink} />
+        </TouchableOpacity>
+      </PlayerTransport>
       <MusicAddModal ref={musicAddModalRef} />
     </View>
   )
@@ -586,11 +569,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     flexGrow: 1,
     flexShrink: 0,
     minHeight: 14,
-  },
-  flexGapProgress: {
-    flexGrow: 1,
-    flexShrink: 0,
-    minHeight: 10,
   },
   recordWrap: {
     alignSelf: 'center',
@@ -726,12 +704,8 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     letterSpacing: -0.8,
     textAlign: 'left',
   },
-  iconBtn: {
-    width: PLAYER_ICON_TAP,
-    height: PLAYER_ICON_TAP,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  iconBtn: playerTransportControlStyles.iconBtn,
+  playBtn: playerTransportControlStyles.playBtn,
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -761,27 +735,5 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   lyricNext: {
     fontWeight: '400',
-  },
-  timeRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  timeText: {
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
-  },
-  playBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 })))

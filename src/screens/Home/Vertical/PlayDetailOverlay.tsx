@@ -93,6 +93,7 @@ export default memo(
             <PlayDetail
               componentId={componentId}
               onClose={hidePlayDetail}
+              visible={isVisible}
             />
           ) : null}
         </Animated.View>

@@ -20,8 +20,11 @@ const PAGE_IDS: PlayerPageId[] = ['comment', 'play', 'lyric']
 
 export default memo(({
   componentId,
+  active = true,
 }: {
   componentId: string
+  /** When the overlay re-opens from the mini bar, force the vinyl (play) page. */
+  active?: boolean
 }) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
@@ -35,6 +38,7 @@ export default memo(({
   const [commentRefreshKey, setCommentRefreshKey] = useState(0)
   const showLyricRef = useRef(false)
   const pagerViewRef = useRef<PagerView>(null)
+  const wasActiveRef = useRef(active)
 
   const pageId = PAGE_IDS[pageIndex] ?? 'play'
 
@@ -45,6 +49,19 @@ export default memo(({
   const setPage = useCallback((index: number) => {
     pagerViewRef.current?.setPage(index)
   }, [])
+
+  const resetToPlayPage = useCallback(() => {
+    setPageIndex(1)
+    showLyricRef.current = false
+    screenUnkeepAwake()
+    pagerViewRef.current?.setPageWithoutAnimation(1)
+  }, [])
+
+  // Mini-bar / overlay open: always land on the vinyl player page.
+  useEffect(() => {
+    if (active && !wasActiveRef.current) resetToPlayPage()
+    wasActiveRef.current = active
+  }, [active, resetToPlayPage])
 
   const handlePageChange = useCallback((id: PlayerPageId) => {
     const index = PAGE_IDS.indexOf(id)
@@ -87,6 +104,7 @@ export default memo(({
 
     return () => {
       appstateListener.remove()
+      showLyricRef.current = false
       screenUnkeepAwake()
     }
   }, [])
