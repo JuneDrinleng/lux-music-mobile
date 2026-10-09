@@ -29,7 +29,7 @@ import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import { useDays7ListenedMinutes, useTodayListenedMinutes } from '@/components/stats/useTodayListening'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
-import { StatusChip } from '@/components/magazine'
+import { DOCK_BASE_HEIGHT as BOTTOM_DOCK_BASE_HEIGHT, StatusChip } from '@/components/magazine'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { usePlaylistCardDrag } from '@/components/playlist/hooks/usePlaylistCardDrag'
@@ -67,7 +67,6 @@ import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBott
 import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
 const SOURCE_MENU_PANEL_WIDTH = 156
 const SOURCE_MENU_ROW_HEIGHT = 44
 const SOURCE_MENU_EXPAND_DURATION = 132

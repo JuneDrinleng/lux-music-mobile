@@ -1,22 +1,36 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useCallback, useEffect, useState } from 'react'
-import { BackHandler, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
-import Input from '@/components/common/Input'
+import { BackHandler, ScrollView, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import StatusBar from '@/components/common/StatusBar'
 import Text from '@/components/common/Text'
+import {
+  PrimaryButton,
+  TextButton,
+  TextTabs,
+  UnderlineInput,
+} from '@/components/magazine'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { updateSetting } from '@/core/common'
 import { navigations } from '@/navigation'
 import { useI18n } from '@/lang'
-import { useTheme } from '@/store/theme/hook'
-import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
+import { useStatusbarHeight } from '@/store/common/hook'
 import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, getSyncHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
 export default memo(() => {
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
-  const theme = useTheme()
+  const statusBarHeight = useStatusbarHeight()
   const [mode, setMode] = useState<LX.Sync.Mode>('lux')
   const [syncHost, setSyncHostLocal] = useState('')
   const [authCode, setAuthCode] = useState('')
@@ -114,7 +128,7 @@ export default memo(() => {
   const isLuxMode = mode == 'lux'
 
   return (
-    <View style={[styles.container, { backgroundColor: theme['c-content-background'] }]}>
+    <View style={[styles.container, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
       <StatusBar />
       <ScrollView
         style={styles.scroll}
@@ -122,201 +136,153 @@ export default memo(() => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text size={28} style={styles.title}>{t('sync_login_title')}</Text>
-          <Text size={14} color={theme['c-500']} style={styles.subtitle}>{t('sync_login_subtitle')}</Text>
-          <View style={styles.languageSwitch}>
-            <LanguageSwitch />
-          </View>
+        <View style={styles.topRow}>
+          <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow}>{t('sync_login_welcome_eyebrow')}</Text>
+          <LanguageSwitch />
         </View>
 
-        <View style={styles.modeRow}>
-          <TouchableOpacity
-            style={[
-              styles.modeCard,
-              { backgroundColor: theme['c-main-background'], borderColor: isLuxMode ? theme['c-primary'] : theme['c-border-background'] },
-            ]}
-            activeOpacity={0.82}
-            onPress={() => { handleSelectMode('lux') }}
-          >
-            <Text size={16} style={styles.modeTitle} color={isLuxMode ? theme['c-primary'] : theme['c-font']}>lux music</Text>
-            <Text size={12} color={theme['c-500']} style={styles.modeDesc}>{t('sync_login_lux_desc')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.modeCard,
-              { backgroundColor: theme['c-main-background'], borderColor: !isLuxMode ? theme['c-primary'] : theme['c-border-background'] },
-            ]}
-            activeOpacity={0.82}
-            onPress={() => { handleSelectMode('lx') }}
-          >
-            <Text size={16} style={styles.modeTitle} color={!isLuxMode ? theme['c-primary'] : theme['c-font']}>lx music</Text>
-            <Text size={12} color={theme['c-500']} style={styles.modeDesc}>{t('sync_login_lx_desc')}</Text>
-          </TouchableOpacity>
-        </View>
+        <Text size={magType.h2.size} color={r.display} style={styles.title}>{t('sync_login_title')}</Text>
+        <Text size={15} color={r.muted} style={styles.subtitle}>{t('sync_login_subtitle')}</Text>
 
-        <View style={[styles.formCard, { backgroundColor: theme['c-main-background'], borderColor: theme['c-border-background'] }]}>
-          <Text size={13} color={theme['c-500']} style={styles.fieldLabel}>{t('setting_sync_host_label')}</Text>
-          <Input
+        <TextTabs
+          style={styles.tabs}
+          value={mode}
+          onChange={(id) => { handleSelectMode(id as LX.Sync.Mode) }}
+          items={[
+            { id: 'lux', label: t('sync_login_tab_lux') },
+            { id: 'lx', label: t('sync_login_tab_lx') },
+          ]}
+        />
+
+        <Text size={13} color={r.muted} style={styles.formLead}>
+          {isLuxMode ? t('sync_login_lux_desc') : t('sync_login_lx_desc')}
+        </Text>
+
+        <View style={styles.fields}>
+          <UnderlineInput
+            label={t('setting_sync_host_label')}
             placeholder={t('setting_sync_host_value_tip')}
             value={syncHost}
             onChangeText={setSyncHostLocal}
-            style={[styles.input, { backgroundColor: theme['c-primary-background'] }]}
             inputMode="url"
             autoCapitalize="none"
           />
-
           {isLuxMode
             ? <>
-                <Text size={13} color={theme['c-500']} style={styles.fieldLabel}>{t('sync_login_lux_account_label')}</Text>
-                <Input
+                <UnderlineInput
+                  label={t('sync_login_lux_account_label')}
                   placeholder={t('setting_sync_lux_username')}
                   value={luxUsername}
                   onChangeText={setLuxUsername}
-                  style={[styles.input, { backgroundColor: theme['c-primary-background'] }]}
                   autoCapitalize="none"
                 />
-                <Input
+                <UnderlineInput
+                  label={t('setting_sync_lux_password')}
                   placeholder={t('setting_sync_lux_password')}
                   value={luxPassword}
                   onChangeText={setLuxPassword}
-                  style={[styles.input, { backgroundColor: theme['c-primary-background'] }]}
                   secureTextEntry
                 />
               </>
             : <>
-                <Text size={13} color={theme['c-500']} style={styles.fieldLabel}>{t('setting_sync_code_label')}</Text>
-                <Input
+                <UnderlineInput
+                  label={t('setting_sync_code_label')}
                   placeholder={t('setting_sync_code_input_tip')}
                   value={authCode}
                   onChangeText={setAuthCode}
-                  style={[styles.input, { backgroundColor: theme['c-primary-background'] }]}
                 />
-                <Text size={12} color={theme['c-500']} style={styles.lxHint}>{t('sync_login_lx_code_hint')}</Text>
+                <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_code_hint')}</Text>
               </>}
+        </View>
 
-          {message ? <Text size={13} color="#ef4444" style={styles.message}>{message}</Text> : null}
+        {message ? <Text size={13} color={r.danger} style={styles.message}>{message}</Text> : null}
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              { backgroundColor: theme['c-primary'] },
-              (pressed || submitting) && { opacity: 0.72 },
-            ]}
+        <PrimaryButton
+          label={submitting ? t('sync_login_submitting') : (isLuxMode ? t('sync_login_lux_submit') : t('sync_login_lx_submit'))}
+          onPress={() => { void handleSubmit() }}
+          disabled={submitting}
+          style={styles.primary}
+        />
+        <View style={styles.skipWrap}>
+          <TextButton
+            label={t('sync_login_skip')}
+            onPress={() => { void handleUseWithoutSync() }}
+            muted
             disabled={submitting}
-            onPress={handleSubmit}
-          >
-            <Text size={16} color="#fff" style={styles.primaryButtonText}>
-              {submitting ? t('sync_login_submitting') : isLuxMode ? t('sync_login_lux_submit') : t('sync_login_lx_submit')}
-            </Text>
-          </Pressable>
+          />
+        </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.skipButton,
-              { borderColor: theme['c-border-background'] },
-              pressed && { opacity: 0.72 },
-            ]}
-            disabled={submitting}
-            onPress={handleUseWithoutSync}
-          >
-            <Text size={15} color={theme['c-600']} style={styles.skipButtonText}>{t('sync_login_skip')}</Text>
-          </Pressable>
+        <View style={styles.note}>
+          <MdiIcon name="information-outline" size={16} color={r.quiet} />
+          <Text size={12} color={r.muted} style={styles.noteText}>{t('sync_login_skip_note')}</Text>
         </View>
       </ScrollView>
     </View>
   )
 })
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
+const useStyles = sharedLuxStyles(() => createStyle({
+  container: { flex: 1 },
+  scroll: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: scaleSizeW(22),
-    paddingVertical: scaleSizeH(28),
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 10,
+    paddingBottom: 36,
   },
-  header: {
-    marginBottom: scaleSizeH(24),
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+  },
+  eyebrow: {
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   title: {
-    fontWeight: '700',
-    marginBottom: scaleSizeH(8),
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    marginBottom: 8,
   },
   subtitle: {
-    lineHeight: 20,
+    lineHeight: 22,
   },
-  languageSwitch: {
-    marginTop: scaleSizeH(18),
+  tabs: {
+    marginTop: 22,
   },
-  modeRow: {
-    flexDirection: 'row',
-    marginHorizontal: scaleSizeW(-5),
-    marginBottom: scaleSizeH(14),
+  formLead: {
+    marginTop: 18,
+    lineHeight: 19,
+    marginBottom: 8,
   },
-  modeCard: {
-    flex: 1,
-    minHeight: scaleSizeH(92),
-    borderWidth: 1,
-    borderRadius: scaleSizeW(16),
-    paddingHorizontal: scaleSizeW(14),
-    paddingVertical: scaleSizeH(13),
-    marginHorizontal: scaleSizeW(5),
-  },
-  modeTitle: {
-    fontWeight: '700',
-    marginBottom: scaleSizeH(8),
-  },
-  modeDesc: {
-    lineHeight: 18,
-  },
-  formCard: {
-    borderWidth: 1,
-    borderRadius: scaleSizeW(18),
-    paddingHorizontal: scaleSizeW(16),
-    paddingTop: scaleSizeH(18),
-    paddingBottom: scaleSizeH(16),
-  },
-  fieldLabel: {
-    marginBottom: scaleSizeH(8),
-    marginTop: scaleSizeH(12),
-  },
-  input: {
-    minHeight: scaleSizeH(42),
-    borderRadius: scaleSizeW(12),
+  fields: {
+    gap: 18,
   },
   lxHint: {
     lineHeight: 18,
-    marginTop: scaleSizeH(8),
+    marginTop: -6,
   },
   message: {
     lineHeight: 19,
-    marginTop: scaleSizeH(14),
+    marginTop: 14,
   },
-  primaryButton: {
-    height: scaleSizeH(48),
-    borderRadius: scaleSizeW(13),
+  primary: {
+    marginTop: 24,
+  },
+  skipWrap: {
+    marginTop: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: scaleSizeH(18),
   },
-  primaryButtonText: {
-    fontWeight: '700',
+  note: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    marginTop: 28,
   },
-  skipButton: {
-    height: scaleSizeH(46),
-    borderRadius: scaleSizeW(13),
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: scaleSizeH(10),
+  noteText: {
+    flex: 1,
+    lineHeight: 18,
   },
-  skipButtonText: {
-    fontWeight: '600',
-  },
-})
+}))

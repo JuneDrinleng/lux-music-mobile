@@ -7,6 +7,7 @@ import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
+  DOCK_BASE_HEIGHT as BOTTOM_DOCK_BASE_HEIGHT,
   DeltaPill,
   EmptyState,
   Hairline,
@@ -57,7 +58,6 @@ import {
   magType,
 } from '@/theme/magazineType'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
 const OTHER_BOARD_PAGE_SIZE = 4
 const OTHER_BOARD_DETAIL_CONCURRENCY = 2
 const COVER_PREWARM_LIMIT = 6

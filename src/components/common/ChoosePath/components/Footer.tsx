@@ -1,45 +1,58 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { memo } from 'react'
-import { View, StyleSheet } from 'react-native'
-import Button from '@/components/common/Button'
-import Text from '@/components/common/Text'
-import { useTheme } from '@/store/theme/hook'
+import { View } from 'react-native'
+import { PrimaryButton, SecondaryButton } from '@/components/magazine'
 import { useI18n } from '@/lang'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
 
 export default memo(({ onConfirm, onHide, dirOnly }: {
   onConfirm: () => void
   onHide: () => void
   dirOnly: boolean
 }) => {
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
-  const theme = useTheme()
 
   return (
-    <View style={{ ...styles.footer, backgroundColor: theme['c-content-background'] }}>
-      <Button style={{ ...styles.footerBtn, width: dirOnly ? '50%' : '100%' }} onPress={onHide}>
-        <Text color={theme['c-button-font']}>{t('cancel')}</Text>
-      </Button>
+    <View style={[styles.footer, { backgroundColor: r.paper }]}>
+      <SecondaryButton
+        label={t('cancel')}
+        onPress={onHide}
+        style={dirOnly ? styles.btn : styles.full}
+      />
       {dirOnly
-        ? <Button style={styles.footerBtn} onPress={onConfirm}>
-            <Text color={theme['c-button-font']}>{t('confirm')}</Text>
-          </Button>
-        : null
-      }
+        ? (
+          <PrimaryButton
+            label={t('choose_path_save_here')}
+            onPress={onConfirm}
+            style={styles.btn}
+          />
+          )
+        : null}
     </View>
   )
 })
 
-const styles = StyleSheet.create({
+const useStyles = sharedLuxStyles(() => createStyle({
   footer: {
     flexGrow: 0,
     flexShrink: 0,
     flexDirection: 'row',
-    // borderTopWidth: BorderWidths.normal,
-    elevation: 8,
+    gap: 10,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 12,
+    paddingBottom: 22,
   },
-  footerBtn: {
-    width: '50%',
-    paddingTop: 16,
-    paddingBottom: 16,
-    alignItems: 'center',
+  btn: {
+    flex: 1,
   },
-})
+  full: {
+    flex: 1,
+  },
+}))

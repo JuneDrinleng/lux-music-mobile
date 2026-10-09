@@ -11,6 +11,7 @@ import { createStyle } from '@/utils/tools'
 
 import { PrimaryButton } from './PrimaryButton'
 import { SecondaryButton } from './SecondaryButton'
+import { TextButton } from './TextButton'
 
 const useStyles = sharedLuxStyles((colors) => {
   const r = magazineRoles(colors)
@@ -59,42 +60,176 @@ const useStyles = sharedLuxStyles((colors) => {
     actionHalf: {
       flex: 1,
     },
+    extraWrap: {
+      marginTop: 10,
+      alignItems: 'center',
+    },
   })
+})
+
+const DialogCard = memo(({
+  eyebrow,
+  eyebrowDanger = false,
+  title,
+  message,
+  children,
+  cancelLabel,
+  confirmLabel,
+  extraLabel,
+  onCancel,
+  onConfirm,
+  onExtra,
+  onClose,
+  confirmDisabled = false,
+  confirmDanger = false,
+}: {
+  eyebrow?: string
+  eyebrowDanger?: boolean
+  title: string
+  message?: string
+  children?: ReactNode
+  cancelLabel?: string
+  confirmLabel?: string
+  extraLabel?: string
+  onCancel?: () => void
+  onConfirm?: () => void
+  onExtra?: () => void
+  onClose: () => void
+  confirmDisabled?: boolean
+  confirmDanger?: boolean
+}) => {
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  return (
+    <View style={styles.card}>
+      <View style={styles.inkBar} />
+      {eyebrow
+        ? (
+          <Text
+            size={magType.eyebrow.size}
+            color={eyebrowDanger ? r.danger : r.eyebrow}
+            style={styles.eyebrow}
+          >{eyebrow}</Text>
+          )
+        : null}
+      {title
+        ? <Text size={magType.dialogTitle.size} color={r.display} style={styles.title}>{title}</Text>
+        : null}
+      {message
+        ? <Text size={14} color={r.muted} style={styles.message}>{message}</Text>
+        : null}
+      {children ? <View style={styles.body}>{children}</View> : null}
+      {(cancelLabel != null || confirmLabel != null)
+        ? (
+          <View style={styles.actions}>
+            {cancelLabel
+              ? (
+                <SecondaryButton
+                  label={cancelLabel}
+                  onPress={onCancel ?? onClose}
+                  style={styles.actionHalf}
+                />
+                )
+              : null}
+            {confirmLabel
+              ? (
+                <PrimaryButton
+                  label={confirmLabel}
+                  onPress={onConfirm}
+                  disabled={confirmDisabled}
+                  danger={confirmDanger}
+                  style={styles.actionHalf}
+                />
+                )
+              : null}
+          </View>
+          )
+        : null}
+      {extraLabel
+        ? (
+          <View style={styles.extraWrap}>
+            <TextButton label={extraLabel} onPress={onExtra} muted />
+          </View>
+          )
+        : null}
+    </View>
+  )
 })
 
 export const MagDialog = memo(({
   visible,
   onClose,
   eyebrow,
+  eyebrowDanger = false,
   title,
   message,
   children,
   cancelLabel,
   confirmLabel,
+  extraLabel,
   onCancel,
   onConfirm,
+  onExtra,
   confirmDisabled = false,
   confirmDanger = false,
   bgHide = true,
+  embedded = false,
 }: {
   visible: boolean
   onClose: () => void
   eyebrow?: string
+  eyebrowDanger?: boolean
   title: string
   message?: string
   children?: ReactNode
   cancelLabel?: string
   confirmLabel?: string
+  extraLabel?: string
   onCancel?: () => void
   onConfirm?: () => void
+  onExtra?: () => void
   confirmDisabled?: boolean
   confirmDanger?: boolean
   bgHide?: boolean
+  /** Skip RN Modal when the parent is already an overlay screen. */
+  embedded?: boolean
 }) => {
   const styles = useStyles()
-  const { colors } = useLuxTheme()
-  const r = magazineRoles(colors)
   if (!visible) return null
+
+  const card = (
+    <DialogCard
+      eyebrow={eyebrow}
+      eyebrowDanger={eyebrowDanger}
+      title={title}
+      message={message}
+      cancelLabel={cancelLabel}
+      confirmLabel={confirmLabel}
+      extraLabel={extraLabel}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      onExtra={onExtra}
+      onClose={onClose}
+      confirmDisabled={confirmDisabled}
+      confirmDanger={confirmDanger}
+    >{children}</DialogCard>
+  )
+
+  if (embedded) {
+    return (
+      <TouchableOpacity
+        style={styles.root}
+        activeOpacity={1}
+        onPress={bgHide ? onClose : undefined}
+      >
+        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          {card}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    )
+  }
+
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <TouchableOpacity
@@ -103,43 +238,7 @@ export const MagDialog = memo(({
         onPress={bgHide ? onClose : undefined}
       >
         <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={styles.card}>
-            <View style={styles.inkBar} />
-            {eyebrow
-              ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow}>{eyebrow}</Text>
-              : null}
-            <Text size={magType.dialogTitle.size} color={r.display} style={styles.title}>{title}</Text>
-            {message
-              ? <Text size={14} color={r.muted} style={styles.message}>{message}</Text>
-              : null}
-            {children ? <View style={styles.body}>{children}</View> : null}
-            {(cancelLabel != null || confirmLabel != null)
-              ? (
-                <View style={styles.actions}>
-                  {cancelLabel
-                    ? (
-                      <SecondaryButton
-                        label={cancelLabel}
-                        onPress={onCancel ?? onClose}
-                        style={styles.actionHalf}
-                      />
-                      )
-                    : null}
-                  {confirmLabel
-                    ? (
-                      <PrimaryButton
-                        label={confirmLabel}
-                        onPress={onConfirm}
-                        disabled={confirmDisabled}
-                        danger={confirmDanger}
-                        style={styles.actionHalf}
-                      />
-                      )
-                    : null}
-                </View>
-                )
-              : null}
-          </View>
+          {card}
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
