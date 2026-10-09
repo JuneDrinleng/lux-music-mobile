@@ -788,6 +788,11 @@ test('cache limit sliders snap to the existing steps and never label zero as 0 M
     assert.equal(tick.includes('張'), false)
   }
 
+  assert.equal(cacheSteps.cacheStepRatio(3, 7), 0.5)
+  assert.equal(cacheSteps.cacheStepRatio(1, 5), 0.25)
+  assert.equal(cacheSteps.cacheStepRatio(0, 7), 0)
+  assert.equal(cacheSteps.cacheStepRatio(6, 7), 1)
+  assert.equal(cacheSteps.cacheStepRatio(4, 5), 1)
   assert.equal(cacheSteps.nearestCacheStepIndex(0, 7), 0)
   assert.equal(cacheSteps.nearestCacheStepIndex(1, 7), 6)
   assert.equal(cacheSteps.nearestCacheStepIndex(0.5, 7), 3)
@@ -824,9 +829,12 @@ test('cache limit sliders snap to the existing steps and never label zero as 0 M
   assert.match(en.setting_cache_image_count, /\{count\}/)
   for (const id of lux.LUX_THEME_IDS) {
     const colors = lux.luxThemeRegistry[id].colors
-    assert.ok(colorMath.contrastRatio(colors.ink.pill, colors.accent.soft) >= 4.5, id + ' chip')
-    assert.notEqual(colors.accent.primary.toLowerCase(), colors.surface.playerTrack.toLowerCase(), id + ' track')
-    assert.notEqual(colors.bg.plain.toLowerCase(), colors.accent.primary.toLowerCase(), id + ' thumb')
+    assert.ok(colorMath.contrastRatio(colors.ink.chipActive, colors.accent.soft) >= 4.5, id + ' chip')
+    assert.notEqual(colors.accent.primary.toLowerCase(), colors.line.divider.toLowerCase(), id + ' track')
+    assert.notEqual(colors.line.white.toLowerCase(), colors.accent.primary.toLowerCase(), id + ' thumb')
+    if (id === 'ink_night') {
+      assert.notEqual(colors.line.white.toLowerCase(), colors.surface.card.toLowerCase(), id + ' thumb on card')
+    }
   }
 })
 

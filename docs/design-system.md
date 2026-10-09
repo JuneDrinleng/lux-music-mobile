@@ -224,11 +224,11 @@
 
 需要输入的编辑（昵称、签名、同步地址）用居中白卡片：最大宽 360、圆角 24、标题 17。取消是灰底 `#f1f4fb`，确定是 `#c8e600` 底、`#111827` 字。同一结构也在 `src/components/common/PromptDialog.tsx`。
 
-缓存子页（`ResourceCacheSection.tsx`）沿用选项行：一行容量，一行清理。音频缓存上限和图片缓存上限不再展开成单选。两行仍保留紫色图标圆和标题；标题右侧用 `accent.soft` 胶囊显示当前档，下面是满宽滑条。已滑过的轨道用 `accent.primary`，其余用 `surface.playerTrack`，拇指是 `bg.plain` 填色、`accent.primary` 描边。刻度只落在原来的档位上，当前刻度加粗。松手才写入 `player.cacheSize`（MB，0 显示为「关闭」，不写「0 MB」）和 `player.imageCacheCount`（胶囊带「张」，刻度只写数字）。
+缓存子页（`ResourceCacheSection.tsx`）整页是一张白卡片：`surface.card`、圆角 18、`overflow: hidden`，阴影用白卡片那档（`shadow.card`、透明度 0.08、半径 16、偏移 `(0, 8)`、`elevation: 3`）。卡片里仍是选项行，没有第二级标题。一行容量，一行清理；音频缓存、清理音频缓存、图片缓存、清理图片缓存、本地歌曲都还在原位，本地歌曲在卡片底部。带图标的行最小高 60、上下 10、左右 18；图标圆 40、圆角 20、`iconWrap.purple`、右边距 14。标题 15 / 700 / 行高 20 / `ink.list`，副标题 12 / 行高 16 / `ink.secondary`。没有图标的行最小高 58、上下 12、左右 18。说明行字号 12、行高 18。分割线高 1、`line.divider`；普通行左右各缩进 18，图标行（含两条上限）后面的分割线左边缩进 72、右边 18。音频缓存上限和图片缓存上限不再展开成单选。标题行最小高 52、内边距上 8、左右 18、下 2。同一行右侧胶囊高 24、左右 10、全圆角，底色 `accent.soft`，字色 `ink.chipActive`、字号 12、字重 700。滑条区内边距上 4、左右 18、下 14。轨道槽高 28，轨道高 4、圆角 2，未滑过的部分用 `line.divider`，已滑过的用 `accent.primary`。拇指 22×22、圆角 11，填色 `line.white`（浅色为白，墨夜为近白），描边 2.5、`accent.primary`，阴影 `shadow.ink`、透明度 0.12、半径 6、偏移 `(0, 2)`。拇指中心和填充宽度落在档位 `i / (n - 1)`。刻度在轨道下，上边距 6、左右 2；每一档 `flex: 1`，第一档左对齐，最后一档右对齐，中间居中。刻度字号 10、行高 13、`ink.secondary`，当前档 `ink.list`、字重 700。拖动时拇指连续移动，胶囊和加粗刻度吸附到档位；松手才写入 `player.cacheSize`（MB，0 显示为「关闭」，不写「0 MB」；1024 显示为「1GB」）和 `player.imageCacheCount`（胶囊带「张」，刻度只写数字）。
 
 ### 关于版本更新
 
-设置里的版本子页按三个分组标题组织。页面大标题仍是「关于版本更新」（22 / 700 / `#1a1c1e`，`profileDetailTitle`）。分组标题用区块标题这一级（18 / 700 / `#111827`），样式复用 `SettingsTab` 的 `cardTitle`，左缘与 `optionDetailRow` 一样缩进 18。不要用设置主页的 11 号灰色 `sectionEyebrow`，否则会比版本号和日志分类更弱。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`。行、分割线和圆点复用 `SettingsTab` 的子页样式。缓存管理、语言这些二级页没有第二级标题，也没有白色圆角分组卡片；这一页有三组，所以只加了区块标题，分组本身仍是 `#eef0fb` 上的 `sectionCard` / `sectionGroup`。
+设置里的版本子页按三个分组标题组织。页面大标题仍是「关于版本更新」（22 / 700 / `#1a1c1e`，`profileDetailTitle`）。分组标题用区块标题这一级（18 / 700 / `#111827`），样式复用 `SettingsTab` 的 `cardTitle`，左缘与 `optionDetailRow` 一样缩进 18。不要用设置主页的 11 号灰色 `sectionEyebrow`，否则会比版本号和日志分类更弱。实现文件是 `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`。行、分割线和圆点复用 `SettingsTab` 的子页样式。语言这类二级页没有第二级标题，也没有白色圆角分组卡片。缓存管理整页是一张白卡片，见上文。关于版本更新这一页有三组，所以只加了区块标题，分组本身仍是 `#eef0fb` 上的 `sectionCard` / `sectionGroup`。
 
 1. **当前版本信息**：版本号是 15 / 700 / `#20242d`（`groupRowTitle`，与缓存行同一级），通道名和发布日期是 13 / `#767d89`。
 2. **更新通道**：稳定版 / 开发版两行单选，选中项右侧 `#c8e600` 圆点。
