@@ -5,12 +5,18 @@ import { AppState, View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import Lyric from './Lyric'
 import Pic from './Pic'
+import { PlayerChrome, type PlayerPageId } from './PlayerChrome'
 import Comment from '@/screens/Comment'
-import { createStyle } from '@/utils/tools'
+import { usePlayDetailClose } from '../context'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
-import { sharedLuxStyles } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { shareMusic, createStyle } from '@/utils/tools'
+import { usePlayMusicInfo } from '@/store/player/hook'
+import { useSettingValue } from '@/store/setting/hook'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+
+const PAGE_IDS: PlayerPageId[] = ['comment', 'play', 'lyric']
 
 export default memo(({
   componentId,
@@ -18,23 +24,40 @@ export default memo(({
   componentId: string
 }) => {
   const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const closePlayDetail = usePlayDetailClose()
+  const playMusicInfo = usePlayMusicInfo()
+  const shareType = useSettingValue('common.shareType')
+  const downloadFileName = useSettingValue('download.fileName')
 
   const [pageIndex, setPageIndex] = useState(1)
   const [commentRefreshKey, setCommentRefreshKey] = useState(0)
   const showLyricRef = useRef(false)
   const pagerViewRef = useRef<PagerView>(null)
 
+  const pageId = PAGE_IDS[pageIndex] ?? 'play'
+
   const triggerCommentRefresh = useCallback(() => {
     setCommentRefreshKey(k => k + 1)
   }, [])
 
-  const onCommentBack = useCallback(() => {
-    pagerViewRef.current?.setPage(1)
+  const setPage = useCallback((index: number) => {
+    pagerViewRef.current?.setPage(index)
   }, [])
 
-  const onPicCommentPress = useCallback(() => {
-    pagerViewRef.current?.setPage(0)
-  }, [])
+  const handlePageChange = useCallback((id: PlayerPageId) => {
+    const index = PAGE_IDS.indexOf(id)
+    if (index < 0 || index === pageIndex) return
+    setPage(index)
+  }, [pageIndex, setPage])
+
+  const handleShare = useCallback(() => {
+    const currentMusicInfo = playMusicInfo.musicInfo
+    if (!currentMusicInfo) return
+    const targetMusicInfo = 'progress' in currentMusicInfo ? currentMusicInfo.metadata.musicInfo : currentMusicInfo
+    shareMusic(shareType, downloadFileName, targetMusicInfo)
+  }, [downloadFileName, playMusicInfo.musicInfo, shareType])
 
   const onPageSelected = ({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     const position = nativeEvent.position
@@ -47,11 +70,11 @@ export default memo(({
 
   useBackHandler(useCallback(() => {
     if (pageIndex === 0) {
-      pagerViewRef.current?.setPage(1)
+      setPage(1)
       return true
     }
     return false
-  }, [pageIndex]))
+  }, [pageIndex, setPage]))
 
   useEffect(() => {
     const appstateListener = AppState.addEventListener('change', state => {
@@ -69,15 +92,21 @@ export default memo(({
   }, [])
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
+      <PlayerChrome
+        page={pageId}
+        onPageChange={handlePageChange}
+        onBack={closePlayDetail}
+        onShare={handleShare}
+      />
       <PagerView ref={pagerViewRef} initialPage={1} onPageSelected={onPageSelected} style={styles.pagerView}>
-        <View collapsable={false}>
-          <Comment embedded onBack={onCommentBack} refreshKey={commentRefreshKey} />
+        <View collapsable={false} style={styles.page}>
+          <Comment embedded hideChrome onBack={() => { setPage(1) }} refreshKey={commentRefreshKey} />
         </View>
-        <View collapsable={false}>
-          <Pic componentId={componentId} active={pageIndex === 1} onCommentPress={onPicCommentPress} />
+        <View collapsable={false} style={styles.page}>
+          <Pic componentId={componentId} active={pageIndex === 1} />
         </View>
-        <View collapsable={false}>
+        <View collapsable={false} style={styles.page}>
           <Lyric active={pageIndex === 2} />
         </View>
       </PagerView>
@@ -85,12 +114,14 @@ export default memo(({
   )
 })
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.plain,
   },
   pagerView: {
+    flex: 1,
+  },
+  page: {
     flex: 1,
   },
 })))

@@ -1,24 +1,27 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useMemo, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
-import { useTheme } from '@/store/theme/hook'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PLAYER_ICON_TAP } from '@/screens/PlayDetail/Vertical/PlayerChrome'
 
 const TEXT_LIMIT = 160
 const SUB_TEXT_LIMIT = TEXT_LIMIT * 1.2
-// const CHAR_RXP = /\n/g
 
 export default memo(({ text }: { text: string }) => {
   const [show, setShow] = useState(false)
-  const theme = useTheme()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
 
   const length = useMemo(() => {
-    // text.length + (text.match(CHAR_RXP)?.length ?? 0) * 40
     let count = 0
     let bCount = 0
     let subLength = 0
     for (let i = 0; i < text.length; i++) {
-      let char = text.charAt(i)
+      const char = text.charAt(i)
       if (char == '\n') {
         count += bCount * 24 + 20
         bCount++
@@ -36,26 +39,37 @@ export default memo(({ text }: { text: string }) => {
     length ? (
       <View>
         {
-          show ? <Text selectable style={styles.text}>{text}</Text>
-            : <Text selectable style={styles.text}>{text.substring(0, length)} <Text color={theme['c-font-label']}>……</Text></Text>
+          show
+            ? <Text selectable size={15} color={r.list} style={styles.text}>{text}</Text>
+            : (
+              <Text selectable size={15} color={r.list} style={styles.text}>
+                {text.substring(0, length)}{' '}
+                <Text size={15} color={r.faint}>……</Text>
+              </Text>
+              )
         }
         <TouchableOpacity style={styles.toggle} onPress={() => { setShow(!show) }}>
-          <Text color={theme['c-primary-font']}>{show ? global.i18n.t('comment_hide_text') : global.i18n.t('comment_show_text')}</Text>
+          <Text size={13} color={r.ink} style={styles.toggleText}>
+            {show ? global.i18n.t('comment_hide_text') : global.i18n.t('comment_show_text')}
+          </Text>
         </TouchableOpacity>
-
       </View>
-    ) : <Text selectable style={styles.text}>{text}</Text>
+    ) : <Text selectable size={15} color={r.list} style={styles.text}>{text}</Text>
   )
 })
 
 const styles = createStyle({
   text: {
-    marginTop: 5,
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 2,
+    lineHeight: 23,
   },
   toggle: {
-    marginTop: 15,
+    marginTop: 10,
+    minHeight: PLAYER_ICON_TAP,
+    justifyContent: 'center',
     alignSelf: 'flex-start',
+  },
+  toggleText: {
+    fontWeight: '700',
   },
 })

@@ -80,8 +80,15 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/screens/Home/Vertical/index.tsx',
   'src/screens/PlayDetail/Vertical/Lyric.tsx',
   'src/screens/PlayDetail/Vertical/Pic.tsx',
+  'src/screens/PlayDetail/Vertical/PlayerChrome.tsx',
+  'src/screens/PlayDetail/Vertical/components/SeekBar.tsx',
   'src/screens/PlayDetail/Vertical/coverTheme.ts',
   'src/screens/PlayDetail/Vertical/index.tsx',
+  'src/screens/Comment/index.tsx',
+  'src/screens/Comment/components/Header.tsx',
+  'src/screens/Comment/components/List.tsx',
+  'src/screens/Comment/components/CommentFloor.tsx',
+  'src/screens/Comment/components/CommentText.tsx',
   'src/utils/imagePresentation.ts',
 ]
 
