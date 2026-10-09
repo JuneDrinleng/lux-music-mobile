@@ -119,9 +119,9 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  // Home and Library own MagTopBar (scrolls with content). SharedTopBar only
-  // for Settings. Hide whenever search/detail overlays cover the pager.
-  const sharedTopBarVisible = !searchPageVisible && !detailCovering && activeNavId === 'nav_setting'
+  // Home, Library, and Settings own MagTopBar (scrolls with content). Legacy
+  // SharedTopBar settings search is retired; hide whenever overlays cover the pager.
+  const sharedTopBarVisible = false
 
   const handleCloseSearchPage = useCallback(() => {
     setSearchPageVisible(false)
