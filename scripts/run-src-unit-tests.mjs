@@ -33,6 +33,7 @@ const files = [
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
   'src/utils/formatMinutes.ts',
+  'src/components/magazine/magSegmentedLayout.ts',
   'src/utils/playHistory/types.ts',
   'src/utils/playHistory/threshold.ts',
   'src/utils/playHistory/session.ts',
@@ -116,6 +117,7 @@ const localCover = require(join(outDir, 'src/utils/localSongCoverMatch.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
 const formatMinutesMod = require(join(outDir, 'src/utils/formatMinutes.js'))
+const magSegmentedLayout = require(join(outDir, 'src/components/magazine/magSegmentedLayout.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
@@ -2144,6 +2146,18 @@ test('formatMinutes floors ms to whole minutes and formats with en-US grouping',
   assert.equal(formatMinutesMod.formatMinutes(1_240), '1,240')
   assert.equal(formatMinutesMod.formatMinutes(3_600_000, true), '60')
   assert.equal(formatMinutesMod.formatMinutes(74_400_000, true), '1,240')
+})
+
+test('compact MagSegmented keeps short visual height, auto flexBasis, and ≥44 hit area', () => {
+  const layout = magSegmentedLayout.MAG_SEGMENTED_COMPACT
+  assert.equal(layout.visualHeight >= 28 && layout.visualHeight <= 30, true)
+  assert.equal(layout.borderWidth, 1)
+  assert.equal(layout.cellFlex.flexGrow, 0)
+  assert.equal(layout.cellFlex.flexShrink, 0)
+  assert.equal(layout.cellFlex.flexBasis, 'auto')
+  assert.ok(magSegmentedLayout.magSegmentedCompactHitHeight() >= 44)
+  assert.ok(layout.paddingHorizontal >= 8 && layout.paddingHorizontal <= 12)
+  assert.ok(layout.labelSize >= 12 && layout.labelSize <= 13)
 })
 
 test('migrated screens reject new color literals', () => {

@@ -1,15 +1,11 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, type ReactNode } from 'react'
 import {
-  FlatList,
-  Pressable,
+  ScrollView,
   TouchableOpacity,
   View,
   useWindowDimensions,
-  type ListRenderItemInfo,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native'
 import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg'
 
@@ -83,8 +79,6 @@ const RADIAL_SIZE = 228
 const useStyles = sharedLuxStyles(() => (createStyle({
   root: { flex: 1 },
   chrome: { paddingHorizontal: PAGE_GUTTER },
-  progressRow: { flexDirection: 'row', gap: 4, marginTop: 8 },
-  progressSeg: { flex: 1, height: 3, borderRadius: 2 },
   topRow: {
     minHeight: 40,
     flexDirection: 'row',
@@ -92,16 +86,25 @@ const useStyles = sharedLuxStyles(() => (createStyle({
     justifyContent: 'space-between',
     marginTop: TOP_BAR_MARGIN_TOP,
   },
-  storyMeta: { alignItems: 'flex-end' },
-  storyIndex: { fontWeight: '800', fontVariant: ['tabular-nums'] },
-  storySection: { fontWeight: '700', letterSpacing: 1, marginTop: 2 },
-  tabs: { marginTop: TABS_AFTER_EYEBROW },
-  storyViewport: { flex: 1, marginTop: 14 },
-  storyPage: { flex: 1, paddingHorizontal: PAGE_GUTTER, paddingBottom: 28, justifyContent: 'center' },
-  tapLayer: { ...{ position: 'absolute', top: 0, bottom: 0, width: '34%' } },
-  tapLeft: { left: 0 },
-  tapRight: { right: 0 },
-  vinylWrap: { position: 'absolute', right: -48, top: '18%', opacity: 0.35 },
+  tabs: { marginTop: TABS_AFTER_EYEBROW, marginBottom: 12 },
+  scroll: { flex: 1 },
+  section: {
+    width: '100%',
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 18,
+    paddingBottom: 36,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  sectionIndex: { fontWeight: '800', fontVariant: ['tabular-nums'], minWidth: 52 },
+  progressRow: { flex: 1, flexDirection: 'row', gap: 3, alignItems: 'center' },
+  progressSeg: { flex: 1, height: 3, borderRadius: 1 },
+  sectionEn: { fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', textAlign: 'right', minWidth: 88 },
+  vinylWrap: { position: 'absolute', right: -48, top: 40, opacity: 0.35 },
   vinylOuter: { width: 220, height: 220, borderRadius: 110, borderWidth: 2 },
   vinylInner: { position: 'absolute', width: 72, height: 72, borderRadius: 36, borderWidth: 2, left: 74, top: 74 },
   coverTitle: { fontWeight: '800', letterSpacing: -0.5, lineHeight: 40 },
@@ -367,7 +370,8 @@ const TimeRadial = ({
   )
 }
 
-const StoryProgress = ({
+/** Per-section decoration: highlights the current card index (mockup B). */
+const SectionProgress = ({
   total,
   index,
   styles,
@@ -380,13 +384,13 @@ const StoryProgress = ({
   trackColor: string
   activeColor: string
 }) => (
-  <View style={styles.progressRow}>
+  <View style={styles.progressRow} accessibilityElementsHidden>
     {Array.from({ length: total }, (_, i) => (
       <View
         key={i}
         style={[
           styles.progressSeg,
-          { backgroundColor: i <= index ? activeColor : trackColor, opacity: i <= index ? 1 : 0.45 },
+          { backgroundColor: i === index ? activeColor : trackColor, opacity: i === index ? 1 : 0.4 },
         ]}
       />
     ))}
@@ -407,7 +411,6 @@ export const ListeningStatsReplay = ({
   const r = magazineRoles(colors)
   const statusBarHeight = useStatusbarHeight()
   const { width: windowWidth } = useWindowDimensions()
-  const listRef = useRef<FlatList<ReplayStoryId>>(null)
 
   const {
     t, range, setRange, luxSync, stats, songs, artists, records, now,
@@ -420,28 +423,10 @@ export const ListeningStatsReplay = ({
     [range, replay.stats.songs.length],
   )
 
-  const [storyIndex, setStoryIndex] = useState(0)
-
-  useEffect(() => {
-    setStoryIndex(0)
-    listRef.current?.scrollToOffset({ offset: 0, animated: false })
-  }, [range, storyOrder.length])
-
   const rangeTabs = useMemo(
     () => RANGES.map(id => ({ id, label: t(rangeLabelKey[id]) })),
     [t],
   )
-
-  const goStory = useCallback((next: number) => {
-    const clamped = Math.max(0, Math.min(storyOrder.length - 1, next))
-    setStoryIndex(clamped)
-    listRef.current?.scrollToOffset({ offset: clamped * windowWidth, animated: true })
-  }, [storyOrder.length, windowWidth])
-
-  const onStoryScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(event.nativeEvent.contentOffset.x / windowWidth)
-    if (idx !== storyIndex) setStoryIndex(idx)
-  }, [storyIndex, windowWidth])
 
   const compare = compareDiffMinutes == null
     ? null
@@ -763,54 +748,23 @@ export const ListeningStatsReplay = ({
     )
   }
 
-  const renderStoryBody = (id: ReplayStoryId, pageIndex: number) => {
-    const bgRole = STORY_BG_CYCLE[pageIndex % STORY_BG_CYCLE.length]
-    const palette = storyPalette(bgRole, r)
-    const backgroundColor = bgColor(bgRole, r)
-
-    let body: ReactNode = null
-    if (id === 'cover') body = renderCover(palette, bgRole)
-    else if (id === 'topSong' && songs[0]) body = renderTopSong(palette, songs[0])
-    else if (id === 'topArtist' && artists[0]) body = renderTopArtist(palette, artists[0])
-    else if (id === 'topLists') body = renderTopLists(palette)
-    else if (id === 'timeOfDay') body = renderTimeOfDay(palette)
-    else if (id === 'rhythm') body = renderRhythm(palette)
-    else if (id === 'sources') body = renderSources(palette)
-    else if (id === 'closing') body = renderClosing(palette)
-
-    return (
-      <View style={[styles.storyPage, { backgroundColor, width: windowWidth }]}>
-        {body}
-      </View>
-    )
+  const renderSectionBody = (id: ReplayStoryId, palette: ReturnType<typeof storyPalette>, bgRole: StoryBgRole) => {
+    if (id === 'cover') return renderCover(palette, bgRole)
+    if (id === 'topSong' && songs[0]) return renderTopSong(palette, songs[0])
+    if (id === 'topArtist' && artists[0]) return renderTopArtist(palette, artists[0])
+    if (id === 'topLists') return renderTopLists(palette)
+    if (id === 'timeOfDay') return renderTimeOfDay(palette)
+    if (id === 'rhythm') return renderRhythm(palette)
+    if (id === 'sources') return renderSources(palette)
+    if (id === 'closing') return renderClosing(palette)
+    return null
   }
-
-  const renderStory = ({ item, index }: ListRenderItemInfo<ReplayStoryId>) => (
-    <View style={{ width: windowWidth, flex: 1 }}>
-      {renderStoryBody(item, index)}
-    </View>
-  )
-
-  const currentId = storyOrder[storyIndex] ?? 'cover'
 
   return (
     <View style={[styles.root, { backgroundColor: r.paper, paddingTop: statusBarHeight, paddingBottom: bottomPadding }]}>
       <View style={styles.chrome}>
-        <StoryProgress
-          total={storyOrder.length}
-          index={storyIndex}
-          styles={styles}
-          trackColor={r.hairline}
-          activeColor={r.ink}
-        />
         <View style={styles.topRow}>
           <BackButton onPress={onClose} />
-          <View style={styles.storyMeta}>
-            <Text size={13} color={r.ink} style={styles.storyIndex}>
-              {pad2(storyIndex + 1)} / {pad2(storyOrder.length)}
-            </Text>
-            <Text size={11} color={r.eyebrow} style={styles.storySection}>{STORY_SECTION_EN[currentId]}</Text>
-          </View>
         </View>
         <TextTabs
           items={rangeTabs}
@@ -820,28 +774,39 @@ export const ListeningStatsReplay = ({
         />
       </View>
 
-      <View style={styles.storyViewport}>
-        <FlatList
-          ref={listRef}
-          style={{ flex: 1 }}
-          data={storyOrder}
-          keyExtractor={item => item}
-          renderItem={renderStory}
-          horizontal
-          pagingEnabled
-          bounces={false}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onStoryScrollEnd}
-          extraData={{ storyIndex, range, stats, replay }}
-          getItemLayout={(_, index) => ({
-            length: windowWidth,
-            offset: windowWidth * index,
-            index,
-          })}
-        />
-        <Pressable style={[styles.tapLayer, styles.tapLeft]} onPress={() => { goStory(storyIndex - 1) }} />
-        <Pressable style={[styles.tapLayer, styles.tapRight]} onPress={() => { goStory(storyIndex + 1) }} />
-      </View>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+      >
+        {storyOrder.map((id, index) => {
+          const bgRole = STORY_BG_CYCLE[index % STORY_BG_CYCLE.length]
+          const palette = storyPalette(bgRole, r)
+          const backgroundColor = bgColor(bgRole, r)
+          const body: ReactNode = renderSectionBody(id, palette, bgRole)
+          return (
+            <View key={id} style={[styles.section, { backgroundColor }]}>
+              <View style={styles.sectionHead}>
+                <Text size={12} color={palette.ink} style={styles.sectionIndex}>
+                  {pad2(index + 1)} / {pad2(storyOrder.length)}
+                </Text>
+                <SectionProgress
+                  total={storyOrder.length}
+                  index={index}
+                  styles={styles}
+                  trackColor={palette.faint}
+                  activeColor={palette.ink}
+                />
+                <Text size={10} color={palette.eyebrow} style={styles.sectionEn} numberOfLines={1}>
+                  {STORY_SECTION_EN[id]}
+                </Text>
+              </View>
+              {body}
+            </View>
+          )
+        })}
+      </ScrollView>
     </View>
   )
 }
