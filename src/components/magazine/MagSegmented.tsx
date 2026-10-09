@@ -8,12 +8,14 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 
+import { MAG_SEGMENTED_COMPACT } from './magSegmentedLayout'
 import { type MagTabItem } from './TextTabs'
 
 /**
- * Full-width ink-outlined segmented control (variant C).
- * Equal cells across the content width; selected = ink fill + paper text.
- * See docs/design-system-magazine.md §4.4 / home filter.
+ * Ink-outlined segmented control (variant C).
+ * Default: equal cells across the content width.
+ * compact: shrink-wrap two short labels (library grid|list); visual ~28pt, hit via hitSlop.
+ * Selected = ink fill + paper text. See docs/design-system-magazine.md §4.4 / home filter.
  */
 
 const useStyles = sharedLuxStyles((colors) => {
@@ -28,6 +30,8 @@ const useStyles = sharedLuxStyles((colors) => {
     },
     rowCompact: {
       alignSelf: 'flex-start',
+      borderWidth: MAG_SEGMENTED_COMPACT.borderWidth,
+      height: MAG_SEGMENTED_COMPACT.visualHeight,
     },
     cell: {
       flex: 1,
@@ -39,18 +43,28 @@ const useStyles = sharedLuxStyles((colors) => {
       backgroundColor: 'transparent',
     },
     cellCompact: {
-      flexGrow: 0,
-      flexShrink: 0,
-      minHeight: 36,
-      paddingHorizontal: 12,
+      // Override cell's flex:1 explicitly — do not leave flexBasis:0 (collapses labels).
+      flexGrow: MAG_SEGMENTED_COMPACT.cellFlex.flexGrow,
+      flexShrink: MAG_SEGMENTED_COMPACT.cellFlex.flexShrink,
+      flexBasis: MAG_SEGMENTED_COMPACT.cellFlex.flexBasis,
+      minHeight: 0,
+      height: '100%',
+      paddingVertical: MAG_SEGMENTED_COMPACT.paddingVertical,
+      paddingHorizontal: MAG_SEGMENTED_COMPACT.paddingHorizontal,
       flexDirection: 'row',
-      gap: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: MAG_SEGMENTED_COMPACT.gap,
     },
     cellOn: {
       backgroundColor: r.ink,
     },
     cellDivider: {
       borderLeftWidth: 1.5,
+      borderLeftColor: r.ink,
+    },
+    cellDividerCompact: {
+      borderLeftWidth: MAG_SEGMENTED_COMPACT.borderWidth,
       borderLeftColor: r.ink,
     },
     label: {
@@ -85,19 +99,21 @@ export const MagSegmented = memo(({
     <View style={[styles.row, compact ? styles.rowCompact : null, style]} accessibilityRole="tablist">
       {items.map((item, index) => {
         const on = item.id === value
+        const labelColor = on ? r.paper : r.ink
         return (
           <TouchableOpacity
             key={item.id}
             style={[
               styles.cell,
               compact ? styles.cellCompact : null,
-              index > 0 ? styles.cellDivider : null,
+              index > 0 ? (compact ? styles.cellDividerCompact : styles.cellDivider) : null,
               on ? styles.cellOn : null,
             ]}
             activeOpacity={0.7}
             onPress={() => {
               if (item.id !== value) onChange(item.id)
             }}
+            hitSlop={compact ? MAG_SEGMENTED_COMPACT.hitSlop : undefined}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={item.label}
@@ -106,12 +122,10 @@ export const MagSegmented = memo(({
               ? renderItem(item, on)
               : (
                 <Text
-                  size={13}
-                  color={on ? r.paper : r.ink}
+                  size={compact ? MAG_SEGMENTED_COMPACT.labelSize : 13}
+                  color={labelColor}
                   style={on ? styles.labelOn : styles.label}
                   numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
                 >{item.label}</Text>
                 )}
           </TouchableOpacity>

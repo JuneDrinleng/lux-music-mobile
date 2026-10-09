@@ -21,6 +21,7 @@ import {
   MagTopBar,
   SectionHeader,
 } from '@/components/magazine'
+import { MAG_SEGMENTED_COMPACT } from '@/components/magazine/magSegmentedLayout'
 import PlaylistLibraryCard, { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
 import { type useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -149,16 +150,17 @@ export default ({
     })
   }, [])
 
+  /** Visual ~34pt pill; hitSlop expands the touch target to ≥44. */
   const createPill = (
     <TouchableOpacity
       activeOpacity={0.75}
       onPress={onShowCreateListModal}
       accessibilityRole="button"
       accessibilityLabel={t('me_create_new')}
+      hitSlop={{ top: 5, bottom: 5, left: 6, right: 6 }}
       style={{
-        minHeight: 44,
-        minWidth: 44,
-        paddingHorizontal: 14,
+        height: 34,
+        paddingHorizontal: 12,
         borderRadius: 999,
         backgroundColor: r.ink,
         alignItems: 'center',
@@ -241,13 +243,14 @@ export default ({
                 <>
                   <MdiIcon
                     name={item.id === 'grid' ? 'view-grid-outline' : 'format-list-bulleted'}
-                    size={16}
+                    size={MAG_SEGMENTED_COMPACT.iconSize}
                     color={selected ? r.paper : r.ink}
                   />
                   <Text
-                    size={13}
+                    size={MAG_SEGMENTED_COMPACT.labelSize}
                     color={selected ? r.paper : r.ink}
                     style={{ fontWeight: selected ? '800' : '600' }}
+                    numberOfLines={1}
                   >
                     {item.label}
                   </Text>
@@ -260,8 +263,8 @@ export default ({
               onPress={openSortMenu}
               accessibilityRole="button"
               accessibilityLabel={t('library_sort_trigger', { sort: sortShortLabel })}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               style={{
-                minHeight: 44,
                 justifyContent: 'center',
                 paddingHorizontal: 4,
                 flexDirection: 'row',
