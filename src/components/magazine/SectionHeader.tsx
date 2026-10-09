@@ -14,8 +14,9 @@ import { Rule } from './Rule'
 const useStyles = sharedLuxStyles(() => createStyle({
   head: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 44,
     marginTop: RULE_TO_SECTION,
   },
   title: {
@@ -28,6 +29,10 @@ const useStyles = sharedLuxStyles(() => createStyle({
   },
   link: {
     fontWeight: '700',
+  },
+  linkTouch: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
 }))
 
@@ -60,7 +65,13 @@ export const SectionHeader = memo(({
         <Text size={magType.section.size} color={r.display} style={styles.title}>{title}</Text>
         {trailing ?? (linkLabel != null
           ? (
-            <TouchableOpacity activeOpacity={0.7} onPress={onLinkPress}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onLinkPress}
+              style={styles.linkTouch}
+              accessibilityRole="button"
+              accessibilityLabel={linkLabel}
+            >
               <Text size={magType.sectionMeta.size} color={r.ink} style={styles.link}>{linkLabel}</Text>
             </TouchableOpacity>
             )

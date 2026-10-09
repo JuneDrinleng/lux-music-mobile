@@ -169,13 +169,22 @@ const PlaylistLibraryCard = ({
         </View>
         {isCurrent && isPlay
           ? (
-            <TouchableOpacity activeOpacity={0.82} onPress={onPlayPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={onPlayPress}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }}
+            >
               <MdiIcon name="equalizer" size={16} color={r.accentInk} />
               <Text size={12} color={r.accentInk} style={{ fontWeight: '700' }}>{t('library_playing')}</Text>
             </TouchableOpacity>
             )
           : (
-            <View {...touchHandlers} hitSlop={8}>
+            <View
+              {...touchHandlers}
+              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+              accessibilityRole="button"
+              accessibilityLabel={t('library_drag_sort')}
+            >
               <MdiIcon name="drag-horizontal-variant" size={18} color={r.quiet} />
             </View>
             )}

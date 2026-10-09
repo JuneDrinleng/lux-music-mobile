@@ -2,14 +2,14 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, useWindowDimensions, type ListRenderItem, type ViewToken } from 'react-native'
+import { Animated, FlatList, PermissionsAndroid, Platform, View, useWindowDimensions, type ListRenderItem, type ViewToken } from 'react-native'
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
-import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
 import {
   EmptyState,
+  IconButton,
   MagTopBar,
   PrimaryButton,
   SecondaryButton,
@@ -149,16 +149,18 @@ const LocalSongsOverview = ({
         onBack={onBack}
         trailing={
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <TouchableOpacity activeOpacity={0.7} onPress={onScan} hitSlop={8} accessibilityRole="button">
-              <MdiIcon name="folder-search-outline" size={22} color={r.ink} />
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} onPress={onToggleSelect} hitSlop={8} accessibilityRole="button">
-              <MdiIcon
-                name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'}
-                size={22}
-                color={r.ink}
-              />
-            </TouchableOpacity>
+            <IconButton
+              name="folder-search-outline"
+              size={22}
+              accessibilityLabel={t('local_songs_scan')}
+              onPress={onScan}
+            />
+            <IconButton
+              name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'}
+              size={22}
+              accessibilityLabel={t('library_select_manage')}
+              onPress={onToggleSelect}
+            />
           </View>
         }
       />

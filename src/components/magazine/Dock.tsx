@@ -1,9 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, type ReactNode } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View, type GestureResponderEvent } from 'react-native'
 
 import Text from '@/components/common/Text'
+import { useI18n } from '@/lang'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -11,6 +12,7 @@ import { PAGE_GUTTER } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 
 import { Hairline } from './Hairline'
+import { IconButton } from './IconButton'
 
 /**
  * Magazine bottom dock shell (§4.16): paper + top ink rule.
@@ -57,9 +59,9 @@ const useStyles = sharedLuxStyles((colors) => {
       fontWeight: '700',
     },
     playBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: r.ink,
       alignItems: 'center',
       justifyContent: 'center',
@@ -177,6 +179,11 @@ export const DockPlayerSlot = memo(({
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const t = useI18n()
+  const handlePlayPress = (event: GestureResponderEvent) => {
+    event.stopPropagation()
+    onPlayPress?.()
+  }
   return (
     <TouchableOpacity style={styles.player} activeOpacity={0.85} onPress={onOpen}>
       {cover ?? <View style={styles.cover} />}
@@ -186,14 +193,22 @@ export const DockPlayerSlot = memo(({
           ? <Text size={12} color={r.muted} numberOfLines={1}>{subtitle}</Text>
           : null}
       </View>
-      <TouchableOpacity style={styles.playBtn} activeOpacity={0.7} onPress={onPlayPress}>
+      <TouchableOpacity
+        style={styles.playBtn}
+        activeOpacity={0.7}
+        onPress={handlePlayPress}
+        accessibilityRole="button"
+        accessibilityLabel={playing ? t('pause') : t('play')}
+      >
         <MdiIcon name={playing ? 'pause' : 'play'} size={22} color={r.onInk} />
       </TouchableOpacity>
       {onQueuePress
         ? (
-          <TouchableOpacity activeOpacity={0.7} onPress={onQueuePress}>
-            <MdiIcon name="playlist-music" size={24} color={r.ink} />
-          </TouchableOpacity>
+          <IconButton
+            name="playlist-music"
+            accessibilityLabel={t('dock_queue')}
+            onPress={() => { onQueuePress?.() }}
+          />
           )
         : null}
     </TouchableOpacity>

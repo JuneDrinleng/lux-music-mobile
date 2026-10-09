@@ -41,6 +41,7 @@ export const BackButton = memo(({
       style={styles.back}
       activeOpacity={0.7}
       onPress={onPress}
+      hitSlop={4}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
