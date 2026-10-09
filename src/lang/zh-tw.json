@@ -275,6 +275,7 @@
   "home_discover_subtitle": "把喜歡、試聽和自建歌單收進一個更輕的發現入口。",
   "home_play_now": "立即播放",
   "home_today_listened": "今天已聽 {num} 分鐘",
+  "home_source_label": "來源",
   "home_stat_liked": "喜歡",
   "home_stat_playlists": "歌單",
   "home_action_open_library": "打開歌單庫",

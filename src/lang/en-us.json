@@ -275,6 +275,7 @@
   "home_discover_subtitle": "A lighter discovery space for favorites, quick saves, and your own playlists.",
   "home_play_now": "Play now",
   "home_today_listened": "Listened {num} min today",
+  "home_source_label": "Source",
   "home_stat_liked": "Liked",
   "home_stat_playlists": "Playlists",
   "home_action_open_library": "Open Library",

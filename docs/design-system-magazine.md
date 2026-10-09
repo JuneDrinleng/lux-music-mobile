@@ -218,12 +218,14 @@
 
 ### 4.3 文字 Tabs（范围 / 筛选 / 来源）
 - 横排文字，间距 22（小号 18），底部一条 hairline；选中项 800 + `ink` + 3px 下划线；未选 600 + `quiet`。
-- 用于：统计范围、首页筛选（全部 / 新发布 / 趋势 / 热门 / 其他）、榜单来源、搜索类型（歌曲 / 歌单）、本地歌曲（全部 / 设备 / 已缓存）、评论（热门 / 最新）、播放 Pager（评论 / 播放 / 歌词）。
+- 用于：统计范围、搜索类型（歌曲 / 歌单）、本地歌曲（全部 / 设备 / 已缓存）、评论（热门 / 最新）、播放 Pager（评论 / 播放 / 歌词）。**首页主筛选改用 §4.4 `MagSegmented`，不再用文字 Tabs。**
 - 超出宽度时横向滚动，不换行，不缩字号。
 
-### 4.4 分段控件（备选）
-- 只在「两项、需要强对比、且不是导航」时用：1.5px 墨边胶囊，选中段墨底纸字。例：宫格 / 列表若要文字化时。默认仍优先文字 Tabs 或两枚图标（选中 `ink`、未选 `quiet`）。
-- `SegmentedIconSwitch` 迁移为「两枚图标 + 颜色区分」，去掉轨道和拇指。
+### 4.4 分段控件 `MagSegmented`
+- **首页主筛选（定稿 variant C，June）：** 通栏等分单元格，压满页边距 22 内的内容宽；外框 1.5px `ink`；选中格 `ink` 底 + `paper` 字 13/800；未选透明底 + `ink` 字 13/600；格间 1.5px `ink` 竖线。五项：全部 / 新发布 / 趋势 / 热门 / 其他。组件：`src/components/magazine/MagSegmented.tsx`。
+- **「其他」来源行（非 Tabs）：** 分段控件下方一行 `来源  酷我 / 酷狗 / 企鹅 / 网易 / 咪咕`（斜杠分隔）；选中源 **800 `ink`**，左侧小圆点 `accent` 填充；**无**底部分割线、无第二排 TextTabs。
+- **紧接筛选的首个 `SectionHeader`：** 不画主线、不加 `RULE_GAP` 34 顶距（`showRule={false}`），避免筛选与榜单标题之间出现 ~69pt 空白。
+- 其它场景仍可用：两项强对比时的 1.5px 墨边胶囊（选中墨底纸字）；`SegmentedIconSwitch` 迁移为「两枚图标 + 颜色区分」，去掉轨道和拇指。
 
 ### 4.5 区块头 Section header
 - 主线 → 12 → 一行：左 22/800 标题，右 12/600 字距 1 的 `eyebrow` meta（排序方式、数量、英文栏目名），或一个「查看全部 →」文字链接（`ink`，700）。基线对齐。
@@ -493,7 +495,7 @@
 2. 加 `src/theme/magazineType.ts`：上面的字号表（设计数字，交给 `createStyle`）和 `RULE_GAP = 34` 等节奏常量。
 
 ### 8.3 组件层（第二步）
-新建 `src/components/magazine/`，每个组件一个文件，先在统计页内部替换验证：`MagTopBar`、`BackButton`、`TextTabs`、`SectionHeader`（含主线）、`Rule` / `Hairline`、`RankNumber`（svg 描边）、`RankedRow`、`SongRow`、`SettingRow`、`OptionRow`、`PrimaryButton` / `SecondaryButton` / `TextButton`、`DeltaPill` / `Chip` / `SourceTag`、`Toggle` / `Checkbox`、`MagSlider`（由 `CacheLimitSlider` 抽出）、`UnderlineInput`、`MagDialog` / `MagazineSheet`（+ `MagazineSheetRow`）/ `MagMenu`、`EmptyState`、`Skeleton`、`Toast`、`Dock`（`PlayerBar` + `BottomNav` 合并）。
+新建 `src/components/magazine/`，每个组件一个文件，先在统计页内部替换验证：`MagTopBar`、`BackButton`、`TextTabs`、`MagSegmented`（首页主筛选 variant C）、`SectionHeader`（含主线）、`Rule` / `Hairline`、`RankNumber`（svg 描边）、`RankedRow`、`SongRow`、`SettingRow`、`OptionRow`、`PrimaryButton` / `SecondaryButton` / `TextButton`、`DeltaPill` / `Chip` / `SourceTag`、`Toggle` / `Checkbox`、`MagSlider`（由 `CacheLimitSlider` 抽出）、`UnderlineInput`、`MagDialog` / `MagazineSheet`（+ `MagazineSheetRow`）/ `MagMenu`、`EmptyState`、`Skeleton`、`Toast`、`Dock`（`PlayerBar` + `BottomNav` 合并）。
 `ListeningStatsMagazine.tsx` 里的 `styles.rule / sectionHead / tabs / rank / pill` 已经是这些组件的原型，直接抽出。
 
 **硬性要求：** `PlaylistImportPanel`、`PlayQueueSheet`、`MusicAddModal`（以及共用 `TargetPlaylistList` 的 `MusicMultiAddModal`）**必须全部改用 `MagazineSheet` + `MagazineSheetRow`**，不得各自保留头部、行或按钮样式；`MusicAddModal` 现在用的居中 `Dialog`（height 78%）同时改为底部抽屉。三处在同一个 PR 里迁移，PR 附 14 / 25 / 26 同方案截图对照。`MagazineSheet` 也是后续其他底部面板的唯一实现。
