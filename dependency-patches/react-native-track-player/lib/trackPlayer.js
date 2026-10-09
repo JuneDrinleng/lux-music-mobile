@@ -425,6 +425,15 @@ function clearCache() {
         });
     });
 }
+function setMaxCacheSize(maxCacheSizeKb) {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/];
+            return [2 /*return*/, TrackPlayer.setMaxCacheSize(maxCacheSizeKb)];
+        });
+    });
+}
 exports.default = {
     // MARK: - General API
     setupPlayer: setupPlayer,
@@ -466,5 +475,6 @@ exports.default = {
     getRepeatMode: getRepeatMode,
     isCached: isCached,
     getCacheSize: getCacheSize,
-    clearCache: clearCache
+    clearCache: clearCache,
+    setMaxCacheSize: setMaxCacheSize
 };

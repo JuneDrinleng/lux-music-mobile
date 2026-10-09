@@ -23,6 +23,8 @@ const files = [
   'src/theme/luxTokens.ts',
   'src/utils/imageCachePolicy.ts',
   'src/utils/playlistCoverQueue.ts',
+  'src/utils/musicUrlCache.ts',
+  'src/utils/listenListLimit.ts',
   'src/utils/playlistCoverMap.ts',
   'src/utils/homeBootGate.ts',
 ]
@@ -86,6 +88,8 @@ const LIME_COLOR_LITERALS = [
 ]
 const cachePolicy = require(join(outDir, 'src/utils/imageCachePolicy.js'))
 const coverQueue = require(join(outDir, 'src/utils/playlistCoverQueue.js'))
+const musicUrlCache = require(join(outDir, 'src/utils/musicUrlCache.js'))
+const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 
@@ -566,6 +570,96 @@ test('playlist pins are not evicted with ordinary image cache files', () => {
   assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 2), ['loose-1'])
   assert.deepEqual(cachePolicy.selectUnpinnedEvictions(names, pinned, 10), [])
   assert.equal(cachePolicy.UNPINNED_IMAGE_CACHE_LIMIT >= 100, true)
+  assert.equal(cachePolicy.DEFAULT_UNPINNED_IMAGE_CACHE_BYTES, 256 * 1024 * 1024)
+})
+
+test('unpinned images evict oldest until both the count and the byte cap fit', () => {
+  const pinned = new Set(['keep'])
+  const files = [
+    { name: 'old', size: 100, accessedAt: 1 },
+    { name: 'keep', size: 10000, accessedAt: 0 },
+    { name: 'mid', size: 50, accessedAt: 2 },
+    { name: 'new', size: 80, accessedAt: 3 },
+    { name: 'skip.tmp', size: 999, accessedAt: 0 },
+  ]
+  assert.deepEqual(cachePolicy.selectUnpinnedEvictions(files, pinned, 10, 100), ['old', 'mid'])
+  assert.deepEqual(cachePolicy.selectUnpinnedEvictions(files, pinned, 1), ['old', 'mid'])
+})
+
+test('saved playback urls expire by source unless the file is local or the audio is cached', () => {
+  const legacy = musicUrlCache.parseMusicUrlRecord(' https://music.example/a.mp3 ')
+  assert.equal(legacy.savedAt, 0)
+  assert.equal(legacy.url, 'https://music.example/a.mp3')
+  assert.equal(musicUrlCache.isMusicUrlFresh(legacy, 'wy', 1000), false)
+  assert.equal(musicUrlCache.isMusicUrlFresh({ url: 'file:///song.mp3', savedAt: 0 }, 'local', 1), true)
+  assert.equal(musicUrlCache.isMusicUrlFresh({ url: 'content://media/1', savedAt: 0 }, 'local', 1), true)
+  assert.equal(musicUrlCache.musicUrlTtlMs('wy'), 20 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('tx'), 2 * 60 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('kg'), 2 * 60 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('kw'), 60 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('mg'), 60 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('local'), 30 * 60 * 1000)
+  assert.equal(musicUrlCache.musicUrlTtlMs('other'), musicUrlCache.DEFAULT_MUSIC_URL_TTL_MS)
+  const stale = { url: 'https://music.example/a.mp3', savedAt: 0 }
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: stale, source: 'wy', now: 10, isRefresh: false, audioCached: true,
+  }), 'use')
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: stale, source: 'wy', now: 10, isRefresh: true, audioCached: true,
+  }), 'refresh')
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: { url: 'file:///song.mp3', savedAt: 0 }, source: 'local', now: 10, isRefresh: true, audioCached: false,
+  }), 'use')
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: null, source: 'wy', now: 10, isRefresh: false, audioCached: true,
+  }), 'refresh')
+  const savedAt = 1_000
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: { url: 'https://music.example/a.mp3', savedAt },
+    source: 'wy',
+    now: savedAt + (19 * 60 * 1000),
+    isRefresh: false,
+    audioCached: false,
+  }), 'use')
+  assert.equal(musicUrlCache.decideMusicUrlReuse({
+    record: { url: 'https://music.example/a.mp3', savedAt },
+    source: 'wy',
+    now: savedAt + (21 * 60 * 1000),
+    isRefresh: false,
+    audioCached: false,
+  }), 'refresh')
+})
+
+test('listen list drops the earliest songs and leaves a short list alone', () => {
+  const songs = Array.from({ length: 53 }, (_, index) => ({ id: String(index) }))
+  assert.equal(listenListLimit.LISTEN_LIST_LIMIT, 50)
+  assert.deepEqual(listenListLimit.selectOldestListenIds(songs, 'top'), ['50', '51', '52'])
+  assert.deepEqual(listenListLimit.selectOldestListenIds(songs, 'bottom'), ['0', '1', '2'])
+  assert.deepEqual(listenListLimit.selectOldestListenIds(songs.slice(0, 50), 'top'), [])
+  assert.deepEqual(listenListLimit.selectOldestListenIds([{ id: 'a' }, { id: 'a' }, { id: '' }], 'bottom', 1), ['a'])
+})
+
+test('prefetch queue stays fast for a few thousand songs', () => {
+  const queue = new coverQueue.PlaylistCoverQueue()
+  const started = Date.now()
+  for (let index = 0; index < 4000; index++) {
+    const lane = index % 5 == 0 ? 'visible' : index % 3 == 0 ? 'playlist' : 'background'
+    queue.enqueue(`song-${index}`, lane)
+  }
+  queue.enqueue('song-1', 'background')
+  assert.equal(queue.size(), 4000)
+  let taken = 0
+  while (queue.take(Date.now())) taken += 1
+  const elapsed = Date.now() - started
+  assert.equal(taken, 4000)
+  assert.equal(queue.size(), 0)
+  assert.ok(elapsed < 1000, `elapsed ${elapsed}`)
+  queue.enqueue('later', 'background', 0)
+  const job = queue.take(0)
+  queue.fail(job, 0)
+  queue.forget('later')
+  assert.equal(queue.size(), 0)
+  assert.equal(queue.take(10_000), null)
 })
 
 test('lime token paths still match the inventory table', () => {

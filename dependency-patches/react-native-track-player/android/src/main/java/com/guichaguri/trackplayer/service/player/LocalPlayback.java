@@ -17,7 +17,6 @@ import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheSpan;
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
@@ -39,9 +38,11 @@ import java.util.NavigableSet;
 @UnstableApi
 public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
-    private final long cacheMaxSize;
+    private long cacheMaxSize;
 
     private SimpleCache cache;
+    private AdjustableCacheEvictor cacheEvictor;
+    private DatabaseProvider databaseProvider;
     private boolean prepared = false;
     public LocalPlayback(Context context, MusicManager manager, ExoPlayer player, long maxCacheSize,
                          boolean autoUpdateMetadata) {
@@ -52,9 +53,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     @Override
     public void initialize() {
         if(cacheMaxSize > 0) {
-            File cacheDir = new File(context.getFilesDir(), "TrackPlayer");
-            DatabaseProvider db = new StandaloneDatabaseProvider(context);
-            cache = new SimpleCache(cacheDir, new LeastRecentlyUsedCacheEvictor(cacheMaxSize), db);
+            openCache(cacheMaxSize);
         } else {
             cache = null;
         }
@@ -62,6 +61,30 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         super.initialize();
 
         resetQueue();
+    }
+
+    /**
+     * {@code bytes} is the SimpleCache ceiling. Zero stops new writes and does not delete spans.
+     */
+    public void setCacheMaxSize(long bytes) {
+        cacheMaxSize = bytes;
+        if (bytes <= 0) {
+            if (cacheEvictor != null) cacheEvictor.setMaxBytes(0);
+            return;
+        }
+        if (cache == null) {
+            openCache(bytes);
+            return;
+        }
+        if (cacheEvictor != null) cacheEvictor.setMaxBytes(bytes);
+    }
+
+    private void openCache(long bytes) {
+        File cacheDir = new File(context.getFilesDir(), "TrackPlayer");
+        if (databaseProvider == null) databaseProvider = new StandaloneDatabaseProvider(context);
+        if (cacheEvictor == null) cacheEvictor = new AdjustableCacheEvictor(bytes);
+        else cacheEvictor.setMaxBytes(bytes);
+        cache = new SimpleCache(cacheDir, cacheEvictor, databaseProvider);
     }
 
     public DataSource.Factory enableCaching(DataSource.Factory ds) {

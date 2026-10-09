@@ -32,6 +32,7 @@ import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.NowPlayingMetadata;
 import com.guichaguri.trackplayer.service.models.Track;
 import com.guichaguri.trackplayer.service.player.ExoPlayback;
+import com.guichaguri.trackplayer.service.player.LocalPlayback;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -350,6 +351,17 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     public void clearCache(final Promise callback) {
         waitForConnection(() -> {
             binder.getPlayback().clearCache(callback);
+        });
+    }
+
+    @ReactMethod
+    public void setMaxCacheSize(double maxCacheSizeKb, final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).setCacheMaxSize((long) (maxCacheSizeKb * 1024d));
+            }
+            callback.resolve(null);
         });
     }
 

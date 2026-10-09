@@ -38,6 +38,7 @@ declare function getRepeatMode(): Promise<RepeatMode>;
 declare function isCached(url: string, cacheKey?: string | null): Promise<boolean>;
 declare function getCacheSize(): Promise<number>;
 declare function clearCache(): Promise<void>;
+declare function setMaxCacheSize(maxCacheSizeKb: number): Promise<void>;
 declare const _default: {
     setupPlayer: typeof setupPlayer;
     destroy: typeof destroy;
@@ -75,5 +76,6 @@ declare const _default: {
     isCached: typeof isCached;
     getCacheSize: typeof getCacheSize;
     clearCache: typeof clearCache;
+    setMaxCacheSize: typeof setMaxCacheSize;
 };
 export default _default;

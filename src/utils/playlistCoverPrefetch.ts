@@ -39,6 +39,7 @@ interface CoverWork {
   song: LX.Music.MusicInfo
   canonicalUrl: string | null
   rejectUrls: ReadonlySet<string>
+  pin: boolean
 }
 
 const queue = new PlaylistCoverQueue()
@@ -61,6 +62,8 @@ let networkUnmetered = false
 let networkGeneration = 0
 let scanning = false
 let scanAgain = false
+let retainedDirty = true
+const retainedSongKeys = new Set<string>()
 
 const NETWORK_TTL_MS = 20_000
 const NETWORK_RECHECK_MS = 30_000
@@ -103,7 +106,35 @@ const enqueueKey = (key: string, priority: PlaylistCoverPriority, now: number) =
 
 const albumIdOf = (song: LX.Music.MusicInfo) => song.source == 'local' ? null : song.meta.albumId
 
-const enqueueSongs = (songs: readonly LX.Music.MusicInfo[], priority: PlaylistCoverPriority, rejectUrls: ReadonlySet<string>) => {
+const rebuildRetainedSongKeys = () => {
+  retainedSongKeys.clear()
+  for (const list of listState.allList) {
+    const songs = allMusicList.get(list.id)
+    if (!songs) continue
+    for (const song of songs) {
+      if (!song?.id || song.source == 'local') continue
+      retainedSongKeys.add(playlistCoverKey(song.source, song.id))
+    }
+  }
+  retainedDirty = false
+}
+
+/** Covers of songs in persisted user lists (试听、收藏、自建) stay pinned. */
+export const isRetainedPlaylistSong = (source: string, id: string) => {
+  if (retainedDirty) rebuildRetainedSongKeys()
+  return retainedSongKeys.has(playlistCoverKey(source, id))
+}
+
+const markRetainedDirty = () => {
+  retainedDirty = true
+}
+
+const enqueueSongs = (
+  songs: readonly LX.Music.MusicInfo[],
+  priority: PlaylistCoverPriority,
+  rejectUrls: ReadonlySet<string>,
+  pin: boolean,
+) => {
   const now = Date.now()
   for (const song of songs) {
     if (!song?.id || song.source == 'local') continue
@@ -111,7 +142,7 @@ const enqueueSongs = (songs: readonly LX.Music.MusicInfo[], priority: PlaylistCo
     const mapped = peekPlaylistCover(song.source, song.id)
     const trustedMapped = mapped && !rejectUrls.has(mapped.url) ? mapped : null
     if (trustedMapped && peekCachedImageUri(trustedMapped.thumbUrl)) {
-      pinImageUrl(trustedMapped.thumbUrl)
+      if (pin) pinImageUrl(trustedMapped.thumbUrl)
       continue
     }
     const picUrl = typeof song.meta.picUrl == 'string' ? song.meta.picUrl.trim() : ''
@@ -129,22 +160,32 @@ const enqueueSongs = (songs: readonly LX.Music.MusicInfo[], priority: PlaylistCo
     })
     if (plan.canonicalUrl && !trustedMapped) writePlaylistCover(song.source, song.id, plan.canonicalUrl, now, rejectUrls)
     if (plan.canonicalUrl && plan.thumbUrl && peekCachedImageUri(plan.thumbUrl)) {
-      pinImageUrl(plan.thumbUrl)
+      if (pin) pinImageUrl(plan.thumbUrl)
       continue
     }
     // Visible rows already on screen must not wait behind the library queue.
     if (plan.thumbUrl && priority == 'visible') {
-      pinImageUrl(plan.thumbUrl)
-      void cacheImageUri(plan.thumbUrl, { pin: true }).then(saved => {
+      if (pin) pinImageUrl(plan.thumbUrl)
+      void cacheImageUri(plan.thumbUrl, { pin }).then(saved => {
         if (saved) notifyPlaylistCover(song.source, song.id)
       }).catch(() => {})
     }
-    workByKey.set(key, { song, canonicalUrl: plan.canonicalUrl, rejectUrls })
+    const previous = workByKey.get(key)
+    workByKey.set(key, {
+      song,
+      canonicalUrl: plan.canonicalUrl,
+      rejectUrls,
+      pin: pin || Boolean(previous?.pin),
+    })
     enqueueKey(key, priority, now)
   }
 }
 
-export const prioritizePlaylistCovers = (songs: readonly LX.Music.MusicInfo[], priority: PlaylistCoverPriority) => {
+export const prioritizePlaylistCovers = (
+  songs: readonly LX.Music.MusicInfo[],
+  priority: PlaylistCoverPriority,
+  pin = false,
+) => {
   if (!songs.length) return
   const rejectUrls = collectFallbackPicUrls(songs.map(song => ({
     picUrl: song.meta.picUrl,
@@ -153,7 +194,7 @@ export const prioritizePlaylistCovers = (songs: readonly LX.Music.MusicInfo[], p
   let index = 0
   const step = () => {
     const end = Math.min(songs.length, index + YIELD_EVERY)
-    enqueueSongs(songs.slice(index, end), priority, rejectUrls)
+    enqueueSongs(songs.slice(index, end), priority, rejectUrls, pin)
     index = end
     schedulePump()
     if (index < songs.length) setTimeout(step, 0)
@@ -193,8 +234,8 @@ const runJob = async(job: CoverQueueJob) => {
     writePlaylistCover(work.song.source, work.song.id, canonical, Date.now(), work.rejectUrls)
     const entry = peekPlaylistCover(work.song.source, work.song.id)
     const thumb = entry?.thumbUrl ?? toPlaylistThumbUrl(canonical, work.song.source)
-    pinImageUrl(thumb)
-    const saved = await cacheImageUri(thumb, { pin: true })
+    if (work.pin) pinImageUrl(thumb)
+    const saved = await cacheImageUri(thumb, { pin: work.pin })
     if (!saved) throw new Error('cover download failed')
     notifyPlaylistCover(work.song.source, work.song.id)
     workByKey.delete(job.key)
@@ -326,7 +367,7 @@ const scanUserPlaylistCovers = async() => {
   let seen = 0
   for (const listId of ids) {
     const songs = await getListMusics(listId)
-    prioritizePlaylistCovers(songs, priorityForList(listId))
+    prioritizePlaylistCovers(songs, priorityForList(listId), true)
     seen += songs.length
     if (seen >= YIELD_EVERY) {
       seen = 0
@@ -360,31 +401,37 @@ const scheduleFullScan = () => {
 }
 
 const onListAdd = (listId: string, musicInfos: LX.Music.MusicInfo[]) => {
+  markRetainedDirty()
   if (!shouldTrackList(listId)) return
-  prioritizePlaylistCovers(musicInfos, priorityForList(listId))
+  prioritizePlaylistCovers(musicInfos, priorityForList(listId), true)
 }
 
 const onListMove = (fromId: string, toId: string, musicInfos: LX.Music.MusicInfo[]) => {
-  if (shouldTrackList(toId)) prioritizePlaylistCovers(musicInfos, priorityForList(toId))
+  markRetainedDirty()
+  if (shouldTrackList(toId)) prioritizePlaylistCovers(musicInfos, priorityForList(toId), true)
   if (shouldTrackList(fromId)) pruneLoadedLists()
 }
 
 const onListOverwrite = (listId: string, musicInfos: LX.Music.MusicInfo[]) => {
+  markRetainedDirty()
   if (!shouldTrackList(listId)) return
-  prioritizePlaylistCovers(musicInfos, priorityForList(listId))
+  prioritizePlaylistCovers(musicInfos, priorityForList(listId), true)
   pruneLoadedLists()
 }
 
 const onListRemoveSongs = (listId: string) => {
+  markRetainedDirty()
   if (!shouldTrackList(listId)) return
   pruneLoadedLists()
 }
 
 const onListDataOverwrite = () => {
+  markRetainedDirty()
   scheduleFullScan()
 }
 
 const onListRemoved = () => {
+  markRetainedDirty()
   pruneLoadedLists()
 }
 
@@ -421,7 +468,12 @@ export const demoteOpenPlaylistCoverWork = () => {
 }
 
 export const pinStoredPlaylistCovers = () => {
-  for (const entry of listPlaylistCoverEntries()) pinImageUrl(entry.thumbUrl)
+  markRetainedDirty()
+  for (const entry of listPlaylistCoverEntries()) {
+    if (!isRetainedPlaylistSong(entry.source, entry.id)) continue
+    pinImageUrl(entry.thumbUrl)
+    if (entry.url && entry.url != entry.thumbUrl) pinImageUrl(entry.url)
+  }
 }
 
 export const runIdlePlaylistCoverPrefetch = () => {
@@ -433,7 +485,7 @@ export const restorePlaylistCoverCache = () => {
   pinStoredPlaylistCovers()
   if (focusedListId) {
     void getListMusics(focusedListId).then(songs => {
-      prioritizePlaylistCovers(songs, 'playlist')
+      prioritizePlaylistCovers(songs, 'playlist', Boolean(focusedListId && shouldTrackList(focusedListId)))
     }).catch(() => {})
   }
   scheduleFullScan()

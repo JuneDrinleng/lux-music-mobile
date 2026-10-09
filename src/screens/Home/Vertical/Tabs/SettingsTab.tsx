@@ -106,9 +106,15 @@ export default () => {
   const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
   const {
     cleaning: isCleaningResourceCache,
+    cleaningAudio: isCleaningAudioCache,
+    cleaningImage: isCleaningImageCache,
     cacheSize: resourceCacheSize,
     cacheSizeLabel: resourceCacheSizeLabel,
+    audioCacheLabel,
+    imageCacheLabel,
     handleCleanCache: handleCleanResourceCache,
+    handleCleanAudioCache,
+    handleCleanImageCache,
     handleGetAppCacheSize,
   } = useResourceCache()
   const defaultSignature = t('me_profile_status')
@@ -1208,8 +1214,14 @@ export default () => {
                     styles={styles}
                     cacheSizeLabel={resourceCacheSizeLabel}
                     cleaning={isCleaningResourceCache}
+                    cleaningAudio={isCleaningAudioCache}
+                    cleaningImage={isCleaningImageCache}
                     canClean={resourceCacheSize != null}
+                    audioCacheLabel={audioCacheLabel}
+                    imageCacheLabel={imageCacheLabel}
                     onClean={handleCleanResourceCache}
+                    onCleanAudio={handleCleanAudioCache}
+                    onCleanImage={handleCleanImageCache}
                   />
                 : null}
               {activeOptionDetail === 'changelog'

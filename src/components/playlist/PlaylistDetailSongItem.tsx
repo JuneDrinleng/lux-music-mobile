@@ -12,7 +12,7 @@ import { updateListMusics } from '@/core/list'
 import { peekCachedImageUri } from '@/utils/imageCache'
 import { peekPlaylistCover, subscribePlaylistCover, subscribePlaylistCoverStore } from '@/utils/playlistCoverStore'
 import { playlistCoverKey, preferStableCover, resolvePlaylistRowCover } from '@/utils/playlistCoverMap'
-import { prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
+import { isRetainedPlaylistSong, prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
@@ -138,7 +138,7 @@ const PlaylistDetailSongItem = ({
           <Image
             style={styles.cover}
             url={displayCoverUrl}
-            cachePin={Boolean(song.meta.picUrl) || Boolean(peekPlaylistCover(song.source, song.id))}
+            cachePin={song.source != 'local' && isRetainedPlaylistSong(song.source, song.id)}
             onError={handleCoverError}
           />
           <View style={styles.info}>

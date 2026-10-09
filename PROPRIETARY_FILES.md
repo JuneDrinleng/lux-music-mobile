@@ -127,6 +127,10 @@
 | `src/utils/playlistCoverMap.ts` | `code` | Lux 独立实现的歌曲封面地址映射与缩图规则，上游无对应文件 | `2026-10-08` |
 | `src/utils/playlistCoverStore.ts` | `code` | Lux 独立实现的封面地址本地存储，不进入同步列表，上游无对应文件 | `2026-10-08` |
 | `src/utils/playlistCoverPrefetch.ts` | `code` | Lux 独立实现的歌单封面后台预取，上游无对应文件 | `2026-10-08` |
+| `src/utils/musicUrlCache.ts` | `code` | Lux 独立实现的播放地址有效期判断，上游无对应文件 | `2026-10-09` |
+| `src/utils/listenListLimit.ts` | `code` | Lux 独立实现的试听列表长度裁剪选择，上游无对应文件 | `2026-10-09` |
+| `src/core/music/reuseMusicUrl.ts` | `code` | Lux 独立实现的播放地址复用，未过期或已缓存则直接使用，上游无对应文件 | `2026-10-09` |
+| `src/core/list/enforceListenListLimit.ts` | `code` | Lux 独立实现的试听列表 50 首上限，通过既有删除动作同步，上游无对应文件 | `2026-10-09` |
 | `scripts/check-lux-color-literals.mjs` | `code` | Lux 独立新增的竖屏颜色字面量回退检查，上游无对应文件 | `2026-10-08` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |

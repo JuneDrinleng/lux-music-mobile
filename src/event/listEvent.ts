@@ -20,6 +20,7 @@ import {
 import { LIST_IDS } from '@/config/constant'
 import { setActiveList, setUserList } from '@/core/list'
 import listState from '@/store/list/state'
+import { enforceListenListLimit } from '@/core/list/enforceListenListLimit'
 
 const updateUserList = async(userLists: LX.List.UserListInfo[]) => {
   await saveUserList(userLists)
@@ -90,6 +91,7 @@ export class ListEvent extends Event {
     global.app_event.myListMusicUpdate(changedIds)
     this.emit('list_data_overwrite', listData, isRemote)
     checkListExist(changedIds)
+    await enforceListenListLimit()
   }
 
   /**
@@ -157,6 +159,7 @@ export class ListEvent extends Event {
     const changedIds = await listMusicOverwrite(listId, musicInfos)
     await checkUpdateList(changedIds)
     this.emit('list_music_overwrite', listId, musicInfos, isRemote)
+    if (listId == LIST_IDS.DEFAULT) await enforceListenListLimit()
   }
 
   /**
@@ -170,6 +173,7 @@ export class ListEvent extends Event {
     const changedIds = await listMusicAdd(listId, musicInfos, addMusicLocationType)
     await checkUpdateList(changedIds)
     this.emit('list_music_add', listId, musicInfos, addMusicLocationType, isRemote)
+    if (listId == LIST_IDS.DEFAULT) await enforceListenListLimit()
   }
 
   /**
@@ -184,6 +188,7 @@ export class ListEvent extends Event {
     const changedIds = await listMusicMove(fromId, toId, musicInfos, addMusicLocationType)
     await checkUpdateList(changedIds)
     this.emit('list_music_move', fromId, toId, musicInfos, addMusicLocationType, isRemote)
+    if (toId == LIST_IDS.DEFAULT) await enforceListenListLimit()
   }
 
   /**
