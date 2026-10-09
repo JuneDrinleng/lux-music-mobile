@@ -9,20 +9,28 @@ import Text from '@/components/common/Text'
 import { getSourceTone } from '@/components/search/sourceTone'
 import { LIST_IDS } from '@/config/constant'
 import { playList } from '@/core/player/player'
-import { getListMusics, setTempList } from '@/core/list'
+import { setTempList } from '@/core/list'
+import { setCachedPagePlayQualities } from '@/core/music/utils'
 import { useI18n } from '@/lang'
 import { listCachedEntries, removeCachedResource } from '@/plugins/player/utils'
-import { forgetAudioCacheKeys, loadAudioCacheIndex } from '@/utils/audioCacheIndex'
+import { forgetAudioCacheKeys } from '@/utils/audioCacheIndex'
+import {
+  fetchCachedSongMusicInfo,
+  loadCachedSongCatalog,
+  rememberResolvedCacheSong,
+  withCachedCover,
+} from '@/utils/cachedSongInfo'
 import { sizeFormate } from '@/utils/common'
 import { useStatusbarHeight } from '@/store/common/hook'
-import listState from '@/store/list/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 import {
-  cacheKeysForSong,
+  alignCachedSong,
   mergeLocalSongRows,
+  parseAudioCacheKey,
+  resolveCachedSongMetadata,
   type MergedLocalSong,
 } from '@/utils/localSongRows'
 import {
@@ -36,24 +44,30 @@ import PlaylistDetailSongItem from './PlaylistDetailSongItem'
 
 interface PageRow extends MergedLocalSong {
   musicInfo: LX.Music.MusicInfo
+  needsRemoteMeta: boolean
 }
 
 const shiftAnim = new Animated.Value(0)
 
-const placeholderSong = (row: MergedLocalSong): LX.Music.MusicInfoLocal => ({
-  id: row.id,
-  name: row.cacheKey ?? row.id,
-  singer: '',
-  source: 'local',
-  interval: null,
-  meta: {
-    albumName: '',
-    filePath: '',
-    songId: row.id,
-    picUrl: '',
-    ext: '',
-  },
-})
+const localFileSong = (row: MergedLocalSong): LX.Music.MusicInfoLocal => {
+  const filePath = row.id
+  const base = filePath.split('/').pop() ?? filePath
+  const dot = base.lastIndexOf('.')
+  return {
+    id: filePath,
+    name: dot > 0 ? base.slice(0, dot) : base,
+    singer: '',
+    source: 'local',
+    interval: null,
+    meta: {
+      albumName: '',
+      filePath,
+      songId: filePath,
+      picUrl: '',
+      ext: dot > 0 ? base.slice(dot + 1) : '',
+    },
+  }
+}
 
 const requestAudioPermission = async() => {
   const version = typeof Platform.Version == 'number' ? Platform.Version : parseInt(String(Platform.Version), 10)
@@ -63,26 +77,6 @@ const requestAudioPermission = async() => {
   if (await PermissionsAndroid.check(permission)) return true
   const result = await PermissionsAndroid.request(permission)
   return result == PermissionsAndroid.RESULTS.GRANTED
-}
-
-const lookupMusic = async() => {
-  const found = new Map<string, LX.Music.MusicInfo>()
-  const index = await loadAudioCacheIndex()
-  for (const entry of index) found.set(entry.key, entry.musicInfo)
-  const lists = listState.allList.length
-    ? listState.allList
-    : [listState.defaultList, listState.loveList, ...listState.userList]
-  for (const list of lists) {
-    if (!list.id || list.id == LIST_IDS.TEMP || list.id == LIST_IDS.DOWNLOAD) continue
-    const songs = await getListMusics(list.id)
-    for (const song of songs) {
-      const qualities = song.source == 'local' ? ['local'] : undefined
-      for (const key of cacheKeysForSong(song.source, song.id, qualities)) {
-        if (!found.has(key)) found.set(key, song)
-      }
-    }
-  }
-  return found
 }
 
 export interface LocalSongsDetailProps {
@@ -102,16 +96,38 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const [selected, setSelected] = useState<Record<string, true>>({})
   const rowsRef = useRef(rows)
   rowsRef.current = rows
+  const reloadGeneration = useRef(0)
+
+  const hydrateRemoteMeta = useCallback(async(pending: PageRow[], generation: number) => {
+    const queue = pending.filter(row => row.cacheKey && row.needsRemoteMeta)
+    const worker = async() => {
+      while (queue.length) {
+        if (generation != reloadGeneration.current) return
+        const row = queue.shift()
+        const parsed = row?.cacheKey ? parseAudioCacheKey(row.cacheKey) : null
+        if (!row?.cacheKey || !parsed) continue
+        const fetched = await fetchCachedSongMusicInfo(parsed)
+        if (!fetched || generation != reloadGeneration.current) continue
+        const musicInfo = withCachedCover(alignCachedSong(fetched, parsed))
+        await rememberResolvedCacheSong(row.cacheKey, musicInfo)
+        if (generation != reloadGeneration.current) return
+        setRows(current => current.map(item => {
+          if (item.rowKey != row.rowKey) return item
+          return { ...item, musicInfo, needsRemoteMeta: false, playable: true }
+        }))
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()])
+  }, [])
 
   const reload = useCallback(async() => {
+    const generation = ++reloadGeneration.current
     setLoading(true)
     try {
       const devices = await collectDeviceSongs()
       const caches = await listCachedEntries().catch(() => [])
-      const known = await lookupMusic()
-      const musicByIdentity = new Map<string, LX.Music.MusicInfo>()
-      for (const device of devices) musicByIdentity.set(`${device.musicInfo.source}_${device.musicInfo.id}`, device.musicInfo)
-      for (const musicInfo of known.values()) musicByIdentity.set(`${musicInfo.source}_${musicInfo.id}`, musicInfo)
+      const catalog = await loadCachedSongCatalog()
+      const deviceById = new Map(devices.map(device => [`${device.musicInfo.source}_${device.musicInfo.id}`, device.musicInfo]))
       const merged = mergeLocalSongRows(
         devices.map(device => ({
           id: device.musicInfo.id,
@@ -119,24 +135,55 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
           size: device.size,
         })),
         caches.map(cache => {
-          const musicInfo = known.get(cache.key) ?? null
+          const known = catalog.metaByKey.get(cache.key)
+          const parsed = parseAudioCacheKey(cache.key)
           return {
             cacheKey: cache.key,
             cachedBytes: cache.cachedBytes,
             fullyCached: cache.fullyCached,
-            source: musicInfo?.source ?? null,
-            id: musicInfo?.id ?? null,
+            source: known?.source ?? parsed?.source ?? null,
+            id: known?.id ?? parsed?.id ?? null,
           }
         }),
       )
-      setRows(merged.map(row => ({
-        ...row,
-        musicInfo: musicByIdentity.get(`${row.source}_${row.id}`) ?? placeholderSong(row),
-      })))
+      const unknownName = t('local_songs_unknown_name')
+      const pageRows = merged.map((row): PageRow => {
+        if (row.origin == 'device') {
+          return {
+            ...row,
+            musicInfo: deviceById.get(`${row.source}_${row.id}`) ?? localFileSong(row),
+            needsRemoteMeta: false,
+          }
+        }
+        const resolved = resolveCachedSongMetadata<LX.Music.MusicInfo>({
+          cacheKey: row.cacheKey ?? '',
+          userLists: catalog.userLists,
+          listenList: catalog.listenList,
+          playHistory: catalog.playHistory,
+          metaStore: catalog.metaStore,
+          keyedMeta: row.cacheKey ? catalog.metaByKey.get(row.cacheKey) ?? null : null,
+          unknownName,
+        })
+        const musicInfo = withCachedCover(alignCachedSong(resolved.musicInfo, resolved.parsed) as LX.Music.MusicInfo)
+        if (row.cacheKey && resolved.via != 'fallback') {
+          const existing = catalog.metaByKey.get(row.cacheKey)
+          if (!existing?.name || existing.name == row.cacheKey) void rememberResolvedCacheSong(row.cacheKey, musicInfo)
+        }
+        const parsed = resolved.parsed
+        return {
+          ...row,
+          musicInfo,
+          playable: parsed != null && parsed.source != 'unknown',
+          needsRemoteMeta: resolved.via == 'fallback' && parsed != null && parsed.source != 'local' && parsed.source != 'unknown',
+        }
+      })
+      if (generation != reloadGeneration.current) return
+      setRows(pageRows)
+      void hydrateRemoteMeta(pageRows, generation)
     } finally {
-      setLoading(false)
+      if (generation == reloadGeneration.current) setLoading(false)
     }
-  }, [])
+  }, [hydrateRemoteMeta, t])
 
   useEffect(() => {
     void reload()
@@ -210,9 +257,27 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
       toast(t('local_songs_play_missing'))
       return
     }
-    const playable = rowsRef.current.filter(item => item.playable)
-    const index = playable.findIndex(item => item.rowKey == row.rowKey)
+    let target = row
+    if (row.needsRemoteMeta && row.cacheKey) {
+      const parsed = parseAudioCacheKey(row.cacheKey)
+      const fetched = parsed ? await fetchCachedSongMusicInfo(parsed) : null
+      if (fetched && row.cacheKey) {
+        const musicInfo = withCachedCover(alignCachedSong(fetched, parsed))
+        await rememberResolvedCacheSong(row.cacheKey, musicInfo)
+        target = { ...row, musicInfo, needsRemoteMeta: false, playable: true }
+        setRows(current => current.map(item => item.rowKey == row.rowKey ? target : item))
+      }
+    }
+    const playable = rowsRef.current
+      .filter(item => item.playable)
+      .map(item => item.rowKey == target.rowKey ? target : item)
+    const index = playable.findIndex(item => item.rowKey == target.rowKey)
     if (index < 0) return
+    setCachedPagePlayQualities(playable.filter(item => item.origin == 'cache').map(item => ({
+      source: item.musicInfo.source,
+      id: item.musicInfo.id,
+      quality: item.quality,
+    })))
     await setTempList('local-songs', playable.map(item => item.musicInfo))
     await playList(LIST_IDS.TEMP, index)
   }, [selecting, t])
@@ -237,10 +302,9 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
       })
       : false
     if (devices.length) await removeDeviceSongs(devices.map(row => row.musicInfo), deleteFiles)
-    for (const row of caches) {
-      if (row.cacheKey) await removeCachedResource(row.cacheKey).catch(() => {})
-    }
-    await forgetAudioCacheKeys(caches.flatMap(row => row.cacheKey ? [row.cacheKey] : []))
+    const cacheKeys = caches.flatMap(row => row.cacheKeys.length ? [...row.cacheKeys] : (row.cacheKey ? [row.cacheKey] : []))
+    for (const key of cacheKeys) await removeCachedResource(key).catch(() => {})
+    await forgetAudioCacheKeys(cacheKeys)
     setSelected({})
     setSelecting(false)
     await reload()

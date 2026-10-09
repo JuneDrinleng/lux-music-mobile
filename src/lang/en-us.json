@@ -334,6 +334,7 @@
   "local_songs_remove_cache": "Delete this song's cached audio? The song stays in your playlists.",
   "local_songs_remove_mixed": "Remove the selected device songs from the app and delete the selected cached audio? Files on the phone stay.",
   "local_songs_play_missing": "This cached song has no saved info, so it can't be played from here.",
+  "local_songs_unknown_name": "Unknown song",
   "local_songs_scan_empty": "No audio was found. You can pick a folder instead.",
   "local_songs_scan_done": "Added {count} songs",
   "local_songs_permission_denied": "Audio permission was denied. You can pick a folder instead.",

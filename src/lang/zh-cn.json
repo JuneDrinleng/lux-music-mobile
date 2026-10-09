@@ -334,6 +334,7 @@
   "local_songs_remove_cache": "删除这首歌的缓存音频？歌曲仍会留在歌单里。",
   "local_songs_remove_mixed": "从应用中移除所选的设备歌曲，并删除所选的缓存音频？手机上的文件会保留。",
   "local_songs_play_missing": "还没有这首歌的信息，没法直接播放。",
+  "local_songs_unknown_name": "未知歌曲",
   "local_songs_scan_empty": "没有扫到音频，可以改选一个文件夹。",
   "local_songs_scan_done": "已加入 {count} 首",
   "local_songs_permission_denied": "没有读取音频的权限，可以改选一个文件夹。",
