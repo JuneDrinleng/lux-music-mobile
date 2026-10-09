@@ -32,6 +32,7 @@ import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.NowPlayingMetadata;
 import com.guichaguri.trackplayer.service.models.Track;
 import com.guichaguri.trackplayer.service.player.ExoPlayback;
+import com.guichaguri.trackplayer.service.player.LocalPlayback;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -314,9 +315,12 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
-    public void updateNowPlayingTitles(float duration, String title, String artist, String album, final Promise callback) {
+    public void updateNowPlayingTitles(ReadableMap map, final Promise callback) {
+      // Aligned with upstream track-player bfe3393 (1.8.3+/1.8.4 media info / full lyric).
+      final Bundle data = Arguments.toBundle(map);
+
       waitForConnection(() -> {
-        binder.updateNowPlayingTitles((long) duration, title, artist, album);
+        binder.updateNowPlayingTitles(data);
         callback.resolve(null);
       });
     }
@@ -347,6 +351,41 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     public void clearCache(final Promise callback) {
         waitForConnection(() -> {
             binder.getPlayback().clearCache(callback);
+        });
+    }
+
+    @ReactMethod
+    public void setMaxCacheSize(double maxCacheSizeKb, final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).setCacheMaxSize((long) (maxCacheSizeKb * 1024d));
+            }
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void listCachedEntries(final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).listCachedEntries(callback);
+                return;
+            }
+            callback.resolve(Arguments.createArray());
+        });
+    }
+
+    @ReactMethod
+    public void removeCachedResource(String key, final Promise callback) {
+        waitForConnection(() -> {
+            ExoPlayback playback = binder.getPlayback();
+            if (playback instanceof LocalPlayback) {
+                ((LocalPlayback) playback).removeCachedResource(key, callback);
+                return;
+            }
+            callback.resolve(null);
         });
     }
 

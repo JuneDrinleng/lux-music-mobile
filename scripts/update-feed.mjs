@@ -20,19 +20,24 @@ export function cleanNotes(input) {
     .trim()
 }
 
-export function changelogSection(version, cwd = process.cwd()) {
+export function changelogSectionMeta(version, cwd = process.cwd()) {
   const parsed = parseVersion(version)
   if (!parsed || parsed.dev != null) throw new Error(`稳定版版本号不合法：${version}`)
   const text = fs.readFileSync(path.join(cwd, 'CHANGELOG.md'), 'utf8')
   const escaped = parsed.version.replace(/\./g, '\\.')
   const head = new RegExp(`^##\\s+\\[${escaped}\\](?![\\d.]).*$`, 'm').exec(text)
   if (!head) throw new Error(`CHANGELOG.md 中找不到 ${parsed.version}`)
+  const date = /(\d{4}-\d{2}-\d{2})\s*$/.exec(head[0])?.[1] ?? ''
   const rest = text.slice(head.index + head[0].length)
   const end = rest.search(/^##\s+\[\d+\.\d+\.\d+\]/m)
   const section = end == -1 ? rest : rest.slice(0, end)
   const desc = cleanNotes(section)
   if (!desc) throw new Error(`CHANGELOG.md 中 ${parsed.version} 的说明是空的`)
-  return desc
+  return { desc, date }
+}
+
+export function changelogSection(version, cwd = process.cwd()) {
+  return changelogSectionMeta(version, cwd).desc
 }
 
 const isNewer = (next, current) => {

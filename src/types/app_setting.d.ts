@@ -19,6 +19,12 @@ declare global {
       'common.langId': I18n['locale'] | null
 
       /**
+       * 安装包更新通道。null 表示跟随当前安装包：稳定版包看稳定版，开发版包看开发版。
+       * 与 buildInfo.updateChannel（standard / vivo）不是同一个设置。
+       */
+      'common.releaseChannel': 'stable' | 'dev' | null
+
+      /**
        * api id
        */
       'common.apiSource': string
@@ -149,6 +155,11 @@ declare global {
       'player.cacheSize': string
 
       /**
+       * 未固定图片缓存的张数上限。歌单内歌曲封面不计入。
+       */
+      'player.imageCacheCount': string
+
+      /**
        * 定时暂停播放-倒计时时间
        */
       'player.timeoutExit': string
@@ -197,6 +208,11 @@ declare global {
        * 是否启用蓝牙歌词
        */
       'player.isShowBluetoothLyric': boolean
+
+      /**
+       * 是否启用蓝牙完整歌词
+       */
+      'player.isShowBluetoothFullLyric': boolean
 
       /**
        * 播放详情页-是否缩放当前播放的歌词行

@@ -38,6 +38,12 @@ export const unlink = async(path: string) => FileSystem.unlink(path)
 export const mkdir = async(path: string) => FileSystem.mkdir(path)
 
 export const stat = async(path: string) => FileSystem.stat(path)
+
+export const touchFile = async(path: string, at: Date = new Date()) => {
+  const touch = (RNFS as { touch?: (filePath: string, mtime?: Date, ctime?: Date) => Promise<void> }).touch
+  if (!touch) return
+  await touch(path, at, at)
+}
 export const hash = async(path: string, algorithm: HashAlgorithm) => FileSystem.hash(path, algorithm)
 
 export const readFile = async(path: string, encoding?: Encoding) => FileSystem.readFile(path, encoding)

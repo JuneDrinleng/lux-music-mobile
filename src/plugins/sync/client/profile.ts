@@ -11,7 +11,14 @@ const getProfileUrl = async(host?: string) => {
   return `${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/me/profile`
 }
 
-const getToken = async() => (await getLuxAuth())?.token ?? ''
+const getToken = async(host?: string) => {
+  const syncHost = host ?? await getSyncHost()
+  if (!syncHost) return ''
+  const session = await getLuxAuth()
+  // A global active profile must never send another server's bearer token.
+  if (!session?.serverUrl || session.serverUrl != parseUrl(syncHost).href) return ''
+  return session.token
+}
 
 export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
   const displayName = profile.displayName.trim()
@@ -29,7 +36,7 @@ export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
 }
 
 export const pullLuxProfileFromServer = async(host?: string) => {
-  const [url, token] = await Promise.all([getProfileUrl(host), getToken()])
+  const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
   await applyLuxProfile(profile)
@@ -37,7 +44,7 @@ export const pullLuxProfileFromServer = async(host?: string) => {
 }
 
 export const syncLuxProfileOnLogin = async(host?: string) => {
-  const [url, token] = await Promise.all([getProfileUrl(host), getToken()])
+  const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
   const hasRemoteProfile = !!(profile.displayName || profile.avatar || profile.signature || profile.gender != 'unknown')

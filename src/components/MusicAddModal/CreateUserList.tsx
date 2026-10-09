@@ -37,7 +37,8 @@ export default ({ isEdit, onHide, defaultName, onCreated }: {
       isSubmittingRef.current = false
       return
     }
-    const listInfo = { id: `userlist_${Date.now()}`, name, locationUpdateTime: null }
+    const now = Date.now()
+    const listInfo = { id: `userlist_${now}`, name, locationUpdateTime: now }
     try {
       await createUserList(listState.userList.length, [listInfo])
       await onCreated?.(listInfo)

@@ -1,4 +1,3 @@
-// import { dateFormat } from '@/utils/common'
 import { setListUpdateTime } from '@/utils/data'
 import { overwriteListMusics, setFetchingListStatus } from './list'
 import { getListDetailAll } from '@/core/songlist'
@@ -25,8 +24,5 @@ export default async(targetListInfo: LX.List.UserListInfo) => {
   const list = await fetchList(targetListInfo.id, targetListInfo.source, targetListInfo.sourceListId)
   // console.log(list)
   void overwriteListMusics(targetListInfo.id, list)
-  const now = Date.now()
-  void setListUpdateTime(targetListInfo.id, now)
-  // TODO
-  // setUpdateTime(targetListInfo.id, dateFormat(now))
+  void setListUpdateTime(targetListInfo.id, Date.now())
 }

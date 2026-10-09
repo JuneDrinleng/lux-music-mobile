@@ -2,11 +2,10 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, Easing, Image as NativeImage, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
-import { Ellipsis, Heart, Play } from 'lucide-react-native'
+import { ActivityIndicator, Animated, Easing, InteractionManager, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
-import diskPic from '../../../../../assets/img/disk.png'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import { LIST_IDS } from '@/config/constant'
 import { setNavActiveId } from '@/core/common'
@@ -23,8 +22,13 @@ import leaderboardState, { type BoardItem } from '@/store/leaderboard/state'
 import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboard/listAction'
 import { pickMusicCover } from '@/utils/musicCover'
 import { getPicUrl } from '@/core/music/online'
-import { cacheImageUri, getCachedImageUri } from '@/utils/imageCache'
+import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
+import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@/utils/homeBootGate'
+import { getHomePlaylistMetaSnapshot, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
+import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getData, saveData } from '@/plugins/storage'
+import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors, type LuxHomeCard, type LuxHeroCard } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const OTHER_BOARD_PAGE_SIZE = 4
@@ -95,42 +99,40 @@ interface FeaturedCard {
   eyebrow: string
   title: string
   subtitle: string
-  count: number
+  count: number | null
   cover: string | null
-  tone: typeof heroCardTones[number]
+  tone: LuxHeroCard
 }
 interface LibraryItem {
   id: string
   title: string
   tag: string
   subtitle: string
-  tone: typeof cardTones[number]
+  tone: LuxHomeCard
 }
 
-const cardTones = [
-  { surface: '#f2d6e6', accent: '#cf4f8f', ink: '#4f2340', soft: '#f9edf4' },
-  { surface: '#e7ecfa', accent: '#5f76d9', ink: '#26355f', soft: '#f2f5fd' },
-  { surface: '#e8f0d7', accent: '#8caf33', ink: '#435817', soft: '#f5f8ea' },
-  { surface: '#f4e6d8', accent: '#c68444', ink: '#5b3b1c', soft: '#faf2ea' },
-] as const
-const heroCardTones = [
-  { surface: '#f3d7ed', accent: '#613060', ink: '#16181f', textSoft: '#61556d' },
-  { surface: '#dff0ad', accent: '#435817', ink: '#1f2613', textSoft: '#526236' },
-  { surface: '#f3e6d5', accent: '#6b4b2e', ink: '#22170e', textSoft: '#705640' },
-] as const
+const readCardTones = memoLuxColors((colors: LuxColors) => ([
+  { surface: colors.homeCards[0].surface, accent: colors.homeCards[0].accent, ink: colors.homeCards[0].ink, soft: colors.homeCards[0].soft },
+  { surface: colors.homeCards[1].surface, accent: colors.homeCards[1].accent, ink: colors.homeCards[1].ink, soft: colors.homeCards[1].soft },
+  { surface: colors.homeCards[2].surface, accent: colors.homeCards[2].accent, ink: colors.homeCards[2].ink, soft: colors.homeCards[2].soft },
+  { surface: colors.homeCards[3].surface, accent: colors.homeCards[3].accent, ink: colors.homeCards[3].ink, soft: colors.homeCards[3].soft },
+] as const))
+const useHeroCardTones = sharedLuxStyles((colors: LuxColors) => ([
+  { surface: colors.homeHeroes[0].surface, accent: colors.homeHeroes[0].accent, ink: colors.homeHeroes[0].ink, textSoft: colors.homeHeroes[0].textSoft },
+  { surface: colors.homeHeroes[1].surface, accent: colors.homeHeroes[1].accent, ink: colors.homeHeroes[1].ink, textSoft: colors.homeHeroes[1].textSoft },
+  { surface: colors.homeHeroes[2].surface, accent: colors.homeHeroes[2].accent, ink: colors.homeHeroes[2].ink, textSoft: colors.homeHeroes[2].textSoft },
+] as const))
 type FilterId = 'all' | 'new' | 'trending' | 'top' | 'other'
 type LbFilterId = Exclude<FilterId, 'all' | 'other'>
 type LbAllData = Partial<Record<LbFilterId, Partial<Record<LX.OnlineSource, LbSourceState>>>>
 type LbOtherData = Partial<Record<LX.OnlineSource, LbOtherSourceState>>
 const LB_FILTER_IDS: LbFilterId[] = ['new', 'trending', 'top']
 
-const getTone = (index: number) => cardTones[index % cardTones.length]
+const getTone = (index: number, colors: LuxColors = limeColors) => readCardTones(colors)[index % readCardTones(colors).length]
 
-const pickCover = (list: LX.Music.MusicInfo[]) => {
-  for (const song of list) {
-    if (song.meta.picUrl) return song.meta.picUrl
-  }
-  return null
+const homeCoverLookup = {
+  mapped: (song: HomeCoverSong) => peekPlaylistCover(song.source, song.id),
+  isCached: (url: string) => peekCachedImageUri(url) != null,
 }
 
 const createLbSourceState = (state: Partial<LbSourceState> = {}): LbSourceState => ({
@@ -297,33 +299,15 @@ const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
   )
 })
 
-// Skeleton rows that look like song rows with cover image (for new/trending/top)
-const SKELETON_SONG_WIDTHS = [
-  { title: '70%', sub: '48%' },
-  { title: '58%', sub: '38%' },
-  { title: '74%', sub: '52%' },
-] as const
-const SkeletonSongRows = memo(({ pulse }: { pulse: Animated.Value }) => (
-  <>
-    {SKELETON_SONG_WIDTHS.map((w, i) => (
-      <View key={i} style={[skeletonStyles.songRow, i < 2 ? skeletonStyles.rowSpacing : null]}>
-        <Animated.View style={[skeletonStyles.cover, { opacity: pulse }]} />
-        <View style={skeletonStyles.info}>
-          <Animated.View style={[skeletonStyles.line, { width: w.title, marginBottom: 6, opacity: pulse }]} />
-          <Animated.View style={[skeletonStyles.lineSm, { width: w.sub, opacity: pulse }]} />
-        </View>
-      </View>
-    ))}
-  </>
-))
-
 // Skeleton rows for text-only boards (for "other" clip)
 const SKELETON_TEXT_WIDTHS = [
   { title: '65%', sub: '44%' },
   { title: '52%', sub: '36%' },
   { title: '68%', sub: '48%' },
 ] as const
-const SkeletonTextRows = memo(({ pulse }: { pulse: Animated.Value }) => (
+const SkeletonTextRows = memo(({ pulse }: { pulse: Animated.Value }) => {
+  const skeletonStyles = useSkeletonStyles()
+  return (
   <>
     {SKELETON_TEXT_WIDTHS.map((w, i) => (
       <View key={i} style={[skeletonStyles.textRow, i < 2 ? skeletonStyles.rowSpacing : null]}>
@@ -335,24 +319,28 @@ const SkeletonTextRows = memo(({ pulse }: { pulse: Animated.Value }) => (
       </View>
     ))}
   </>
-))
+  )
+})
 
 // Skeleton title bar (header of each source section)
-const SkeletonTitle = memo(({ pulse }: { pulse: Animated.Value }) => (
+const SkeletonTitle = memo(({ pulse }: { pulse: Animated.Value }) => {
+  const skeletonStyles = useSkeletonStyles()
+  return (
   <Animated.View style={[skeletonStyles.title, { opacity: pulse }]} />
-))
+  )
+})
 
-const skeletonStyles = {
+const useSkeletonStyles = sharedLuxStyles((colors: LuxColors) => ({
   songRow: { minHeight: 70, flexDirection: 'row' as const, alignItems: 'center' as const, paddingVertical: 7 },
   textRow: { minHeight: 52, flexDirection: 'row' as const, alignItems: 'center' as const, paddingVertical: 5 },
   rowSpacing: { marginBottom: 1 },
-  cover: { width: 58, height: 58, borderRadius: 16, backgroundColor: '#e2e6ef' },
+  cover: { width: 58, height: 58, borderRadius: 16, backgroundColor: colors.surface.skeleton },
   info: { flex: 1, marginLeft: 13, marginRight: 12 },
-  line: { height: 13, borderRadius: 6, backgroundColor: '#e2e6ef' },
-  lineSm: { height: 11, borderRadius: 6, backgroundColor: '#e2e6ef' },
-  rankNum: { width: 26, height: 12, borderRadius: 4, backgroundColor: '#e2e6ef', marginRight: 2 },
-  title: { height: 18, width: '55%' as const, borderRadius: 8, backgroundColor: '#e2e6ef' },
-}
+  line: { height: 13, borderRadius: 6, backgroundColor: colors.surface.skeleton },
+  lineSm: { height: 11, borderRadius: 6, backgroundColor: colors.surface.skeleton },
+  rankNum: { width: 26, height: 12, borderRadius: 4, backgroundColor: colors.surface.skeleton, marginRight: 2 },
+  title: { height: 18, width: '55%' as const, borderRadius: 8, backgroundColor: colors.surface.skeleton },
+}))
 
 // ---------- AllContent ----------
 interface AllContentProps {
@@ -376,6 +364,9 @@ const AllContent = memo(({
   featuredCardWidth,
   featuredCardGap,
 }: AllContentProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   return (
     <View>
@@ -413,7 +404,7 @@ const AllContent = memo(({
                 <View style={styles.featuredBottomRow}>
                   <View style={styles.featuredContent}>
                     <Text size={12} color={card.tone.textSoft} style={styles.featuredSubtitle}>{card.subtitle}</Text>
-                    <Text size={11} color={card.tone.textSoft} style={styles.featuredCount}>{t('home_daily_tracks', { count: card.count })}</Text>
+                    <Text size={11} color={card.tone.textSoft} style={styles.featuredCount}>{card.count == null ? ' ' : t('home_daily_tracks', { count: card.count })}</Text>
 
                     <View style={styles.featuredActions}>
                       <TouchableOpacity
@@ -422,17 +413,14 @@ const AllContent = memo(({
                         onPress={handlePlayPlaylistPress(card.sourceListId)}
                       >
                         {isCardCurrent && isPlay
-                          ? <View style={styles.pauseGlyph}>
-                              <View style={styles.pauseBar} />
-                              <View style={styles.pauseBar} />
-                            </View>
-                          : <Play size={16} color="#ffffff" fill="#ffffff" strokeWidth={1.8} />}
+                          ? <MdiIcon name="pause" rawSize={16} color={colors.ink.onControl} />
+                          : <MdiIcon name="play" rawSize={16} color={colors.ink.onControl} />}
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
-                        <Heart size={16} color={card.tone.accent} strokeWidth={2} />
+                        <MdiIcon name="heart" rawSize={16} color={card.tone.accent} />
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.iconAction} activeOpacity={0.82} onPress={() => { openPlaylistDetail(card.sourceListId) }}>
-                        <Ellipsis size={16} color={card.tone.accent} strokeWidth={2} />
+                        <MdiIcon name="dots-horizontal" rawSize={16} color={card.tone.accent} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -440,9 +428,7 @@ const AllContent = memo(({
                   <View style={styles.featuredArtworkWrap}>
                     {card.cover
                       ? <Image style={styles.featuredArtwork} url={card.cover} />
-                      : <View style={[styles.featuredArtwork, styles.featuredArtworkFallback, { backgroundColor: 'rgba(255,255,255,0.28)' }]}>
-                          <NativeImage source={diskPic} style={{ width: 48, height: 48 }} resizeMode="contain" />
-                        </View>}
+                      : <View style={[styles.featuredArtwork, styles.featuredArtworkFallback, { backgroundColor: colors.surface.placeholder }]} />}
                   </View>
                 </View>
               </View>
@@ -452,9 +438,9 @@ const AllContent = memo(({
       </ScrollView>
 
       <View style={styles.sectionHeader}>
-        <Text size={21} color="#16181f" style={styles.sectionTitle}>{t('home_section_daily')}</Text>
+        <Text size={21} color={colors.ink.pageTitle} style={styles.sectionTitle}>{t('home_section_daily')}</Text>
         <TouchableOpacity activeOpacity={0.82} onPress={openLibrary}>
-          <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
+          <Text size={12} color={colors.ink.index} style={styles.sectionLink}>{t('home_action_see_all')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -473,13 +459,11 @@ const AllContent = memo(({
                 <View style={styles.dailyCoverWrap}>
                   {meta?.cover
                     ? <Image style={styles.dailyCover} url={meta.cover} />
-                    : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: item.tone.surface }]}>
-                        <NativeImage source={diskPic} style={{ width: 32, height: 32 }} resizeMode="contain" />
-                      </View>}
+                    : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: colors.surface.placeholder }]} />}
                 </View>
                 <View style={styles.dailyInfo}>
-                  <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text size={12} color="#7d8190" numberOfLines={1}>{`${item.tag} · ${t('home_daily_tracks', { count: meta?.count ?? 0 })}`}</Text>
+                  <Text size={15} color={colors.ink.rowTitle} style={styles.dailyTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text size={12} color={colors.ink.rowMeta} numberOfLines={1}>{formatHomeDailyMeta(item.tag, meta ? meta.count : null, meta ? t('home_daily_tracks', { count: meta.count }) : '')}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.dailyPlayButton}
@@ -487,17 +471,14 @@ const AllContent = memo(({
                   onPress={handlePlayPlaylistPress(item.id)}
                 >
                   {isItemCurrent && isPlay
-                    ? <View style={styles.pauseGlyphSmall}>
-                        <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                        <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                      </View>
-                    : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
+                    ? <MdiIcon name="pause" rawSize={13} color={colors.ink.miniPlay} />
+                    : <MdiIcon name="play" rawSize={13} color={colors.ink.miniPlay} />}
                 </TouchableOpacity>
               </TouchableOpacity>
             )
           })
           : <View style={styles.emptyCard}>
-              <Text size={13} color="#7d8190">{t('home_daily_empty')}</Text>
+              <Text size={13} color={colors.ink.rowMeta}>{t('home_daily_empty')}</Text>
             </View>}
       </View>
     </View>
@@ -518,6 +499,9 @@ const LbContent = memo(({
   lbPageWidth,
   lbTrackWidth,
 }: LbContentProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const pulse = usePulseAnim()
   const lbScrollXMapRef = useRef<Partial<Record<LX.OnlineSource, Animated.Value>>>({})
@@ -542,7 +526,7 @@ const LbContent = memo(({
     const timer = setTimeout(() => {
       setSettledFilter(activeFilter)
     }, 200)
-    return () => clearTimeout(timer)
+    return () => { clearTimeout(timer) }
   }, [activeFilter])
 
   return (
@@ -564,19 +548,19 @@ const LbContent = memo(({
             <View style={styles.sectionHeader}>
               {showLoading
                 ? <SkeletonTitle pulse={pulse} />
-                : <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
+                : <Text size={18} color={colors.ink.pageTitle} style={styles.lbBoardTitle} numberOfLines={1}>
                     {`${t(`source_real_${src}`)}：${boardName || '—'}`}
                   </Text>}
               {!showLoading
                 ? <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(src, boardId, boardName) }}>
-                    <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
+                    <Text size={12} color={colors.ink.index} style={styles.sectionLink}>{t('home_action_see_all')}</Text>
                   </TouchableOpacity>
                 : null}
             </View>
 
             {showSongSkeleton
               ? <View style={styles.lbSpinnerArea}>
-                  <ActivityIndicator size="large" color="#8a8f9d" />
+                  <ActivityIndicator size="large" color={colors.ink.index} />
                 </View>
               : <ContentReveal key={`${src}-${activeFilter}`}>
                   {chunks.length
@@ -605,26 +589,24 @@ const LbContent = memo(({
                                   activeOpacity={0.84}
                                   onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
                                 >
-                                  <Text size={15} color="#8a8f9d" style={styles.lbRankNum}>
+                                  <Text size={15} color={colors.ink.index} style={styles.lbRankNum}>
                                     {absIndex + 1}
                                   </Text>
                                   <View style={styles.dailyCoverWrap}>
                                     {coverUrl
                                       ? <Image style={styles.dailyCover} url={coverUrl} />
-                                      : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                                          <NativeImage source={diskPic} style={{ width: 32, height: 32 }} resizeMode="contain" />
-                                        </View>}
+                                      : <View style={[styles.dailyCover, styles.dailyCoverFallback, { backgroundColor: colors.surface.placeholder }]} />}
                                   </View>
                                   <View style={styles.dailyInfo}>
-                                    <Text size={15} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
-                                    <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
+                                    <Text size={15} color={colors.ink.rowTitle} style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
+                                    <Text size={12} color={colors.ink.rowMeta} numberOfLines={1}>{song.singer}</Text>
                                   </View>
                                   <TouchableOpacity
                                     style={styles.dailyPlayButton}
                                     activeOpacity={0.82}
                                     onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
                                   >
-                                    <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                    <MdiIcon name="play" rawSize={13} color={colors.ink.miniPlay} />
                                   </TouchableOpacity>
                                 </TouchableOpacity>
                               )
@@ -632,7 +614,7 @@ const LbContent = memo(({
                           </View>
                         ))}
                       </ScrollView>
-                    : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+                    : <View style={styles.lbEmpty}><Text size={13} color={colors.ink.index}>暂无榜单数据</Text></View>}
                 </ContentReveal>}
 
             {!showSongSkeleton && chunks.length > 1
@@ -677,6 +659,9 @@ const OtherContent = memo(({
   lbPageWidth,
   lbTrackWidth,
 }: OtherContentProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const pulse = usePulseAnim()
   const lbOtherScrollXMapRef = useRef<Record<string, Animated.Value>>({})
@@ -728,7 +713,7 @@ const OtherContent = memo(({
           <Pressable
             key={src}
             style={[styles.filterChip, selectedOtherSource === src ? styles.filterChipActive : null]}
-            android_ripple={{ color: 'rgba(217,239,98,0.5)', foreground: true, borderless: false }}
+            android_ripple={{ color: colors.accent.chipRipple, foreground: true, borderless: false }}
             onPressIn={() => {
               if (src === selectedOtherSource) return
               setIsSwitching(true)
@@ -740,7 +725,7 @@ const OtherContent = memo(({
             }}
             onPress={() => { onSourceChange(src) }}
           >
-            <Text size={12} color={selectedOtherSource === src ? '#31351b' : '#5d6271'} style={styles.filterChipText}>
+            <Text size={12} color={selectedOtherSource === src ? colors.ink.chipActive : colors.ink.chipIdle} style={styles.filterChipText}>
               {SOURCE_SHORT_LABELS[src] ?? src}
             </Text>
           </Pressable>
@@ -753,31 +738,31 @@ const OtherContent = memo(({
         if (isSwitching || !srcBoards) {
           return (
             <View style={styles.spinnerContainer}>
-              <ActivityIndicator size="large" color="#8a8f9d" />
+              <ActivityIndicator size="large" color={colors.ink.index} />
             </View>
           )
         }
         if (!srcBoards.length) {
-          return <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>
+          return <View style={styles.lbEmpty}><Text size={13} color={colors.ink.index}>暂无榜单数据</Text></View>
         }
         return (
           <ContentReveal key={selectedOtherSource}>
             {srcBoards.map(entry => {
-          const { boardId, boardName, songs, loading } = entry
-          const showLoading = loading && !songs.length
-          const chunks: LX.Music.MusicInfoOnline[][] = []
-          for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
-          return (
+              const { boardId, boardName, songs, loading } = entry
+              const showLoading = loading && !songs.length
+              const chunks: LX.Music.MusicInfoOnline[][] = []
+              for (let i = 0; i < songs.length; i += 3) chunks.push(songs.slice(i, i + 3))
+              return (
             <View key={boardId} style={styles.lbSourceSection}>
               <View style={styles.sectionHeader}>
                 {showLoading
                   ? <SkeletonTitle pulse={pulse} />
-                  : <Text size={18} color="#16181f" style={styles.lbBoardTitle} numberOfLines={1}>
+                  : <Text size={18} color={colors.ink.pageTitle} style={styles.lbBoardTitle} numberOfLines={1}>
                       {boardName || '—'}
                     </Text>}
                 {!showLoading
                   ? <TouchableOpacity activeOpacity={0.82} onPress={() => { handleViewAll(selectedOtherSource, boardId, boardName) }}>
-                      <Text size={12} color="#8a8f9d" style={styles.sectionLink}>{t('home_action_see_all')}</Text>
+                      <Text size={12} color={colors.ink.index} style={styles.sectionLink}>{t('home_action_see_all')}</Text>
                     </TouchableOpacity>
                   : null}
               </View>
@@ -810,17 +795,17 @@ const OtherContent = memo(({
                                     activeOpacity={0.84}
                                     onPress={() => { handleLbPlay(boardId, songs, absIndex) }}
                                   >
-                                    <Text size={14} color="#8a8f9d" style={styles.lbRankNum}>{absIndex + 1}</Text>
+                                    <Text size={14} color={colors.ink.index} style={styles.lbRankNum}>{absIndex + 1}</Text>
                                     <View style={styles.dailyInfo}>
-                                      <Text size={14} color="#171a22" style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
-                                      <Text size={12} color="#7d8190" numberOfLines={1}>{song.singer}</Text>
+                                      <Text size={14} color={colors.ink.rowTitle} style={styles.dailyTitle} numberOfLines={1}>{song.name}</Text>
+                                      <Text size={12} color={colors.ink.rowMeta} numberOfLines={1}>{song.singer}</Text>
                                     </View>
                                     <TouchableOpacity
                                       style={styles.dailyPlayButton}
                                       activeOpacity={0.82}
                                       onPress={(event) => { event.stopPropagation(); handleLbPlay(boardId, songs, absIndex) }}
                                     >
-                                      <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />
+                                      <MdiIcon name="play" rawSize={13} color={colors.ink.miniPlay} />
                                     </TouchableOpacity>
                                   </TouchableOpacity>
                                 )
@@ -828,7 +813,7 @@ const OtherContent = memo(({
                             </View>
                           ))}
                         </ScrollView>
-                      : <View style={styles.lbEmpty}><Text size={13} color="#8a8f9d">暂无榜单数据</Text></View>}
+                      : <View style={styles.lbEmpty}><Text size={13} color={colors.ink.index}>暂无榜单数据</Text></View>}
                   </ContentReveal>}
 
               {!showLoading && chunks.length > 1
@@ -851,8 +836,8 @@ const OtherContent = memo(({
                   </View>
                 : null}
             </View>
-          )
-        })}
+              )
+            })}
           </ContentReveal>
         )
       })()}
@@ -862,6 +847,10 @@ const OtherContent = memo(({
 
 // ---------- HomeTab ----------
 export default memo(() => {
+  const heroCardTones = useHeroCardTones()
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
@@ -872,7 +861,7 @@ export default memo(() => {
   const linkedPlaylistId = useLinkedPlaylistId()
   const [displayName, setDisplayName] = useState(DEFAULT_USER_NAME)
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
-  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>({})
+  const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>(getHomePlaylistMetaSnapshot)
   const playlistMetaRequestRef = useRef(0)
   const topPadding = statusBarHeight + 18 + 44 + 16
   const gestureInsetBottom = useSystemGestureInsetBottom()
@@ -887,7 +876,6 @@ export default memo(() => {
   const lbOtherSourceLoadedRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
   const lbOtherSourceLoadingRef = useRef<Partial<Record<LX.OnlineSource, boolean>>>({})
   const leaderboardHomeCacheReadyRef = useRef(false)
-  const activeFilterRef = useRef<FilterId>(activeFilter)
   const chipAnimsRef = useRef<Record<FilterId, Animated.Value>>({
     all: new Animated.Value(1),
     new: new Animated.Value(0),
@@ -982,9 +970,9 @@ export default memo(() => {
           : list.id === LIST_IDS.DEFAULT
             ? t('home_card_default_subtitle')
             : t('home_card_custom_subtitle'),
-        tone: getTone(index),
+        tone: getTone(index, colors),
       }))
-  }, [playlists, t])
+  }, [playlists, t, colors])
 
   const refreshPlaylistMeta = useCallback(async() => {
     const requestId = ++playlistMetaRequestRef.current
@@ -998,7 +986,7 @@ export default memo(() => {
       return {
         id: item.id,
         count: musics.length,
-        cover: pickCover(musics),
+        cover: resolveHomeListCover(musics.map(toHomeCoverSong), homeCoverLookup),
       }
     }))
 
@@ -1011,15 +999,22 @@ export default memo(() => {
         cover: item.cover,
       }
     }
-    // Pre-warm runtime image cache so Image components resolve synchronously
+    setPlaylistMetaMap(next)
     const coverUrls = Object.values(next)
       .map(item => item.cover)
       .filter((url): url is string => Boolean(url))
     if (coverUrls.length) {
-      await Promise.all(coverUrls.map(url => cacheImageUri(url).catch(() => null)))
+      void Promise.all(coverUrls.map(async url => cacheImageUri(url).catch(() => null)))
     }
-    setPlaylistMetaMap(next)
   }, [libraryItems])
+
+  useEffect(() => {
+    return subscribeHomePlaylistMeta(() => {
+      const snapshot = getHomePlaylistMetaSnapshot()
+      if (!Object.keys(snapshot).length) return
+      setPlaylistMetaMap(prev => ({ ...prev, ...snapshot }))
+    })
+  }, [])
 
   useEffect(() => {
     void refreshPlaylistMeta()
@@ -1324,8 +1319,9 @@ export default memo(() => {
       ? currentMusic.metadata.musicInfo
       : currentMusic
     : null
-  const featuredCover = currentMusicInfo?.meta.picUrl ?? (featuredItem ? playlistMetaMap[featuredItem.id]?.cover : null) ?? null
-  const featuredStat = featuredItem ? playlistMetaMap[featuredItem.id]?.count ?? 0 : 0
+  const featuredMeta = featuredItem ? playlistMetaMap[featuredItem.id] : undefined
+  const featuredCover = currentMusicInfo?.meta.picUrl ?? featuredMeta?.cover ?? null
+  const featuredStat = featuredItem ? (featuredMeta ? featuredMeta.count : null) : 0
   const isPlaylistCurrent = useCallback((listId: string | null | undefined) => {
     if (!listId || !linkedPlaylistId) return false
     return linkedPlaylistId === listId
@@ -1348,7 +1344,7 @@ export default memo(() => {
         eyebrow: item.tag,
         title: item.title,
         subtitle: item.subtitle,
-        count: playlistMetaMap[item.id]?.count ?? 0,
+        count: playlistMetaMap[item.id] ? playlistMetaMap[item.id].count : null,
         cover: playlistMetaMap[item.id]?.cover ?? null,
         tone: heroCardTones[(index + 1) % heroCardTones.length],
       })),
@@ -1416,7 +1412,7 @@ export default memo(() => {
         onScroll={handleContentScroll}
       >
         <View style={styles.greetingBlock}>
-          <Text size={30} color="#16181f" style={styles.greetingTitle}>{`${t('home_greeting_short')}, ${greetingName}`}</Text>
+          <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{`${t('home_greeting_short')}, ${greetingName}`}</Text>
         </View>
 
         <View style={styles.filterRow}>
@@ -1424,12 +1420,12 @@ export default memo(() => {
             <Pressable
               key={id}
               style={styles.filterChip}
-              android_ripple={{ color: 'rgba(217,239,98,0.5)', foreground: true, borderless: false }}
+              android_ripple={{ color: colors.accent.chipRipple, foreground: true, borderless: false }}
               onPressIn={() => { handleFilterPressIn(id) }}
               onPress={() => { handleFilterPress(id) }}
             >
               <Animated.View style={[styles.filterChipActiveOverlay, { opacity: chipAnimsRef.current[id] }]} />
-              <Text size={12} color={activeFilter === id ? '#31351b' : '#5d6271'} style={styles.filterChipText}>{t(key)}</Text>
+              <Text size={12} color={activeFilter === id ? colors.ink.chipActive : colors.ink.chipIdle} style={styles.filterChipText}>{t(key)}</Text>
             </Pressable>
           ))}
         </View>
@@ -1472,10 +1468,10 @@ export default memo(() => {
   )
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   scroll: {
     flex: 1,
@@ -1497,19 +1493,19 @@ const styles = createStyle({
     minHeight: 36,
     borderRadius: 18,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: colors.glass.fill72,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
     overflow: 'hidden',
   },
   filterChipActive: {
-    backgroundColor: '#d9ef62',
+    backgroundColor: colors.accent.chip,
   },
   filterChipActiveOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 18,
-    backgroundColor: '#d9ef62',
+    backgroundColor: colors.accent.chip,
   },
   filterChipText: {
     fontWeight: '600',
@@ -1527,7 +1523,7 @@ const styles = createStyle({
   featuredCard: {
     overflow: 'hidden',
     borderRadius: 22,
-    shadowColor: '#84789b',
+    shadowColor: colors.shadow.hero,
     shadowOpacity: 0.1,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
@@ -1581,7 +1577,7 @@ const styles = createStyle({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#613060',
+    backgroundColor: colors.homeHeroes[0].accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -1604,13 +1600,13 @@ const styles = createStyle({
     width: 4,
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   pauseBarSmall: {
     width: 3,
   },
   pauseBarDark: {
-    backgroundColor: '#303340',
+    backgroundColor: colors.ink.miniPlay,
   },
   iconAction: {
     width: 32,
@@ -1630,7 +1626,7 @@ const styles = createStyle({
     width: 96,
     height: 116,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: colors.glass.fill30,
   },
   featuredArtworkFallback: {
     alignItems: 'center',
@@ -1665,7 +1661,7 @@ const styles = createStyle({
     height: 58,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#747b8f',
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -1692,9 +1688,9 @@ const styles = createStyle({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.52)',
+    backgroundColor: colors.glass.fill52,
     borderWidth: 1,
-    borderColor: 'rgba(230,234,243,0.92)',
+    borderColor: colors.glass.stroke,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1733,7 +1729,7 @@ const styles = createStyle({
   lbScrollTrack: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(22,24,31,0.08)',
+    backgroundColor: colors.scrim.home,
     marginTop: 10,
     marginLeft: 28,
     marginRight: 30,
@@ -1742,6 +1738,6 @@ const styles = createStyle({
   lbScrollThumb: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(22,24,31,0.28)',
+    backgroundColor: colors.scrim.homeStrong,
   },
-})
+})))

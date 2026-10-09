@@ -1,11 +1,12 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, Image as RNImage, TouchableOpacity, View } from 'react-native'
+import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { createStyle, shareMusic, toast } from '@/utils/tools'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { usePlayDetailClose } from '../context'
@@ -18,11 +19,9 @@ import SeekBar from './components/SeekBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
-import likeIcon from '../../../../assets/img/empty-heart.png'
-import likedIcon from '../../../../assets/img/fill-in-heart.png'
-import shareIcon from '../../../../assets/img/share.png'
+import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
-const PLAY_BUTTON_COLOR = '#111827'
 const TONEARM_OUT_ANGLE = '18deg'
 const TONEARM_IN_ANGLE = '-2deg'
 const TONEARM_PIVOT_X = 111
@@ -30,30 +29,33 @@ const TONEARM_PIVOT_Y = 9
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
 
-const sourceAccentColorMap: Record<string, string> = {
-  tx: '#31c27c',
-  wy: '#d81e06',
-  kg: '#2f88ff',
-  kw: '#f59e0b',
-  mg: '#e11d8d',
-  local: '#475569',
-  bd: '#111827',
-}
+const readSourceAccentColorMap = memoLuxColors((colors: LuxColors): Record<string, string> => ({
+  tx: colors.source.tx.text,
+  wy: colors.source.wy.text,
+  kg: colors.source.kg.text,
+  kw: colors.source.kw.text,
+  mg: colors.source.mg.text,
+  local: colors.source.localDetail,
+  bd: colors.source.unknown.text,
+}))
 const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
   if (!musicInfo) return null
   if ('progress' in musicInfo) return musicInfo.metadata.musicInfo.source
   return musicInfo.source
 }
-const getSourceAccentColor = (source: string | null | undefined) => {
-  if (!source) return '#111827'
-  return sourceAccentColorMap[source.toLowerCase()] ?? '#111827'
+const getSourceAccentColor = (source: string | null | undefined, colors: LuxColors = limeColors) => {
+  if (!source) return colors.source.unknown.text
+  return readSourceAccentColorMap(colors)[source.toLowerCase()] ?? colors.source.unknown.text
 }
-const getSourceTrackColor = (color: string) => {
+const getSourceTrackColor = (color: string, colors: LuxColors = limeColors) => {
   if (/^#[0-9a-f]{6}$/i.test(color)) return `${color}33`
-  return '#e5e7eb'
+  return colors.line.neutral
 }
 
 export default ({ componentId, active, onCommentPress }: { componentId: string, active: boolean, onCommentPress?: () => void }) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const statusBarHeight = useStatusbarHeight()
   const closePlayDetail = usePlayDetailClose()
   const musicInfo = usePlayerMusicInfo()
@@ -75,17 +77,17 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
   const [isLoved, setIsLoved] = useState(false)
   const winSize = useWindowSize()
   const discSize = Math.min(winSize.width * 0.9, 450)
-  const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`), [musicInfo?.id, musicInfo?.pic])
+  const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`, colors), [musicInfo?.id, musicInfo?.pic, colors])
   const sourceAccentColor = useMemo(() => {
-    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo))
-  }, [playMusicInfo.musicInfo])
-  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor), [sourceAccentColor])
+    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo), colors)
+  }, [playMusicInfo.musicInfo, colors])
+  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor, colors), [sourceAccentColor, colors])
   const hasBackgroundCover = Boolean(musicInfo?.pic)
   const gradientColors = useMemo(() => {
     return hasBackgroundCover
-      ? createWhiteFadeMaskColors(84, 0.12, 1)
+      ? createWhiteFadeMaskColors(84, 0.12, 1, colors.bg.plain)
       : createLinearGradientColors(coverTheme, 84)
-  }, [coverTheme, hasBackgroundCover])
+  }, [coverTheme, hasBackgroundCover, colors])
   const radialCenterX = discSize * 0.5
   const radialCenterY = discSize * 0.28
   const radialMaxRadius = discSize * 0.74
@@ -299,8 +301,8 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     if (!musicInfo.id) return
     const nextLoved = !isLoved
     setIsLoved(nextLoved)
-    if (nextLoved) collectMusic()
-    else uncollectMusic()
+    if (nextLoved) void collectMusic()
+    else void uncollectMusic()
   }
 
   const handleTogglePlay = () => {
@@ -368,11 +370,11 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
       </View>
       <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={goBack}>
-          <Icon name="chevron-left" rawSize={24} color="#111827" style={styles.backIcon} />
+          <Icon name="chevron-left" rawSize={24} color={colors.ink.strong} style={styles.backIcon} />
         </TouchableOpacity>
         <View style={styles.headerCenter} />
         <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={handleShare}>
-          <RNImage source={shareIcon} style={styles.headerShareIcon} />
+          <MdiIcon name="share-variant" size={20} color={colors.ink.strong} />
         </TouchableOpacity>
       </View>
 
@@ -496,15 +498,15 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
         <View style={styles.songInfo}>
           <View style={styles.titleRow}>
             <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={() => { onCommentPress?.() }}>
-              <Icon name="comment" rawSize={20} color="#9ca3af" />
+              <Icon name="comment" rawSize={20} color={colors.ink.faint} />
             </TouchableOpacity>
-            <Text size={24} color="#111827" numberOfLines={1} style={styles.songTitle}>
+            <Text size={24} color={colors.ink.strong} numberOfLines={1} style={styles.songTitle}>
               {musicInfo.name || 'Midnight City Echoes'}
             </Text>
             <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
               {isLoved
-                ? <RNImage source={likedIcon} style={styles.likedIcon} />
-                : <RNImage source={likeIcon} style={styles.sideActionIcon} />}
+                ? <MdiIcon name="heart" size={24} color={colors.like} />
+                : <MdiIcon name="heart-outline" size={24} color={colors.ink.faint} />}
             </TouchableOpacity>
           </View>
           <Text size={18} color={sourceAccentColor} numberOfLines={1} style={styles.singer}>
@@ -521,29 +523,29 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
               />
             </View>
             <View style={styles.timeRow}>
-              <Text size={11} color="#9ca3af" style={styles.timeText}>{nowPlayTimeStr}</Text>
-              <Text size={11} color="#9ca3af" style={styles.timeText}>{maxPlayTimeStr}</Text>
+              <Text size={11} color={colors.ink.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
+              <Text size={11} color={colors.ink.faint} style={styles.timeText}>{maxPlayTimeStr}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
-            <Icon name={playModeIcon} rawSize={22} color="#9ca3af" />
+            <Icon name={playModeIcon} rawSize={22} color={colors.ink.faint} />
           </TouchableOpacity>
           <View style={styles.controlRow}>
             <TouchableOpacity style={styles.mediumBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
-              <Icon name="prevMusic" rawSize={28} color="#374151" />
+              <Icon name="prevMusic" rawSize={28} color={colors.control.skip} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.playBtn} activeOpacity={0.85} onPress={handleTogglePlay}>
-              <Icon name={isPlay ? 'pause' : 'play'} rawSize={34} color="#ffffff" />
+              <Icon name={isPlay ? 'pause' : 'play'} rawSize={34} color={colors.ink.onControl} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.mediumBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
-              <Icon name="nextMusic" rawSize={28} color="#374151" />
+              <Icon name="nextMusic" rawSize={28} color={colors.control.skip} />
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
-            <Icon name="menu" rawSize={22} color="#9ca3af" />
+            <Icon name="menu" rawSize={22} color={colors.ink.faint} />
           </TouchableOpacity>
         </View>
       </View>
@@ -552,10 +554,10 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bg.plain,
   },
   gradientLinearWrap: {
     position: 'absolute',
@@ -598,7 +600,7 @@ const styles = createStyle({
   headerShareIcon: {
     width: 20,
     height: 20,
-    tintColor: '#111827',
+    tintColor: colors.ink.strong,
   },
   headerCenter: {
     flex: 1,
@@ -651,7 +653,7 @@ const styles = createStyle({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#a7afbe',
+    backgroundColor: colors.decor.tonearmPivot,
   },
   tonearmArm: {
     position: 'absolute',
@@ -660,7 +662,7 @@ const styles = createStyle({
     width: 82,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#b8bfcc',
+    backgroundColor: colors.decor.tonearmArm,
   },
   tonearmHead: {
     position: 'absolute',
@@ -669,7 +671,7 @@ const styles = createStyle({
     width: 14,
     height: 12,
     borderRadius: 3,
-    backgroundColor: '#7f8898',
+    backgroundColor: colors.decor.tonearmHead,
   },
   recordSpin: {
     width: '100%',
@@ -682,11 +684,11 @@ const styles = createStyle({
     height: '100%',
     borderRadius: 999,
     borderWidth: 3,
-    borderColor: 'rgba(15,23,42,0.08)',
-    backgroundColor: '#111111',
+    borderColor: colors.scrim.vinylRing,
+    backgroundColor: colors.surface.vinyl,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.18,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -695,12 +697,12 @@ const styles = createStyle({
     position: 'absolute',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ffffff',
+    borderColor: colors.line.white,
   },
   vinylSheen: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.glass.line16,
     transform: [{ rotate: '-18deg' }],
     opacity: 0.35,
   },
@@ -710,7 +712,7 @@ const styles = createStyle({
     borderRadius: 999,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(15,23,42,0.55)',
+    borderColor: colors.scrim.vinylInner,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -731,13 +733,13 @@ const styles = createStyle({
     maxWidth: 420,
   },
   bottomPanel: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 16,
     paddingHorizontal: 20,
     paddingBottom: 22,
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0.03,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: -2 },
@@ -757,7 +759,7 @@ const styles = createStyle({
   sideActionIcon: {
     width: 24,
     height: 24,
-    tintColor: '#9ca3af',
+    tintColor: colors.ink.faint,
   },
   likedIcon: {
     width: 24,
@@ -811,14 +813,14 @@ const styles = createStyle({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: PLAY_BUTTON_COLOR,
+    backgroundColor: colors.control.play,
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 10,
-    shadowColor: PLAY_BUTTON_COLOR,
+    shadowColor: colors.control.playShadow,
     shadowOpacity: 0.16,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-})
+})))
 

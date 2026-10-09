@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
+import { setSystemBarIconStyle } from '@/utils/nativeModules/utils'
 import Content from './Content'
 import PlayerBar from '@/components/player/PlayerBar'
 import BottomNav from './BottomNav'
@@ -9,16 +10,20 @@ import PlayQueueSheet from './PlayQueueSheet'
 import PlayDetailOverlay from './PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
+import LocalSongsDetail from '@/components/playlist/LocalSongsDetail'
+import ListeningStatsPage from '@/components/stats/ListeningStatsPage'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { useComponentIds } from '@/store/common/hook'
 import { type PlaylistDetailPayload } from '@/event/appEvent'
-import { APP_LAYER_INDEX } from '@/config/constant'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
+import { shouldHoldSplashChrome, subscribeHomeBootSplashHidden } from '@/utils/homeFirstScreenBoot'
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.bg.plain,
   },
   playlistDetailLayer: {
     position: 'absolute',
@@ -44,32 +49,71 @@ const styles = createStyle({
   navShell: {
     backgroundColor: 'transparent',
     overflow: 'visible',
-    shadowColor: '#000000',
+    shadowColor: colors.shadow.black,
     shadowOpacity: 0,
     shadowRadius: 0,
     shadowOffset: { width: 0, height: 0 },
     elevation: 0,
   },
-})
+})))
 
 export default () => {
+  const styles = useLuxStyles()
+  const { mode } = useLuxTheme()
+
   const bottomInset = useSystemGestureInsetBottom()
   const componentIds = useComponentIds()
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
+  const [localSongsOpen, setLocalSongsOpen] = useState(false)
+  const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
+  const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
+
+  useEffect(() => subscribeHomeBootSplashHidden(() => { setHoldSplashChrome(false) }), [])
+
+  useEffect(() => {
+    // The splash artwork is still the light launch screen. Keep dark glyphs until it fades.
+    setSystemBarIconStyle(holdSplashChrome ? 'dark' : (mode === 'dark' ? 'light' : 'dark'))
+  }, [holdSplashChrome, mode])
 
   useEffect(() => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
+      setLocalSongsOpen(false)
+      setListeningStatsOpen(false)
       setPlaylistDetailRequest(payload)
     }
     const handleClosePlaylistDetail = () => {
       setPlaylistDetailRequest(null)
     }
+    const handleOpenLocalSongs = () => {
+      setPlaylistDetailRequest(null)
+      setListeningStatsOpen(false)
+      setLocalSongsOpen(true)
+    }
+    const handleCloseLocalSongs = () => {
+      setLocalSongsOpen(false)
+    }
+    const handleOpenListeningStats = () => {
+      setPlaylistDetailRequest(null)
+      setLocalSongsOpen(false)
+      setListeningStatsOpen(true)
+    }
+    const handleCloseListeningStats = () => {
+      setListeningStatsOpen(false)
+    }
     global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
     global.app_event.on('closePlaylistDetail', handleClosePlaylistDetail)
+    global.app_event.on('openLocalSongs', handleOpenLocalSongs)
+    global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
+    global.app_event.on('openListeningStats', handleOpenListeningStats)
+    global.app_event.on('closeListeningStats', handleCloseListeningStats)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
       global.app_event.off('closePlaylistDetail', handleClosePlaylistDetail)
+      global.app_event.off('openLocalSongs', handleOpenLocalSongs)
+      global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
+      global.app_event.off('openListeningStats', handleOpenListeningStats)
+      global.app_event.off('closeListeningStats', handleCloseListeningStats)
     }
   }, [])
 
@@ -78,15 +122,41 @@ export default () => {
     global.app_event.closePlaylistDetail()
   }, [])
 
+  const handleCloseLocalSongs = useCallback(() => {
+    setLocalSongsOpen(false)
+    global.app_event.closeLocalSongs()
+  }, [])
+
+  const handleCloseListeningStats = useCallback(() => {
+    setListeningStatsOpen(false)
+    global.app_event.closeListeningStats()
+  }, [])
+
   return (
     <View style={styles.container}>
-      <StatusBar />
+      <StatusBar barStyle={holdSplashChrome || mode !== 'dark' ? 'dark-content' : 'light-content'} />
       <Content />
       {playlistDetailRequest
         ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
             <PlaylistDetailView
               detail={playlistDetailRequest}
               onClose={handleClosePlaylistDetail}
+              bottomPadding={bottomLayerHeight}
+            />
+          </View>
+        : null}
+      {localSongsOpen
+        ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
+            <LocalSongsDetail
+              onClose={handleCloseLocalSongs}
+              bottomPadding={bottomLayerHeight}
+            />
+          </View>
+        : null}
+      {listeningStatsOpen
+        ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
+            <ListeningStatsPage
+              onClose={handleCloseListeningStats}
               bottomPadding={bottomLayerHeight}
             />
           </View>

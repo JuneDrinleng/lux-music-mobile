@@ -6,6 +6,25 @@ const { UtilsModule } = NativeModules
 
 export const exitApp = UtilsModule.exitApp
 
+export interface DeviceAudioFile {
+  path: string
+  displayName: string
+  title: string
+  artist: string
+  album: string
+  durationMs: number
+  size: number
+}
+
+export const listDeviceAudio = async(): Promise<DeviceAudioFile[]> => {
+  if (typeof UtilsModule?.listDeviceAudio != 'function') return []
+  const rows: unknown = await UtilsModule.listDeviceAudio()
+  if (!Array.isArray(rows)) return []
+  return rows.filter((row): row is DeviceAudioFile => {
+    return Boolean(row) && typeof row == 'object' && typeof (row as DeviceAudioFile).path == 'string'
+  })
+}
+
 export const getSupportedAbis = UtilsModule.getSupportedAbis
 
 export interface BuildInfo {
@@ -35,6 +54,30 @@ export const screenUnkeepAwake = () => {
 }
 
 export const getWIFIIPV4Address = UtilsModule.getWIFIIPV4Address as () => Promise<string>
+
+/** Unmetered active network from ConnectivityManager. False when the module or the call fails. */
+export const isActiveNetworkUnmetered = async(): Promise<boolean> => {
+  if (typeof UtilsModule?.isActiveNetworkUnmetered != 'function') return false
+  try {
+    const value: unknown = await UtilsModule.isActiveNetworkUnmetered()
+    return value === true
+  } catch {
+    return false
+  }
+}
+
+export const onNetworkUnmeteredChange = (handler: (unmetered: boolean) => void): () => void => {
+  if (!UtilsModule) return () => {}
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  const eventEmitter = new NativeEventEmitter(UtilsModule)
+  const eventListener = eventEmitter.addListener('network-unmetered', (event: { unmetered?: boolean }) => {
+    handler(event?.unmetered === true)
+  })
+
+  return () => {
+    eventListener.remove()
+  }
+}
 
 export const getDeviceName = async(): Promise<string> => {
   return UtilsModule.getDeviceName().then((deviceName: string) => deviceName || 'Unknown')
@@ -116,4 +159,10 @@ export const requestIgnoreBatteryOptimization = async() => new Promise<boolean>(
 export const setSystemBarsTransparent = () => {
   if (!UtilsModule?.setSystemBarsTransparent) return
   UtilsModule.setSystemBarsTransparent()
+}
+
+/** Dark glyphs on light themes, light glyphs on 墨夜. Does not touch the upstream theme. */
+export const setSystemBarIconStyle = (style: 'light' | 'dark') => {
+  if (!UtilsModule?.setSystemBarIconStyle) return
+  UtilsModule.setSystemBarIconStyle(style)
 }

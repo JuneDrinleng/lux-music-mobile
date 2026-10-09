@@ -5,7 +5,10 @@ import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '
 import { throttle } from './common'
 import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
+import { parseMusicUrlRecord, serializeMusicUrlRecord } from './musicUrlCache'
 import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { createCredentialStore } from '@/plugins/sync/client/credentials'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
 // import { isNotificationsEnabled, openNotificationPermissionActivity, shareText } from '@/utils/nativeModules/utils'
@@ -430,8 +433,26 @@ export const removeListMusics = async(ids: string[]): Promise<void> => {
 }
 
 
-export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => getData<string>(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`).then((url) => url ?? '')
-export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, url)
+export const qualitys: LX.Quality[] = ['128k', '320k', 'flac', 'flac24bit']
+export const hasMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  return getDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`)).then((urls) => {
+    return urls.some(([, url]) => !!url)
+  })
+}
+export const clearMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
+  await removeDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`))
+}
+export const readMusicUrlRecord = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => {
+  const raw = await getData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`)
+  return parseMusicUrlRecord(raw)
+}
+export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => {
+  const record = await readMusicUrlRecord(musicInfo, type)
+  return record?.url ?? ''
+}
+export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => {
+  await saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, serializeMusicUrlRecord(url, Date.now()))
+}
 export const clearMusicUrl = async(keys?: string[]) => {
   if (!keys) keys = (await getAllKeys()).filter(key => key.startsWith(storageDataPrefix.musicUrl))
   await removeDataMultiple(keys)
@@ -532,19 +553,15 @@ export const getSelectedManagedFolder = async() => {
   return selectedManagedFolder
 }
 
-export const getSyncAuthKey = async(serverId: string) => {
-  const keys = await getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix)
-  if (!keys) return null
-  return keys[serverId] ?? null
-}
-export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => {
-  let keys = await getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix) ?? {}
-  keys[serverId] = info
-  await saveData(syncAuthKeyPrefix, keys)
-}
-export const clearSyncAuthKey = async() => {
-  await removeData(syncAuthKeyPrefix)
-}
+const syncKeys = createCredentialStore<LX.Sync.KeyInfo>({
+  read: async() => getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix),
+  // Credentials are small; replace atomically without saveData's remove-before-write gap.
+  write: async(keys) => AsyncStorage.setItem(syncAuthKeyPrefix, JSON.stringify(keys)),
+  remove: async() => removeData(syncAuthKeyPrefix),
+})
+export const getSyncAuthKey = async(serverId: string) => syncKeys.get(serverId)
+export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => syncKeys.set(serverId, info)
+export const clearSyncAuthKey = async() => syncKeys.clear()
 
 export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
   const mode = await getData<LX.Sync.Mode>(syncModePrefix)
@@ -552,13 +569,29 @@ export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
 }
 export const setSyncMode = async(mode: LX.Sync.Mode) => {
   await saveData(syncModePrefix, mode)
+  global.app_event?.syncModeUpdated(mode)
 }
-export const getLuxAuth = async() => getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+const luxSessions = createCredentialStore<LX.Sync.LuxAuth>({
+  read: async() => getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers),
+  write: async(sessions) => AsyncStorage.setItem(storageDataPrefix.luxAuthServers, JSON.stringify(sessions)),
+  remove: async() => removeData(storageDataPrefix.luxAuthServers),
+})
+export const getLuxAuth = async(serverId?: string) => {
+  if (serverId) {
+    const session = await luxSessions.get(serverId)
+    if (session) return session
+  }
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  // Accept the old unscoped session once, then bind it when authentication succeeds.
+  if (serverId && active?.serverId && active.serverId != serverId) return null
+  return active
+}
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
-  await saveData(luxAuthPrefix, auth)
+  if (auth.serverId) await luxSessions.set(auth.serverId, auth)
+  await AsyncStorage.setItem(luxAuthPrefix, JSON.stringify(auth))
 }
 export const clearLuxAuth = async() => {
-  await removeData(luxAuthPrefix)
+  await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
 }
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {
@@ -566,10 +599,18 @@ export const setSyncLoginCompleted = async(completed: boolean) => {
 }
 export const getSyncConflictMode = async() => {
   const mode = await getData<LX.Sync.List.SyncMode>(syncConflictModePrefix)
-  return mode && mode != 'cancel' ? mode : null
+  if (!mode || mode == 'cancel') return null
+  // Drop legacy overwrite_* memories so they cannot silently re-apply.
+  if (mode.startsWith('overwrite_')) {
+    await removeData(syncConflictModePrefix)
+    return null
+  }
+  return mode
 }
 export const setSyncConflictMode = async(mode: LX.Sync.List.SyncMode) => {
   if (mode == 'cancel') return
+  // Never persist overwrite modes — they must be confirmed each time.
+  if (mode.startsWith('overwrite_')) return
   await saveData(syncConflictModePrefix, mode)
 }
 export const clearSyncConflictMode = async() => {

@@ -2,13 +2,14 @@
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, Image as RNImage, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
+import { Animated, Dimensions, Easing, Keyboard, Modal, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import Input from '@/components/common/Input'
-import { confirmDialog, createStyle, openUrl, toast } from '@/utils/tools'
+import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
@@ -25,25 +26,23 @@ import settingState from '@/store/setting/state'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearLuxAuth, clearSyncAuthKey, clearSyncConflictMode, setSyncLoginCompleted } from '@/utils/data'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
-import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
 import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
-import maleImg from '../../../../../assets/img/male.png'
-import femaleImg from '../../../../../assets/img/female.png'
-import langImg from '../../../../../assets/img/language.png'
-import searchImg from '../../../../../assets/img/search.png'
-import sourceImg from '../../../../../assets/img/source.png'
-import synImg from '../../../../../assets/img/syn.png'
-import formatImg from '../../../../../assets/img/format.png'
-import versionImg from '../../../../../assets/img/version.png'
-import updateImg from '../../../../../assets/img/update.png'
-import githubImg from '../../../../../assets/img/Github.png'
-import logoutImg from '../../../../../assets/img/log-out.png'
 import { checkUpdate } from '@/core/version'
+import versionState from '@/store/version/state'
+import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
+import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
+import VersionChangelogDetail from './VersionChangelogDetail'
+import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
+import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
+import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
+import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const currentVer = process.versions.app
@@ -57,8 +56,25 @@ const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 const genderOptionValues = ['male', 'female', 'unknown'] as const
 
 export default () => {
+  const styles = useLuxStyles()
+  const { colors, id: luxThemeId, setLuxTheme } = useLuxTheme()
+  const luxFieldStyle = useMemo(() => ({
+    backgroundColor: colors.surface.importField,
+    color: colors.ink.input,
+    borderColor: colors.line.modal,
+  }), [colors])
+
   const t = useI18n()
-  const theme = useTheme()
+  const luxThemeLabel = (id: LuxThemeId) => {
+    switch (id) {
+      case 'lime': return t('setting_lux_theme_lime')
+      case 'mist_blue': return t('setting_lux_theme_mist_blue')
+      case 'sakura': return t('setting_lux_theme_sakura')
+      case 'lavender': return t('setting_lux_theme_lavender')
+      case 'oat_milk': return t('setting_lux_theme_oat_milk')
+      case 'ink_night': return t('setting_lux_theme_ink_night')
+    }
+  }
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
@@ -66,6 +82,8 @@ export default () => {
   const headerHeight = headerTopPadding + 44 + 16
   const detailSceneWidth = Dimensions.get('window').width
   const sourceRef = useRef<SourceType>(null)
+  const backupPathRef = useRef<ChoosePathType>(null)
+  const backupModeRef = useRef<'export' | 'import'>('export')
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
@@ -91,7 +109,24 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
+  const statsPageStyleLabel = (id: StatsPageStyle) => (
+    id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
+  )
+  const {
+    cleaning: isCleaningResourceCache,
+    cleaningAudio: isCleaningAudioCache,
+    cleaningImage: isCleaningImageCache,
+    cacheSize: resourceCacheSize,
+    cacheSizeLabel: resourceCacheSizeLabel,
+    audioCacheLabel,
+    imageCacheLabel,
+    handleCleanCache: handleCleanResourceCache,
+    handleCleanAudioCache,
+    handleCleanImageCache,
+    handleGetAppCacheSize,
+  } = useResourceCache()
   const defaultSignature = t('me_profile_status')
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
@@ -100,6 +135,12 @@ export default () => {
   const syncStatus = useStatus()
   const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
+  const releaseChannelSetting = useSettingValue('common.releaseChannel')
+  const effectiveReleaseChannel = resolveChannel(releaseChannelSetting, currentVer)
+  const releaseChannelLabel = effectiveReleaseChannel == 'dev'
+    ? t('setting_release_channel_dev')
+    : t('setting_release_channel_stable')
+  const currentVersionLabel = `${currentVer} · ${releaseChannelLabel}`
   const versionProgress = useVersionDownloadProgressUpdated()
   const activeLanguageLabel = useMemo(() => {
     const activeLocale = activeLangId ?? 'en_us'
@@ -152,29 +193,35 @@ export default () => {
     }
   }, [isSyncEnabled, syncStatus, t])
   const genderBadgeText = gender === 'unknown' ? '?' : null
-  const genderImgSource = gender === 'male' ? maleImg : gender === 'female' ? femaleImg : null
+  const genderIconName = gender === 'male' ? 'gender-male' : gender === 'female' ? 'gender-female' : null
   const genderBadgeStyle = gender === 'male'
     ? styles.profileHeroBadgeMale
     : gender === 'female'
       ? styles.profileHeroBadgeFemale
       : styles.profileHeroBadgeUnknown
-  const aboutStatusText = versionInfo.status == 'downloading'
-    ? t('version_btn_downloading', {
-      total: sizeFormate(versionProgress.total),
-      current: sizeFormate(versionProgress.current),
-      progress: versionProgress.total ? (versionProgress.current / versionProgress.total * 100).toFixed(2) : '0',
+  const aboutStatusText = versionInfo.waitStable
+    ? t('version_wait_stable', {
+      current: versionInfo.version,
+      stable: versionInfo.newVersion?.version ?? '',
+      next: upcomingStableVersion(versionInfo.version),
     })
-    : versionInfo.isLatest
-      ? t('version_tip_latest')
-      : versionInfo.isUnknown
-        ? t('version_tip_unknown')
-        : versionInfo.status == 'checking'
-          ? t('version_title_checking')
-          : versionInfo.status == 'downloaded'
-            ? t('version_title_update')
-            : versionInfo.status == 'error'
-              ? t('version_tip_failed')
-              : t('version_title_new')
+    : versionInfo.status == 'downloading'
+      ? t('version_btn_downloading', {
+        total: sizeFormate(versionProgress.total),
+        current: sizeFormate(versionProgress.current),
+        progress: versionProgress.total ? (versionProgress.current / versionProgress.total * 100).toFixed(2) : '0',
+      })
+      : versionInfo.isLatest
+        ? t('version_tip_latest')
+        : versionInfo.isUnknown
+          ? t('version_tip_unknown')
+          : versionInfo.status == 'checking'
+            ? t('version_title_checking')
+            : versionInfo.status == 'downloaded'
+              ? t('version_title_update')
+              : versionInfo.status == 'error'
+                ? t('version_tip_failed')
+                : t('version_title_new')
 
   useEffect(() => {
     let isUnmounted = false
@@ -282,6 +329,18 @@ export default () => {
     t('setting_appearance'),
     t('setting_basic_lang'),
     activeLanguageLabel,
+    t('setting_lux_theme'),
+    t('setting_lux_theme_local_only'),
+    t('setting_lux_theme_lime'),
+    t('setting_lux_theme_mist_blue'),
+    t('setting_lux_theme_sakura'),
+    t('setting_lux_theme_lavender'),
+    t('setting_lux_theme_oat_milk'),
+    t('setting_lux_theme_ink_night'),
+    t('setting_stats_page_style'),
+    t('setting_stats_page_style_magazine'),
+    t('setting_stats_page_style_replay'),
+    t('setting_stats_page_style_local_only'),
   )
   const showSearchAndPlayerSection = matchesSettingsSearch(
     t('setting_search_and_play'),
@@ -293,11 +352,23 @@ export default () => {
     t('setting_basic_source'),
     activeApiSourceLabel,
   )
-  const showSyncSection = matchesSettingsSearch(
+  const showDataSection = matchesSettingsSearch(
+    t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
     t('setting_sync_format'),
+    t('setting_sync_clear_conflict_mode'),
+    t('setting_sync_clear_conflict_mode_desc'),
+    t('setting_cache_management'),
+    t('setting__other_resource_cache'),
+    t('setting_other_cache_clear_btn'),
+    t('setting_other_cache_size'),
+    resourceCacheSizeLabel,
+    t('setting_export_data'),
+    t('setting_export_data_desc'),
+    t('setting_import_data'),
+    t('setting_import_data_desc'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -305,11 +376,19 @@ export default () => {
     aboutStatusText,
     currentVer,
     t('version_label_current_ver'),
+    t('version_about_update_title'),
+    t('version_current_info'),
+    t('version_changelog_title'),
     t('version_btn_check_update'),
+    t('setting_release_channel'),
+    t('setting_release_channel_dev'),
+    t('setting_release_channel_stable'),
+    releaseChannelLabel,
+    currentVersionLabel,
   )
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
-    showSyncSection ||
+    showDataSection ||
     showAboutSection
   const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
     inputRange: [0, 1],
@@ -327,19 +406,21 @@ export default () => {
     inputRange: [0, 1],
     outputRange: [0.92, 1],
   }), [optionDetailAnim])
-  const optionDetailTitle = activeOptionDetail === 'language'
-    ? t('setting_basic_lang')
-    : activeOptionDetail === 'searchSource'
-      ? t('setting_search_source')
-      : activeOptionDetail === 'gender'
-        ? t('setting_profile_gender')
-        : activeOptionDetail === 'player'
-          ? t('setting_custom_source_title')
-          : activeOptionDetail === 'sync'
-            ? t('setting_sync')
-            : activeOptionDetail === 'syncFormat'
-              ? t('setting_sync_format')
-              : ''
+  const optionDetailTitle = (() => {
+    switch (activeOptionDetail) {
+      case 'language': return t('setting_basic_lang')
+      case 'theme': return t('setting_lux_theme')
+      case 'statsPageStyle': return t('setting_stats_page_style')
+      case 'searchSource': return t('setting_search_source')
+      case 'gender': return t('setting_profile_gender')
+      case 'player': return t('setting_custom_source_title')
+      case 'sync': return t('setting_sync')
+      case 'syncFormat': return t('setting_sync_format')
+      case 'resourceCache': return t('setting_cache_management')
+      case 'changelog': return t('version_about_update_title')
+      default: return ''
+    }
+  })()
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -544,6 +625,12 @@ export default () => {
   const handleOpenLanguageDetail = () => {
     setActiveOptionDetail('language')
   }
+  const handleOpenThemeDetail = () => {
+    setActiveOptionDetail('theme')
+  }
+  const handleOpenStatsPageStyleDetail = () => {
+    setActiveOptionDetail('statsPageStyle')
+  }
   const handleOpenSearchSourceDetail = () => {
     setActiveOptionDetail('searchSource')
   }
@@ -629,8 +716,67 @@ export default () => {
     setAuthCode('')
     await pushSyncLoginScreen()
   }, [t])
+  const handleClearSyncConflictMode = useCallback(async() => {
+    await clearSyncConflictMode()
+    toast(t('setting_sync_clear_conflict_mode_success'))
+  }, [t])
   const handleCheckUpdate = () => {
     void checkUpdate()
+  }
+  const handleOpenChangelog = () => {
+    setActiveOptionDetail('changelog')
+  }
+  const handleOpenResourceCacheDetail = useCallback(() => {
+    handleGetAppCacheSize()
+    setActiveOptionDetail('resourceCache')
+  }, [handleGetAppCacheSize])
+  const handleExportData = useCallback(() => {
+    backupModeRef.current = 'export'
+    backupPathRef.current?.show({
+      title: t('setting_export_data_pick'),
+      dirOnly: true,
+      isPersist: true,
+    })
+  }, [t])
+  const handleImportData = useCallback(() => {
+    backupModeRef.current = 'import'
+    backupPathRef.current?.show({
+      title: t('setting_import_data_pick'),
+      filter: ['json'],
+    })
+  }, [t])
+  const handleBackupPath = useCallback((path: string) => {
+    if (backupModeRef.current == 'export') {
+      void exportLuxBackupFile(path).then(file => {
+        toast(t('setting_export_data_success', { path: file }))
+      }).catch(() => { toast(t('setting_export_data_fail')) })
+      return
+    }
+    void importLuxBackupFile(path).then(result => {
+      toast(t(result == 'ok' ? 'setting_import_data_success' : 'setting_import_data_invalid'))
+    }).catch(() => { toast(t('setting_import_data_fail')) })
+  }, [t])
+  const handleSelectReleaseChannel = (value: 'stable' | 'dev') => {
+    updateSetting({ 'common.releaseChannel': value })
+    void (async() => {
+      if (value == 'dev') {
+        await tipDialog({
+          title: t('setting_release_channel_dev'),
+          message: t('setting_release_channel_dev_tip'),
+        })
+      }
+      await checkUpdate({ force: true })
+      if (value == 'stable' && versionState.versionInfo.waitStable) {
+        await tipDialog({
+          title: t('setting_release_channel_stable'),
+          message: t('version_wait_stable', {
+            current: versionState.versionInfo.version,
+            stable: versionState.versionInfo.newVersion?.version ?? '',
+            next: upcomingStableVersion(versionState.versionInfo.version),
+          }),
+        })
+      }
+    })()
   }
   const handleOpenReleasePage = () => {
     void openUrl('https://github.com/JuneDrinleng/lux-music-mobile/releases')
@@ -692,11 +838,11 @@ export default () => {
         overScrollMode="never"
       >
         <View style={styles.greetingBlock}>
-          <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('nav_setting')}</Text>
+          <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{t('nav_setting')}</Text>
         </View>
         <View style={styles.list}>
           <View style={styles.sectionCard}>
-            <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
+            <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_profile')}</Text>
             <View style={styles.sectionGroup}>
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenProfileDetail}>
                 <View style={styles.groupRowLeft}>
@@ -704,30 +850,56 @@ export default () => {
                     <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{nickname}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
             </View>
           </View>
 
           {showAppearanceSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_appearance')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenLanguageDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
-                        <RNImage source={langImg} style={styles.settingRowImg} />
+                        <MdiIcon name="translate" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeLanguageLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_basic_lang')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeLanguageLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenThemeDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
+                        <MdiIcon name="palette-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_lux_theme')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{luxThemeLabel(luxThemeId)}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenStatsPageStyleDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapOrange]}>
+                        <MdiIcon name="newspaper-variant-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_stats_page_style')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{statsPageStyleLabel(statsPageStyle)}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -735,65 +907,117 @@ export default () => {
 
           {showSearchAndPlayerSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_search_and_play')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_search_and_play')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSearchSourceDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <RNImage source={searchImg} style={styles.settingRowImg} />
+                        <MdiIcon name="magnify" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSearchSourceLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_search_source')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeSearchSourceLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenPlayerDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapGreen]}>
-                        <RNImage source={sourceImg} style={styles.settingRowImg} />
+                        <MdiIcon name="music-box-multiple" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeApiSourceLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_basic_source')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeApiSourceLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
             : null}
 
-          {showSyncSection
+          {showDataSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_sync')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_data_and_sync')}</Text>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <RNImage source={synImg} style={styles.settingRowImg} />
+                        <MdiIcon name="server-network" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{activeSyncStatusLabel}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_host_title')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeSyncStatusLabel}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenSyncFormatDetail}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
-                        <RNImage source={formatImg} style={styles.settingRowImg} />
+                        <MdiIcon name="swap-horizontal" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{syncMode == 'lux' ? 'lux music' : 'lx music'}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_format')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{syncMode == 'lux' ? 'lux music' : 'lx music'}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={() => { void handleClearSyncConflictMode() }}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="source-branch-remove" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_sync_clear_conflict_mode')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_sync_clear_conflict_mode_desc')}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenResourceCacheDetail}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="broom" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_cache_management')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={2}>{resourceCacheSizeLabel}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleExportData}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="database-export-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_export_data')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_export_data_desc')}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
+                  <View style={styles.groupDivider} />
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleImportData}>
+                    <View style={styles.groupRowLeft}>
+                      <View style={[styles.groupRowIconWrap, styles.iconWrapPurple]}>
+                        <MdiIcon name="database-import-outline" size={24} color={colors.ink.icon} />
+                      </View>
+                      <View style={styles.groupRowTextWrap}>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_import_data')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_import_data_desc')}</Text>
+                      </View>
+                    </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -801,43 +1025,44 @@ export default () => {
 
           {showAboutSection
             ? <View style={styles.sectionCard}>
-                <Text size={11} color="#838995" style={styles.sectionEyebrow}>{t('setting_about')}</Text>
+                <Text size={11} color={colors.ink.eyebrow} style={styles.sectionEyebrow}>{t('setting_about')}</Text>
                 <View style={styles.sectionGroup}>
-                  <View style={styles.groupRow}>
+                  <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenChangelog}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={versionImg} style={styles.settingRowImg} />
+                        <MdiIcon name="certificate" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{currentVer}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('version_label_current_ver')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{currentVersionLabel}</Text>
                       </View>
                     </View>
-                  </View>
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
+                  </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleCheckUpdate}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={updateImg} style={styles.settingRowImg} />
+                        <MdiIcon name="update" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
-                        <Text size={12} color="#767d89" numberOfLines={1}>{aboutStatusText}</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('version_btn_check_update')}</Text>
+                        <Text size={12} color={colors.ink.secondary} numberOfLines={versionInfo.waitStable ? 4 : 1}>{aboutStatusText}</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                   <View style={styles.groupDivider} />
                   <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenReleasePage}>
                     <View style={styles.groupRowLeft}>
                       <View style={[styles.groupRowIconWrap, styles.iconWrapAmber]}>
-                        <RNImage source={githubImg} style={styles.settingRowImg} />
+                        <MdiIcon name="github" size={24} color={colors.ink.icon} />
                       </View>
                       <View style={styles.groupRowTextWrap}>
-                        <Text size={15} color="#20242d" style={styles.groupRowTitle}>GitHub Releases</Text>
+                        <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>GitHub Releases</Text>
                       </View>
                     </View>
-                    <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                    <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -845,8 +1070,8 @@ export default () => {
 
           {!hasSettingSearchResults
             ? <View style={styles.emptySearchCard}>
-                <Text size={16} color="#111827" style={styles.emptySearchTitle}>{t('setting_search_empty_title')}</Text>
-                <Text size={13} color="#707789" style={styles.emptySearchText}>{t('setting_search_empty_text')}</Text>
+                <Text size={16} color={colors.ink.strong} style={styles.emptySearchTitle}>{t('setting_search_empty_title')}</Text>
+                <Text size={13} color={colors.ink.emptySearch} style={styles.emptySearchText}>{t('setting_search_empty_text')}</Text>
               </View>
             : null}
         </View>
@@ -873,10 +1098,10 @@ export default () => {
         >
           <View style={styles.profileDetailHeaderRow}>
             <TouchableOpacity style={[styles.profileDetailBackBtn, styles.profileDetailBackBtnWithLabel]} activeOpacity={0.82} onPress={handleCloseProfileDetail}>
-              <Icon name="chevron-left" rawSize={20} color="#232733" />
-              <Text size={14} color="#232733" style={styles.profileDetailBackText}>{t('back')}</Text>
+              <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
+              <Text size={14} color={colors.ink.input} style={styles.profileDetailBackText}>{t('back')}</Text>
             </TouchableOpacity>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailTitle}>{t('setting_profile')}</Text>
           </View>
 
           <View style={styles.profileDetailHero}>
@@ -885,8 +1110,8 @@ export default () => {
                 <Image style={styles.profileDetailAvatar} url={avatarDisplayUrl} resizeMode="contain" />
               </View>
             </View>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailName}>{nickname}</Text>
-            <Text size={13} color="#6a707c" style={styles.profileDetailSignature}>{signature || defaultSignature}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailName}>{nickname}</Text>
+            <Text size={13} color={colors.ink.profileMeta} style={styles.profileDetailSignature}>{signature || defaultSignature}</Text>
           </View>
 
           <View style={styles.sectionCard}>
@@ -897,65 +1122,65 @@ export default () => {
                     <Image style={styles.groupRowAvatar} url={avatarDisplayUrl} resizeMode="contain" />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>JPEG / PNG</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_avatar')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>JPEG / PNG</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowNameModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="menu" rawSize={18} color="#58651b" />
+                    <Icon name="menu" rawSize={18} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{nickname}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_nickname')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{nickname}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleShowSignatureModal}>
                 <View style={styles.groupRowLeft}>
                   <View style={styles.groupRowIconWrap}>
-                    <Icon name="comment" rawSize={18} color="#58651b" />
+                    <Icon name="comment" rawSize={18} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{signature || defaultSignature}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_signature')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{signature || defaultSignature}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleOpenGenderDetail}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, genderBadgeStyle]}>
-                    {genderImgSource
-                      ? <RNImage source={genderImgSource} style={styles.genderBadgeImgLarge} />
-                      : <Text size={12} color="#ffffff" style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
+                    {genderIconName
+                      ? <MdiIcon name={genderIconName} size={20} color={colors.ink.icon} />
+                      : <Text size={12} color={colors.ink.onControl} style={styles.groupRowBadgeText}>{genderBadgeText}</Text>}
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#20242d" style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{activeGenderLabel}</Text>
+                    <Text size={15} color={colors.ink.list} style={styles.groupRowTitle}>{t('setting_profile_gender')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{activeGenderLabel}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
               <View style={styles.groupDivider} />
               <TouchableOpacity style={styles.groupRow} activeOpacity={0.84} onPress={handleLogoutSyncAccount}>
                 <View style={styles.groupRowLeft}>
                   <View style={[styles.groupRowIconWrap, styles.iconWrapRed]}>
-                    <RNImage source={logoutImg} style={styles.logoutIcon} />
+                    <MdiIcon name="logout" size={22} color={colors.ink.icon} />
                   </View>
                   <View style={styles.groupRowTextWrap}>
-                    <Text size={15} color="#ef4444" style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>
-                    <Text size={12} color="#767d89" numberOfLines={1}>{t('setting_sync_logout_desc')}</Text>
+                    <Text size={15} color={colors.danger} style={styles.groupRowTitle}>{t('setting_sync_logout_title')}</Text>
+                    <Text size={12} color={colors.ink.secondary} numberOfLines={1}>{t('setting_sync_logout_desc')}</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right-2" rawSize={18} color="#9aa1ae" />
+                <Icon name="chevron-right-2" rawSize={18} color={colors.ink.quiet} />
               </TouchableOpacity>
             </View>
           </View>
@@ -982,13 +1207,62 @@ export default () => {
         >
           <View style={styles.profileDetailHeaderRow}>
             <TouchableOpacity style={styles.profileDetailBackBtn} activeOpacity={0.82} onPress={handleCloseOptionDetail}>
-              <Icon name="chevron-left" rawSize={20} color="#232733" />
+              <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
             </TouchableOpacity>
-            <Text size={22} color="#1a1c1e" style={styles.profileDetailTitle}>{optionDetailTitle}</Text>
+            <Text size={22} color={colors.ink.subpageTitle} style={styles.profileDetailTitle}>{optionDetailTitle}</Text>
           </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionGroup}>
+              {activeOptionDetail === 'theme'
+                ? <>
+                    <Text size={12} color={colors.ink.secondary} style={styles.themeLocalNote}>{t('setting_lux_theme_local_only')}</Text>
+                    {LUX_THEME_IDS.map((id, index) => {
+                      const item = luxThemeRegistry[id]
+                      const isActive = luxThemeId === id
+                      return (
+                        <View key={id}>
+                          <TouchableOpacity
+                            style={styles.optionDetailRow}
+                            activeOpacity={0.84}
+                            onPress={() => { setLuxTheme(id) }}
+                          >
+                            <View style={styles.themeOptionBody}>
+                              <View style={styles.themeSwatch}>
+                                <View style={[styles.themeSwatchMain, { backgroundColor: item.colors.bg.app }]} />
+                                <View style={[styles.themeSwatchAccent, { backgroundColor: item.colors.accent.primary }]} />
+                              </View>
+                              <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{luxThemeLabel(id)}</Text>
+                            </View>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                          {index < LUX_THEME_IDS.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                        </View>
+                      )
+                    })}
+                  </>
+                : null}
+              {activeOptionDetail === 'statsPageStyle'
+                ? <>
+                    <Text size={12} color={colors.ink.secondary} style={styles.themeLocalNote}>{t('setting_stats_page_style_local_only')}</Text>
+                    {STATS_PAGE_STYLES.map((id, index) => {
+                      const isActive = statsPageStyle === id
+                      return (
+                        <View key={id}>
+                          <TouchableOpacity
+                            style={styles.optionDetailRow}
+                            activeOpacity={0.84}
+                            onPress={() => { setStatsPageStyle(id) }}
+                          >
+                            <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{statsPageStyleLabel(id)}</Text>
+                            {isActive ? <View style={styles.languageActiveDot} /> : null}
+                          </TouchableOpacity>
+                          {index < STATS_PAGE_STYLES.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
+                        </View>
+                      )
+                    })}
+                  </>
+                : null}
               {activeOptionDetail === 'language'
                 ? languageOptions.map((option, index) => {
                   const isActive = (activeLangId ?? 'en_us') === option.locale
@@ -999,7 +1273,7 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectLanguage(option.locale) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < languageOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
@@ -1017,7 +1291,7 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectSearchSource(option.value) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < searchSourceOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
@@ -1035,13 +1309,36 @@ export default () => {
                         activeOpacity={0.84}
                         onPress={() => { handleSelectGender(option.value) }}
                       >
-                        <Text size={15} color={isActive ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{option.label}</Text>
+                        <Text size={15} color={isActive ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{option.label}</Text>
                         {isActive ? <View style={styles.languageActiveDot} /> : null}
                       </TouchableOpacity>
                       {index < genderOptions.length - 1 ? <View style={styles.optionDetailDivider} /> : null}
                     </View>
                   )
                 })
+                : null}
+              {activeOptionDetail === 'resourceCache'
+                ? <ResourceCacheDetail
+                    styles={styles}
+                    cacheSizeLabel={resourceCacheSizeLabel}
+                    cleaning={isCleaningResourceCache}
+                    cleaningAudio={isCleaningAudioCache}
+                    cleaningImage={isCleaningImageCache}
+                    canClean={resourceCacheSize != null}
+                    audioCacheLabel={audioCacheLabel}
+                    imageCacheLabel={imageCacheLabel}
+                    onClean={handleCleanResourceCache}
+                    onCleanAudio={handleCleanAudioCache}
+                    onCleanImage={handleCleanImageCache}
+                  />
+                : null}
+              {activeOptionDetail === 'changelog'
+                ? <VersionChangelogDetail
+                    styles={styles}
+                    version={currentVer}
+                    releaseChannel={effectiveReleaseChannel}
+                    onSelectReleaseChannel={handleSelectReleaseChannel}
+                  />
                 : null}
             </View>
           </View>
@@ -1062,10 +1359,10 @@ export default () => {
                             activeOpacity={0.84}
                             onPress={() => { handleSelectApiSource(api.id) }}
                           >
-                            <Text size={15} color={isActive && !isManagingApiSources ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{api.name}</Text>
+                            <Text size={15} color={isActive && !isManagingApiSources ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{api.name}</Text>
                             {isManagingApiSources
                               ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteApiSource(api.id) }}>
-                                  <Text size={20} color="#ef4444">{'×'}</Text>
+                                  <Text size={20} color={colors.danger}>{'×'}</Text>
                                 </TouchableOpacity>
                               : isActive ? <View style={styles.sourceActiveDot} /> : null}
                           </TouchableOpacity>
@@ -1078,7 +1375,7 @@ export default () => {
                       activeOpacity={0.84}
                       onPress={handleAddSource}
                     >
-                      <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_import_local_source')}</Text>
+                      <Text size={15} color={colors.ink.option} style={styles.optionDetailText}>{t('setting_import_local_source')}</Text>
                     </TouchableOpacity>
                     <View style={styles.optionDetailDivider} />
                     <TouchableOpacity
@@ -1086,7 +1383,7 @@ export default () => {
                       activeOpacity={0.84}
                       onPress={handleToggleApiSourceManage}
                     >
-                      <Text size={15} color={isManagingApiSources ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                      <Text size={15} color={isManagingApiSources ? colors.danger : colors.ink.option} style={styles.optionDetailText}>
                         {isManagingApiSources ? t('setting_exit_manage') : t('setting_manage_source')}
                       </Text>
                     </TouchableOpacity>
@@ -1107,10 +1404,10 @@ export default () => {
                           activeOpacity={0.84}
                           onPress={() => { handleSelectSyncHost(host) }}
                         >
-                          <Text size={15} color={isActive && !isManagingSyncHosts ? '#20242d' : '#5f6572'} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
+                          <Text size={15} color={isActive && !isManagingSyncHosts ? colors.ink.list : colors.ink.option} style={[styles.optionDetailText, styles.syncHostText]} numberOfLines={1}>{host}</Text>
                           {isManagingSyncHosts
                             ? <TouchableOpacity activeOpacity={0.75} onPress={() => { handleDeleteSyncHost(index) }}>
-                                <Text size={20} color="#ef4444">{'×'}</Text>
+                                <Text size={20} color={colors.danger}>{'×'}</Text>
                               </TouchableOpacity>
                             : isActive
                               ? <View style={syncStatus.status ? styles.sourceActiveDot : styles.sourceErrorDot} />
@@ -1121,11 +1418,11 @@ export default () => {
                     )
                   })}
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleOpenSyncHostModal}>
-                    <Text size={15} color="#5f6572" style={styles.optionDetailText}>{t('setting_fill_sync_address')}</Text>
+                    <Text size={15} color={colors.ink.option} style={styles.optionDetailText}>{t('setting_fill_sync_address')}</Text>
                   </TouchableOpacity>
                   <View style={styles.optionDetailDivider} />
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={handleToggleSyncManage}>
-                    <Text size={15} color={isManagingSyncHosts ? '#ef4444' : '#5f6572'} style={styles.optionDetailText}>
+                    <Text size={15} color={isManagingSyncHosts ? colors.danger : colors.ink.option} style={styles.optionDetailText}>
                       {isManagingSyncHosts ? t('setting_exit_manage') : t('setting_manage_records')}
                     </Text>
                   </TouchableOpacity>
@@ -1137,17 +1434,18 @@ export default () => {
             ? <View style={styles.sectionCard}>
                 <View style={styles.sectionGroup}>
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lx') }}>
-                    <Text size={15} color={syncMode == 'lx' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
+                    <Text size={15} color={syncMode == 'lx' ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{t('setting_sync_format_lx')}</Text>
                     {syncMode == 'lx' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                   <View style={styles.optionDetailDivider} />
                   <TouchableOpacity style={styles.optionDetailRow} activeOpacity={0.84} onPress={() => { handleSelectSyncFormat('lux') }}>
-                    <Text size={15} color={syncMode == 'lux' ? '#20242d' : '#5f6572'} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
+                    <Text size={15} color={syncMode == 'lux' ? colors.ink.list : colors.ink.option} style={styles.optionDetailText}>{t('setting_sync_format_lux')}</Text>
                     {syncMode == 'lux' ? <View style={styles.languageActiveDot} /> : null}
                   </TouchableOpacity>
                 </View>
               </View>
             : null}
+
         </ScrollView>
       </Animated.View>
       <Modal
@@ -1162,19 +1460,21 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_profile_nickname_edit')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_profile_nickname_edit')}</Text>
                 <Input
                   placeholder={t('setting_profile_nickname_placeholder')}
                   value={nicknameDraft}
                   onChangeText={setNicknameDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseNameModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveName} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1194,19 +1494,21 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_profile_signature_edit')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_profile_signature_edit')}</Text>
                 <Input
                   placeholder={t('setting_profile_signature_placeholder')}
                   value={signatureDraft}
                   onChangeText={setSignatureDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSignatureModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSignature} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1226,21 +1528,23 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_host_label')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_host_label')}</Text>
                 <Input
                   placeholder={t('setting_sync_host_value_tip')}
                   value={syncHostDraft}
                   onChangeText={setSyncHostDraft}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   inputMode="url"
                   autoCapitalize="none"
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseSyncHostModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSaveSyncHost} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1260,19 +1564,21 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_code_label')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_code_label')}</Text>
                 <Input
                   placeholder={t('setting_sync_code_input_tip')}
                   value={authCode}
                   onChangeText={setAuthCode}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancelSetCode} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleSetCode} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('metadata_edit_modal_confirm')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1292,27 +1598,31 @@ export default () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.modalCard}>
-                <Text size={17} color="#111827" style={styles.modalTitle}>{t('setting_sync_lux_login_title')}</Text>
+                <Text size={17} color={colors.ink.strong} style={styles.modalTitle}>{t('setting_sync_lux_login_title')}</Text>
                 <Input
                   placeholder={t('setting_sync_lux_username')}
                   value={luxUsername}
                   onChangeText={setLuxUsername}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   autoCapitalize="none"
                 />
                 <Input
                   placeholder={t('setting_sync_lux_password')}
                   value={luxPassword}
                   onChangeText={setLuxPassword}
-                  style={[styles.modalInput, { backgroundColor: theme['c-primary-background'] }]}
+                  placeholderTextColor={colors.ink.quiet}
+                  selectionColor={colors.ink.selection}
+                  style={[styles.modalInput, luxFieldStyle]}
                   secureTextEntry
                 />
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCloseLuxLoginModal} activeOpacity={0.75}>
-                    <Text size={14} color="#4b5563">{t('cancel')}</Text>
+                    <Text size={14} color={colors.ink.cancel}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleLuxLogin} activeOpacity={0.85}>
-                    <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('setting_sync_lux_login_button')}</Text>
+                    <Text size={14} color={colors.ink.onAccent} style={styles.modalBtnPrimaryText}>{t('setting_sync_lux_login_button')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1320,14 +1630,15 @@ export default () => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   content: {
     paddingHorizontal: 18,
@@ -1353,7 +1664,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   topBar: {
     flexDirection: 'row',
@@ -1366,9 +1677,9 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
-    shadowColor: '#2d3242',
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -1378,7 +1689,7 @@ const styles = createStyle({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#f3eef2',
+    backgroundColor: colors.surface.avatar,
   },
   avatarBubbleImage: {
     width: '100%',
@@ -1396,9 +1707,9 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.58)',
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    shadowColor: '#2d3242',
+    borderColor: colors.glass.rim58,
+    backgroundColor: colors.glass.fill28,
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -1406,17 +1717,17 @@ const styles = createStyle({
   },
   searchGlassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.glass.fill08,
   },
   searchGlassFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    backgroundColor: colors.glass.fill62,
   },
   searchGlassRim: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.glass.line16,
   },
   searchContent: {
     flex: 1,
@@ -1429,7 +1740,7 @@ const styles = createStyle({
     flex: 1,
     height: '100%',
     marginLeft: 10,
-    color: '#232733',
+    color: colors.ink.input,
     fontSize: 14,
     paddingVertical: 0,
     backgroundColor: 'transparent',
@@ -1441,13 +1752,13 @@ const styles = createStyle({
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls + 4,
     elevation: APP_LAYER_INDEX.controls + 4,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   optionDetailLayer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls + 5,
     elevation: APP_LAYER_INDEX.controls + 5,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   profileDetailHeaderRow: {
     minHeight: 40,
@@ -1461,9 +1772,9 @@ const styles = createStyle({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: colors.glass.fill78,
     borderWidth: 1,
-    borderColor: 'rgba(231,236,245,0.96)',
+    borderColor: colors.glass.backBorder,
     marginRight: 12,
   },
   profileDetailBackBtnWithLabel: {
@@ -1489,20 +1800,20 @@ const styles = createStyle({
     height: 108,
     borderRadius: 54,
     padding: 5,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     marginBottom: 14,
   },
   profileDetailAvatarInner: {
     flex: 1,
     borderRadius: 49,
     overflow: 'hidden',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileDetailAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 49,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileDetailName: {
     fontWeight: '700',
@@ -1525,19 +1836,19 @@ const styles = createStyle({
     borderRadius: 40,
     position: 'relative',
     padding: 4,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   profileHeroAvatarInner: {
     flex: 1,
     borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 36,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   profileHeroBadge: {
     position: 'absolute',
@@ -1546,20 +1857,20 @@ const styles = createStyle({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#58651b',
+    backgroundColor: colors.badge.online,
     borderWidth: 3,
-    borderColor: '#ffffff',
+    borderColor: colors.line.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileHeroBadgeMale: {
-    backgroundColor: '#bfdbfe',
+    backgroundColor: colors.badge.male,
   },
   profileHeroBadgeFemale: {
-    backgroundColor: '#fce7f3',
+    backgroundColor: colors.badge.female,
   },
   profileHeroBadgeUnknown: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.badge.unknown,
   },
   profileHeroBadgeText: {
     fontWeight: '700',
@@ -1596,14 +1907,14 @@ const styles = createStyle({
   },
   profileHeroMetaPill: {
     borderRadius: 999,
-    backgroundColor: '#dbeb92',
+    backgroundColor: colors.accent.soft,
     paddingHorizontal: 11,
     paddingVertical: 5,
     marginRight: 8,
   },
   profileHeroMetaPillMuted: {
     borderRadius: 999,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
     paddingHorizontal: 11,
     paddingVertical: 5,
   },
@@ -1619,12 +1930,12 @@ const styles = createStyle({
   accountCard: {
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: 'rgba(245,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderColor: colors.glass.rim72Warm,
+    backgroundColor: colors.glass.fill90,
     paddingHorizontal: 18,
     paddingVertical: 18,
     marginBottom: 14,
-    shadowColor: '#2d3242',
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -1638,9 +1949,9 @@ const styles = createStyle({
     width: 78,
     height: 78,
     borderRadius: 39,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 4,
-    shadowColor: '#7b8193',
+    shadowColor: colors.shadow.menu,
     shadowOpacity: 0.08,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -1651,7 +1962,7 @@ const styles = createStyle({
     height: '100%',
     borderRadius: 35,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderColor: colors.glass.fill90,
   },
   accountInfo: {
     flex: 1,
@@ -1665,7 +1976,7 @@ const styles = createStyle({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: colors.glass.fill78,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1677,7 +1988,7 @@ const styles = createStyle({
     flex: 1,
     minHeight: 72,
     borderRadius: 18,
-    backgroundColor: '#f7f8fd',
+    backgroundColor: colors.surface.muted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginRight: 10,
@@ -1714,7 +2025,7 @@ const styles = createStyle({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   sectionActionText: {
     lineHeight: 20,
@@ -1754,31 +2065,31 @@ const styles = createStyle({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#dbeb92',
+    backgroundColor: colors.accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
     overflow: 'hidden',
   },
-  iconWrapOrange: { backgroundColor: '#ffedd5' },
-  iconWrapGreen: { backgroundColor: '#d1fae5' },
-  iconWrapPurple: { backgroundColor: '#ede9fe' },
-  iconWrapAmber: { backgroundColor: '#fef9c3' },
-  iconWrapRed: { backgroundColor: '#fee2e2' },
+  iconWrapOrange: { backgroundColor: colors.iconWrap.orange },
+  iconWrapGreen: { backgroundColor: colors.iconWrap.green },
+  iconWrapPurple: { backgroundColor: colors.iconWrap.purple },
+  iconWrapAmber: { backgroundColor: colors.iconWrap.amber },
+  iconWrapRed: { backgroundColor: colors.iconWrap.red },
   logoutIcon: {
     width: 22,
     height: 22,
   },
   groupRowAvatarWrap: {
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     padding: 2,
   },
   groupRowAvatar: {
     width: '100%',
     height: '100%',
     borderRadius: 18,
-    backgroundColor: '#eef1f7',
+    backgroundColor: colors.surface.well,
   },
   groupRowBadgeText: {
     fontWeight: '700',
@@ -1795,7 +2106,7 @@ const styles = createStyle({
     height: 1,
     marginLeft: 72,
     marginRight: 18,
-    backgroundColor: '#e1e6ef',
+    backgroundColor: colors.line.divider,
   },
   inlineOptionList: {
     paddingHorizontal: 18,
@@ -1821,11 +2132,14 @@ const styles = createStyle({
   optionDetailText: {
     fontWeight: '600',
   },
+  optionDetailLabel: {
+    flex: 1,
+  },
   optionDetailDivider: {
     height: 1,
     marginLeft: 18,
     marginRight: 18,
-    backgroundColor: '#e1e6ef',
+    backgroundColor: colors.line.divider,
   },
   groupEmbedWrap: {
     paddingHorizontal: 18,
@@ -1848,8 +2162,8 @@ const styles = createStyle({
     height: 30,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fd',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.mutedAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1880,11 +2194,11 @@ const styles = createStyle({
     width: 58,
     height: 58,
     borderRadius: 16,
-    backgroundColor: '#eef1f8',
+    backgroundColor: colors.surface.emptyBlock,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 13,
-    shadowColor: '#747b8f',
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -1893,7 +2207,7 @@ const styles = createStyle({
   profileAvatarWrap: {
     overflow: 'hidden',
     padding: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   profileAvatarThumb: {
     width: '100%',
@@ -1931,25 +2245,52 @@ const styles = createStyle({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
+  },
+  themeLocalNote: {
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  themeOptionBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  themeSwatch: {
+    width: 44,
+    height: 28,
+    borderRadius: 8,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.line.divider,
+  },
+  themeSwatchMain: {
+    flex: 1,
+  },
+  themeSwatchAccent: {
+    width: 12,
   },
   sourceActiveDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
   },
   sourceErrorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.danger,
   },
   aboutInfoWrap: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    backgroundColor: '#f8f9fd',
+    borderColor: colors.surface.importMuted,
+    backgroundColor: colors.surface.mutedAlt,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 10,
@@ -1970,9 +2311,9 @@ const styles = createStyle({
   item: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#f1f1f3',
-    backgroundColor: '#ffffff',
-    shadowColor: '#111827',
+    borderColor: colors.line.modal,
+    backgroundColor: colors.surface.card,
+    shadowColor: colors.shadow.dialog,
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -1994,7 +2335,7 @@ const styles = createStyle({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2008,7 +2349,7 @@ const styles = createStyle({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(34, 39, 51, 0.16)',
+    backgroundColor: colors.scrim.settings,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -2017,10 +2358,10 @@ const styles = createStyle({
     width: '100%',
     maxWidth: 360,
     borderRadius: 24,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     borderWidth: 1,
-    borderColor: '#edf0f7',
-    shadowColor: '#2d3242',
+    borderColor: colors.surface.importMuted,
+    shadowColor: colors.shadow.ink,
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -2051,12 +2392,12 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   modalBtnGhost: {
-    backgroundColor: '#f1f4fb',
+    backgroundColor: colors.surface.cancel,
   },
   modalBtnPrimary: {
-    backgroundColor: '#c8e600',
+    backgroundColor: colors.accent.primary,
   },
   modalBtnPrimaryText: {
     fontWeight: '600',
   },
-})
+})))

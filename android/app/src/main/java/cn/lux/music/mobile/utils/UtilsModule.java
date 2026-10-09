@@ -3,6 +3,7 @@
 package cn.lux.music.mobile.utils;
 
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -10,10 +11,18 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -22,8 +31,6 @@ import android.view.WindowManager;
 import androidx.core.app.LocaleManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.os.LocaleListCompat;
-import androidx.core.view.WindowCompat;
-
 import cn.lux.music.mobile.BuildConfig;
 
 import com.facebook.react.bridge.Arguments;
@@ -43,6 +50,9 @@ public class UtilsModule extends ReactContextBaseJavaModule {
   private final ReactApplicationContext reactContext;
 
   private int listenerCount = 0;
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private ConnectivityManager.NetworkCallback networkCallback;
+  private boolean lastUnmetered = false;
 
   UtilsEvent utilsEvent;
 
@@ -51,6 +61,13 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     this.reactContext = reactContext;
     utilsEvent = new UtilsEvent(reactContext);
     registerScreenBroadcastReceiver();
+    registerNetworkCallback();
+  }
+
+  @Override
+  public void invalidate() {
+    unregisterNetworkCallback();
+    super.invalidate();
   }
 
   @Override
@@ -237,6 +254,103 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     }).start();
   }
 
+  /**
+   * Active network is unmetered (normal Wi-Fi, ethernet). Uses ConnectivityManager only,
+   * so it does not need location permission and does not read the Wi-Fi IP.
+   * API 23+ reads NET_CAPABILITY_NOT_METERED. Older releases use !isActiveNetworkMetered().
+   */
+  @ReactMethod
+  public void isActiveNetworkUnmetered(final Promise promise) {
+    promise.resolve(readUnmetered(connectivityManager()));
+  }
+
+  private ConnectivityManager connectivityManager() {
+    return (ConnectivityManager) reactContext.getApplicationContext()
+      .getSystemService(Context.CONNECTIVITY_SERVICE);
+  }
+
+  private boolean readUnmetered(ConnectivityManager manager) {
+    if (manager == null) return false;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) return readUnmeteredModern(manager);
+    return readUnmeteredLegacy(manager);
+  }
+
+  @TargetApi(Build.VERSION_CODES.M)
+  private boolean readUnmeteredModern(ConnectivityManager manager) {
+    Network network = manager.getActiveNetwork();
+    if (network == null) return false;
+    return hasUnmeteredInternet(manager.getNetworkCapabilities(network));
+  }
+
+  private boolean hasUnmeteredInternet(NetworkCapabilities caps) {
+    if (caps == null) return false;
+    if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false;
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+  }
+
+  @SuppressWarnings("deprecation")
+  private boolean readUnmeteredLegacy(ConnectivityManager manager) {
+    android.net.NetworkInfo info = manager.getActiveNetworkInfo();
+    if (info == null || !info.isConnected()) return false;
+    return !manager.isActiveNetworkMetered();
+  }
+
+  private void registerNetworkCallback() {
+    ConnectivityManager manager = connectivityManager();
+    if (manager == null || networkCallback != null) return;
+    lastUnmetered = readUnmetered(manager);
+    ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
+      @Override
+      public void onAvailable(Network network) {
+        publishUnmetered();
+      }
+
+      @Override
+      public void onLost(Network network) {
+        publishUnmetered();
+      }
+
+      @Override
+      public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
+        publishUnmetered();
+      }
+    };
+    NetworkRequest request = new NetworkRequest.Builder()
+      .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+      .build();
+    try {
+      manager.registerNetworkCallback(request, callback);
+      networkCallback = callback;
+    } catch (RuntimeException error) {
+      Log.w("Utils", "network callback not registered", error);
+    }
+  }
+
+  private void unregisterNetworkCallback() {
+    ConnectivityManager.NetworkCallback callback = networkCallback;
+    networkCallback = null;
+    if (callback == null) return;
+    ConnectivityManager manager = connectivityManager();
+    if (manager == null) return;
+    try {
+      manager.unregisterNetworkCallback(callback);
+    } catch (RuntimeException error) {
+      Log.w("Utils", "network callback not unregistered", error);
+    }
+  }
+
+  private void publishUnmetered() {
+    mainHandler.post(() -> {
+      if (!reactContext.hasActiveReactInstance()) return;
+      boolean unmetered = readUnmetered(connectivityManager());
+      if (unmetered == lastUnmetered) return;
+      lastUnmetered = unmetered;
+      WritableMap params = Arguments.createMap();
+      params.putBoolean("unmetered", unmetered);
+      utilsEvent.sendEvent("network-unmetered", params);
+    });
+  }
+
   // https://stackoverflow.com/a/26117646
   @ReactMethod
   public void getDeviceName(final Promise promise) {
@@ -401,27 +515,66 @@ public class UtilsModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void setSystemBarsTransparent() {
-    final Activity activity = getCurrentActivity();
-    if (activity == null) return;
-    activity.runOnUiThread(() -> {
-      Window window = activity.getWindow();
-      if (window == null) return;
+    SystemBars.apply(getCurrentActivity());
+  }
 
-      WindowCompat.setDecorFitsSystemWindows(window, false);
-      View decorView = window.getDecorView();
-      int systemUiFlags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-      decorView.setSystemUiVisibility(systemUiFlags);
+  /** `dark` glyphs for light themes, `light` glyphs for 墨夜. Bars stay transparent. */
+  @ReactMethod
+  public void setSystemBarIconStyle(String style) {
+    SystemBars.setDarkIcons(!"light".equals(style));
+    SystemBars.apply(getCurrentActivity());
+  }
 
-      window.setStatusBarColor(Color.TRANSPARENT);
-      window.setNavigationBarColor(Color.TRANSPARENT);
-
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        window.setStatusBarContrastEnforced(false);
-        window.setNavigationBarContrastEnforced(false);
+  /** Audio the media store can see. Rows without a file path are skipped. */
+  @ReactMethod
+  public void listDeviceAudio(Promise promise) {
+    WritableArray result = Arguments.createArray();
+    Uri collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+    String[] projection = new String[] {
+      MediaStore.Audio.Media.DISPLAY_NAME,
+      MediaStore.Audio.Media.TITLE,
+      MediaStore.Audio.Media.ARTIST,
+      MediaStore.Audio.Media.ALBUM,
+      MediaStore.Audio.Media.DURATION,
+      MediaStore.Audio.Media.SIZE,
+      MediaStore.Audio.Media.DATA,
+    };
+    try (Cursor cursor = reactContext.getContentResolver().query(
+      collection,
+      projection,
+      MediaStore.Audio.Media.IS_MUSIC + " != 0",
+      null,
+      MediaStore.Audio.Media.TITLE + " ASC"
+    )) {
+      if (cursor == null) {
+        promise.resolve(result);
+        return;
       }
-    });
+      int nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME);
+      int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
+      int artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
+      int albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+      int durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
+      int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
+      int dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
+      while (cursor.moveToNext()) {
+        String path = cursor.getString(dataCol);
+        if (path == null || path.length() == 0) continue;
+        WritableMap item = Arguments.createMap();
+        item.putString("path", path);
+        item.putString("displayName", cursor.isNull(nameCol) ? "" : cursor.getString(nameCol));
+        item.putString("title", cursor.isNull(titleCol) ? "" : cursor.getString(titleCol));
+        item.putString("artist", cursor.isNull(artistCol) ? "" : cursor.getString(artistCol));
+        item.putString("album", cursor.isNull(albumCol) ? "" : cursor.getString(albumCol));
+        item.putDouble("durationMs", cursor.isNull(durationCol) ? 0 : cursor.getLong(durationCol));
+        item.putDouble("size", cursor.isNull(sizeCol) ? 0 : cursor.getLong(sizeCol));
+        result.pushMap(item);
+      }
+    } catch (Exception e) {
+      promise.reject("audio_scan_failed", e);
+      return;
+    }
+    promise.resolve(result);
   }
 }
 

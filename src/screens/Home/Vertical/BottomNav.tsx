@@ -1,45 +1,43 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Animated,
   Easing,
-  Image,
   PixelRatio,
   Platform,
   StyleSheet,
   TouchableOpacity,
   UIManager,
   View,
-} from "react-native";
-import { BlurView } from "@react-native-community/blur";
-import { useNavActiveId } from "@/store/common/hook";
-import { createStyle } from "@/utils/tools";
-import { setNavActiveId } from "@/core/common";
-import type { InitState } from "@/store/common/state";
-import { useI18n } from "@/lang";
-
-const homeIcon = require("../../../../assets/img/home.png");
-const folderMusicIcon = require("../../../../assets/img/folder-music.png");
-const settingsIcon = require("../../../../assets/img/settings.png");
+} from 'react-native'
+import { BlurView } from '@react-native-community/blur'
+import { useNavActiveId } from '@/store/common/hook'
+import { createStyle } from '@/utils/tools'
+import { setNavActiveId } from '@/core/common'
+import type { InitState } from '@/store/common/state'
+import { useI18n } from '@/lang'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const hasNativeBlurView = Boolean(
   UIManager.getViewManagerConfig?.(
-    Platform.OS === "ios" ? "BlurView" : "AndroidBlurView",
+    Platform.OS === 'ios' ? 'BlurView' : 'AndroidBlurView',
   ),
-);
+)
 
 const tabs = [
-  { id: "nav_search", icon: homeIcon, labelKey: "nav_search" },
-  { id: "nav_love", icon: folderMusicIcon, labelKey: "nav_love" },
-  { id: "nav_setting", icon: settingsIcon, labelKey: "nav_setting" },
-] as const;
-const ACTIVE_ORB_SIZE = 52;
-const BASE_ICON_SIZE = 24;
-const ACTIVE_ICON_SHIFT_X = -3;
+  { id: 'nav_search', icon: 'home', labelKey: 'nav_search' },
+  { id: 'nav_love', icon: 'folder-music', labelKey: 'nav_love' },
+  { id: 'nav_setting', icon: 'cog', labelKey: 'nav_setting' },
+] as const
+const ACTIVE_ORB_SIZE = 52
+const BASE_ICON_SIZE = 24
+const ACTIVE_ICON_SHIFT_X = -3
 
-type TabId = InitState["navActiveId"];
+type TabId = InitState['navActiveId']
 
 const TabItem = memo(({
   id,
@@ -50,14 +48,17 @@ const TabItem = memo(({
   onPress,
   onLayout,
 }: {
-  id: TabId;
-  icon: number;
-  label: string;
-  active: boolean;
-  compact?: boolean;
-  onPress: (id: TabId) => void;
-  onLayout?: (id: TabId, x: number, width: number) => void;
+  id: TabId
+  icon: string
+  label: string
+  active: boolean
+  compact?: boolean
+  onPress: (id: TabId) => void
+  onLayout?: (id: TabId, x: number, width: number) => void
 }) => {
+  const styles = useLuxStyles()
+
+  const { colors } = useLuxTheme()
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -65,14 +66,14 @@ const TabItem = memo(({
       style={[styles.item, compact ? styles.itemCompact : null]}
       activeOpacity={0.82}
       onPress={() => {
-        onPress(id);
+        onPress(id)
       }}
       onLayout={(event) => {
         onLayout?.(
           id,
           PixelRatio.roundToNearestPixel(event.nativeEvent.layout.x),
           PixelRatio.roundToNearestPixel(event.nativeEvent.layout.width),
-        );
+        )
       }}
     >
       <View
@@ -88,75 +89,76 @@ const TabItem = memo(({
             active ? styles.iconGlyphWrapActive : null,
           ]}
         >
-          <Image
-            source={icon}
-            style={[
-              styles.iconImg,
-              { tintColor: active ? "#2a311c" : "#5f6574" },
-            ]}
+          <MdiIcon
+            name={icon}
+            size={BASE_ICON_SIZE}
+            color={active ? colors.ink.navActive : colors.ink.navIdle}
           />
         </View>
       </View>
     </TouchableOpacity>
-  );
-});
+  )
+})
 
 export default memo(
   ({
     bottomInset = 0,
     inCard = false,
   }: {
-    bottomInset?: number;
-    inCard?: boolean;
+    bottomInset?: number
+    inCard?: boolean
   }) => {
-    const t = useI18n();
-    const activeId = useNavActiveId();
-    const shouldUseBlur = !inCard && hasNativeBlurView;
-    const [isSearchPageVisible, setSearchPageVisible] = useState(false);
+    const styles = useLuxStyles()
+
+    const t = useI18n()
+    const { colors } = useLuxTheme()
+    const activeId = useNavActiveId()
+    const shouldUseBlur = !inCard && hasNativeBlurView
+    const [isSearchPageVisible, setSearchPageVisible] = useState(false)
     const [itemLayouts, setItemLayouts] = useState<
-      Partial<Record<TabId, { x: number; width: number }>>
-    >({});
-    const indicatorX = useRef(new Animated.Value(0)).current;
-    const indicatorOpacity = useRef(new Animated.Value(0)).current;
-    const hasAnimatedRef = useRef(false);
+    Partial<Record<TabId, { x: number, width: number }>>
+    >({})
+    const indicatorX = useRef(new Animated.Value(0)).current
+    const indicatorOpacity = useRef(new Animated.Value(0)).current
+    const hasAnimatedRef = useRef(false)
 
     const handlePress = useCallback((id: TabId) => {
-      if (isSearchPageVisible) global.app_event.closeVerticalSearchPage();
-      if (id === "nav_search" && activeId === id) {
-        global.app_event.closePlaylistDetail();
-        return;
+      if (isSearchPageVisible) global.app_event.closeVerticalSearchPage()
+      if (id === 'nav_search' && activeId === id) {
+        global.app_event.closePlaylistDetail()
+        return
       }
-      if (activeId === id) return;
-      setNavActiveId(id);
-    }, [isSearchPageVisible, activeId]);
+      if (activeId === id) return
+      setNavActiveId(id)
+    }, [isSearchPageVisible, activeId])
     const handleItemLayout = useCallback((id: TabId, x: number, width: number) => {
       setItemLayouts((prev) => {
-        const current = prev[id];
-        if (current && current.x === x && current.width === width) return prev;
+        const current = prev[id]
+        if (current && current.x === x && current.width === width) return prev
         return {
           ...prev,
           [id]: { x, width },
-        };
-      });
-    }, []);
+        }
+      })
+    }, [])
     const hasIndicator =
-      !inCard && !isSearchPageVisible && Boolean(itemLayouts[activeId]);
+      !inCard && !isSearchPageVisible && Boolean(itemLayouts[activeId])
 
     useEffect(() => {
       const handleSearchPageVisibleChanged = (visible: boolean) => {
-        setSearchPageVisible(visible);
-      };
+        setSearchPageVisible(visible)
+      }
       global.app_event.on(
-        "verticalSearchPageVisibleChanged",
+        'verticalSearchPageVisibleChanged',
         handleSearchPageVisibleChanged,
-      );
+      )
       return () => {
         global.app_event.off(
-          "verticalSearchPageVisibleChanged",
+          'verticalSearchPageVisibleChanged',
           handleSearchPageVisibleChanged,
-        );
-      };
-    }, []);
+        )
+      }
+    }, [])
 
     useEffect(() => {
       if (isSearchPageVisible) {
@@ -165,21 +167,21 @@ export default memo(
           duration: 140,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
-        }).start();
-        return;
+        }).start()
+        return
       }
 
-      const activeLayout = itemLayouts[activeId];
-      if (!activeLayout) return;
+      const activeLayout = itemLayouts[activeId]
+      if (!activeLayout) return
 
       const nextX = PixelRatio.roundToNearestPixel(
         activeLayout.x + activeLayout.width / 2 - ACTIVE_ORB_SIZE / 2,
-      );
+      )
       if (!hasAnimatedRef.current) {
-        indicatorX.setValue(nextX);
-        indicatorOpacity.setValue(1);
-        hasAnimatedRef.current = true;
-        return;
+        indicatorX.setValue(nextX)
+        indicatorOpacity.setValue(1)
+        hasAnimatedRef.current = true
+        return
       }
 
       Animated.parallel([
@@ -195,14 +197,14 @@ export default memo(
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start()
     }, [
       activeId,
       indicatorOpacity,
       indicatorX,
       isSearchPageVisible,
       itemLayouts,
-    ]);
+    ])
 
     return (
       <View
@@ -218,17 +220,17 @@ export default memo(
               <BlurView
                 style={StyleSheet.absoluteFillObject}
                 blurType={
-                  Platform.OS === "ios" ? "chromeMaterialLight" : "light"
+                  Platform.OS === 'ios' ? 'chromeMaterialLight' : 'light'
                 }
-                blurAmount={Platform.OS === "ios" ? 36 : 24}
-                blurRadius={Platform.OS === "android" ? 24 : undefined}
-                downsampleFactor={Platform.OS === "android" ? 6 : undefined}
+                blurAmount={Platform.OS === 'ios' ? 36 : 24}
+                blurRadius={Platform.OS === 'android' ? 24 : undefined}
+                downsampleFactor={Platform.OS === 'android' ? 6 : undefined}
                 overlayColor={
-                  Platform.OS === "android"
-                    ? "rgba(255,255,255,0.18)"
-                    : "transparent"
+                  Platform.OS === 'android'
+                    ? colors.glass.line18
+                    : 'transparent'
                 }
-                reducedTransparencyFallbackColor="rgba(255,255,255,0.7)"
+                reducedTransparencyFallbackColor={colors.glass.fill70}
               />
               <View style={styles.glassTint} pointerEvents="none" />
             </>
@@ -249,6 +251,7 @@ export default memo(
                 style={[
                   styles.activeOrbIndicator,
                   {
+                    backgroundColor: colors.accent.nav,
                     opacity: indicatorOpacity,
                     transform: [{ translateX: indicatorX }],
                   },
@@ -270,15 +273,15 @@ export default memo(
           </View>
         </View>
       </View>
-    );
+    )
   },
-);
+)
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   shell: {
     paddingHorizontal: 14,
     paddingTop: 1,
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   shellInCard: {
     paddingHorizontal: 8,
@@ -287,16 +290,16 @@ const styles = createStyle({
   rail: {
     minHeight: 74,
     maxWidth: 328,
-    width: "100%",
-    alignSelf: "center",
-    overflow: "hidden",
+    width: '100%',
+    alignSelf: 'center',
+    overflow: 'hidden',
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: "rgba(244,247,252,0.58)",
-    backgroundColor: "rgba(255,255,255,0.28)",
+    borderColor: colors.glass.rim58,
+    backgroundColor: colors.glass.fill28,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    shadowColor: "#81889a",
+    shadowColor: colors.shadow.dock,
     shadowOpacity: 0.12,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
@@ -314,42 +317,41 @@ const styles = createStyle({
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: colors.glass.fill08,
   },
   glassFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.62)",
+    backgroundColor: colors.glass.fill62,
   },
   glassRim: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
     bottom: 0,
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: colors.glass.line18,
   },
   contentRow: {
     height: ACTIVE_ORB_SIZE,
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
   },
   contentRowCompact: {
     height: 36,
   },
   activeOrbIndicator: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     top: 0,
     width: ACTIVE_ORB_SIZE,
     height: ACTIVE_ORB_SIZE,
     borderRadius: ACTIVE_ORB_SIZE / 2,
-    backgroundColor: "#d7ef59",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.45)",
-    shadowColor: "#b5cc49",
+    borderColor: colors.glass.line45,
+    shadowColor: colors.accent.navShadow,
     shadowOpacity: 0.34,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -358,8 +360,8 @@ const styles = createStyle({
   item: {
     flex: 1,
     height: ACTIVE_ORB_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   itemCompact: {
     flex: 0,
@@ -370,8 +372,8 @@ const styles = createStyle({
     width: ACTIVE_ORB_SIZE,
     height: ACTIVE_ORB_SIZE,
     borderRadius: ACTIVE_ORB_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconOrbCompact: {
     width: 36,
@@ -381,21 +383,21 @@ const styles = createStyle({
   iconImg: {
     width: BASE_ICON_SIZE,
     height: BASE_ICON_SIZE,
-    resizeMode: "contain",
+    resizeMode: 'contain',
   },
   iconGlyphWrap: {
     width: 24,
     height: 24,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconGlyphWrapActive: {
     transform: [{ translateX: ACTIVE_ICON_SHIFT_X }, { scale: 1.1 }],
   },
   iconOrbIdle: {
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   iconOrbActive: {
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
-});
+})))

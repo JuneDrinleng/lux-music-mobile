@@ -7,7 +7,10 @@ import {
 } from '@/utils/data'
 import { langS2T, toNewMusicInfo, toOldMusicInfo } from '@/utils'
 import { assertApiSupport } from '@/utils/tools'
+import { LIST_IDS } from '@/config/constant'
 import settingState from '@/store/setting/state'
+import playerState from '@/store/player/state'
+import listState from '@/store/list/state'
 import { requestMsg } from '@/utils/message'
 import BackgroundTimer from 'react-native-background-timer'
 import { apis } from '@/utils/musicSdk/api-source'
@@ -160,9 +163,6 @@ export const getOnlineOtherSourceMusicUrlByLocal = async(musicInfo: LX.Music.Mus
 
   const quality = '128k'
 
-  const cachedUrl = await getStoreMusicUrl(musicInfo, quality)
-  if (cachedUrl && !isRefresh) return { url: cachedUrl, quality, isFromCache: true }
-
   let reqPromise
   try {
     reqPromise = apis('local').getMusicUrl(toOldMusicInfo(musicInfo), null).promise
@@ -215,7 +215,30 @@ export const getOnlineOtherSourcePicByLocal = async(musicInfo: LX.Music.MusicInf
 
 export const TRY_QUALITYS_LIST = ['flac24bit', 'flac', '320k'] as const
 type TryQualityType = typeof TRY_QUALITYS_LIST[number]
+
+const CACHED_PAGE_QUALITIES = new Set<LX.Quality>(['128k', '320k', 'flac', 'flac24bit', '192k', 'ape', 'wav'])
+const cachedPagePlayQuality = new Map<string, LX.Quality>()
+
+/** While the local-songs queue is what is playing, use the quality that is already cached. */
+export const setCachedPagePlayQualities = (songs: ReadonlyArray<{ source: string, id: string, quality: string | null }>) => {
+  cachedPagePlayQuality.clear()
+  for (const song of songs) {
+    if (!song.source || !song.id || !song.quality) continue
+    if (!CACHED_PAGE_QUALITIES.has(song.quality as LX.Quality)) continue
+    cachedPagePlayQuality.set(`${song.source}_${song.id}`, song.quality as LX.Quality)
+  }
+}
+
+const cachedPageQualityFor = (musicInfo: { source: string, id: string }): LX.Quality | null => {
+  if (listState.tempListMeta.id != 'local-songs') return null
+  const listId = playerState.playInfo.playerListId ?? playerState.playMusicInfo.listId
+  if (listId != LIST_IDS.TEMP) return null
+  return cachedPagePlayQuality.get(`${musicInfo.source}_${musicInfo.id}`) ?? null
+}
+
 export const getPlayQuality = (highQuality: LX.Quality, musicInfo: LX.Music.MusicInfoOnline): LX.Quality => {
+  const cachedQuality = cachedPageQualityFor(musicInfo)
+  if (cachedQuality) return cachedQuality
   let type: LX.Quality = '128k'
   if (TRY_QUALITYS_LIST.includes(highQuality as TryQualityType)) {
     let list = global.lx.qualityList[musicInfo.source]
@@ -441,8 +464,7 @@ export const getOnlineOtherSourceLyricInfo = async({ musicInfos, onToggleSource,
 
   let reqPromise
   try {
-    // TODO: remove any type
-    reqPromise = (musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)) as any).promise
+    reqPromise = musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)).promise
   } catch (err: any) {
     reqPromise = Promise.reject(err)
   }
@@ -464,7 +486,7 @@ let altCoverInflight = 0
 const altCoverQueue: Array<() => void> = []
 const MAX_ALT_COVER_CONCURRENCY = 3
 
-const acquireAltCoverSlot = (): Promise<void> => {
+const acquireAltCoverSlot = async(): Promise<void> => {
   if (altCoverInflight < MAX_ALT_COVER_CONCURRENCY) {
     altCoverInflight++
     return Promise.resolve()
@@ -520,8 +542,7 @@ export const handleGetOnlineLyricInfo = async({ musicInfo, onToggleSource, isRef
   // console.log(musicInfo.source)
   let reqPromise
   try {
-    // TODO: remove any type
-    reqPromise = (musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)) as any).promise
+    reqPromise = musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)).promise
   } catch (err) {
     reqPromise = Promise.reject(err)
   }

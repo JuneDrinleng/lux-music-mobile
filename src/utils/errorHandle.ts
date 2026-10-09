@@ -10,7 +10,8 @@ const errorHandler = (e: Error, isFatal: boolean) => {
     'Failed to construct \'Response\'',
   ]
   if (isFatal) {
-    if (excludedErrors.includes(e.message)) {
+    // Match upstream 8a224988: excluded errors may be substrings of the message.
+    if (excludedErrors.some((excludedError) => e.message.includes(excludedError))) {
       toast('应用遇到异常，如可复现请截图并到 GitHub 反馈，同时附上错误日志。')
     } else {
       void tipDialog({

@@ -1,6 +1,7 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect } from 'react'
+import { View } from 'react-native'
 import { Navigation } from 'react-native-navigation'
 import { useHorizontalMode } from '@/utils/hooks'
 import PageContent from '@/components/PageContent'
@@ -13,6 +14,9 @@ import settingState from '@/store/setting/state'
 import PermissionPromptHost from '@/components/PermissionPromptHost'
 import AppDialogHost from '@/components/AppDialogHost'
 import themeState from '@/store/theme/state'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import HomeBootSplash from '@/screens/Launch/HomeBootSplash'
+import { subscribeHomeBootReveal } from '@/utils/homeFirstScreenBoot'
 
 
 interface Props {
@@ -21,6 +25,7 @@ interface Props {
 
 
 export default ({ componentId }: Props) => {
+  const { colors } = useLuxTheme()
   const isHorizontalMode = useHorizontalMode()
   const applySystemBarOptions = useCallback(() => {
     const theme = themeState.theme
@@ -45,21 +50,25 @@ export default ({ componentId }: Props) => {
     applySystemBarOptions()
     // eslint-disable-next-line react-hooks/exhaustive-deps
 
-    if (settingState.setting['player.startupPushPlayDetailScreen']) {
+    if (!settingState.setting['player.startupPushPlayDetailScreen']) return
+    return subscribeHomeBootReveal(() => {
       navigations.pushPlayDetailScreen(componentId, true)
-    }
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applySystemBarOptions, componentId])
 
   return (
-    <PageContent>
-      {
-        isHorizontalMode
-          ? <Horizontal />
-          : <Vertical />
-      }
-      <AppDialogHost />
-      <PermissionPromptHost />
-    </PageContent>
+    <View style={{ flex: 1, backgroundColor: colors.bg.app }}>
+      <PageContent>
+        {
+          isHorizontalMode
+            ? <Horizontal />
+            : <Vertical />
+        }
+        <AppDialogHost />
+        <PermissionPromptHost />
+      </PageContent>
+      <HomeBootSplash />
+    </View>
   )
 }

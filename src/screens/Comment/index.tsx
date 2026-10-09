@@ -1,5 +1,5 @@
 import { memo, useMemo, useEffect, useRef, useState, useCallback } from 'react'
-import { View, TouchableOpacity, Image as RNImage } from 'react-native'
+import { View, TouchableOpacity } from 'react-native'
 import Header from './components/Header'
 import Image from '@/components/common/Image'
 import CommentHot from './CommentHot'
@@ -14,14 +14,12 @@ import playerState from '@/store/player/state'
 import { usePlayerMusicInfo, usePlayMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from '../PlayDetail/Vertical/coverTheme'
-import fireIcon from '../../../assets/img/fire.png'
-import latestIcon from '../../../assets/img/latest.png'
-import updateCommentIcon from '../../../assets/img/update-comment.png'
+import { MdiIcon } from '@/components/common/MdiIcon'
 
 type ActiveId = 'hot' | 'new'
 
 const TabIconBtn = ({ icon, isActive, onPress }: {
-  icon: number
+  icon: string
   isActive: boolean
   onPress: () => void
 }) => {
@@ -31,7 +29,7 @@ const TabIconBtn = ({ icon, isActive, onPress }: {
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <RNImage source={icon} style={styles.tabIconBlack} />
+      <MdiIcon name={icon} size={18} color="#111827" />
     </TouchableOpacity>
   )
 }
@@ -151,9 +149,9 @@ export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
             </Text>
           </View>
           <View style={styles.tabIcons}>
-            <TabIconBtn icon={latestIcon} isActive={activeId === 'new'} onPress={() => { toggleTab('new') }} />
-            <TabIconBtn icon={fireIcon} isActive={activeId === 'hot'} onPress={() => { toggleTab('hot') }} />
-            <TabIconBtn icon={updateCommentIcon} isActive={false} onPress={refreshComment} />
+            <TabIconBtn icon="clock" isActive={activeId === 'new'} onPress={() => { toggleTab('new') }} />
+            <TabIconBtn icon="fire" isActive={activeId === 'hot'} onPress={() => { toggleTab('hot') }} />
+            <TabIconBtn icon="refresh" isActive={false} onPress={refreshComment} />
           </View>
         </View>
         <View collapsable={false} style={[styles.pageStyle, activeId !== 'hot' && styles.hiddenPage]}>

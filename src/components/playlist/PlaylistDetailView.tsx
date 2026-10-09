@@ -2,11 +2,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Dimensions,
-  Easing,
   FlatList,
   Image as RNImage,
   Platform,
-  StyleSheet,
   View,
   type ListRenderItem,
 } from 'react-native'
@@ -24,6 +22,7 @@ import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { applyMusicCoverFallback } from '@/utils/musicCover'
+import { demoteOpenPlaylistCoverWork, prioritizePlaylistCovers, setPlaylistCoverFocus } from '@/utils/playlistCoverPrefetch'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { createStyle } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
@@ -34,6 +33,9 @@ import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
+import { useDetailSceneTransition } from './detailSceneTransition'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
@@ -54,8 +56,11 @@ const PlaylistDetailViewInner = ({
   onClose,
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
-  const appBg = '#eef0fb'
+  const appBg = colors.bg.app
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
   const modalBottomInset = useMemo(() => {
@@ -88,6 +93,14 @@ const PlaylistDetailViewInner = ({
   selectedLeaderboardDetailRef.current = detailData.selectedLeaderboardDetail
   const detailHeroCoverRef = useRef(detailData.detailHeroCover)
   detailHeroCoverRef.current = detailData.detailHeroCover
+  const onCoverViewableItemsChanged = useRef((info: { viewableItems: Array<{ item?: LX.Music.MusicInfo | null }> }) => {
+    const visible: LX.Music.MusicInfo[] = []
+    for (const token of info.viewableItems) {
+      if (token.item?.id && token.item.source != 'local') visible.push(token.item)
+    }
+    if (visible.length) prioritizePlaylistCovers(visible, 'visible')
+  }).current
+  const coverViewabilityConfig = useRef({ itemVisiblePercentThreshold: 25, minimumViewTime: 60 }).current
   const pendingDeleteSongRef = useRef<LX.Music.MusicInfo | null>(null)
 
   const musicMultiAddModalRef = useRef<MusicMultiAddModalType>(null)
@@ -96,48 +109,31 @@ const PlaylistDetailViewInner = ({
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
-
-  const openAnim = useRef(new Animated.Value(0)).current
-  const openAnimTokenRef = useRef(0)
-  const isClosingRef = useRef(false)
+  const { style: sceneStyle, requestClose } = useDetailSceneTransition(detailData.selectedDetailCacheKey)
 
   useEffect(() => {
     pendingDeleteSongRef.current = pendingDeleteSong
   }, [pendingDeleteSong])
 
   useEffect(() => {
-    isClosingRef.current = false
-    const token = ++openAnimTokenRef.current
-    openAnim.stopAnimation()
-    openAnim.setValue(0)
-    Animated.timing(openAnim, {
-      toValue: 1,
-      duration: 280,
-      easing: Easing.bezier(0.36, 0.66, 0.04, 1),
-      useNativeDriver: true,
-    }).start(() => {
-      if (token !== openAnimTokenRef.current) return
-    })
-  }, [openAnim, detailData.selectedDetailCacheKey])
+    setPlaylistCoverFocus(detailData.selectedListId)
+    return () => {
+      setPlaylistCoverFocus(null)
+      demoteOpenPlaylistCoverWork()
+    }
+  }, [detailData.selectedListId])
+
+  useEffect(() => {
+    if (!detailData.detailSongs.length) return
+    prioritizePlaylistCovers(detailData.detailSongs, 'playlist')
+  }, [detailData.detailSongs])
 
   const handleCloseDetail = useCallback(() => {
-    if (isClosingRef.current) return
-    isClosingRef.current = true
     detailData.detailRequestIdRef.current += 1
     drag.resetSongDragState()
     imprt.setImportDrawerVisible(false)
-    const token = ++openAnimTokenRef.current
-    openAnim.stopAnimation()
-    Animated.timing(openAnim, {
-      toValue: 0,
-      duration: 200,
-      easing: Easing.bezier(0.32, 0.72, 0, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (token !== openAnimTokenRef.current) return
-      if (finished) onClose?.()
-    })
-  }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, openAnim])
+    requestClose(() => { onClose?.() })
+  }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, requestClose])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
@@ -250,7 +246,7 @@ const PlaylistDetailViewInner = ({
     const songKey = drag.getSongRowKey(item, index)
     const isDraggingRow = drag.dragStateRef.current.songKey == songKey && drag.dragStateRef.current.active
     const shiftAnim = drag.getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTone(item.source)
+    const sourceTagColor = getSourceTone(item.source, colors)
     const canEditSongs = Boolean(selectedListIdRef.current)
     return (
       <PlaylistDetailSongItem
@@ -290,6 +286,7 @@ const PlaylistDetailViewInner = ({
     drag.dragStateRef, drag.skipNextSongPressRef,
     handlePlaySong, handlePlayOnlineDetailSong, handlePlayLeaderboardSong,
     handleShowRemoveSongModal,
+    colors,
   ])
 
   const detailHeader = useMemo(() => {
@@ -355,19 +352,10 @@ const PlaylistDetailViewInner = ({
     return true
   }, [handleCloseDetail, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
 
-  const openAnimOpacity = useMemo(() => openAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  }), [openAnim])
-  const openAnimTranslateY = useMemo(() => openAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [24, 0],
-  }), [openAnim])
-
-  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source) : null
+  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source, colors) : null
 
   return (
-    <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }], backgroundColor: appBg }]}>
+    <Animated.View style={[styles.root, sceneStyle, { backgroundColor: appBg }]}>
       <View
         ref={drag.detailListWrapRef}
         style={styles.detailListWrap}
@@ -390,7 +378,7 @@ const PlaylistDetailViewInner = ({
           ListHeaderComponent={detailHeader}
           ListEmptyComponent={(
             <View style={styles.emptyCard}>
-              <Text size={13} color="#6b7280">{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+              <Text size={13} color={colors.ink.meta}>{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
             </View>
           )}
           showsVerticalScrollIndicator={false}
@@ -402,6 +390,8 @@ const PlaylistDetailViewInner = ({
           bounces={false}
           alwaysBounceVertical={false}
           overScrollMode="never"
+          onViewableItemsChanged={onCoverViewableItemsChanged}
+          viewabilityConfig={coverViewabilityConfig}
           onScroll={drag.handleDetailListScroll}
           onContentSizeChange={drag.handleDetailListContentSizeChange}
           scrollEventThrottle={16}
@@ -491,14 +481,14 @@ export default memo(PlaylistDetailView, (prev, next) => {
   return prev.detail === next.detail && prev.onClose === next.onClose && prev.bottomPadding === next.bottomPadding
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   root: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   detailContent: {
     paddingBottom: 0,
@@ -512,9 +502,9 @@ const styles = createStyle({
     width: '100%',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.glass.fill88,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -523,4 +513,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

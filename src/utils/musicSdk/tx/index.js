@@ -1,3 +1,5 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import leaderboard from './leaderboard'
 import lyric from './lyric'
 import songList from './songList'
@@ -20,7 +22,7 @@ const tx = {
   },
   getLyric(songInfo) {
     // let singer = songInfo.singer.indexOf('、') > -1 ? songInfo.singer.split('、')[0] : songInfo.singer
-    return lyric.getLyric(songInfo.songmid)
+    return lyric.getLyric(songInfo)
   },
   async getPic(songInfo) {
     return `https://y.gtimg.cn/music/photo_new/T002R500x500M000${songInfo.albumId}.jpg`

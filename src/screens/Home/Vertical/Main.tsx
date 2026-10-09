@@ -34,6 +34,9 @@ const Main = () => {
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
   const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
   const [playlistDetailVisible, setPlaylistDetailVisible] = useState(false)
+  const [localSongsVisible, setLocalSongsVisible] = useState(false)
+  const [listeningStatsVisible, setListeningStatsVisible] = useState(false)
+  const detailCovering = playlistDetailVisible || localSongsVisible || listeningStatsVisible
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -45,6 +48,8 @@ const Main = () => {
   useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
+      if (localSongsVisible) global.app_event.closeLocalSongs()
+      if (listeningStatsVisible) global.app_event.closeListeningStats()
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -56,11 +61,13 @@ const Main = () => {
     return () => {
       global.state_event.off('navActiveIdUpdated', handleNavUpdate)
     }
-  }, [playlistDetailVisible])
+  }, [listeningStatsVisible, localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
+      if (localSongsVisible) global.app_event.closeLocalSongs()
+      if (listeningStatsVisible) global.app_event.closeListeningStats()
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -78,17 +85,29 @@ const Main = () => {
       global.app_event.off('openVerticalSearchPage', handleOpenSearchPage)
       global.app_event.off('closeVerticalSearchPage', handleCloseSearchPage)
     }
-  }, [playlistDetailVisible])
+  }, [listeningStatsVisible, localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpen = () => { setPlaylistDetailVisible(true) }
     const handleClose = () => { setPlaylistDetailVisible(false) }
 
+    const handleOpenLocalSongs = () => { setLocalSongsVisible(true) }
+    const handleCloseLocalSongs = () => { setLocalSongsVisible(false) }
+    const handleOpenListeningStats = () => { setListeningStatsVisible(true) }
+    const handleCloseListeningStats = () => { setListeningStatsVisible(false) }
     global.app_event.on('openPlaylistDetail', handleOpen)
     global.app_event.on('closePlaylistDetail', handleClose)
+    global.app_event.on('openLocalSongs', handleOpenLocalSongs)
+    global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
+    global.app_event.on('openListeningStats', handleOpenListeningStats)
+    global.app_event.on('closeListeningStats', handleCloseListeningStats)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpen)
       global.app_event.off('closePlaylistDetail', handleClose)
+      global.app_event.off('openLocalSongs', handleOpenLocalSongs)
+      global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
+      global.app_event.off('openListeningStats', handleOpenListeningStats)
+      global.app_event.off('closeListeningStats', handleCloseListeningStats)
     }
   }, [])
 
@@ -101,7 +120,9 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  const sharedTopBarVisible = !searchPageVisible && (
+  // Hide SharedTopBar whenever playlist detail is open so the detail header's
+  // back button is the only top-left control (including HomeTab → detail).
+  const sharedTopBarVisible = !searchPageVisible && !detailCovering && (
     activeNavId === 'nav_search' ||
     activeNavId === 'nav_setting' ||
     (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
@@ -122,7 +143,7 @@ const Main = () => {
         ref={pagerViewRef}
         initialPage={activeIndexRef.current}
         onPageSelected={onPageSelected}
-        scrollEnabled={!searchPageVisible && !playlistDetailVisible}
+        scrollEnabled={!searchPageVisible && !detailCovering}
         offscreenPageLimit={1}
         style={styles.pagerView}
       >

@@ -6,6 +6,7 @@ import initTheme from './theme'
 import initI18n from './i18n'
 import initUserApi from './userApi'
 import initPlayer from './player'
+import initPlayHistory from './playHistory'
 import dataInit from './dataInit'
 import initSync from './sync'
 import initCommonState from './common'
@@ -19,27 +20,13 @@ import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailure
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { getListMusics, updateListMusics } from '@/core/list'
 import listState from '@/store/list/state'
-import { cacheImageUri } from '@/utils/imageCache'
+import { primeImageCacheIndex, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
+import { UNPINNED_IMAGE_CACHE_LIMIT } from '@/utils/imageCachePolicy'
+import { loadPlaylistCoverStore } from '@/utils/playlistCoverStore'
+import { installPlaylistCoverPrefetch, pinStoredPlaylistCovers, runIdlePlaylistCoverPrefetch } from '@/utils/playlistCoverPrefetch'
+import { enforceListenListLimit } from '@/core/list/enforceListenListLimit'
 import BackgroundTimer from 'react-native-background-timer'
-
-const prewarmPlaylistCoverCache = async() => {
-  const allListIds = listState.allList.map(l => l.id)
-  if (!allListIds.length) return
-
-  const coverUrls: string[] = []
-  for (const listId of allListIds) {
-    const songs = await getListMusics(listId)
-    for (const song of songs) {
-      if (song.meta.picUrl) {
-        coverUrls.push(song.meta.picUrl)
-        break
-      }
-    }
-  }
-  const httpUrls = coverUrls.filter(url => /^https?:\/\//i.test(url))
-  if (!httpUrls.length) return
-  void Promise.all(httpUrls.map(url => cacheImageUri(url).catch(() => null)))
-}
+import { InteractionManager } from 'react-native'
 
 const retryStaleCoverFailures = async() => {
   const entries = await getFailedEntries()
@@ -54,7 +41,7 @@ const retryStaleCoverFailures = async() => {
 
     for (const song of songs) {
       if (song.source === 'local') continue
-      const onlineSong = song as LX.Music.MusicInfoOnline
+      const onlineSong = song
       const key = `${onlineSong.source}_${onlineSong.id}`
       if (!failedKeySet.has(key)) continue
       if (!await isCoverFailureStale(onlineSong)) continue
@@ -112,10 +99,22 @@ export default async() => {
   bootLog('Playback Service Registered.')
   await initPlayer(setting)
   bootLog('Player inited.')
+  await initPlayHistory().catch(error => { bootLog(`Play history init failed: ${error instanceof Error ? error.message : error}`) })
+  bootLog('Play history inited.')
   await dataInit(setting)
   bootLog('Data inited.')
+  await primeImageCacheIndex().catch(() => {})
+  await loadPlaylistCoverStore().catch(() => {})
+  const imageCacheCount = parseInt(setting['player.imageCacheCount'] || '', 10)
+  setImageCacheLimits(Number.isFinite(imageCacheCount) && imageCacheCount > 0 ? imageCacheCount : UNPINNED_IMAGE_CACHE_LIMIT)
+  pinStoredPlaylistCovers()
+  scheduleImageCacheTrim()
+  installPlaylistCoverPrefetch()
+  void enforceListenListLimit()
+  void InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => { runIdlePlaylistCoverPrefetch() }, 1000)
+  })
   void retryStaleCoverFailures()
-  void prewarmPlaylistCoverCache()
   BackgroundTimer.setInterval(() => { void retryStaleCoverFailures() }, 30 * 60 * 1000)
   await initCommonState(setting)
   bootLog('Common State inited.')

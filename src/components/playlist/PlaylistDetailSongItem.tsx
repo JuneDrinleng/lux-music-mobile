@@ -1,15 +1,20 @@
 import { memo, useCallback, useEffect, useState } from 'react'
-import { Animated, Image as RNImage, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
+import { Animated, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
-import { pickMusicCover } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
 import { updateListMusics } from '@/core/list'
-import dragReorderIcon from '../../../assets/img/drag-reorder.png'
+import { peekCachedImageUri } from '@/utils/imageCache'
+import { peekPlaylistCover, subscribePlaylistCover, subscribePlaylistCoverStore } from '@/utils/playlistCoverStore'
+import { playlistCoverKey, preferStableCover, resolvePlaylistRowCover } from '@/utils/playlistCoverMap'
+import { isRetainedPlaylistSong, prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 export const SONG_ITEM_HEIGHT = 70
 
@@ -26,6 +31,9 @@ interface PlaylistDetailSongItemProps {
   listId?: string | null
   isGhost?: boolean
   canEdit?: boolean
+  detailNote?: string | null
+  selecting?: boolean
+  selected?: boolean
   onLayout: (event: LayoutChangeEvent) => void
   onPress: () => void
   onDragPressIn?: (event: GestureResponderEvent) => void
@@ -40,18 +48,74 @@ const PlaylistDetailSongItem = ({
   listId = null,
   isGhost = false,
   canEdit = false,
+  detailNote = null,
+  selecting = false,
+  selected = false,
   onLayout,
   onPress,
   onDragPressIn,
   onRemove,
 }: PlaylistDetailSongItemProps) => {
-  const [displayCoverUrl, setDisplayCoverUrl] = useState<string | null>(() => pickMusicCover(song, fallbackCover))
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
+  const coverForSong = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
+    const direct = currentSong.meta.picUrl?.trim() ?? ''
+    if (currentSong.source == 'local' && direct && !/^https?:\/\//i.test(direct)) return direct
+    return resolvePlaylistRowCover({
+      source: currentSong.source,
+      picUrl: currentSong.meta.picUrl,
+      togglePicUrl: currentSong.meta.toggleMusicInfo?.meta.picUrl ?? null,
+      fallbackUrl: fallback,
+      mapped: peekPlaylistCover(currentSong.source, currentSong.id),
+      isCached: (url) => peekCachedImageUri(url) != null,
+    })
+  }, [])
+
+  const [displayCoverUrl, setDisplayCoverUrl] = useState<string | null>(() => coverForSong(song, fallbackCover))
+
+  const publishCover = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
+    const next = coverForSong(currentSong, fallback)
+    setDisplayCoverUrl(current => preferStableCover(
+      current,
+      next,
+      (url) => !/^https?:\/\//i.test(url) || peekCachedImageUri(url) != null,
+    ))
+  }, [coverForSong])
 
   useEffect(() => {
-    setDisplayCoverUrl(pickMusicCover(song, fallbackCover))
-  }, [song, fallbackCover])
+    publishCover(song, fallbackCover)
+    const key = playlistCoverKey(song.source, song.id)
+    const update = () => { publishCover(song, fallbackCover) }
+    const unsubscribeCover = subscribePlaylistCover(key, update)
+    const unsubscribeStore = subscribePlaylistCoverStore(update)
+    return () => {
+      unsubscribeCover()
+      unsubscribeStore()
+    }
+  }, [fallbackCover, publishCover, song])
+
+  useEffect(() => {
+    if (song.source == 'local') return
+    const mapped = peekPlaylistCover(song.source, song.id)
+    if (mapped?.url) return
+    if (song.meta.picUrl) return
+    prioritizePlaylistCovers([song], 'visible')
+  }, [song])
 
   const handleCoverError = useCallback(async(_url: string | number) => {
+    const mapped = peekPlaylistCover(song.source, song.id)
+    if (mapped && mapped.url != mapped.thumbUrl) {
+      let promoted = false
+      setDisplayCoverUrl(current => {
+        if (current == mapped.thumbUrl) {
+          promoted = true
+          return mapped.url
+        }
+        return current
+      })
+      if (promoted) return
+    }
     if (song.source === 'local') return
     const onlineSong = song
     const altUrl = await fetchAltCoverUrl(onlineSong)
@@ -79,24 +143,37 @@ const PlaylistDetailSongItem = ({
           activeOpacity={0.8}
           onPress={onPress}
         >
-          <Image style={styles.cover} url={displayCoverUrl} onError={handleCoverError} />
+          {selecting
+            ? <MdiIcon name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={18} color={colors.ink.icon} style={styles.selectMark} />
+            : null}
+          <Image
+            style={styles.cover}
+            url={displayCoverUrl}
+            cachePin={song.source == 'local'
+              ? /^https?:\/\//i.test(displayCoverUrl ?? '')
+              : isRetainedPlaylistSong(song.source, song.id)}
+            onError={handleCoverError}
+          />
           <View style={styles.info}>
-            <Text size={14} color="#111827" style={styles.name} numberOfLines={1}>{song.name}</Text>
+            <Text size={14} color={colors.ink.strong} style={styles.name} numberOfLines={1}>{song.name}</Text>
             <View style={styles.metaRow}>
               <Text size={10} color={sourceTone.text} style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}>
                 {song.source.toUpperCase()}
               </Text>
-              <Text size={11} color="#6b7280" numberOfLines={1}>{song.singer}</Text>
+              <Text size={11} color={colors.ink.meta} numberOfLines={1}>{song.singer}</Text>
             </View>
+            {detailNote
+              ? <Text size={11} color={colors.ink.secondary} numberOfLines={1} style={styles.detailNote}>{detailNote}</Text>
+              : null}
           </View>
         </TouchableOpacity>
         <View style={styles.actions}>
-          <Text size={11} color="#9ca3af" style={styles.interval}>{song.interval ?? '--:--'}</Text>
+          <Text size={11} color={colors.ink.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
           {canEdit
             ? (
                 <>
                   <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
-                    <MaterialCommunityIcon name="trash-can-outline" size={16} color="#9ca3af" />
+                    <MaterialCommunityIcon name="trash-can" size={16} color={colors.ink.faint} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.dragButton}
@@ -104,7 +181,7 @@ const PlaylistDetailSongItem = ({
                     delayLongPress={0}
                     onLongPress={onDragPressIn}
                   >
-                    <RNImage source={dragReorderIcon} style={styles.dragIcon} />
+                    <MdiIcon name="drag-horizontal-variant" size={16} color={colors.ink.nearBlack} />
                   </TouchableOpacity>
                 </>
               )
@@ -115,13 +192,13 @@ const PlaylistDetailSongItem = ({
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   wrap: {
     position: 'relative',
   },
   card: {
     borderRadius: 14,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
     padding: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -141,7 +218,7 @@ const styles = createStyle({
     width: 52,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: colors.surface.neutral,
   },
   info: {
     flex: 1,
@@ -155,6 +232,12 @@ const styles = createStyle({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  detailNote: {
+    marginTop: 2,
+  },
+  selectMark: {
+    marginRight: 8,
   },
   sourceBadge: {
     borderRadius: 10,
@@ -192,7 +275,7 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))
 
 export default memo(PlaylistDetailSongItem, (prev, next) => {
   return prev.song === next.song &&
@@ -202,6 +285,9 @@ export default memo(PlaylistDetailSongItem, (prev, next) => {
     prev.listId === next.listId &&
     prev.isGhost === next.isGhost &&
     prev.canEdit === next.canEdit &&
+    prev.detailNote === next.detailNote &&
+    prev.selecting === next.selecting &&
+    prev.selected === next.selected &&
     prev.onLayout === next.onLayout &&
     prev.onPress === next.onPress &&
     prev.onDragPressIn === next.onDragPressIn &&

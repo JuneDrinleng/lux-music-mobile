@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import CheckBox from '@/components/common/CheckBox'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { setSyncModeComponentId } from '@/core/sync'
 import { useI18n } from '@/lang'
 import syncState from '@/store/sync/state'
-import synImg from '../../../assets/img/syn.png'
 
 type BaseSyncMode = 'merge_local_remote' | 'merge_remote_local' | 'overwrite_local_remote' | 'overwrite_remote_local'
 
@@ -49,7 +49,7 @@ const SyncModeContent = () => {
       <View style={styles.card}>
         <View style={styles.header}>
           <View style={styles.iconWrap}>
-            <Image source={synImg} style={styles.icon} resizeMode="contain" />
+            <MdiIcon name="sync" size={25} color="#000000" />
           </View>
           <View style={styles.headerText}>
             <Text size={18} color="#171a22" style={styles.title}>{title}</Text>
@@ -59,7 +59,7 @@ const SyncModeContent = () => {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.notice}>
-            <Text size={12} color="#5f6572" style={styles.noticeText}>{t('sync__mode_remember_tip')}</Text>
+            <Text size={12} color="#5f6572" style={styles.noticeText}>{t('sync__mode_remember_merge_only_tip')}</Text>
           </View>
 
           <Text size={12} color="#8a909c" style={styles.sectionLabel}>{t('sync__mode_merge_tip')}</Text>

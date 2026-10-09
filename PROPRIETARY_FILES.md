@@ -1,7 +1,7 @@
 <!-- Lux Repository Notice: registry of files explicitly marked as Lux Proprietary. See LICENSE-NOTICE.md. -->
 # Lux Proprietary 文件清单
 
-最后更新：2026-04-11
+最后更新：2026-10-09
 
 本清单用于明确标记本仓库中由 Lux Music 维护者保留权利的内容。
 未出现在本清单中的文件，默认按仓库主许可证与 `LICENSE-NOTICE.md` 执行。
@@ -86,6 +86,7 @@
 | --- | --- | --- | --- |
 | `docs/page-hierarchy.md` | `doc` | Lux Music 页面层级说明文档（本仓库独立撰写）| `2026-04-11` |
 | `docs/project-structure.md` | `doc` | Lux Music 项目结构说明文档（本仓库独立撰写）| `2026-04-11` |
+| `docs/design-system.md` | `doc` | Lux Music 竖屏界面设计规范（从现有实现归纳，本仓库独立撰写）| `2026-10-08` |
 | `src/component/instruction.md` | `doc` | `src/components` 目录逐文件用途说明文档（本仓库独立撰写）| `2026-04-11` |
 
 ### 代码组件
@@ -117,10 +118,79 @@
 | `src/types/appDialog.ts` | `code` | Lux 独立定义的 AppDialog 类型，上游无此类型文件 | `2026-04-11` |
 | `src/types/permissionPrompt.ts` | `code` | Lux 独立定义的权限提示类型，上游无此类型文件 | `2026-04-11` |
 | `src/utils/imageCache.ts` | `code` | Lux 独立实现的图片缓存工具，上游无对应文件 | `2026-04-11` |
+| `src/utils/imagePresentation.ts` | `code` | Lux 独立实现的封面首帧展示决策，上游无对应文件 | `2026-10-08` |
+| `src/components/playlist/playlistDragState.ts` | `code` | Lux 独立实现的歌单拖动结束/复位决策，上游无对应文件 | `2026-10-08` |
+| `src/components/playlist/songRowKey.ts` | `code` | Lux 独立实现的歌单行稳定 key，上游无对应文件 | `2026-10-08` |
+| `scripts/run-src-unit-tests.mjs` | `code` | Lux 独立新增的封面与歌单拖动单元测试入口，上游无对应文件 | `2026-10-08` |
+| `src/utils/imageCachePolicy.ts` | `code` | Lux 独立实现的图片缓存淘汰策略，歌单封面不参与普通配额，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverQueue.ts` | `code` | Lux 独立实现的歌单封面预取队列，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverMap.ts` | `code` | Lux 独立实现的歌曲封面地址映射与缩图规则，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverStore.ts` | `code` | Lux 独立实现的封面地址本地存储，不进入同步列表，上游无对应文件 | `2026-10-08` |
+| `src/utils/playlistCoverPrefetch.ts` | `code` | Lux 独立实现的歌单封面后台预取，上游无对应文件 | `2026-10-08` |
+| `src/utils/musicUrlCache.ts` | `code` | Lux 独立实现的播放地址有效期判断，上游无对应文件 | `2026-10-09` |
+| `src/utils/listenListLimit.ts` | `code` | Lux 独立实现的试听列表长度裁剪选择，上游无对应文件 | `2026-10-09` |
+| `src/core/music/reuseMusicUrl.ts` | `code` | Lux 独立实现的播放地址复用，未过期或已缓存则直接使用，上游无对应文件 | `2026-10-09` |
+| `src/core/list/enforceListenListLimit.ts` | `code` | Lux 独立实现的试听列表 50 首上限，通过既有删除动作同步，上游无对应文件 | `2026-10-09` |
+| `src/utils/localSongRows.ts` | `code` | Lux 独立实现的本地歌曲页行合并，设备文件与已缓存音频同一列表，上游无对应文件 | `2026-10-09` |
+| `src/utils/cachedSongMetadata.ts` | `code` | Lux 缓存歌曲资料索引、持久化历史转换及补全去重逻辑，上游无对应文件 | `2026-10-09` |
+| `src/utils/cachedSongInfo.ts` | `code` | Lux 独立实现的缓存歌曲资料查找与按 songmid 回源，上游无对应文件 | `2026-10-09` |
+| `src/utils/kwMusicInfoParse.ts` | `code` | Lux 独立实现的酷我 rid 元数据解析与封面地址拼装，上游无对应文件 | `2026-10-09` |
+| `src/utils/audioCacheIndex.ts` | `code` | Lux 独立实现的播放时缓存键到歌曲信息的索引，上游无对应文件 | `2026-10-09` |
+| `src/utils/localSongLibrary.ts` | `code` | Lux 独立实现的设备歌曲库与扫描导入，上游无对应文件 | `2026-10-09` |
+| `src/components/playlist/LocalSongsDetail.tsx` | `code` | Lux 独立实现的本地歌曲页，复用歌单详情头与歌曲行，上游无对应文件 | `2026-10-09` |
+| `src/components/playlist/detailSceneTransition.ts` | `code` | Lux 独立实现的歌单详情开关动画（淡入上移），上游无对应文件 | `2026-10-09` |
+| `src/components/common/overlaySlideTransition.ts` | `code` | Lux 独立实现的听歌统计 / 本地歌曲横向滑入滑出动画，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/chartLayout.ts` | `code` | Lux 听歌统计图时段标签与共用绘图坐标，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/chartMode.ts` | `code` | Lux 听歌统计图柱状/折线模式归一化，上游无对应文件 | `2026-10-09` |
+| `src/utils/localSongCoverMatch.ts` | `code` | Lux 独立实现的本地歌曲歌名歌手解析与封面匹配，上游无对应文件 | `2026-10-09` |
+| `src/utils/localSongCoverLookup.ts` | `code` | Lux 独立实现的设备歌曲封面检索、负缓存与钉住，上游无对应文件 | `2026-10-09` |
+| `scripts/check-lux-color-literals.mjs` | `code` | Lux 独立新增的竖屏颜色字面量回退检查，上游无对应文件 | `2026-10-08` |
 | `src/utils/hooks/useSystemGestureInsetBottom.ts` | `code` | Lux 独立实现的系统手势内边距 Hook，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/crypto.js` | `code` | Lux 独立新增的 TX 搜索签名工具，上游无对应文件 | `2026-04-11` |
 | `src/utils/musicSdk/tx/utils/index.js` | `code` | Lux 独立新增的 TX 搜索签名请求封装，上游无对应文件 | `2026-04-11` |
 | `android/app/src/main/res/values-v29/styles.xml` | `code` | Lux 独立新增的 Android 29+ 系统栏样式配置，上游无对应文件 | `2026-04-11` |
+| `src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx` | `code` | Lux 独立新增的当前版本更新日志页，上游无对应文件 | `2026-10-08` |
+| `src/utils/installedChangelog.ts` | `code` | Lux 独立新增的安装包内更新日志读取，上游无对应文件 | `2026-10-08` |
+| `src/utils/changelogFormat.js` | `code` | Lux 独立新增的更新日志分点解析，上游无对应文件 | `2026-10-08` |
+| `src/utils/changelogFormat.d.ts` | `code` | 上述解析器的类型声明 | `2026-10-08` |
+| `src/components/ChangelogView.tsx` | `code` | Lux 独立新增的更新日志分点渲染，上游无对应文件 | `2026-10-08` |
+| `src/theme/luxTokens.ts` | `code` | Lux 竖屏新页面的语义颜色令牌，上游主题表无此文件 | `2026-10-08` |
+| `src/theme/LuxTheme.tsx` | `code` | Lux 竖屏主题上下文，与上游 `useTheme()` 分开 | `2026-10-08` |
+| `src/theme/luxColorMath.ts` | `code` | Lux 主题色混合与对比度计算，上游无对应文件 | `2026-10-08` |
+| `src/theme/buildLuxColors.ts` | `code` | Lux 由语义角色推导完整槽位，上游无对应文件 | `2026-10-08` |
+| `src/theme/luxStyleCache.ts` | `code` | Lux 按颜色对象缓存样式，上游无对应文件 | `2026-10-08` |
+| `src/theme/luxThemePreference.ts` | `code` | Lux 本机主题 id 存储，不进入同步，上游无对应文件 | `2026-10-08` |
+| `android/app/src/main/java/cn/lux/music/mobile/utils/SystemBars.java` | `code` | Lux 按主题切换系统栏图标深浅，栏本身保持透明 | `2026-10-08` |
+| `docs/theme-tokens.md` | `doc` | 默认黄绿令牌与新美化页面色值的对照，供后续替换硬编码 | `2026-10-08` |
+| `src/utils/cacheLimitSteps.ts` | `code` | Lux 独立实现的缓存上限档位、刻度文案和松手提交判断，上游无对应文件 | `2026-10-09` |
+| `src/screens/Home/Vertical/Tabs/CacheLimitSlider.tsx` | `code` | Lux 独立实现的缓存上限滑条，拇指连续拖动、档位吸附，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/types.ts` | `code` | Lux 听歌记录与服务端共用的记录形状，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/threshold.ts` | `code` | Lux 播放计数门槛，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/session.ts` | `code` | Lux 单次播放的实际收听计时，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/merge.ts` | `code` | Lux 按记录 id 合并去重，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/range.ts` | `code` | Lux 听歌统计的时间范围与榜单汇总，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/backup.ts` | `code` | Lux 数据备份文档的组装与解析，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/backupIO.ts` | `code` | Lux 数据备份的导出与导入，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/store.ts` | `code` | Lux 本机听歌记录存储，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/tracker.ts` | `code` | Lux 播放会话记入听歌记录，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/wire.ts` | `code` | Lux 听歌记录同步载荷校验与分批，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/artistAvatar.ts` | `code` | Lux 按歌手名查找并缓存头像，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/playback.ts` | `code` | Lux 从听歌记录回到播放，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/playHistorySync.ts` | `code` | Lux 听歌记录的 Lux 同步通道，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/playHistoryFlag.ts` | `code` | Lux 听歌记录能力是否在本次连接启用，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/deviceIdentity.ts` | `code` | Lux 同步安装 UUID 与持久化初始化逻辑，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/deviceId.ts` | `code` | Lux 同步安装标识的本机存储与安全随机来源，上游无对应文件 | `2026-10-09` |
+| `src/plugins/sync/client/credentials.ts` | `code` | Lux 同步凭据复用、账号隔离与串行存储逻辑，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsPage.tsx` | `code` | Lux 听歌统计页，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsMagazine.tsx` | `code` | Lux 听歌统计杂志风布局，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ListeningStatsReplay.tsx` | `code` | Lux 听歌统计年度回顾风布局，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/ArtistFace.tsx` | `code` | Lux 听歌统计歌手头像，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/statsShared.ts` | `code` | Lux 听歌统计共享文案键，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/useListeningStatsModel.ts` | `code` | Lux 听歌统计共享数据与样式偏好，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/statsPageStyle.ts` | `code` | Lux 听歌统计页样式枚举，上游无对应文件 | `2026-10-09` |
+| `src/utils/playHistory/statsPageStyleStore.ts` | `code` | Lux 听歌统计页样式本机存储，上游无对应文件 | `2026-10-09` |
+| `src/components/stats/useTodayListening.ts` | `code` | Lux 今日听歌时长，上游无对应文件 | `2026-10-09` |
+| `src/core/init/playHistory.ts` | `code` | Lux 听歌记录的启动入口，上游无对应文件 | `2026-10-09` |
 
 ## 维护模板
 

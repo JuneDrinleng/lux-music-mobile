@@ -1,16 +1,18 @@
+import { memoLuxColors } from '@/theme/LuxTheme'
+import { limeColors, type LuxColors } from '@/theme/luxTokens'
 export interface SourceTone {
   text: string
   background: string
 }
 
-const sourceTagColorMap: Record<string, SourceTone> = {
-  tx: { text: '#31c27c', background: '#ecfdf3' },
-  wy: { text: '#d81e06', background: '#fef2f2' },
-  kg: { text: '#2f88ff', background: '#eff6ff' },
-  kw: { text: '#f59e0b', background: '#fffbeb' },
-  mg: { text: '#e11d8d', background: '#fdf2f8' },
-}
+const readSourceTagColorMap = memoLuxColors((colors: LuxColors) => ({
+  tx: { text: colors.source.tx.text, background: colors.source.tx.background },
+  wy: { text: colors.source.wy.text, background: colors.source.wy.background },
+  kg: { text: colors.source.kg.text, background: colors.source.kg.background },
+  kw: { text: colors.source.kw.text, background: colors.source.kw.background },
+  mg: { text: colors.source.mg.text, background: colors.source.mg.background },
+}))
 
-export const getSourceTone = (source: string): SourceTone => {
-  return sourceTagColorMap[source.toLowerCase()] ?? { text: '#111827', background: '#e5e7eb' }
+export const getSourceTone = (source: string, colors: LuxColors = limeColors): SourceTone => {
+  return readSourceTagColorMap(colors)[source.toLowerCase()] ?? { text: colors.source.unknown.text, background: colors.source.unknown.background }
 }

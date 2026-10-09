@@ -17,8 +17,12 @@ import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.CacheSpan;
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
+import androidx.media3.datasource.cache.ContentMetadata;
 import androidx.media3.datasource.cache.SimpleCache;
+
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.WritableMap;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 
@@ -39,9 +43,11 @@ import java.util.NavigableSet;
 @UnstableApi
 public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
-    private final long cacheMaxSize;
+    private long cacheMaxSize;
 
     private SimpleCache cache;
+    private AdjustableCacheEvictor cacheEvictor;
+    private DatabaseProvider databaseProvider;
     private boolean prepared = false;
     public LocalPlayback(Context context, MusicManager manager, ExoPlayer player, long maxCacheSize,
                          boolean autoUpdateMetadata) {
@@ -52,9 +58,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     @Override
     public void initialize() {
         if(cacheMaxSize > 0) {
-            File cacheDir = new File(context.getFilesDir(), "TrackPlayer");
-            DatabaseProvider db = new StandaloneDatabaseProvider(context);
-            cache = new SimpleCache(cacheDir, new LeastRecentlyUsedCacheEvictor(cacheMaxSize), db);
+            openCache(cacheMaxSize);
         } else {
             cache = null;
         }
@@ -62,6 +66,30 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         super.initialize();
 
         resetQueue();
+    }
+
+    /**
+     * {@code bytes} is the SimpleCache ceiling. Zero stops new writes and does not delete spans.
+     */
+    public void setCacheMaxSize(long bytes) {
+        cacheMaxSize = bytes;
+        if (bytes <= 0) {
+            if (cacheEvictor != null) cacheEvictor.setMaxBytes(0);
+            return;
+        }
+        if (cache == null) {
+            openCache(bytes);
+            return;
+        }
+        if (cacheEvictor != null) cacheEvictor.setMaxBytes(bytes);
+    }
+
+    private void openCache(long bytes) {
+        File cacheDir = new File(context.getFilesDir(), "TrackPlayer");
+        if (databaseProvider == null) databaseProvider = new StandaloneDatabaseProvider(context);
+        if (cacheEvictor == null) cacheEvictor = new AdjustableCacheEvictor(bytes);
+        else cacheEvictor.setMaxBytes(bytes);
+        cache = new SimpleCache(cacheDir, cacheEvictor, databaseProvider);
     }
 
     public DataSource.Factory enableCaching(DataSource.Factory ds) {
@@ -102,6 +130,73 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
             }
         } else {
             Log.d(Utils.LOG, "Cache is not initialized.");
+        }
+        promise.resolve(null);
+    }
+
+    /**
+     * Trailing unread bytes (ID3 / padding) often remain after a full listen.
+     * Treat nearly-complete contiguous ranges as fully cached for the local page.
+     */
+    private static final long FULL_CACHE_TAIL_TOLERANCE_BYTES = 128L * 1024L;
+
+    /**
+     * Open SimpleCache for listing even when write ceiling is 0 or the player
+     * has not enabled caching yet, so complete files already on disk are visible.
+     */
+    private void ensureCacheReadable() {
+        if (cache != null) return;
+        long openBytes = cacheMaxSize > 0 ? cacheMaxSize : Long.MAX_VALUE;
+        openCache(openBytes);
+        if (cacheMaxSize <= 0 && cacheEvictor != null) {
+            cacheEvictor.setMaxBytes(0);
+        }
+    }
+
+    private boolean isFullyCachedKey(String key, long cachedBytes, long contentLength) {
+        if (contentLength == C.LENGTH_UNSET || contentLength <= 0) return false;
+        if (cache.isCached(key, 0, contentLength)) return true;
+        long covered = Math.max(0L, contentLength - FULL_CACHE_TAIL_TOLERANCE_BYTES);
+        if (covered <= 0) return cachedBytes > 0;
+        return cachedBytes + FULL_CACHE_TAIL_TOLERANCE_BYTES >= contentLength
+            && cache.isCached(key, 0, covered);
+    }
+
+    public void listCachedEntries(Promise promise) {
+        WritableArray result = Arguments.createArray();
+        try {
+            ensureCacheReadable();
+        } catch (Exception e) {
+            Log.e(Utils.LOG, "listCachedEntries openCache: " + e.getMessage());
+            promise.resolve(result);
+            return;
+        }
+        if (cache == null) {
+            promise.resolve(result);
+            return;
+        }
+        for (String key : cache.getKeys()) {
+            long contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(key));
+            long cachedBytes = contentLength != C.LENGTH_UNSET && contentLength > 0
+                ? cache.getCachedBytes(key, 0, contentLength)
+                : cache.getCachedBytes(key, 0, C.LENGTH_UNSET);
+            boolean fullyCached = isFullyCachedKey(key, cachedBytes, contentLength);
+            WritableMap item = Arguments.createMap();
+            item.putString("key", key);
+            item.putDouble("cachedBytes", cachedBytes);
+            item.putBoolean("fullyCached", fullyCached);
+            result.pushMap(item);
+        }
+        promise.resolve(result);
+    }
+
+    public void removeCachedResource(String key, Promise promise) {
+        if (cache != null && key != null && !key.isEmpty()) {
+            try {
+                cache.removeResource(key);
+            } catch (Exception e) {
+                Log.e(Utils.LOG, e.getMessage());
+            }
         }
         promise.resolve(null);
     }

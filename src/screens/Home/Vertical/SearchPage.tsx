@@ -6,7 +6,6 @@ import {
   Animated,
   Easing,
   FlatList,
-  Image,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -16,11 +15,9 @@ import {
   useWindowDimensions,
   type ListRenderItem,
 } from 'react-native'
-import { Search, X } from 'lucide-react-native'
-import songsIcon from '../../../../assets/img/songs.png'
-import playlistsIcon from '../../../../assets/img/playlists.png'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import SegmentedIconSwitch from '@/components/common/SegmentedIconSwitch'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import GlassSearchField from '@/components/search/GlassSearchField'
@@ -45,6 +42,8 @@ import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { createStyle } from '@/utils/tools'
 import { debounce } from '@/utils'
 import musicSdk from '@/utils/musicSdk'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 112
 const SEARCH_TYPE_BAR_HEIGHT = 36
@@ -65,6 +64,9 @@ export default function SearchPage({
   request: SearchPageRequest | null
   onClose: () => void
 }) {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
@@ -466,9 +468,11 @@ export default function SearchPage({
       key: 'music',
       accessibilityLabel: t('search_type_music'),
       renderIcon: (active: boolean) => (
-        <Image
-          source={songsIcon}
-          style={[styles.searchTypeIcon, styles.searchTypeIconMusic, !active && styles.searchTypeIconInactive]}
+        <MdiIcon
+          name="music-note"
+          size={16}
+          color={colors.ink.nearBlack}
+          style={!active ? styles.searchTypeIconInactive : undefined}
         />
       ),
     },
@@ -476,13 +480,15 @@ export default function SearchPage({
       key: 'songlist',
       accessibilityLabel: t('search_type_songlist'),
       renderIcon: (active: boolean) => (
-        <Image
-          source={playlistsIcon}
-          style={[styles.searchTypeIcon, !active && styles.searchTypeIconInactive]}
+        <MdiIcon
+          name="playlist-music"
+          size={20}
+          color={colors.ink.nearBlack}
+          style={!active ? styles.searchTypeIconInactive : undefined}
         />
       ),
     },
-  ]), [t])
+  ]), [t, colors])
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item, index }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     return (
@@ -521,13 +527,13 @@ export default function SearchPage({
           <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={handleClose}>
             <View style={styles.backBubble}>
               <View style={styles.backInner}>
-                <Icon name="chevron-left" rawSize={20} color="#232733" />
+                <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
               </View>
             </View>
           </TouchableOpacity>
           <View style={styles.searchDock}>
             <GlassSearchField style={styles.searchField} contentStyle={styles.searchContent}>
-                <Search size={17} color="#666d7b" strokeWidth={2.1} />
+                <MdiIcon name="magnify" rawSize={17} color={colors.ink.searchIcon} />
                 {isSearchInputEditing
                   ? <View style={styles.searchInputSlot}>
                       <TextInput
@@ -539,16 +545,16 @@ export default function SearchPage({
                         blurOnSubmit
                         autoFocus
                         underlineColorAndroid="transparent"
-                        selectionColor="#666d7b"
+                        selectionColor={colors.ink.searchIcon}
                         onBlur={handleSearchInputBlur}
                         onSubmitEditing={({ nativeEvent }) => { handleSubmitSearch(nativeEvent.text ?? searchText) }}
                         returnKeyType="search"
                         placeholder={t('me_search_placeholder')}
-                        placeholderTextColor="#9aa1ae"
+                        placeholderTextColor={colors.ink.quiet}
                       />
                     </View>
                   : <TouchableOpacity style={styles.searchInputTrigger} activeOpacity={0.85} onPress={handleBeginSearchInputEdit}>
-                      <Text size={13} color={searchText ? '#232733' : '#9aa1ae'} numberOfLines={1} style={styles.searchInputText}>
+                      <Text size={13} color={searchText ? colors.ink.input : colors.ink.quiet} numberOfLines={1} style={styles.searchInputText}>
                         {searchText || t('me_search_placeholder')}
                       </Text>
                     </TouchableOpacity>}
@@ -558,10 +564,10 @@ export default function SearchPage({
                   onPress={handleClearSearchText}
                   disabled={!searchText.length && !searchKeyword.length}
                 >
-                  <X
-                    size={16}
-                    color={searchText.length || searchKeyword.length ? '#666d7b' : '#bcc2cf'}
-                    strokeWidth={2.2}
+                  <MdiIcon
+                    name="close"
+                    rawSize={16}
+                    color={searchText.length || searchKeyword.length ? colors.ink.searchIcon : colors.ink.searchClearIdle}
                   />
                 </TouchableOpacity>
             </GlassSearchField>
@@ -569,7 +575,7 @@ export default function SearchPage({
         </View>
         {!showInitialPage
           ? <View style={styles.searchTypeBar}>
-              <Text size={22} color="#1a1c1e" style={styles.searchTypeTitle}>{searchResultTitle}</Text>
+              <Text size={22} color={colors.ink.subpageTitle} style={styles.searchTypeTitle}>{searchResultTitle}</Text>
               <SegmentedIconSwitch
                 value={searchResultType}
                 items={searchTypeItems}
@@ -578,17 +584,17 @@ export default function SearchPage({
                 itemWidth={42}
                 itemHeight={30}
                 padding={3}
-                backgroundColor="#dfe6f3"
-                borderColor="#d4ddeb"
-                thumbColor="#c8e600"
-                thumbBorderColor="#ddf27a"
-                thumbShadowColor="#687189"
+                backgroundColor={colors.surface.segment}
+                borderColor={colors.line.segment}
+                thumbColor={colors.accent.primary}
+                thumbBorderColor={colors.accent.thumbBorder}
+                thumbShadowColor={colors.shadow.segment}
               />
             </View>
           : null}
       </View>
     )
-  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, showInitialPage, statusBarHeight, t])
+  }, [handleBeginSearchInputEdit, handleClearSearchText, handleClose, handleSearchInputBlur, handleSearchResultTypeChange, handleSearchTextChange, handleSubmitSearch, isSearchInputEditing, searchKeyword.length, searchResultTitle, searchResultType, searchText, searchTypeItems, showInitialPage, statusBarHeight, t, colors])
 
   const panelTranslateX = useMemo(() => pageAnim.interpolate({
     inputRange: [0, 1],
@@ -614,28 +620,28 @@ export default function SearchPage({
       >
         <View style={styles.initialRowIcon}>
           {isSuggestion
-            ? <Icon name="search-2" rawSize={15} color="#757b85" />
-            : <MaterialCommunityIcon name="history" size={16} color="#757b85" />}
+            ? <Icon name="search-2" rawSize={15} color={colors.ink.historyIcon} />
+            : <MaterialCommunityIcon name="history" size={16} color={colors.ink.historyIcon} />}
         </View>
         <View style={styles.initialRowBody}>
-          <Text size={16} color="#1a1c1e" numberOfLines={1} style={styles.initialRowTitle}>{keyword}</Text>
+          <Text size={16} color={colors.ink.subpageTitle} numberOfLines={1} style={styles.initialRowTitle}>{keyword}</Text>
         </View>
         {isSuggestion
           ? <MaterialCommunityIcon
               name="arrow-top-left"
               size={16}
-              color="#8a909c"
+              color={colors.ink.suggestArrow}
             />
           : <TouchableOpacity
               style={styles.initialRowDismiss}
               activeOpacity={0.72}
               onPress={() => { handleRemoveSearchHistoryItem(keyword) }}
             >
-              <MaterialCommunityIcon name="close" size={16} color="#8a909c" />
+              <MaterialCommunityIcon name="close" size={16} color={colors.ink.suggestArrow} />
             </TouchableOpacity>}
       </TouchableOpacity>
     )
-  }, [handlePickSearchKeyword, handleRemoveSearchHistoryItem, searchAssistKeyword, searchAssistList.length])
+  }, [handlePickSearchKeyword, handleRemoveSearchHistoryItem, searchAssistKeyword, searchAssistList.length, colors])
   const initialView = useMemo(() => {
     const sectionTitle = searchAssistKeyword ? t('search_suggestions_title') : t('search_recent_title')
     return (
@@ -652,7 +658,7 @@ export default function SearchPage({
         overScrollMode="never"
       >
         <View style={styles.initialSectionHeader}>
-          <Text size={22} color="#1a1c1e" style={styles.initialSectionTitle}>
+          <Text size={22} color={colors.ink.subpageTitle} style={styles.initialSectionTitle}>
             {sectionTitle}
           </Text>
           {!searchAssistKeyword && searchHistoryList.length
@@ -661,7 +667,7 @@ export default function SearchPage({
                 activeOpacity={0.82}
                 onPress={handleClearSearchHistoryList}
               >
-                <Text size={12} color="#58651b" style={styles.initialSectionActionText}>{t('search_clear_all')}</Text>
+                <Text size={12} color={colors.ink.olive} style={styles.initialSectionActionText}>{t('search_clear_all')}</Text>
               </TouchableOpacity>
             : null}
         </View>
@@ -669,19 +675,19 @@ export default function SearchPage({
         <View style={styles.initialList}>
           {searchTipLoading && searchAssistKeyword
             ? <View style={styles.initialEmpty}>
-                <Text size={13} color="#8a92a1">{t('me_searching')}</Text>
+                <Text size={13} color={colors.ink.searching}>{t('me_searching')}</Text>
               </View>
             : searchAssistList.length
               ? searchAssistList.map((keyword, index) => renderInitialItem(keyword, index))
               : <View style={styles.initialEmpty}>
-                  <Text size={13} color="#8a92a1">
+                  <Text size={13} color={colors.ink.searching}>
                     {searchAssistKeyword ? t('me_search_no_match') : t('me_search_hint')}
                   </Text>
                 </View>}
         </View>
       </ScrollView>
     )
-  }, [searchHeaderHeight, searchAssistKeyword, t, searchHistoryList.length, searchTipLoading, searchAssistList, handleClearSearchHistoryList, renderInitialItem])
+  }, [searchHeaderHeight, searchAssistKeyword, t, searchHistoryList.length, searchTipLoading, searchAssistList, handleClearSearchHistoryList, renderInitialItem, colors])
 
   if (!shouldRender) return null
 
@@ -714,7 +720,7 @@ export default function SearchPage({
                 keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
                 ListEmptyComponent={(
                   <View style={styles.searchResultStatus}>
-                    <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
+                    <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
                       {searchLoading ? t('me_searching') : t('me_search_no_match')}
                     </Text>
                   </View>
@@ -740,7 +746,7 @@ export default function SearchPage({
                 keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
                 ListEmptyComponent={(
                   <View style={styles.searchResultStatus}>
-                    <Text size={16} color="#6b7280" style={styles.searchResultStatusText}>
+                    <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
                       {searchLoading ? t('me_searching') : t('me_search_no_match')}
                     </Text>
                   </View>
@@ -761,15 +767,15 @@ export default function SearchPage({
   )
 }
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   overlayRoot: {
     ...StyleSheet.absoluteFillObject,
     zIndex: APP_LAYER_INDEX.controls - 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   searchModeRoot: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   searchResultHeader: {
     position: 'relative',
@@ -784,7 +790,7 @@ const styles = createStyle({
     right: 0,
     zIndex: APP_LAYER_INDEX.controls,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   topBar: {
     flexDirection: 'row',
@@ -820,7 +826,7 @@ const styles = createStyle({
   },
   searchResultList: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   searchResultContent: {
     paddingHorizontal: 18,
@@ -828,7 +834,7 @@ const styles = createStyle({
   },
   initialScroll: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   initialContent: {
     paddingHorizontal: 18,
@@ -892,7 +898,7 @@ const styles = createStyle({
     justifyContent: 'center',
     paddingHorizontal: 18,
     borderRadius: 18,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
   },
   searchAssistPanel: {
     position: 'absolute',
@@ -901,7 +907,7 @@ const styles = createStyle({
     bottom: 0,
     zIndex: APP_LAYER_INDEX.controls - 1,
     elevation: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface.card,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
@@ -927,8 +933,8 @@ const styles = createStyle({
     maxWidth: '100%',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderColor: colors.line.neutral,
+    backgroundColor: colors.surface.card,
     paddingHorizontal: 11,
     paddingVertical: 6,
     marginRight: 8,
@@ -950,14 +956,14 @@ const styles = createStyle({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f0f1f6',
+    backgroundColor: colors.surface.backBubble,
     padding: 2,
   },
   backInner: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#e8e9f0',
+    backgroundColor: colors.surface.backInner,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -972,8 +978,8 @@ const styles = createStyle({
     borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#cdd2de',
-    backgroundColor: '#dce0e9',
+    borderColor: colors.searchField.border,
+    backgroundColor: colors.surface.search,
   },
   searchContent: {
     flex: 1,
@@ -987,7 +993,7 @@ const styles = createStyle({
     paddingHorizontal: 0,
     margin: 0,
     backgroundColor: 'transparent',
-    color: '#232733',
+    color: colors.ink.input,
     fontSize: 14,
     lineHeight: 18,
     paddingVertical: 0,
@@ -1031,7 +1037,7 @@ const styles = createStyle({
     width: 58,
     height: 58,
     borderRadius: 16,
-    shadowColor: '#747b8f',
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -1048,7 +1054,7 @@ const styles = createStyle({
     width: 58,
     height: 58,
     borderRadius: 16,
-    shadowColor: '#747b8f',
+    shadowColor: colors.shadow.softCard,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -1076,7 +1082,7 @@ const styles = createStyle({
     overflow: 'hidden',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: colors.line.neutral,
     marginRight: 6,
     fontWeight: '600',
   },
@@ -1100,9 +1106,9 @@ const styles = createStyle({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.52)',
+    backgroundColor: colors.glass.fill52,
     borderWidth: 1,
-    borderColor: 'rgba(230,234,243,0.92)',
+    borderColor: colors.glass.stroke,
   },
   searchAddText: {
     lineHeight: 19,
@@ -1123,9 +1129,9 @@ const styles = createStyle({
   emptyCard: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#eadfe4',
-    backgroundColor: '#fcfbfc',
-    shadowColor: '#2b1f25',
+    borderColor: colors.line.searchEmpty,
+    backgroundColor: colors.surface.searchEmpty,
+    shadowColor: colors.shadow.searchCard,
     shadowOpacity: 0.04,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -1136,4 +1142,4 @@ const styles = createStyle({
     minHeight: 104,
     marginTop: 4,
   },
-})
+})))

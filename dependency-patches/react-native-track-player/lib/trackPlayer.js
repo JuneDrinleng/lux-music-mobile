@@ -221,10 +221,10 @@ function updateNowPlayingMetadata(metadata, playing) {
     metadata.artwork = resolveImportedPath(metadata.artwork);
     return TrackPlayer.updateNowPlayingMetadata(metadata, playing);
 }
-function updateNowPlayingTitles(duration, title, artist, album) {
+function updateNowPlayingTitles(titles) {
     return __awaiter(this, void 0, void 0, function () {
         return __generator(this, function (_a) {
-            return [2 /*return*/, TrackPlayer.updateNowPlayingTitles(duration, title, artist, album)];
+            return [2 /*return*/, TrackPlayer.updateNowPlayingTitles(titles)];
         });
     });
 }
@@ -425,6 +425,33 @@ function clearCache() {
         });
     });
 }
+function setMaxCacheSize(maxCacheSizeKb) {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/];
+            return [2 /*return*/, TrackPlayer.setMaxCacheSize(maxCacheSizeKb)];
+        });
+    });
+}
+function listCachedEntries() {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/, []];
+            return [2 /*return*/, TrackPlayer.listCachedEntries()];
+        });
+    });
+}
+function removeCachedResource(key) {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            if (!isSetupedPlayer)
+                return [2 /*return*/];
+            return [2 /*return*/, TrackPlayer.removeCachedResource(key)];
+        });
+    });
+}
 exports.default = {
     // MARK: - General API
     setupPlayer: setupPlayer,
@@ -466,5 +493,8 @@ exports.default = {
     getRepeatMode: getRepeatMode,
     isCached: isCached,
     getCacheSize: getCacheSize,
-    clearCache: clearCache
+    clearCache: clearCache,
+    setMaxCacheSize: setMaxCacheSize,
+    listCachedEntries: listCachedEntries,
+    removeCachedResource: removeCachedResource
 };

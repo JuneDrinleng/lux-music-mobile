@@ -1,4 +1,6 @@
-import { httpFetch } from '../../request'
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
+import { getMusicInfo } from './musicInfo'
 import tipSearch from './tipSearch'
 import musicSearch from './musicSearch'
 import { formatSinger } from './util'
@@ -65,10 +67,8 @@ const kw = {
 
   getMusicInfo(songInfo) {
     if (this._musicInfoRequestObj) this._musicInfoRequestObj.cancelHttp()
-    this._musicInfoRequestObj = httpFetch(`http://www.kuwo.cn/api/www/music/musicInfo?mid=${songInfo.songmid}`)
-    return this._musicInfoRequestObj.promise.then(({ body }) => {
-      return body.code === 200 ? body.data : Promise.reject(new Error(body.msg))
-    })
+    this._musicInfoRequestObj = getMusicInfo(songInfo.songmid)
+    return this._musicInfoRequestObj.promise
   },
 
   getMusicUrls(musicInfo, cb) {

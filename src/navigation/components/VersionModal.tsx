@@ -1,11 +1,13 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, ScrollView } from 'react-native'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
+import ChangelogView from '@/components/ChangelogView'
 import { useI18n } from '@/lang'
 import { useVersionInfo } from '@/store/version/hook'
 import { downloadUpdate, hideModal, setIgnoreVersion } from '@/core/version'
+import { isDevBuild } from '@/utils/releaseChannel'
 
 const currentVer = process.versions.app
 const VersionModal = ({ componentId }: { componentId: string }) => {
@@ -25,13 +27,19 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
   }
 
   const nextVersion = versionInfo.newVersion?.version ?? '-'
+  const nextIsDev = nextVersion != '-' && isDevBuild(nextVersion)
 
   return (
     <View style={styles.modalOverlay}>
       <View style={styles.modalCard}>
         <View style={styles.contentBox}>
           <Text style={styles.label} color="#111827">{t('version_label_current_ver')}{currentVer}</Text>
-          <Text style={styles.label} color="#111827">{t('version_label_latest_ver')}{nextVersion}</Text>
+          <Text style={styles.label} color="#111827">{t('version_label_latest_ver')}{nextVersion}{nextIsDev ? ` · ${t('setting_release_channel_dev')}` : ''}</Text>
+          {versionInfo.newVersion?.desc
+            ? <ScrollView style={styles.descScroll} nestedScrollEnabled>
+                <ChangelogView desc={versionInfo.newVersion.desc} compact />
+              </ScrollView>
+            : null}
         </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleIgnore} activeOpacity={0.75}>
@@ -77,6 +85,10 @@ const styles = createStyle({
   label: {
     fontSize: 14,
     fontWeight: '500',
+    marginBottom: 8,
+  },
+  descScroll: {
+    maxHeight: 220,
     marginBottom: 8,
   },
   modalActions: {

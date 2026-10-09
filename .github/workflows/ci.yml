@@ -27,6 +27,12 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
+      - name: Unit tests
+        run: node --test scripts/run-src-unit-tests.mjs
+
+      - name: Lux color literals
+        run: node scripts/check-lux-color-literals.mjs
+
       - name: Lint changed files
         shell: bash
         run: |
@@ -66,6 +72,8 @@ jobs:
               - 'package-lock.json'
               - 'dependency-patches/**'
               - 'dependencies-patch.js'
+              - '.github/actions/setup/**'
+              - '.github/actions/setup/*'
 
       - if: steps.filter.outputs.native == 'true'
         uses: ./.github/actions/setup

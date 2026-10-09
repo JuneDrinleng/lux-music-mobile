@@ -55,6 +55,8 @@ export const storageDataPrefix = {
 
   lyric: '@lyric__',
   musicUrl: '@music_url__',
+  audioCacheIndex: '@audio_cache_index',
+  localSongLibrary: '@local_song_library',
   musicOtherSource: '@music_other_source__',
   playInfo: '@play_info',
 
@@ -63,6 +65,7 @@ export const storageDataPrefix = {
   syncHostHistory: '@sync_host_history',
   syncMode: '@sync_mode',
   luxAuth: '@lux_auth',
+  luxAuthServers: '@lux_auth_servers',
   syncLoginCompleted: '@sync_login_completed',
   syncConflictMode: '@sync_conflict_mode',
 
@@ -87,6 +90,13 @@ export const storageDataPrefix = {
   remoteLyricTip: '@remote_lyric_tip',
 
   dislikeList: '@dislike_list',
+
+  playHistory: '@play_history',
+  playHistoryDevice: '@play_history_device',
+  playHistoryCursor: '@play_history_cursor',
+  playHistoryAvatars: '@play_history_avatars',
+  statsChartMode: '@stats_chart_mode',
+  statsPageStyle: '@stats_page_style',
 
   userApi: '@user_api__',
   userAvatar: '@user_avatar',

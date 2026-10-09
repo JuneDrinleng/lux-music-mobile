@@ -1,6 +1,6 @@
 /* Lux Third-Party Patch Notice: repository-maintained patch file for a third-party dependency. Rights remain subject to the upstream dependency license. See LICENSE-NOTICE.md. */
 
-import { MetadataOptions, PlayerOptions, Event, Track, State, TrackMetadataBase, NowPlayingMetadata, RepeatMode } from './interfaces';
+import { MetadataOptions, PlayerOptions, Event, Track, State, TrackMetadataBase, NowPlayingMetadata, NowPlayingTitles, RepeatMode } from './interfaces';
 declare function setupPlayer(options?: PlayerOptions): Promise<void>;
 declare function destroy(): any;
 type ServiceHandler = () => Promise<void>;
@@ -16,7 +16,7 @@ declare function updateOptions(options?: MetadataOptions): Promise<void>;
 declare function updateMetadataForTrack(trackIndex: number, metadata: TrackMetadataBase): Promise<void>;
 declare function clearNowPlayingMetadata(): Promise<void>;
 declare function updateNowPlayingMetadata(metadata: NowPlayingMetadata, playing: boolean): Promise<void>;
-declare function updateNowPlayingTitles(duration: number, title: string, artist: string, album: string): Promise<void>;
+declare function updateNowPlayingTitles(titles: NowPlayingTitles): Promise<void>;
 declare function reset(): Promise<void>;
 declare function play(): Promise<void>;
 declare function pause(): Promise<void>;
@@ -38,6 +38,9 @@ declare function getRepeatMode(): Promise<RepeatMode>;
 declare function isCached(url: string, cacheKey?: string | null): Promise<boolean>;
 declare function getCacheSize(): Promise<number>;
 declare function clearCache(): Promise<void>;
+declare function setMaxCacheSize(maxCacheSizeKb: number): Promise<void>;
+declare function listCachedEntries(): Promise<Array<{ key: string, cachedBytes: number, fullyCached: boolean }>>;
+declare function removeCachedResource(key: string): Promise<void>;
 declare const _default: {
     setupPlayer: typeof setupPlayer;
     destroy: typeof destroy;
@@ -75,5 +78,8 @@ declare const _default: {
     isCached: typeof isCached;
     getCacheSize: typeof getCacheSize;
     clearCache: typeof clearCache;
+    setMaxCacheSize: typeof setMaxCacheSize;
+    listCachedEntries: typeof listCachedEntries;
+    removeCachedResource: typeof removeCachedResource;
 };
 export default _default;

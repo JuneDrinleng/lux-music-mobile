@@ -35,6 +35,8 @@ import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { type LuxColors } from '@/theme/luxTokens'
 
 const BOTTOM_DOCK_BASE_HEIGHT = 164
 const DETAIL_TRANSITION_FORWARD_DURATION = 268
@@ -50,6 +52,9 @@ export interface PlaylistDetailOverlayProps {
 }
 
 const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
@@ -245,7 +250,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     const songKey = drag.getSongRowKey(item, index)
     const isDraggingRow = drag.dragStateRef.current.songKey == songKey && drag.dragStateRef.current.active
     const shiftAnim = drag.getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTone(item.source)
+    const sourceTagColor = getSourceTone(item.source, colors)
     const canEditSongs = Boolean(selectedListIdRef.current)
     return (
       <PlaylistDetailSongItem
@@ -285,6 +290,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     drag.dragStateRef, drag.skipNextSongPressRef,
     handlePlaySong, handlePlayOnlineDetailSong, handlePlayLeaderboardSong,
     handleShowRemoveSongModal,
+    colors,
   ])
 
   const detailHeader = useMemo(() => {
@@ -373,7 +379,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     return true
   }, [handleCloseDetail, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
 
-  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source) : null
+  const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source, colors) : null
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -409,7 +415,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
             ListHeaderComponent={detailHeader}
             ListEmptyComponent={(
               <View style={styles.emptyCard}>
-                <Text size={13} color="#6b7280">{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
+                <Text size={13} color={colors.ink.meta}>{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
               </View>
             )}
             showsVerticalScrollIndicator={false}
@@ -505,7 +511,7 @@ export default memo(PlaylistDetailOverlay, (prev, next) => {
   return prev.detail === next.detail && prev.onClose === next.onClose
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   root: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
@@ -514,11 +520,11 @@ const styles = createStyle({
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
     elevation: 0,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   container: {
     flex: 1,
-    backgroundColor: '#eef0fb',
+    backgroundColor: colors.bg.app,
   },
   detailContent: {
     paddingBottom: 0,
@@ -532,9 +538,9 @@ const styles = createStyle({
     width: '100%',
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(244,247,252,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    shadowColor: '#76809b',
+    borderColor: colors.glass.rim72,
+    backgroundColor: colors.glass.fill88,
+    shadowColor: colors.shadow.card,
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -543,4 +549,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+})))

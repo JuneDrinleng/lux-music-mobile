@@ -1,13 +1,15 @@
-import { type RefObject, type ReactNode } from 'react'
-import { Animated, Image as RNImage, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
-import { Play } from 'lucide-react-native'
+import { type MutableRefObject, type RefObject, type ReactNode } from 'react'
+import { Animated, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type GestureResponderHandlers, type LayoutChangeEvent } from 'react-native'
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 
 import Image from '@/components/common/Image'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import Text from '@/components/common/Text'
 import { type useI18n } from '@/lang'
+import PlaylistLibraryCard, { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
+import { useLuxTheme } from '@/theme/LuxTheme'
 
 interface FeaturedLibraryCard {
   id: string
@@ -32,8 +34,8 @@ export interface PlaylistLibrarySceneProps {
   playlistDisplayMode: 'grid' | 'list'
   displaySwitchItems: SegmentedIconSwitchItem[]
   isPlaylistTimeSort: boolean
-  playlistSortIcon: number
-  playlistAddIcon: number
+  playlistSortIcon: string
+  playlistAddIcon: string
   isPlaylistListMode: boolean
   isPlay: boolean
   isSourceMenuVisible: boolean
@@ -44,12 +46,18 @@ export interface PlaylistLibrarySceneProps {
   isPlaylistCustomSort?: boolean
   isPlaylistDragActive?: boolean
   draggingPlaylistId?: string | null
-  playlistShiftAnimMap?: Map<string, { x: Animated.Value, y: Animated.Value }>
-  playlistShiftVersion?: number
+  playlistShiftAnimMap?: Map<string, PlaylistCardShiftAnims>
+  dragControllerRef?: MutableRefObject<PlaylistDragController>
   playlistSectionRef?: RefObject<View>
   playlistScrollRef?: RefObject<ScrollView>
   onPlaylistScroll?: (event: { nativeEvent: { contentOffset: { y: number } } }) => void
-  onPlaylistCardLongPress?: (item: LX.List.UserListInfo, index: number, event: GestureResponderEvent) => void
+  onPlaylistScrollBeginDrag?: () => void
+  onPlaylistTouchMove?: (event: GestureResponderEvent) => void
+  onPlaylistTouchEnd?: () => void
+  onPlaylistTouchCancel?: () => void
+  playlistPanHandlers?: GestureResponderHandlers
+  onPlaylistScrollLayout?: (event: LayoutChangeEvent) => void
+  onPlaylistContentSizeChange?: (width: number, height: number) => void
   onPlaylistCardLayout?: (itemId: string, layout: { x: number, y: number, width: number, height: number }) => void
   onPlaylistSectionLayout?: (event: LayoutChangeEvent) => void
   onCloseSourceMenu: () => void
@@ -88,11 +96,17 @@ export default ({
   isPlaylistDragActive,
   draggingPlaylistId,
   playlistShiftAnimMap,
-  playlistShiftVersion,
+  dragControllerRef,
   playlistSectionRef,
   playlistScrollRef,
   onPlaylistScroll,
-  onPlaylistCardLongPress,
+  onPlaylistScrollBeginDrag,
+  onPlaylistTouchMove,
+  onPlaylistTouchEnd,
+  onPlaylistTouchCancel,
+  playlistPanHandlers,
+  onPlaylistScrollLayout,
+  onPlaylistContentSizeChange,
   onPlaylistCardLayout,
   onPlaylistSectionLayout,
   onCloseSourceMenu,
@@ -103,8 +117,10 @@ export default ({
   onPlayPlaylistPress,
   onCreateList,
 }: PlaylistLibrarySceneProps) => {
+  const { colors } = useLuxTheme()
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
       {isSourceMenuVisible
         ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
             <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={onCloseSourceMenu} />
@@ -118,8 +134,15 @@ export default ({
         bounces={false}
         alwaysBounceVertical={false}
         overScrollMode="never"
+        scrollEnabled={!isPlaylistDragActive}
         scrollEventThrottle={16}
         onScroll={onPlaylistScroll}
+        onScrollBeginDrag={onPlaylistScrollBeginDrag}
+        onTouchMove={onPlaylistTouchMove}
+        onTouchEnd={onPlaylistTouchEnd}
+        onTouchCancel={onPlaylistTouchCancel}
+        onLayout={onPlaylistScrollLayout}
+        onContentSizeChange={onPlaylistContentSizeChange}
       >
         {profileHero}
 
@@ -127,7 +150,7 @@ export default ({
 
         {!hideGreeting
           ? <View style={styles.greetingBlock}>
-              <Text size={30} color="#16181f" style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
+              <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
             </View>
           : null}
 
@@ -153,10 +176,10 @@ export default ({
                       </View>}
                 </View>
                 <View style={styles.quickInfo}>
-                  <Text size={15} color="#1c1c1e" style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
+                  <Text size={15} color={colors.ink.cardTitle} style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
                   <View style={styles.quickMetaRow}>
                     <MaterialCommunityIcon name={card.icon} size={12} color={tone.accent} />
-                    <Text size={12} color="#8e8e93" style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
+                    <Text size={12} color={colors.ink.songCount} style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -167,7 +190,7 @@ export default ({
         <View ref={playlistSectionRef} style={styles.section} onLayout={onPlaylistSectionLayout}>
           <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
             <View style={styles.playlistSectionTitleWrap}>
-              <Text size={18} color="#111827" style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
+              <Text size={18} color={colors.ink.strong} style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
             </View>
             <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
               <TouchableOpacity
@@ -175,103 +198,51 @@ export default ({
                 style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
                 onPress={onTogglePlaylistSort}
               >
-                <RNImage source={playlistSortIcon} style={[styles.sortIconImg, { tintColor: isPlaylistCustomSort ? '#111827' : isPlaylistTimeSort ? '#111827' : '#6b7280' }]} />
+                <MdiIcon name={playlistSortIcon} size={22} color={isPlaylistCustomSort ? colors.ink.strong : isPlaylistTimeSort ? colors.ink.strong : colors.ink.meta} />
               </TouchableOpacity>
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.sectionIconBtn}
                 onPress={onShowCreateListModal}
               >
-                <RNImage source={playlistAddIcon} style={[styles.sortIconImg, { tintColor: '#111827' }]} />
+                <MdiIcon name={playlistAddIcon} size={22} color={colors.ink.strong} />
               </TouchableOpacity>
             </View>
           </View>
           <View style={isPlaylistListMode ? styles.listPanel : styles.listGrid}>
             {displayPlaylists.length
               ? displayPlaylists.map((item, index) => {
+                const shiftAnims = playlistShiftAnimMap?.get(item.id)
+                if (!dragControllerRef || !shiftAnims || !onPlaylistCardLayout) return null
                 const tone = getPlaylistCardTone(index + 2)
                 const playlistCount = playlistMetaMap[item.id]?.count ?? 0
-                const isCurrentPlaylist = isPlaylistCurrent(item.id)
                 return (
-                  isPlaylistListMode
-                    ? <TouchableOpacity
-                        key={item.id}
-                        style={[
-                          styles.listRowItem,
-                          index < displayPlaylists.length - 1 ? styles.listRowSpacing : null,
-                          { opacity: draggingPlaylistId === item.id ? 0 : 1 },
-                          isPlaylistDragActive && playlistShiftAnimMap?.has(item.id)
-                            ? { transform: [{ translateX: playlistShiftAnimMap.get(item.id)!.x }, { translateY: playlistShiftAnimMap.get(item.id)!.y }] }
-                            : null,
-                        ]}
-                        activeOpacity={0.84}
-                        onPress={() => { onOpenList(item) }}
-                        onLongPress={onPlaylistCardLongPress ? (event) => { onPlaylistCardLongPress(item, index, event) } : undefined}
-                        delayLongPress={onPlaylistCardLongPress ? 300 : undefined}
-                        onLayout={onPlaylistCardLayout ? (event: LayoutChangeEvent) => {
-                          const { x, y, width, height } = event.nativeEvent.layout
-                          onPlaylistCardLayout(item.id, { x, y, width, height })
-                        } : undefined}
-                      >
-                        <View style={styles.listRowCoverWrap}>
-                          {playlistMetaMap[item.id]?.pic
-                            ? <Image style={styles.listRowCover} url={playlistMetaMap[item.id]?.pic ?? null} />
-                            : <View style={[styles.listRowCover, styles.listPicFallback, { backgroundColor: tone.surface }]}>
-                                <MaterialCommunityIcon name="music-note-eighth" size={20} color={tone.accent} />
-                              </View>}
-                        </View>
-                        <View style={styles.listRowInfo}>
-                          <Text size={15} color="#171a22" style={styles.listRowTitle} numberOfLines={1}>{item.name}</Text>
-                          <Text size={12} color="#7d8190" style={styles.listRowSubtitle} numberOfLines={1}>{t('home_daily_tracks', { count: playlistCount })}</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.listRowPlayButton}
-                          activeOpacity={0.82}
-                          onPress={onPlayPlaylistPress(item.id)}
-                        >
-                          {isCurrentPlaylist && isPlay
-                            ? <View style={styles.pauseGlyphSmall}>
-                                <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                                <View style={[styles.pauseBar, styles.pauseBarSmall, styles.pauseBarDark]} />
-                              </View>
-                            : <Play size={13} color="#303340" fill="#303340" strokeWidth={2} />}
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    : <TouchableOpacity
-                        key={item.id}
-                        style={[
-                          styles.listItem,
-                          { opacity: draggingPlaylistId === item.id ? 0 : 1 },
-                          isPlaylistDragActive && playlistShiftAnimMap?.has(item.id)
-                            ? { transform: [{ translateX: playlistShiftAnimMap.get(item.id)!.x }, { translateY: playlistShiftAnimMap.get(item.id)!.y }] }
-                            : null,
-                        ]}
-                        activeOpacity={0.84}
-                        onPress={() => { onOpenList(item) }}
-                        onLongPress={onPlaylistCardLongPress ? (event) => { onPlaylistCardLongPress(item, index, event) } : undefined}
-                        delayLongPress={onPlaylistCardLongPress ? 300 : undefined}
-                        onLayout={onPlaylistCardLayout ? (event: LayoutChangeEvent) => {
-                          const { x, y, width, height } = event.nativeEvent.layout
-                          onPlaylistCardLayout(item.id, { x, y, width, height })
-                        } : undefined}
-                      >
-                        <View style={[styles.listPicWrap, { backgroundColor: tone.surface }]}>
-                          {playlistMetaMap[item.id]?.pic
-                            ? <Image style={styles.listPic} url={playlistMetaMap[item.id]?.pic ?? null} />
-                            : <View style={[styles.listPic, styles.listPicFallback]}>
-                                <MaterialCommunityIcon name="music-note-eighth" size={24} color={tone.accent} />
-                              </View>}
-                        </View>
-                        <View style={styles.listInfo}>
-                          <Text size={13} color="#1c1c1e" style={styles.listTitle} numberOfLines={1}>{item.name}</Text>
-                          <Text size={12} color="#8e8e93">{t('me_songs_count', { num: playlistCount })}</Text>
-                        </View>
-                      </TouchableOpacity>
+                  <PlaylistLibraryCard
+                    key={item.id}
+                    styles={styles}
+                    t={t}
+                    item={item}
+                    index={index}
+                    isListMode={isPlaylistListMode}
+                    isLast={index >= displayPlaylists.length - 1}
+                    tone={tone}
+                    count={playlistCount}
+                    pic={playlistMetaMap[item.id]?.pic ?? null}
+                    isCurrent={isPlaylistCurrent(item.id)}
+                    isPlay={isPlay}
+                    isDragging={draggingPlaylistId === item.id}
+                    dragActive={Boolean(isPlaylistDragActive)}
+                    shiftAnims={shiftAnims}
+                    dragControllerRef={dragControllerRef}
+                    onOpenList={onOpenList}
+                    onPlayPress={onPlayPlaylistPress(item.id)}
+                    onCardLayout={onPlaylistCardLayout}
+                  />
                 )
               })
               : <View style={[styles.emptyCard, styles.emptyPlaylistCard]}>
                   <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={onShowCreateListModal}>
-                    <Text size={13} color="#19171c" style={styles.emptyActionText}>{t('me_create_new')}</Text>
+                    <Text size={13} color={colors.ink.emptyAction} style={styles.emptyActionText}>{t('me_create_new')}</Text>
                   </TouchableOpacity>
                 </View>}
           </View>

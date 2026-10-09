@@ -1,5 +1,6 @@
 
 import { saveLyric, saveMusicUrl } from '@/utils/data'
+import { readReusableMusicUrl } from './reuseMusicUrl'
 import { updateListMusics } from '@/core/list'
 import {
   buildLyricInfo,
@@ -9,11 +10,11 @@ import {
   getOnlineOtherSourceMusicUrl,
   getOnlineOtherSourceMusicUrlByLocal,
   getOnlineOtherSourcePicByLocal,
-  getOnlineOtherSourcePicUrl,
   getOtherSource,
 } from './utils'
+import { resolveDeviceSongCover } from '@/utils/localSongCoverLookup'
 import { getLocalFilePath } from '@/utils/music'
-import { readLyric, readPic } from '@/utils/localMediaMetadata'
+import { readLyric } from '@/utils/localMediaMetadata'
 import { stat } from '@/utils/fs'
 
 const getOtherSourceByLocal = async<T>(musicInfo: LX.Music.MusicInfoLocal, handler: (infos: LX.Music.MusicInfoOnline[]) => Promise<T>) => {
@@ -79,6 +80,8 @@ export const getMusicUrl = async({ musicInfo, isRefresh, allowToggleSource = tru
   }
 
   try {
+    const reused = await readReusableMusicUrl(musicInfo, '128k', isRefresh)
+    if (reused) return reused
     return await getOnlineOtherSourceMusicUrlByLocal(musicInfo, isRefresh).then(({ url, quality, isFromCache }) => {
       if (!isFromCache) void saveMusicUrl(musicInfo, quality, url)
       return url
@@ -99,6 +102,11 @@ export const getMusicUrl = async({ musicInfo, isRefresh, allowToggleSource = tru
   })
 }
 
+const rememberResolvedPic = (musicInfo: LX.Music.MusicInfoLocal, url: string, listId?: string | null) => {
+  musicInfo.meta.picUrl = url
+  if (listId && /^https?:\/\//i.test(url)) void updateListMusics([{ id: listId, musicInfo }])
+}
+
 export const getPicUrl = async({ musicInfo, listId, isRefresh, skipFilePic, onToggleSource = () => {} }: {
   musicInfo: LX.Music.MusicInfoLocal
   listId?: string | null
@@ -106,33 +114,27 @@ export const getPicUrl = async({ musicInfo, listId, isRefresh, skipFilePic, onTo
   skipFilePic?: boolean
   onToggleSource?: (musicInfo?: LX.Music.MusicInfoOnline) => void
 }): Promise<string> => {
-  if (!isRefresh && !skipFilePic) {
-    let pic = await readPic(musicInfo.meta.filePath).catch(() => null)
-    if (pic) {
-      if (pic.startsWith('/')) pic = `file://${pic}`
-      return pic
-    }
-
-    if (musicInfo.meta.picUrl) return musicInfo.meta.picUrl
+  const resolved = await resolveDeviceSongCover(musicInfo, {
+    skipEmbedded: skipFilePic === true || isRefresh,
+    bypassCache: skipFilePic === true || isRefresh,
+  }).catch(() => null)
+  if (resolved) {
+    rememberResolvedPic(musicInfo, resolved, listId)
+    return resolved
   }
 
+  if (!isRefresh && musicInfo.meta.picUrl) return musicInfo.meta.picUrl
+
   try {
-    return await getOnlineOtherSourcePicByLocal(musicInfo).then(({ url }) => {
+    const url = (await getOnlineOtherSourcePicByLocal(musicInfo)).url
+    if (url) {
+      rememberResolvedPic(musicInfo, url, listId)
       return url
-    })
+    }
   } catch {}
 
   onToggleSource()
-  return getOtherSourceByLocal(musicInfo, async(otherSource) => {
-    return getOnlineOtherSourcePicUrl({ musicInfos: [...otherSource], onToggleSource, isRefresh }).then(({ url, musicInfo: targetMusicInfo, isFromCache }) => {
-      if (listId) {
-        musicInfo.meta.picUrl = url
-        void updateListMusics([{ id: listId, musicInfo }])
-      }
-
-      return url
-    })
-  })
+  throw new Error('source not found')
 }
 
 export const parseLyric = (lrc: string): LX.Music.LyricInfo => {

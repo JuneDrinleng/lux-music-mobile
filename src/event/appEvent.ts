@@ -237,6 +237,26 @@ export class AppEvent extends Event {
       : payload)
   }
 
+  openLocalSongs() {
+    this.emit('openLocalSongs')
+  }
+
+  closeLocalSongs() {
+    this.emit('closeLocalSongs')
+  }
+
+  openListeningStats() {
+    this.emit('openListeningStats')
+  }
+
+  closeListeningStats() {
+    this.emit('closeListeningStats')
+  }
+
+  syncModeUpdated(mode: 'lx' | 'lux') {
+    this.emit('syncModeUpdated', mode)
+  }
+
   togglePlayQueuePanel() {
     this.emit('togglePlayQueuePanel')
   }

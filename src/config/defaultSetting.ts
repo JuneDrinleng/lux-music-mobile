@@ -4,6 +4,7 @@ const defaultSetting: LX.AppSetting = {
   version: '2.0',
   'common.isAutoTheme': false,
   'common.langId': null,
+  'common.releaseChannel': null,
   'common.apiSource': '',
   'common.sourceNameType': 'alias',
   'common.shareType': 'system',
@@ -25,6 +26,7 @@ const defaultSetting: LX.AppSetting = {
   'player.volume': 1,
   'player.playbackRate': 1,
   'player.cacheSize': '1024',
+  'player.imageCacheCount': '400',
   'player.timeoutExit': '',
   'player.timeoutExitPlayed': true,
   'player.isAutoCleanPlayedList': false,
@@ -35,6 +37,7 @@ const defaultSetting: LX.AppSetting = {
   'player.isShowNotificationImage': true,
   'player.isS2t': false,
   'player.isShowBluetoothLyric': false,
+  'player.isShowBluetoothFullLyric': false,
 
   // 'playDetail.isZoomActiveLrc': false,
   // 'playDetail.isShowLyricProgressSetting': false,
