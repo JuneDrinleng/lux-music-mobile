@@ -2,26 +2,26 @@
 
 // Lux Proprietary
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react'
-import { Keyboard, Modal, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
-import Input, { type InputType } from './Input'
-import Text from './Text'
-import { createStyle } from '@/utils/tools'
+import { Keyboard } from 'react-native'
+import { MagDialog, UnderlineInput } from '@/components/magazine'
 import { useI18n } from '@/lang'
-import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
 
 export interface PromptDialogProps {
   title?: string
   message?: string
+  eyebrow?: string
+  eyebrowDanger?: boolean
   placeholder?: string
   confirmText?: string
   cancelText?: string
+  extraText?: string
   showInput?: boolean
   showConfirm?: boolean
-  extraText?: string
   bgHide?: boolean
   trimValue?: boolean
   autoFocusDelay?: number
+  confirmDanger?: boolean
+  error?: string
   onCancel?: () => void
   onHide?: () => void
   onConfirm: (value: string) => boolean | undefined | Promise<boolean | undefined>
@@ -37,6 +37,8 @@ export interface PromptDialogType {
 export default forwardRef<PromptDialogType, PromptDialogProps>(({
   title = '',
   message = '',
+  eyebrow,
+  eyebrowDanger = false,
   placeholder = '',
   confirmText = '',
   cancelText = '',
@@ -46,34 +48,39 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
   bgHide = true,
   trimValue = true,
   autoFocusDelay = 250,
+  confirmDanger = false,
+  error,
   onCancel,
   onHide,
   onConfirm,
   onExtra,
 }, ref) => {
-  const styles = useLuxStyles()
-  const { colors } = useLuxTheme()
-
   const t = useI18n()
-  const inputRef = useRef<InputType>(null)
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [text, setText] = useState('')
   const [visible, setVisible] = useState(false)
+  const [inputKey, setInputKey] = useState(0)
 
   const hide = useCallback(() => {
+    if (focusTimer.current) {
+      clearTimeout(focusTimer.current)
+      focusTimer.current = null
+    }
     setVisible(false)
     setText('')
+    Keyboard.dismiss()
     onHide?.()
   }, [onHide])
 
   const show = useCallback((value = '') => {
     setText(value)
     setVisible(true)
+    setInputKey(k => k + 1)
     if (!showInput) return
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        inputRef.current?.focus()
-      }, autoFocusDelay)
-    })
+    if (focusTimer.current) clearTimeout(focusTimer.current)
+    focusTimer.current = setTimeout(() => {
+      // UnderlineInput auto-focuses via key remount + autoFocus below
+    }, autoFocusDelay)
   }, [autoFocusDelay, showInput])
 
   useImperativeHandle(ref, () => ({
@@ -90,10 +97,12 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
     if (result === false) return
     hide()
   }, [hide, onConfirm, text, trimValue])
+
   const handleCancel = useCallback(() => {
     onCancel?.()
     hide()
   }, [hide, onCancel])
+
   const handleExtra = useCallback(async() => {
     if (!onExtra) return
     const value = trimValue ? text.trim() : text
@@ -101,118 +110,38 @@ export default forwardRef<PromptDialogType, PromptDialogProps>(({
     if (result === false) return
     hide()
   }, [hide, onExtra, text, trimValue])
-  const handleRequestClose = useCallback(() => {
-    hide()
-  }, [hide])
-  const handleOverlayPress = useCallback(() => {
-    if (bgHide) hide()
-    else Keyboard.dismiss()
-  }, [bgHide, hide])
 
   return (
-    <Modal
+    <MagDialog
       visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={handleRequestClose}
+      onClose={handleCancel}
+      eyebrow={eyebrow}
+      eyebrowDanger={eyebrowDanger}
+      title={title}
+      message={message}
+      cancelLabel={cancelText || t('cancel')}
+      confirmLabel={showConfirm ? (confirmText || t('confirm')) : undefined}
+      extraLabel={extraText || undefined}
+      onCancel={handleCancel}
+      onConfirm={() => { void handleConfirm() }}
+      onExtra={extraText ? () => { void handleExtra() } : undefined}
+      confirmDanger={confirmDanger}
+      bgHide={bgHide}
     >
-      <TouchableWithoutFeedback onPress={handleOverlayPress}>
-        <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.modalCard}>
-              {title ? <Text size={17} color={colors.ink.strong} style={styles.title}>{title}</Text> : null}
-              {message ? <Text size={13} color={colors.ink.meta} style={styles.message}>{message}</Text> : null}
-              {showInput
-                ? <Input
-                    ref={inputRef}
-                    placeholder={placeholder}
-                    value={text}
-                    onChangeText={setText}
-                    onSubmitEditing={() => { void handleConfirm() }}
-                    placeholderTextColor={colors.ink.quiet}
-                    selectionColor={colors.ink.selection}
-                    style={[styles.input, { backgroundColor: colors.surface.importField, color: colors.ink.input, borderColor: colors.line.modal }]}
-                  />
-                : null}
-              <View style={[styles.modalActions, showInput ? null : styles.modalActionsNoInput]}>
-                <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleCancel} activeOpacity={0.75}>
-                  <Text size={14} color={colors.ink.cancel}>{cancelText || t('cancel')}</Text>
-                </TouchableOpacity>
-                {extraText
-                  ? <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => { void handleExtra() }} activeOpacity={0.75}>
-                      <Text size={14} color={colors.ink.cancel}>{extraText}</Text>
-                    </TouchableOpacity>
-                  : null}
-                {showConfirm
-                  ? <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => { void handleConfirm() }} activeOpacity={0.85}>
-                      <Text size={14} color={colors.ink.strong} style={styles.modalBtnPrimaryText}>{confirmText || t('confirm')}</Text>
-                    </TouchableOpacity>
-                  : null}
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+      {showInput
+        ? (
+          <UnderlineInput
+            key={inputKey}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            error={error}
+            autoFocus
+            onSubmitEditing={() => { void handleConfirm() }}
+            large
+          />
+          )
+        : null}
+    </MagDialog>
   )
 })
-
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.scrim.dialog,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 18,
-    backgroundColor: colors.surface.card,
-    borderWidth: 1,
-    borderColor: colors.line.prompt,
-    paddingTop: 18,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-  title: {
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  message: {
-    marginBottom: 2,
-    lineHeight: 18,
-  },
-  input: {
-    borderRadius: 12,
-    height: 44,
-  },
-  modalActions: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modalActionsNoInput: {
-    marginTop: 12,
-  },
-  modalBtn: {
-    flexGrow: 1,
-    flexShrink: 1,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnGhost: {
-    backgroundColor: colors.surface.neutral,
-  },
-  modalBtnPrimary: {
-    backgroundColor: colors.line.neutral,
-  },
-  modalBtnPrimaryText: {
-    fontWeight: '600',
-  },
-})))

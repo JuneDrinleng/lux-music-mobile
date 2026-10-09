@@ -8,6 +8,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
 import {
+  DOCK_BASE_HEIGHT,
   EmptyState,
   Hairline,
   IconButton,
@@ -55,7 +56,7 @@ import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from
 import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
 import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
+const BOTTOM_DOCK_BASE_HEIGHT = DOCK_BASE_HEIGHT
 const currentVer = process.versions.app
 const syncHostRxp = /^https?:\/\/\S+/i
 const languageOptions = [
@@ -732,6 +733,9 @@ export default () => {
       message: t('setting_sync_logout_message'),
       cancelButtonText: t('cancel'),
       confirmButtonText: t('setting_sync_logout_confirm'),
+      eyebrow: t('mag_dialog_eyebrow_account_logout'),
+      eyebrowDanger: true,
+      confirmDanger: true,
     })
     if (!confirmed) return
 

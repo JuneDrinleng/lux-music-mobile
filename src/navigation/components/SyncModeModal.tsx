@@ -1,41 +1,61 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { useEffect, useState } from 'react'
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
-import CheckBox from '@/components/common/CheckBox'
-import { MdiIcon } from '@/components/common/MdiIcon'
+import { ScrollView, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import {
+  Checkbox,
+  Hairline,
+  PrimaryButton,
+  Rule,
+  SecondaryButton,
+} from '@/components/magazine'
 import { setSyncModeComponentId } from '@/core/sync'
 import { useI18n } from '@/lang'
 import syncState from '@/store/sync/state'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
 
 type BaseSyncMode = 'merge_local_remote' | 'merge_remote_local' | 'overwrite_local_remote' | 'overwrite_remote_local'
 
 const modeOptions: Array<{
-  mode: BaseSyncMode
-  labelKey: 'sync__mode_merge_btn_local_remote' | 'sync__mode_merge_btn_remote_local' | 'sync__mode_overwrite_btn_local_remote' | 'sync__mode_overwrite_btn_remote_local'
-  tone: 'green' | 'purple' | 'amber' | 'red'
+  mode: BaseSyncMode | 'full_overwrite'
+  labelKey: 'sync__mode_merge_btn_local_remote' | 'sync__mode_merge_btn_remote_local' | 'sync__mode_overwrite_btn_local_remote' | 'sync__mode_overwrite_btn_remote_local' | 'sync__mode_overwrite'
+  descKey: 'sync__mode_local_priority_desc' | 'sync__mode_remote_priority_desc' | 'sync__mode_local_overwrite_desc' | 'sync__mode_remote_overwrite_desc' | 'sync__mode_full_overwrite_desc'
+  danger?: boolean
 }> = [
-  { mode: 'merge_local_remote', labelKey: 'sync__mode_merge_btn_local_remote', tone: 'green' },
-  { mode: 'merge_remote_local', labelKey: 'sync__mode_merge_btn_remote_local', tone: 'purple' },
-  { mode: 'overwrite_local_remote', labelKey: 'sync__mode_overwrite_btn_local_remote', tone: 'amber' },
-  { mode: 'overwrite_remote_local', labelKey: 'sync__mode_overwrite_btn_remote_local', tone: 'red' },
+  { mode: 'merge_local_remote', labelKey: 'sync__mode_merge_btn_local_remote', descKey: 'sync__mode_local_priority_desc' },
+  { mode: 'merge_remote_local', labelKey: 'sync__mode_merge_btn_remote_local', descKey: 'sync__mode_remote_priority_desc' },
+  { mode: 'overwrite_local_remote', labelKey: 'sync__mode_overwrite_btn_local_remote', descKey: 'sync__mode_local_overwrite_desc' },
+  { mode: 'overwrite_remote_local', labelKey: 'sync__mode_overwrite_btn_remote_local', descKey: 'sync__mode_remote_overwrite_desc' },
+  { mode: 'full_overwrite', labelKey: 'sync__mode_overwrite', descKey: 'sync__mode_full_overwrite_desc', danger: true },
 ]
 
 const SyncModeContent = () => {
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
-  const [isFullOverwrite, setFullOverwrite] = useState(false)
+  const [selected, setSelected] = useState<BaseSyncMode | 'full_overwrite'>('merge_local_remote')
+  const [remember, setRemember] = useState(true)
   const isList = syncState.type == 'list'
   const title = isList
     ? t('sync__list_mode_title', { name: syncState.serverName })
     : t('sync__dislike_mode_title', { name: syncState.serverName })
 
-  const handleSelectMode = (baseMode: BaseSyncMode) => {
+  const handleConfirm = () => {
+    if (selected === 'full_overwrite') {
+      if (!isList) return
+      global.app_event.selectSyncMode({ type: 'list', mode: 'overwrite_local_remote_full' })
+      return
+    }
     if (isList) {
-      const mode: LX.Sync.List.SyncMode = baseMode.startsWith('overwrite') && isFullOverwrite
-        ? `${baseMode}_full` as LX.Sync.List.SyncMode
-        : baseMode
-      global.app_event.selectSyncMode({ type: 'list', mode })
+      global.app_event.selectSyncMode({ type: 'list', mode: selected })
     } else {
-      global.app_event.selectSyncMode({ type: 'dislike', mode: baseMode })
+      global.app_event.selectSyncMode({ type: 'dislike', mode: selected })
     }
   }
 
@@ -44,84 +64,72 @@ const SyncModeContent = () => {
     else global.app_event.selectSyncMode({ type: 'dislike', mode: 'cancel' })
   }
 
+  const visibleOptions = isList ? modeOptions : modeOptions.filter(o => o.mode !== 'full_overwrite')
+
   return (
-    <View style={styles.overlay}>
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <View style={styles.iconWrap}>
-            <MdiIcon name="sync" size={25} color="#000000" />
-          </View>
-          <View style={styles.headerText}>
-            <Text size={18} color="#171a22" style={styles.title}>{title}</Text>
-            <Text size={13} color="#6b7280" style={styles.subtitle}>{t('sync__mode_select_subtitle')}</Text>
-          </View>
-        </View>
+    <View style={[styles.overlay, { backgroundColor: r.paper }]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow}>{t('sync_mode_eyebrow')}</Text>
+        <Text size={magType.h2.size} color={r.display} style={styles.title}>{title}</Text>
+        <Text size={15} color={r.muted} style={styles.subtitle}>{t('sync__mode_select_subtitle')}</Text>
+        <Rule compact gapTop={22} />
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.notice}>
-            <Text size={12} color="#5f6572" style={styles.noticeText}>{t('sync__mode_remember_merge_only_tip')}</Text>
-          </View>
+        {visibleOptions.map((option, index) => {
+          const on = selected === option.mode
+          return (
+            <View key={option.mode}>
+              <TouchableOpacity
+                style={styles.option}
+                activeOpacity={0.75}
+                onPress={() => { setSelected(option.mode) }}
+              >
+                <View style={styles.optionText}>
+                  <Text
+                    size={16}
+                    color={option.danger ? r.danger : (on ? r.ink : r.option)}
+                    style={on ? styles.optionTitleOn : styles.optionTitle}
+                  >{t(option.labelKey)}</Text>
+                  <Text size={12} color={r.muted} style={styles.optionDesc}>{t(option.descKey)}</Text>
+                </View>
+                {on
+                  ? (
+                    <View style={[
+                      styles.dot,
+                      { backgroundColor: r.accent, borderColor: r.ink },
+                    ]} />
+                    )
+                  : null}
+              </TouchableOpacity>
+              {index < visibleOptions.length - 1 ? <Hairline /> : null}
+            </View>
+          )
+        })}
 
-          <Text size={12} color="#8a909c" style={styles.sectionLabel}>{t('sync__mode_merge_tip')}</Text>
-          <View style={styles.optionGroup}>
-            {modeOptions.slice(0, 2).map((option, index) => (
-              <View key={option.mode}>
-                <TouchableOpacity style={styles.option} activeOpacity={0.82} onPress={() => { handleSelectMode(option.mode) }}>
-                  <View style={[styles.optionDot, styles[`${option.tone}Dot`]]} />
-                  <View style={styles.optionTextWrap}>
-                    <Text size={14} color="#20242d" style={styles.optionTitle}>{t(option.labelKey)}</Text>
-                    <Text size={12} color="#737986" style={styles.optionDesc}>
-                      {option.mode == 'merge_local_remote' ? t('sync__mode_local_priority_desc') : t('sync__mode_remote_priority_desc')}
-                    </Text>
-                  </View>
-                  <Text size={20} color="#a0a6b2">›</Text>
-                </TouchableOpacity>
-                {index == 0 ? <View style={styles.divider} /> : null}
-              </View>
-            ))}
-          </View>
-
-          <Text size={12} color="#8a909c" style={styles.sectionLabel}>{t('sync__mode_overwrite_label')}</Text>
-          <View style={styles.optionGroup}>
-            {modeOptions.slice(2).map((option, index) => (
-              <View key={option.mode}>
-                <TouchableOpacity style={styles.option} activeOpacity={0.82} onPress={() => { handleSelectMode(option.mode) }}>
-                  <View style={[styles.optionDot, styles[`${option.tone}Dot`]]} />
-                  <View style={styles.optionTextWrap}>
-                    <Text size={14} color="#20242d" style={styles.optionTitle}>{t(option.labelKey)}</Text>
-                    <Text size={12} color="#737986" style={styles.optionDesc}>
-                      {option.mode == 'overwrite_local_remote' ? t('sync__mode_local_overwrite_desc') : t('sync__mode_remote_overwrite_desc')}
-                    </Text>
-                  </View>
-                  <Text size={20} color="#a0a6b2">›</Text>
-                </TouchableOpacity>
-                {index == 0 ? <View style={styles.divider} /> : null}
-              </View>
-            ))}
-          </View>
-
-          {isList
-            ? <View style={styles.fullOverwriteRow}>
-                <CheckBox check={isFullOverwrite} onChange={setFullOverwrite} label={t('sync__mode_overwrite')} />
-                <Text size={11} color="#8a909c" style={styles.fullOverwriteHint}>{t('sync__mode_full_overwrite_desc')}</Text>
-              </View>
-            : null}
-
-          <View style={styles.helpCard}>
-            <Text size={12} color="#5f6572" style={styles.helpText}>
-              <Text size={12} color="#353a45" style={styles.helpTitle}>{t('sync__mode_merge_tip')}</Text>
-              {isList ? t('sync__list_mode_merge_tip_desc') : t('sync__dislike_mode_merge_tip_desc')}
-            </Text>
-            <Text size={12} color="#5f6572" style={styles.helpText}>
-              <Text size={12} color="#353a45" style={styles.helpTitle}>{t('sync__mode_overwrite_tip')}</Text>
-              {isList ? t('sync__list_mode_overwrite_tip_desc') : t('sync__dislike_mode_overwrite_tip_desc')}
-            </Text>
-          </View>
-        </ScrollView>
-
-        <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.78} onPress={handleCancel}>
-          <Text size={14} color="#5f6572" style={styles.cancelText}>{t('sync__mode_overwrite_btn_cancel')}</Text>
+        <TouchableOpacity
+          style={styles.rememberRow}
+          activeOpacity={0.75}
+          onPress={() => { setRemember(v => !v) }}
+          disabled={!selected.startsWith('merge_')}
+        >
+          <Checkbox
+            checked={remember && selected.startsWith('merge_')}
+            onChange={setRemember}
+            disabled={!selected.startsWith('merge_')}
+          />
+          <Text size={14} color={selected.startsWith('merge_') ? r.ink : r.faint} style={styles.rememberLabel}>
+            {t('sync_mode_remember')}
+          </Text>
         </TouchableOpacity>
+
+        <View style={styles.note}>
+          <MdiIcon name="information-outline" size={16} color={r.quiet} />
+          <Text size={12} color={r.muted} style={styles.noteText}>{t('sync__mode_remember_merge_only_tip')}</Text>
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <SecondaryButton label={t('sync__mode_overwrite_btn_cancel')} onPress={handleCancel} style={styles.footerBtn} />
+        <PrimaryButton label={t('sync_mode_start')} onPress={handleConfirm} style={styles.footerBtn} />
       </View>
     </View>
   )
@@ -135,171 +143,87 @@ export default ({ componentId }: { componentId: string }) => {
   return <SyncModeContent />
 }
 
-const styles = StyleSheet.create({
+const useStyles = sharedLuxStyles(() => createStyle({
   overlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 28,
-    backgroundColor: 'rgba(22,24,31,0.28)',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    maxHeight: '88%',
-    overflow: 'hidden',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(238,240,243,0.98)',
-    backgroundColor: '#f8f9fc',
-    shadowColor: '#20242d',
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 14,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eceff4',
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ede9fe',
-    marginRight: 12,
-  },
-  icon: {
-    width: 25,
-    height: 25,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontWeight: '700',
-    lineHeight: 24,
-  },
-  subtitle: {
-    marginTop: 3,
-    lineHeight: 18,
   },
   scroll: {
-    flexShrink: 1,
+    flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 48,
+    paddingBottom: 20,
   },
-  notice: {
-    borderRadius: 12,
-    backgroundColor: '#eef2ff',
-    borderWidth: 1,
-    borderColor: '#e0e7ff',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 14,
-  },
-  noticeText: {
-    lineHeight: 18,
-  },
-  sectionLabel: {
-    marginLeft: 4,
-    marginBottom: 7,
+  eyebrow: {
     fontWeight: '700',
+    letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  optionGroup: {
-    overflow: 'hidden',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#e9ecf2',
-    backgroundColor: '#ffffff',
-    marginBottom: 14,
+  title: {
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    marginTop: 8,
+  },
+  subtitle: {
+    marginTop: 8,
+    lineHeight: 22,
   },
   option: {
-    minHeight: 66,
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    paddingVertical: 14,
+    gap: 12,
   },
-  optionDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 12,
-  },
-  greenDot: { backgroundColor: '#65a30d' },
-  purpleDot: { backgroundColor: '#7c3aed' },
-  amberDot: { backgroundColor: '#d97706' },
-  redDot: { backgroundColor: '#dc2626' },
-  optionTextWrap: {
+  optionText: {
     flex: 1,
-    paddingRight: 8,
+    minWidth: 0,
   },
   optionTitle: {
     fontWeight: '600',
-    lineHeight: 20,
+  },
+  optionTitleOn: {
+    fontWeight: '800',
   },
   optionDesc: {
-    marginTop: 2,
+    marginTop: 4,
     lineHeight: 17,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#eceff4',
-    marginLeft: 35,
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
   },
-  fullOverwriteRow: {
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: '#e9ecf2',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 22,
+    minHeight: 44,
   },
-  fullOverwriteHint: {
-    marginLeft: 34,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  helpCard: {
-    borderRadius: 13,
-    backgroundColor: '#f0f2f7',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  helpText: {
-    lineHeight: 18,
-    marginBottom: 7,
-  },
-  helpTitle: {
+  rememberLabel: {
     fontWeight: '700',
   },
-  cancelBtn: {
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 14,
-    marginTop: 6,
-    marginBottom: 14,
-    borderRadius: 13,
-    backgroundColor: '#eceff3',
+  note: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    marginTop: 14,
   },
-  cancelText: {
-    fontWeight: '600',
+  noteText: {
+    flex: 1,
+    lineHeight: 18,
   },
-})
+  footer: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingBottom: 28,
+    paddingTop: 12,
+  },
+  footerBtn: {
+    flex: 1,
+  },
+}))

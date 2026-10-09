@@ -59,6 +59,7 @@ export default () => {
   return (
     <PromptDialog
       ref={dialogRef}
+      eyebrow={global.i18n.t('permission_prompt_eyebrow')}
       title={payload.title}
       message={payload.message}
       cancelText={payload.cancelText}

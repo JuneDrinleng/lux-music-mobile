@@ -1,26 +1,32 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
-import { memo, useEffect, useState } from 'react'
-import { Image, StyleSheet, View } from 'react-native'
-import Loading from '@/components/common/Loading'
+import { memo, useEffect, useRef, useState } from 'react'
+import { Animated, Easing, View } from 'react-native'
 import Text from '@/components/common/Text'
-import { useTheme } from '@/store/theme/hook'
-import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { MagLoadingBar } from '@/components/magazine'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
+import { useI18n } from '@/lang'
 import { storageDataPrefix } from '@/config/constant'
 import { getData } from '@/plugins/storage'
 import { getSyncHost } from '@/plugins/sync/data'
 
-const STATUS_TEXT = 'Sync...'
 let launchSyncHint = false
+const appVersion = process.versions?.app ?? '0.3.1'
 
 export default memo(() => {
-  const theme = useTheme()
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const t = useI18n()
   const [showSyncHint, setShowSyncHint] = useState(launchSyncHint)
+  const progress = useRef(new Animated.Value(0.28)).current
 
   useEffect(() => {
     let isUnmounted = false
-
     void Promise.all([
       getData<Partial<LX.AppSetting>>(storageDataPrefix.setting),
       getSyncHost(),
@@ -29,80 +35,108 @@ export default memo(() => {
       launchSyncHint = Boolean(setting?.['sync.enable'] && syncHost)
       setShowSyncHint(launchSyncHint)
     })
-
-    return () => {
-      isUnmounted = true
-    }
+    return () => { isUnmounted = true }
   }, [])
 
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(progress, { toValue: 0.72, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+      Animated.timing(progress, { toValue: 0.32, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+    ]))
+    loop.start()
+    return () => { loop.stop() }
+  }, [progress])
+
   return (
-    <View style={[styles.container, { backgroundColor: theme['c-content-background'] }]}>
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
       <View style={styles.main}>
-        <View
-          style={[
-            styles.mark,
-            {
-              backgroundColor: theme['c-main-background'],
-            },
-          ]}
-        >
-          <Image
-            source={require('../../../assets/img/whitebg.png')}
-            style={styles.markImage}
-            resizeMode="contain"
+        <View style={[styles.mark, { backgroundColor: r.ink }]}>
+          <Text size={30} color={r.accent} style={styles.markLetter}>L</Text>
+        </View>
+        <Text size={magType.h1.size} color={r.display} style={styles.title}>Lux{'\n'}Music</Text>
+        <Text
+          size={magType.eyebrow.size}
+          color={r.eyebrow}
+          style={styles.issue}
+        >{t('launch_issue', { version: appVersion })}</Text>
+        <View style={[styles.rule, { backgroundColor: r.ink }]} />
+        <Text size={15} color={r.muted} style={styles.tagline}>{t('launch_tagline')}</Text>
+        {showSyncHint
+          ? <View style={styles.syncHint}><MagLoadingBar label="SYNC" /></View>
+          : null}
+      </View>
+      <View style={styles.footer}>
+        <View style={[styles.track, { backgroundColor: r.hairline }]}>
+          <Animated.View
+            style={[styles.fill, {
+              backgroundColor: r.ink,
+              width: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            }]}
           />
         </View>
-        <Text style={styles.title} size={26}>Lux Music</Text>
-        {
-          showSyncHint ? (
-            <View style={styles.syncHint}>
-              <Loading size={14} />
-              <Text style={styles.syncHintText} size={12} color={theme['c-font-label']}>
-                {STATUS_TEXT}
-              </Text>
-            </View>
-          ) : null
-        }
       </View>
     </View>
   )
 })
 
-const styles = StyleSheet.create({
+const useStyles = sharedLuxStyles(() => createStyle({
   container: {
     flex: 1,
-    paddingHorizontal: scaleSizeW(24),
-    paddingTop: scaleSizeH(40),
-    paddingBottom: scaleSizeH(28),
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 72,
+    paddingBottom: 36,
   },
   main: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
   },
   mark: {
-    width: scaleSizeW(92),
-    height: scaleSizeW(92),
-    borderRadius: scaleSizeW(18),
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    marginBottom: 22,
   },
-  markImage: {
-    width: '100%',
-    height: '100%',
+  markLetter: {
+    fontWeight: '800',
   },
   title: {
-    marginTop: scaleSizeH(18),
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: -1,
+    lineHeight: 44,
+  },
+  issue: {
+    marginTop: 14,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  rule: {
+    height: 1,
+    marginTop: 22,
+    opacity: 0.9,
+  },
+  tagline: {
+    marginTop: 14,
+    lineHeight: 22,
   },
   syncHint: {
-    marginTop: scaleSizeH(12),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 18,
+    marginHorizontal: -PAGE_GUTTER,
   },
-  syncHintText: {
-    marginLeft: scaleSizeW(8),
+  footer: {
+    paddingBottom: 8,
   },
-})
+  track: {
+    height: 2,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  fill: {
+    height: 2,
+  },
+}))

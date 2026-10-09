@@ -13,6 +13,7 @@ import { getStatusBarStyle, navigations, useNavigationComponentDidAppear } from 
 import settingState from '@/store/setting/state'
 import PermissionPromptHost from '@/components/PermissionPromptHost'
 import AppDialogHost from '@/components/AppDialogHost'
+import { MagToastHost } from '@/components/magazine'
 import themeState from '@/store/theme/state'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import HomeBootSplash from '@/screens/Launch/HomeBootSplash'
@@ -67,6 +68,7 @@ export default ({ componentId }: Props) => {
         }
         <AppDialogHost />
         <PermissionPromptHost />
+        <MagToastHost />
       </PageContent>
       <HomeBootSplash />
     </View>

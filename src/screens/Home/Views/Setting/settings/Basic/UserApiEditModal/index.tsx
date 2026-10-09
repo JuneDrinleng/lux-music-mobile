@@ -1,176 +1,135 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { useRef, useImperativeHandle, forwardRef, useState } from 'react'
 import Text from '@/components/common/Text'
-import { View, TouchableOpacity } from 'react-native'
-import { createStyle, openUrl } from '@/utils/tools'
-import { useTheme } from '@/store/theme/hook'
+import { View, ScrollView } from 'react-native'
+import { createStyle, openUrl, tipDialog } from '@/utils/tools'
 import { useI18n } from '@/lang'
-import Dialog, { type DialogType } from '@/components/common/Dialog'
-import Button from '@/components/common/Button'
+import { MagDialog, PrimaryButton, SecondaryButton, TextButton } from '@/components/magazine'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
 import List from './List'
-import ImportBtn from './ImportBtn'
+import ScriptImportExport, { type ScriptImportExportType } from './ScriptImportExport'
+import ScriptImportOnline, { type ScriptImportOnlineType } from './ScriptImportOnline'
+import { state } from '@/store/userApi'
 
-// interface UrlInputType {
-//   setText: (text: string) => void
-//   getText: () => string
-//   focus: () => void
-// }
-// const UrlInput = forwardRef<UrlInputType, {}>((props, ref) => {
-//   const theme = useTheme()
-//   const t = useI18n()
-//   const [text, setText] = useState('')
-//   const inputRef = useRef<InputType>(null)
-//   const [height, setHeight] = useState(100)
-
-//   useImperativeHandle(ref, () => ({
-//     getText() {
-//       return text.trim()
-//     },
-//     setText(text) {
-//       setText(text)
-//     },
-//     focus() {
-//       inputRef.current?.focus()
-//     },
-//   }))
-
-//   const handleLayout = useCallback(({ nativeEvent }: LayoutChangeEvent) => {
-//     setHeight(nativeEvent.layout.height)
-//   }, [])
-
-//   return (
-//     <View style={styles.inputContent} onLayout={handleLayout}>
-//       <Input
-//         ref={inputRef}
-//         value={text}
-//         onChangeText={setText}
-//         textAlignVertical="top"
-//         placeholder={t('setting_dislike_list_input_tip')}
-//         size={12}
-//         style={{ ...styles.input, height, backgroundColor: theme['c-primary-input-background'] }}
-//       />
-//     </View>
-//   )
-// })
-
-
-// export interface UserApiEditModalProps {
-//   onSave: (rules: string) => void
-//   // onSourceChange: SourceSelectorProps['onSourceChange']
-// }
 export interface UserApiEditModalType {
   show: () => void
 }
 
 export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
-  const dialogRef = useRef<DialogType>(null)
-  // const sourceSelectorRef = useRef<SourceSelectorType>(null)
-  // const inputRef = useRef<UrlInputType>(null)
-  const [visible, setVisible] = useState(false)
-  const theme = useTheme()
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
+  const [visible, setVisible] = useState(false)
+  const scriptImportExportRef = useRef<ScriptImportExportType>(null)
+  const scriptImportOnlineRef = useRef<ScriptImportOnlineType>(null)
 
-  const handleShow = () => {
-    dialogRef.current?.setVisible(true)
-    // requestAnimationFrame(() => {
-    // inputRef.current?.setText('')
-    // sourceSelectorRef.current?.setSource(source)
-    // setTimeout(() => {
-    //   inputRef.current?.focus()
-    // }, 300)
-    // })
-  }
   useImperativeHandle(ref, () => ({
     show() {
-      if (visible) handleShow()
-      else {
-        setVisible(true)
-        requestAnimationFrame(() => {
-          handleShow()
-        })
-      }
+      setVisible(true)
     },
   }))
 
   const handleCancel = () => {
-    dialogRef.current?.setVisible(false)
+    setVisible(false)
   }
 
   const openFAQPage = () => {
     void openUrl('https://lyswhut.github.io/lx-music-doc/mobile/custom-source')
   }
 
+  const handleLocalImport = () => {
+    if (state.list.length > 20) {
+      void tipDialog({
+        message: t('user_api_max_tip'),
+        btnText: t('ok'),
+      })
+      return
+    }
+    scriptImportExportRef.current?.import()
+  }
+
+  const handleOnlineImport = () => {
+    if (state.list.length > 20) {
+      void tipDialog({
+        message: t('user_api_max_tip'),
+        btnText: t('ok'),
+      })
+      return
+    }
+    scriptImportOnlineRef.current?.show()
+  }
+
   return (
-    visible
-      ? (
-          <Dialog ref={dialogRef} bgHide={false}>
-            <View style={styles.content}>
-              {/* <UrlInput ref={inputRef} /> */}
-              <Text size={16} style={styles.title}>{t('user_api_title')}</Text>
-              <List />
-              <View style={styles.tips}>
-                <Text style={styles.tipsText} size={12}>
-                  {t('user_api_readme')}
-                </Text>
-                <TouchableOpacity onPress={openFAQPage}>
-                  <Text style={{ ...styles.tipsText, textDecorationLine: 'underline' }} size={12} color={theme['c-primary-font']}>FAQ</Text>
-                </TouchableOpacity>
-                <View>
-                  <Text style={styles.tipsText} size={12}>{t('user_api_note')}</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.btns}>
-              <Button style={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
-                <Text size={14} color={theme['c-button-font']}>{t('close')}</Text>
-              </Button>
-              <ImportBtn btnStyle={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} />
-            </View>
-          </Dialog>
-        ) : null
+    <>
+      <MagDialog
+        visible={visible}
+        onClose={handleCancel}
+        bgHide={false}
+        eyebrow={t('user_api_eyebrow')}
+        title={t('user_api_title')}
+        message={t('user_api_manage_desc')}
+      >
+        <ScrollView style={styles.list} keyboardShouldPersistTaps="always">
+          <List />
+        </ScrollView>
+        <View style={styles.actions}>
+          <PrimaryButton
+            label={t('user_api_btn_import_local')}
+            icon="file-download-outline"
+            onPress={handleLocalImport}
+            style={styles.actionBtn}
+          />
+          <SecondaryButton
+            label={t('user_api_btn_import_online')}
+            icon="link-variant"
+            onPress={handleOnlineImport}
+            style={styles.actionBtn}
+          />
+        </View>
+        <View style={styles.tips}>
+          <Text size={12} color={r.muted}>{t('user_api_readme')}</Text>
+          <TextButton label="github.com/lyswhut/lx-music-source" onPress={openFAQPage} />
+          <View style={styles.warning}>
+            <MdiIcon name="alert-outline" size={14} color={r.quiet} />
+            <Text size={12} color={r.muted} style={styles.warningText}>{t('user_api_note')}</Text>
+          </View>
+          <TextButton label={t('close')} onPress={handleCancel} muted />
+        </View>
+      </MagDialog>
+      <ScriptImportExport ref={scriptImportExportRef} />
+      <ScriptImportOnline ref={scriptImportOnlineRef} />
+    </>
   )
 })
 
-
-const styles = createStyle({
-  content: {
-    // flexGrow: 1,
-    flexShrink: 1,
-    paddingHorizontal: 8,
-    paddingTop: 15,
-    paddingBottom: 10,
-    flexDirection: 'column',
+const useStyles = sharedLuxStyles(() => createStyle({
+  list: {
+    maxHeight: 260,
   },
-  title: {
-    marginBottom: 15,
-    textAlign: 'center',
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  actionBtn: {
+    flex: 1,
   },
   tips: {
-    paddingHorizontal: 7,
-    marginTop: 15,
+    marginTop: 16,
+    gap: 8,
+  },
+  warning: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'flex-start',
+    marginTop: 4,
   },
-  tipsText: {
-    marginTop: 8,
-    textAlignVertical: 'bottom',
-    // lineHeight: 18,
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  btns: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingBottom: 15,
-    paddingLeft: 15,
-    // paddingRight: 15,
-  },
-  btn: {
+  warningText: {
     flex: 1,
-    padding: 10,
-    alignItems: 'center',
-    borderRadius: 4,
-    marginRight: 15,
+    lineHeight: 18,
   },
-})
-
-
+}))
