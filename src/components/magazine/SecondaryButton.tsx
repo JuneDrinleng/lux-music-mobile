@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { TouchableOpacity, type ViewStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { magType } from '@/theme/magazineType'
@@ -12,11 +13,13 @@ export const SecondaryButton = memo(({
   label,
   onPress,
   disabled = false,
+  icon,
   style,
 }: {
   label: string
   onPress?: () => void
   disabled?: boolean
+  icon?: string
   style?: ViewStyle
 }) => {
   const { colors } = useLuxTheme()
@@ -31,6 +34,8 @@ export const SecondaryButton = memo(({
         backgroundColor: 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 6,
         paddingHorizontal: 18,
         opacity: disabled ? 0.4 : 1,
       }, style]}
@@ -40,6 +45,7 @@ export const SecondaryButton = memo(({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
     >
+      {icon ? <MdiIcon name={icon} size={20} color={r.ink} /> : null}
       <Text size={magType.button.size} color={r.ink} style={{ fontWeight: '700' }}>{label}</Text>
     </TouchableOpacity>
   )

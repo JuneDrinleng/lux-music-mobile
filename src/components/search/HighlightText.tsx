@@ -1,9 +1,9 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo } from 'react'
 import Text from '@/components/common/Text'
-import { sharedLuxStyles } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
-
-const useHIGHLIGHT_COLOR = sharedLuxStyles((colors: LuxColors) => (colors.accent.highlight))
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
 
 export default memo(({ text, keyword, size, color, style, numberOfLines }: {
   text: string
@@ -13,7 +13,8 @@ export default memo(({ text, keyword, size, color, style, numberOfLines }: {
   numberOfLines?: number
   style?: any
 }) => {
-  const HIGHLIGHT_COLOR = useHIGHLIGHT_COLOR()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
 
   if (!keyword) {
     return <Text size={size} color={color} style={style} numberOfLines={numberOfLines}>{text}</Text>
@@ -25,7 +26,14 @@ export default memo(({ text, keyword, size, color, style, numberOfLines }: {
     <Text size={size} color={color} style={style} numberOfLines={numberOfLines}>
       {parts.map((part, index) =>
         part.toLowerCase() === keyword.toLowerCase()
-          ? <Text key={index} size={size} color={HIGHLIGHT_COLOR}>{part}</Text>
+          ? (
+            <Text
+              key={index}
+              size={size}
+              color={color}
+              style={{ backgroundColor: r.accentSoft }}
+            >{part}</Text>
+            )
           : <Text key={index} size={size} color={color}>{part}</Text>,
       )}
     </Text>

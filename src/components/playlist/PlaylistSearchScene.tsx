@@ -1,14 +1,21 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { type RefObject } from 'react'
-import { Animated, FlatList, ScrollView, TextInput, TouchableOpacity, View, type ListRenderItem } from 'react-native'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+import { FlatList, TextInput, TouchableOpacity, View, type ListRenderItem } from 'react-native'
 
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
-import GlassSearchField from '@/components/search/GlassSearchField'
-import { getSourceTone } from '@/components/search/sourceTone'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import {
+  Chip,
+  EmptyState,
+  MagTopBar,
+  SectionHeader,
+} from '@/components/magazine'
 import { type useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 
 type SearchSourceAction = 'all' | LX.OnlineSource
 interface SourceMenuItem {
@@ -22,13 +29,13 @@ export interface PlaylistSearchSceneProps {
   statusBarHeight: number
   bottomDockHeight: number
   isSourceMenuVisible: boolean
-  sourceMenuBackdropOpacity: Animated.AnimatedInterpolation<number>
-  sourceMenuWidth: Animated.AnimatedInterpolation<number>
-  sourceMenuHeight: Animated.AnimatedInterpolation<number>
-  sourceMenuRadius: Animated.AnimatedInterpolation<number>
-  sourceMenuListOpacity: Animated.AnimatedInterpolation<number>
-  sourceMenuListTranslateY: Animated.AnimatedInterpolation<number>
-  sourceChevronRotate: Animated.AnimatedInterpolation<string>
+  sourceMenuBackdropOpacity?: unknown
+  sourceMenuWidth?: unknown
+  sourceMenuHeight?: unknown
+  sourceMenuRadius?: unknown
+  sourceMenuListOpacity?: unknown
+  sourceMenuListTranslateY?: unknown
+  sourceChevronRotate?: unknown
   sourceMenus: readonly SourceMenuItem[]
   searchSource: SearchSourceAction
   searchSourceLabel: string
@@ -59,227 +66,165 @@ export interface PlaylistSearchSceneProps {
 }
 
 export default ({
-  styles,
   t,
   statusBarHeight,
   bottomDockHeight,
-  isSourceMenuVisible,
-  sourceMenuBackdropOpacity,
-  sourceMenuWidth,
-  sourceMenuHeight,
-  sourceMenuRadius,
-  sourceMenuListOpacity,
-  sourceMenuListTranslateY,
-  sourceChevronRotate,
-  sourceMenus,
-  searchSource,
-  searchSourceLabel,
   searchInputRef,
   isSearchInputEditing,
   searchText,
   searchKeyword,
   searchLoading,
   searchResults,
-  searchAssistKeyword,
-  searchAssistList,
   searchHistoryList,
-  searchTipLoading,
   musicAddModalRef,
   renderSearchResultItem,
-  getSourceMenuLabel,
-  onCloseSourceMenu,
   onExitSearch,
   onBeginSearchInputEdit,
   onSearchInputBlur,
   onSearchTextChange,
   onSubmitSearch,
-  onToggleSearchSourceMenu,
-  onSelectSource,
   onClearSearchHistoryList,
   onPickSearchKeyword,
   onRemoveSearchHistoryItem,
 }: PlaylistSearchSceneProps) => {
   const { colors } = useLuxTheme()
-
-  const searchHeaderHeight = statusBarHeight + 18 + 44 + 16
+  const r = magazineRoles(colors)
 
   return (
     <>
-      <View style={styles.searchModeRoot}>
-        {isSourceMenuVisible
-          ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
-              <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={onCloseSourceMenu} />
-            </Animated.View>
-          : null}
-        <View style={styles.searchResultHeaderFloating}>
-          <View style={[styles.searchResultHeader, { paddingTop: statusBarHeight + 18 }]}>
-            <View style={styles.topBar}>
-              <TouchableOpacity style={styles.detailBackBtn} activeOpacity={0.8} onPress={onExitSearch}>
-                <View style={styles.detailBackBtnInner}>
-                  <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
-                </View>
-              </TouchableOpacity>
-              <View style={styles.searchResultSearchWrap}>
-                <GlassSearchField style={styles.searchWrap} contentStyle={styles.searchContent}>
-                  <Icon name="search-2" rawSize={18} color={colors.ink.searchIcon} />
-                  {isSearchInputEditing
-                    ? <TextInput
-                        ref={searchInputRef}
-                        style={styles.searchInput}
-                        value={searchText}
-                        onChangeText={onSearchTextChange}
-                        disableFullscreenUI
-                        blurOnSubmit
-                        autoFocus
-                        onBlur={onSearchInputBlur}
-                        onSubmitEditing={({ nativeEvent }) => { onSubmitSearch(nativeEvent.text ?? searchText) }}
-                        returnKeyType="search"
-                        placeholder={t('me_search_placeholder')}
-                        placeholderTextColor={colors.ink.quiet}
-                      />
-                    : <TouchableOpacity style={styles.searchInputDisplay} activeOpacity={0.85} onPress={onBeginSearchInputEdit}>
-                        <Text size={13} color={searchText ? colors.ink.input : colors.ink.quiet} numberOfLines={1} style={styles.searchInputText}>
-                          {searchText || t('me_search_placeholder')}
-                        </Text>
-                      </TouchableOpacity>}
-                  <View style={styles.sourceMenuAnchor}>
-                    <Animated.View
-                      style={[
-                        styles.sourceMenuSheet,
-                        {
-                          width: sourceMenuWidth,
-                          height: sourceMenuHeight,
-                          borderRadius: sourceMenuRadius,
-                        },
-                      ]}
-                    >
-                      <TouchableOpacity activeOpacity={0.85} onPress={onToggleSearchSourceMenu} style={styles.sourceMenuHeadBtn}>
-                        <View style={styles.sourceMenuSheetHead}>
-                          <Text size={12} color={colors.ink.searchIcon} style={styles.sourceText}>{searchSourceLabel}</Text>
-                          <Animated.View style={[styles.sourceChevronWrap, { transform: [{ rotate: sourceChevronRotate }] }]}>
-                            <Icon name="chevron-right-2" rawSize={13} color={colors.ink.searchIcon} />
-                          </Animated.View>
-                        </View>
-                      </TouchableOpacity>
-                      <Animated.View
-                        pointerEvents={isSourceMenuVisible ? 'auto' : 'none'}
-                        style={[
-                          styles.sourceMenuSheetList,
-                          {
-                            opacity: sourceMenuListOpacity,
-                            transform: [{ translateY: sourceMenuListTranslateY }],
-                          },
-                        ]}
-                      >
-                        {sourceMenus.map((menu, index) => {
-                          const isActive = menu.action === searchSource
-                          const tone = menu.action === 'all'
-                            ? { text: colors.ink.meta, background: colors.surface.neutral }
-                            : getSourceTone(menu.action, colors)
-                          return (
-                            <TouchableOpacity
-                              key={menu.action}
-                              activeOpacity={0.78}
-                              style={[
-                                styles.sourcePanelItem,
-                                isActive ? styles.sourcePanelItemActive : null,
-                                index < sourceMenus.length - 1 ? styles.sourcePanelItemBorder : null,
-                              ]}
-                              onPress={() => { onSelectSource(menu.action) }}
-                            >
-                              <View style={[styles.sourcePanelBadge, { backgroundColor: tone.background }]}>
-                                <Text size={10} color={tone.text} style={styles.sourcePanelBadgeText}>
-                                  {menu.action == 'all' ? 'ALL' : menu.action.toUpperCase()}
-                                </Text>
-                              </View>
-                              <Text size={13} color={colors.ink.strong} style={styles.sourcePanelLabel}>
-                                {getSourceMenuLabel(menu.action)}
-                              </Text>
-                              <View style={styles.sourcePanelCheck}>
-                                {isActive ? <MaterialCommunityIcon name="check" size={16} color={colors.ink.strong} /> : null}
-                              </View>
-                            </TouchableOpacity>
-                          )
-                        })}
-                      </Animated.View>
-                    </Animated.View>
-                  </View>
-                </GlassSearchField>
-              </View>
-            </View>
-          </View>
-        </View>
-        {isSearchInputEditing
-          ? <View style={[styles.searchAssistPanel, { top: searchHeaderHeight }]}>
-              {!searchAssistKeyword
-                ? <View style={styles.searchAssistTitleRow}>
-                    <Text size={13} color={colors.ink.meta}>{t('search_history_search')}</Text>
-                    {searchHistoryList.length
-                      ? (
-                          <TouchableOpacity
-                            style={styles.searchAssistClearBtn}
-                            activeOpacity={0.8}
-                            onPress={onClearSearchHistoryList}
-                          >
-                            <Icon name="eraser" rawSize={14} color={colors.ink.faint} />
-                          </TouchableOpacity>
-                        )
-                      : null}
-                  </View>
-                : null}
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="always"
-                contentContainerStyle={styles.searchAssistContent}
-              >
-                {searchAssistList.length
-                  ? searchAssistList.map((keyword, index) => {
-                    return (
-                      <TouchableOpacity
-                        key={`${keyword}_${index}`}
-                        style={styles.searchAssistChip}
-                        activeOpacity={0.82}
-                        onPress={() => { onPickSearchKeyword(keyword) }}
-                        onLongPress={!searchAssistKeyword ? () => { onRemoveSearchHistoryItem(keyword) } : undefined}
-                      >
-                        <Text size={13} color={colors.ink.strong} numberOfLines={1} style={styles.searchAssistChipText}>{keyword}</Text>
-                      </TouchableOpacity>
-                    )
-                  })
-                  : (
-                      <View style={styles.searchAssistEmpty}>
-                        <Text size={13} color={colors.ink.faint}>
-                          {searchAssistKeyword
-                            ? searchTipLoading
-                              ? t('me_searching')
-                              : t('me_search_no_match')
-                            : t('me_search_hint')}
-                        </Text>
-                      </View>
-                    )}
-              </ScrollView>
-            </View>
-          : null}
+      <View style={{ flex: 1, backgroundColor: r.paper }}>
         <FlatList
-          style={styles.searchResultList}
-          contentContainerStyle={[
-            styles.detailContent,
-            styles.searchResultContent,
-            { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomDockHeight },
-          ]}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: statusBarHeight,
+            paddingHorizontal: PAGE_GUTTER,
+            paddingBottom: 16 + bottomDockHeight,
+          }}
           data={searchResults}
           renderItem={renderSearchResultItem}
           keyExtractor={(item, index) => `${item.id}_${item.source}_${index}`}
-          ListEmptyComponent={(
-            <View style={styles.searchResultStatus}>
-              <Text size={16} color={colors.ink.meta} style={styles.searchResultStatusText}>
-                {searchLoading
-                  ? t('me_searching')
-                  : searchKeyword
-                    ? t('me_search_no_match')
-                    : t('me_search_hint')}
+          ListHeaderComponent={(
+            <View>
+              <MagTopBar onBack={onExitSearch} />
+              <Text
+                size={magType.eyebrow.size}
+                color={r.eyebrow}
+                style={{ fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginTop: 18 }}
+              >
+                {t('library_search_eyebrow')}
               </Text>
+
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 14,
+                borderBottomWidth: 1.5,
+                borderBottomColor: r.ink,
+                paddingBottom: 8,
+                gap: 10,
+              }}>
+                <MdiIcon name="magnify" size={24} color={r.ink} />
+                {isSearchInputEditing
+                  ? (
+                    <TextInput
+                      ref={searchInputRef}
+                      style={{
+                        flex: 1,
+                        fontSize: magType.searchInput.size,
+                        fontWeight: '800',
+                        color: r.ink,
+                        paddingVertical: 0,
+                        includeFontPadding: false,
+                      }}
+                      value={searchText}
+                      onChangeText={onSearchTextChange}
+                      disableFullscreenUI
+                      blurOnSubmit
+                      autoFocus
+                      onBlur={onSearchInputBlur}
+                      onSubmitEditing={({ nativeEvent }) => { onSubmitSearch(nativeEvent.text ?? searchText) }}
+                      returnKeyType="search"
+                      placeholder={t('library_search_placeholder')}
+                      placeholderTextColor={r.quiet}
+                      selectionColor={r.ink}
+                      cursorColor={r.ink}
+                    />
+                    )
+                  : (
+                    <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.85} onPress={onBeginSearchInputEdit}>
+                      <Text
+                        size={magType.searchInput.size}
+                        color={searchText ? r.ink : r.quiet}
+                        numberOfLines={1}
+                        style={{ fontWeight: '800' }}
+                      >
+                        {searchText || t('library_search_placeholder')}
+                      </Text>
+                    </TouchableOpacity>
+                    )}
+                {searchText
+                  ? (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => { onSearchTextChange('') }}
+                      hitSlop={8}
+                    >
+                      <MdiIcon name="close-circle" size={20} color={r.quiet} />
+                    </TouchableOpacity>
+                    )
+                  : null}
+              </View>
+
+              {!searchKeyword
+                ? (
+                  <View style={{ marginTop: 22 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <Text size={magType.meta.size} color={r.eyebrow} style={{ fontWeight: '600' }}>
+                        {t('search_history_search')}
+                      </Text>
+                      {searchHistoryList.length
+                        ? (
+                          <TouchableOpacity activeOpacity={0.7} onPress={onClearSearchHistoryList} hitSlop={8}>
+                            <MdiIcon name="eraser" size={16} color={r.faint} />
+                          </TouchableOpacity>
+                          )
+                        : null}
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {searchHistoryList.length
+                        ? searchHistoryList.map((keyword, index) => (
+                          <TouchableOpacity
+                            key={`${keyword}_${index}`}
+                            activeOpacity={0.82}
+                            onPress={() => { onPickSearchKeyword(keyword) }}
+                            onLongPress={() => { onRemoveSearchHistoryItem(keyword) }}
+                          >
+                            <Chip label={keyword} />
+                          </TouchableOpacity>
+                        ))
+                        : <Text size={13} color={r.faint}>{t('me_search_hint')}</Text>}
+                    </View>
+                  </View>
+                  )
+                : (
+                  <SectionHeader
+                    title={t('library_search_match')}
+                    meta={t('me_tracks_count', { num: searchResults.length })}
+                    compactRule
+                    style={{ marginTop: 22 }}
+                  />
+                  )}
             </View>
+          )}
+          ListEmptyComponent={(
+            searchKeyword
+              ? (
+                <EmptyState
+                  eyebrow={searchLoading ? 'LOADING' : 'NO RESULT · 0'}
+                  title={searchLoading ? t('me_searching') : t('me_search_no_match')}
+                />
+                )
+              : null
           )}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
