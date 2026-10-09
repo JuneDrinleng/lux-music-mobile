@@ -1,96 +1,47 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View, type FlatListProps } from 'react-native'
-import { usePlayDetailClose } from '../context'
-import { useStatusbarHeight } from '@/store/common/hook'
-import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
-import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
-import { createStyle, shareMusic, toast } from '@/utils/tools'
+import { FlatList, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
-import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
-import SeekBar from './components/SeekBar'
-import { useSettingValue } from '@/store/setting/hook'
+import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
+import { Hairline } from '@/components/magazine'
 import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
-import { getListMusics } from '@/core/list'
 import { updateSetting } from '@/core/common'
+import { getListMusics } from '@/core/list'
+import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useI18n } from '@/lang'
-import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { limeColors, type LuxColors } from '@/theme/luxTokens'
-
-const readSourceAccentColorMap = memoLuxColors((colors: LuxColors): Record<string, string> => ({
-  tx: colors.source.tx.text,
-  wy: colors.source.wy.text,
-  kg: colors.source.kg.text,
-  kw: colors.source.kw.text,
-  mg: colors.source.mg.text,
-  local: colors.source.localDetail,
-  bd: colors.source.unknown.text,
-}))
-const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
-  if (!musicInfo) return null
-  if ('progress' in musicInfo) return musicInfo.metadata.musicInfo.source
-  return musicInfo.source
-}
-const getSourceAccentColor = (source: string | null | undefined, colors: LuxColors = limeColors) => {
-  if (!source) return colors.source.unknown.text
-  return readSourceAccentColorMap(colors)[source.toLowerCase()] ?? colors.source.unknown.text
-}
-const getSourceTrackColor = (color: string, colors: LuxColors = limeColors) => {
-  if (/^#[0-9a-f]{6}$/i.test(color)) return `${color}33`
-  return colors.scrim.lyricTrack
-}
-
-const defaultLines = [
-  'Waiting in a car',
-  'Waiting for a ride in the dark',
-  'At night the city grows',
-  'Look at the horizon line',
-  'The morning star is on its way',
-  'Waiting for the break of day',
-  'The city is my church',
-  'It wraps me in its sparkling light',
-]
+import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
+import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { useSettingValue } from '@/store/setting/hook'
+import { createStyle, toast } from '@/utils/tools'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
 
 export default ({ active }: { active: boolean }) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
-
-  const statusBarHeight = useStatusbarHeight()
-  const closePlayDetail = usePlayDetailClose()
+  const r = magazineRoles(colors)
+  const t = useI18n()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
-  const shareType = useSettingValue('common.shareType')
-  const downloadFileName = useSettingValue('download.fileName')
   const togglePlayMethod = useSettingValue('player.togglePlayMethod')
-  const t = useI18n()
   const isPlay = useIsPlay()
   const { line } = useLrcPlay(active)
-  const { progress, maxPlayTime } = useProgress(active)
+  const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress(active)
   const lyricLines = useLrcSet()
   const listRef = useRef<FlatList<string>>(null)
   const loveCheckId = useRef(0)
-  const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`, colors), [musicInfo?.id, musicInfo?.pic, colors])
-  const sourceAccentColor = useMemo(() => {
-    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo), colors)
-  }, [playMusicInfo.musicInfo, colors])
-  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor, colors), [sourceAccentColor, colors])
+  const musicAddModalRef = useRef<MusicAddModalType>(null)
   const [isLoved, setIsLoved] = useState(false)
-  const hasBackgroundCover = Boolean(musicInfo?.pic)
-  const gradientColors = useMemo(() => {
-    return hasBackgroundCover
-      ? createWhiteFadeMaskColors(84, 0.12, 1, colors.bg.plain)
-      : createLinearGradientColors(coverTheme, 84)
-  }, [coverTheme, hasBackgroundCover, colors])
 
   const lines = useMemo(() => {
-    if (!lyricLines.length) return defaultLines
-    const textLines = lyricLines.map(item => item.text).filter(Boolean)
-    return textLines.length ? textLines : defaultLines
+    if (!lyricLines.length) return [] as string[]
+    return lyricLines.map(item => item.text).filter(Boolean)
   }, [lyricLines])
 
   useEffect(() => {
@@ -100,15 +51,6 @@ export default ({ active }: { active: boolean }) => {
     } catch {}
   }, [active, line, lines.length])
 
-  const handleGoBack = () => {
-    closePlayDetail()
-  }
-  const handleShare = () => {
-    const currentMusicInfo = playMusicInfo.musicInfo
-    if (!currentMusicInfo) return
-    const targetMusicInfo = 'progress' in currentMusicInfo ? currentMusicInfo.metadata.musicInfo : currentMusicInfo
-    shareMusic(shareType, downloadFileName, targetMusicInfo)
-  }
   const refreshLovedState = useCallback(async(targetId?: string | null) => {
     const musicId = targetId ?? musicInfo.id
     if (!musicId) {
@@ -118,8 +60,7 @@ export default ({ active }: { active: boolean }) => {
     const currentCheckId = ++loveCheckId.current
     const loveList = await getListMusics(LIST_IDS.LOVE)
     if (currentCheckId != loveCheckId.current) return
-    const targetMusicId = String(musicId)
-    setIsLoved(loveList.some(song => String(song.id) == targetMusicId))
+    setIsLoved(loveList.some(song => String(song.id) == String(musicId)))
   }, [musicInfo.id])
 
   useEffect(() => {
@@ -144,9 +85,17 @@ export default ({ active }: { active: boolean }) => {
     if (nextLoved) void collectMusic()
     else void uncollectMusic()
   }
-  const handleToggleQueuePanel = () => {
-    global.app_event.togglePlayQueuePanel()
+
+  const handleShowMusicAddModal = () => {
+    const current = playMusicInfo.musicInfo
+    if (!current) return
+    musicAddModalRef.current?.show({
+      musicInfo: 'progress' in current ? current.metadata.musicInfo : current,
+      listId: '',
+      isMove: false,
+    })
   }
+
   const handleTogglePlayMode = () => {
     let index = MUSIC_TOGGLE_MODE_LIST.indexOf(togglePlayMethod)
     if (++index >= MUSIC_TOGGLE_MODE_LIST.length) index = 0
@@ -172,6 +121,7 @@ export default ({ active }: { active: boolean }) => {
     }
     toast(t(modeName))
   }
+
   const playModeIcon = useMemo(() => {
     switch (togglePlayMethod) {
       case MUSIC_TOGGLE_MODE.listLoop:
@@ -187,41 +137,49 @@ export default ({ active }: { active: boolean }) => {
     }
   }, [togglePlayMethod])
 
-  const renderItem: FlatListProps<string>['renderItem'] = ({ item, index }) => {
+  const renderItem = useCallback(({ item, index }: ListRenderItemInfo<string>) => {
     const activeLine = index === line
+    const past = index < line
     return (
       <View style={styles.lineWrap}>
+        {activeLine ? <View style={[styles.lineAccent, { backgroundColor: r.accent }]} /> : null}
         <Text
-          size={activeLine ? 34 : 28}
-          color={activeLine ? sourceAccentColor : colors.scrim.lyricIdle}
+          size={activeLine ? 28 : 18}
+          color={activeLine ? r.display : past ? r.faint : r.muted}
           style={activeLine ? styles.activeLineText : styles.lineText}
         >
           {item}
         </Text>
       </View>
     )
-  }
+  }, [line, r.accent, r.display, r.faint, r.muted, styles])
+
+  const listHeader = (
+    <View>
+      <View style={styles.songHead}>
+        <Image style={styles.cover} url={musicInfo.pic} />
+        <View style={styles.songText}>
+          <Text size={magType.rowTitle.size} color={r.ink} numberOfLines={1} style={styles.songTitle}>
+            {musicInfo.name || '—'}
+          </Text>
+          <Text size={magType.meta.size} color={r.muted} numberOfLines={1}>
+            {musicInfo.singer || ''}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
+          <MdiIcon
+            name={isLoved ? 'heart' : 'heart-outline'}
+            size={22}
+            color={isLoved ? r.like : r.ink}
+          />
+        </TouchableOpacity>
+      </View>
+      <Hairline style={styles.headRule} />
+    </View>
+  )
 
   return (
-    <View style={styles.container}>
-      <View pointerEvents="none" style={styles.gradientLinearWrap}>
-        {hasBackgroundCover
-          ? <Image url={musicInfo.pic} cache={false} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
-          : null}
-        {gradientColors.map((color, index) => (
-          <View key={`lyric_gradient_${index}`} style={[styles.gradientLinearRow, { backgroundColor: color }]} />
-        ))}
-      </View>
-      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleGoBack}>
-          <Icon name="chevron-left" rawSize={24} color={colors.ink.lyricNav} style={styles.backIcon} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter} />
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8} onPress={handleShare}>
-          <MdiIcon name="share-variant" size={20} color={colors.ink.lyricNav} />
-        </TouchableOpacity>
-      </View>
-
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
       <FlatList
         ref={listRef}
         data={lines}
@@ -229,220 +187,107 @@ export default ({ active }: { active: boolean }) => {
         keyExtractor={(item, index) => `${index}_${item}`}
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={(
+          <Text size={15} color={r.faint} style={styles.empty}>{t('player_lyric_empty')}</Text>
+        )}
         showsVerticalScrollIndicator={false}
         onScrollToIndexFailed={() => {}}
       />
 
-      <View style={styles.bottomPanel}>
-        <View style={styles.progressWrap}>
-          <SeekBar
-            progress={progress}
-            duration={maxPlayTime}
-            accentColor={sourceAccentColor}
-            trackColor={sourceTrackColor}
-            barHeight={6}
-          />
-        </View>
-
-        <View style={styles.playerRow}>
-          <View style={styles.playerLeft}>
-            <Image style={styles.cover} url={musicInfo.pic} />
-            <View style={styles.playerText}>
-              <Text size={13} color={colors.ink.strong} numberOfLines={1} style={styles.playerTitle}>
-                {musicInfo.name || 'Midnight City'}
-              </Text>
-              <Text size={11} color={colors.ink.meta} numberOfLines={1}>{musicInfo.singer || 'M83'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.controls}>
-            <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={handleToggleLoved}>
-              {isLoved
-                ? <MdiIcon name="heart" size={20} color={colors.danger} />
-                : <Icon name="love" rawSize={18} color={colors.ink.meta} />}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
-              <Icon name="prevMusic" rawSize={20} color={colors.ink.strong} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.playBtn} activeOpacity={0.85} onPress={togglePlay}>
-              <Icon name={isPlay ? 'pause' : 'play'} rawSize={24} color={colors.ink.onControl} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
-              <Icon name="nextMusic" rawSize={20} color={colors.ink.strong} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.rightActions}>
-            <TouchableOpacity style={styles.smallIconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
-              <Icon name={playModeIcon} rawSize={18} color={colors.ink.meta} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.smallIconBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
-              <Icon name="menu" rawSize={18} color={colors.ink.meta} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
+      <PlayerTransport
+        progress={progress}
+        duration={maxPlayTime}
+        nowPlayTimeStr={nowPlayTimeStr}
+        maxPlayTimeStr={maxPlayTimeStr}
+      >
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
+          <Icon name={playModeIcon} rawSize={22} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
+          <Icon name="prevMusic" rawSize={26} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.playBtn, { backgroundColor: r.ink }]}
+          activeOpacity={0.85}
+          onPress={togglePlay}
+        >
+          <Icon name={isPlay ? 'pause' : 'play'} rawSize={26} color={r.onInk} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
+          <Icon name="nextMusic" rawSize={26} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleShowMusicAddModal}>
+          <MdiIcon name="playlist-plus" size={24} color={r.ink} />
+        </TouchableOpacity>
+      </PlayerTransport>
+      <MusicAddModal ref={musicAddModalRef} />
     </View>
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.plain,
-  },
-  gradientLinearWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '62%',
-    overflow: 'hidden',
-  },
-  gradientLinearRow: {
-    flex: 1,
-  },
-  gradientCoverImage: {
-    position: 'absolute',
-    top: -26,
-    left: -24,
-    right: -24,
-    bottom: -18,
-    opacity: 0.92,
-    transform: [{ scale: 1.1 }],
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-  headerBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: {
-    transform: [{ rotate: '-90deg' }],
-  },
-  headerShareIcon: {
-    width: 20,
-    height: 20,
-    tintColor: colors.ink.lyricNav,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerUpper: {
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    letterSpacing: 1.3,
-  },
-  headerTitle: {
-    marginTop: 2,
-    fontWeight: '500',
   },
   list: {
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 24,
-    paddingTop: 36,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 12,
     paddingBottom: 24,
   },
-  lineWrap: {
-    marginBottom: 18,
-  },
-  lineText: {
-    fontWeight: '700',
-    lineHeight: 42,
-  },
-  activeLineText: {
-    fontWeight: '700',
-    lineHeight: 52,
-  },
-  bottomPanel: {
-    backgroundColor: colors.surface.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.scrim.lyricHairline,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 18,
-    shadowColor: colors.shadow.black,
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
-  },
-  progressWrap: {
+  songHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 12,
-  },
-  playerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  playerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
   },
   cover: {
     width: 48,
     height: 48,
-    borderRadius: 8,
+    borderRadius: 4,
   },
-  playerText: {
+  songText: {
     flex: 1,
     minWidth: 0,
-    marginLeft: 10,
   },
-  playerTitle: {
-    fontWeight: '600',
+  songTitle: {
+    fontWeight: '700',
     marginBottom: 2,
   },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 6,
+  headRule: {
+    marginBottom: 18,
   },
-  controlBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
+  lineWrap: {
+    position: 'relative',
+    paddingLeft: 14,
+    marginBottom: 16,
+    minHeight: 36,
     justifyContent: 'center',
   },
-  playBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.control.play,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 3,
-    shadowColor: colors.control.playShadow,
-    shadowOpacity: 0.16,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+  lineAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 4,
+    bottom: 4,
+    width: 3,
+    borderRadius: 1.5,
   },
-  rightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  lineText: {
+    fontWeight: '600',
+    lineHeight: 28,
   },
-  smallIconBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 2,
+  activeLineText: {
+    fontWeight: '800',
+    lineHeight: 36,
+    letterSpacing: -0.5,
   },
-  loveFilled: {
-    fontWeight: '700',
-    lineHeight: 24,
+  empty: {
+    marginTop: 40,
+    textAlign: 'center',
   },
+  iconBtn: playerTransportControlStyles.iconBtn,
+  playBtn: playerTransportControlStyles.playBtn,
 })))

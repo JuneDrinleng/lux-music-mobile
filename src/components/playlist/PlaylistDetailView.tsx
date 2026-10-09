@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -11,7 +13,7 @@ import {
 
 import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
-import Text from '@/components/common/Text'
+import { EmptyState, PrimaryButton, SecondaryButton } from '@/components/magazine'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateUserList } from '@/core/list'
 import { playList, playListAsQueue } from '@/core/player/player'
@@ -21,12 +23,13 @@ import { type PlaylistDetailPayload } from '@/event/appEvent'
 import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
+import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
 import { applyMusicCoverFallback } from '@/utils/musicCover'
 import { demoteOpenPlaylistCoverWork, prioritizePlaylistCovers, setPlaylistCoverFocus } from '@/utils/playlistCoverPrefetch'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
-import { createStyle } from '@/utils/tools'
+import { arrShuffle, confirmDialog, createStyle, toast } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
-import PlaylistDetailHeader from './PlaylistDetailHeader'
+import PlaylistDetailHeader, { PlaylistSelectHeader } from './PlaylistDetailHeader'
 import PlaylistDetailSongItem, { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import PlaylistImportPanel from './PlaylistImportPanel'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
@@ -35,22 +38,21 @@ import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
 import { useDetailSceneTransition } from './detailSceneTransition'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER } from '@/theme/magazineType'
 
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
 }
 
+const songKeyOf = (song: LX.Music.MusicInfo, index: number) => `${song.source}_${song.id}_${index}`
+
 export interface PlaylistDetailViewProps {
-  /** The playlist to display. Pass null to render nothing. */
   detail: PlaylistDetailPayload | null
-  /** Called when the user presses the back button in the header. */
   onClose?: () => void
-  /** Extra bottom padding for the FlatList content (e.g. for dock/player bar). */
   bottomPadding?: number
 }
 
-/** Inner component — always receives a non-null detail so hooks can be called unconditionally. */
 const PlaylistDetailViewInner = ({
   detail,
   onClose,
@@ -58,11 +60,13 @@ const PlaylistDetailViewInner = ({
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
 
   const t = useI18n()
-  const appBg = colors.bg.app
   const statusBarHeight = useStatusbarHeight()
   const playlists = useMyList()
+  const playMusicInfo = usePlayMusicInfo()
+  const isPlay = useIsPlay()
   const modalBottomInset = useMemo(() => {
     const screenHeight = Dimensions.get('screen').height
     const windowHeight = Dimensions.get('window').height
@@ -109,6 +113,10 @@ const PlaylistDetailViewInner = ({
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
+  const [selecting, setSelecting] = useState(false)
+  const [selectedMap, setSelectedMap] = useState<Record<string, true>>({})
+  const [selectMode, setSelectMode] = useState<'single' | 'range' | 'inverse'>('single')
+  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null)
   const { style: sceneStyle, requestClose } = useDetailSceneTransition(detailData.selectedDetailCacheKey)
 
   useEffect(() => {
@@ -128,10 +136,19 @@ const PlaylistDetailViewInner = ({
     prioritizePlaylistCovers(detailData.detailSongs, 'playlist')
   }, [detailData.detailSongs])
 
+  useEffect(() => {
+    setSelecting(false)
+    setSelectedMap({})
+    setSelectMode('single')
+    setRangeAnchor(null)
+  }, [detailData.selectedDetailCacheKey])
+
   const handleCloseDetail = useCallback(() => {
     detailData.detailRequestIdRef.current += 1
     drag.resetSongDragState()
     imprt.setImportDrawerVisible(false)
+    setSelecting(false)
+    setSelectedMap({})
     requestClose(() => { onClose?.() })
   }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, requestClose])
 
@@ -177,6 +194,37 @@ const PlaylistDetailViewInner = ({
     await setTempList(getLbCacheKey(selectedLeaderboardDetailRef.current), latestList)
     await playList(LIST_IDS.TEMP, targetIndex)
   }, [detailData.detailSongsRef])
+
+  const playAllSongs = useCallback(async(shuffle: boolean) => {
+    const songs = detailData.detailSongsRef.current
+    if (!songs.length) {
+      toast(t('me_no_songs'))
+      return
+    }
+    if (selectedListIdRef.current) {
+      if (shuffle) {
+        const shuffled: LX.Music.MusicInfo[] = arrShuffle(songs.slice())
+        await setTempList(`shuffle_${selectedListIdRef.current}`, shuffled)
+        await playList(LIST_IDS.TEMP, 0)
+        return
+      }
+      await playListAsQueue(selectedListIdRef.current, 0)
+      return
+    }
+    if (selectedOnlineDetailRef.current) {
+      const list: LX.Music.MusicInfo[] = applyMusicCoverFallback(songs, detailHeroCoverRef.current)
+      const queue: LX.Music.MusicInfo[] = shuffle ? arrShuffle(list.slice()) : list
+      await setTempList(getOnlinePlaylistDetailKey(selectedOnlineDetailRef.current), queue)
+      await playList(LIST_IDS.TEMP, 0)
+      return
+    }
+    if (selectedLeaderboardDetailRef.current) {
+      const list: LX.Music.MusicInfo[] = applyMusicCoverFallback(songs, null)
+      const queue: LX.Music.MusicInfo[] = shuffle ? arrShuffle(list.slice()) : list
+      await setTempList(getLbCacheKey(selectedLeaderboardDetailRef.current), queue)
+      await playList(LIST_IDS.TEMP, 0)
+    }
+  }, [detailData.detailSongsRef, t])
 
   const handleShowRemoveSongModal = useCallback((song: LX.Music.MusicInfo) => {
     if (!selectedListIdRef.current || drag.dragStateRef.current.active) return
@@ -242,23 +290,133 @@ const PlaylistDetailViewInner = ({
     })
   }, [detailData.selectedOnlineDetail, detailData.detailLoading, detailData.detailSongs, detailData.detailHeroCover, detailData.detailHeroName])
 
+  const canSelect = Boolean(detailData.selectedListId)
+  const selectedSongs = useMemo(
+    () => detailData.detailSongs.filter((song, index) => selectedMap[songKeyOf(song, index)]),
+    [detailData.detailSongs, selectedMap],
+  )
+  const selectedCount = selectedSongs.length
+
+  const handleToggleSelectMode = useCallback(() => {
+    setSelecting(true)
+    setSelectedMap({})
+    setSelectMode('single')
+    setRangeAnchor(null)
+  }, [])
+
+  const handleCancelSelect = useCallback(() => {
+    setSelecting(false)
+    setSelectedMap({})
+    setSelectMode('single')
+    setRangeAnchor(null)
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    const next: Record<string, true> = {}
+    detailData.detailSongs.forEach((song, index) => {
+      next[songKeyOf(song, index)] = true
+    })
+    setSelectedMap(next)
+  }, [detailData.detailSongs])
+
+  const handleSelectModeChange = useCallback((id: string) => {
+    if (id === 'inverse') {
+      setSelectedMap(current => {
+        const next: Record<string, true> = {}
+        detailData.detailSongs.forEach((song, index) => {
+          const key = songKeyOf(song, index)
+          if (!current[key]) next[key] = true
+        })
+        return next
+      })
+      setSelectMode('single')
+      setRangeAnchor(null)
+      return
+    }
+    setSelectMode(id as 'single' | 'range')
+    setRangeAnchor(null)
+  }, [detailData.detailSongs])
+
+  const handleToggleSongSelect = useCallback((song: LX.Music.MusicInfo, index: number) => {
+    const key = songKeyOf(song, index)
+    if (selectMode === 'range') {
+      if (rangeAnchor == null) {
+        setRangeAnchor(index)
+        setSelectedMap({ [key]: true })
+        return
+      }
+      const from = Math.min(rangeAnchor, index)
+      const to = Math.max(rangeAnchor, index)
+      const next: Record<string, true> = {}
+      for (let i = from; i <= to; i += 1) {
+        const item = detailData.detailSongs[i]
+        if (item) next[songKeyOf(item, i)] = true
+      }
+      setSelectedMap(next)
+      setRangeAnchor(null)
+      return
+    }
+    setSelectedMap(current => {
+      const next = { ...current }
+      if (next[key]) delete next[key]
+      else next[key] = true
+      return next
+    })
+  }, [detailData.detailSongs, rangeAnchor, selectMode])
+
+  const handleMultiAdd = useCallback((isMove: boolean) => {
+    if (!selectedListIdRef.current || !selectedSongs.length) return
+    musicMultiAddModalRef.current?.show({
+      selectedList: [...selectedSongs],
+      listId: selectedListIdRef.current,
+      isMove,
+    })
+  }, [selectedSongs])
+
+  const handleMultiRemove = useCallback(async() => {
+    if (!selectedListIdRef.current || !selectedSongs.length) return
+    const confirmed = await confirmDialog({
+      message: t('list_remove_music_multi_tip', { num: selectedSongs.length }),
+      confirmButtonText: t('list_remove_tip_button'),
+    })
+    if (!confirmed) return
+    await removeListMusics(selectedListIdRef.current, selectedSongs.map(song => String(song.id)))
+    setSelectedMap({})
+    setSelecting(false)
+    await detailData.loadLocalDetailSongs(selectedListIdRef.current)
+  }, [detailData.loadLocalDetailSongs, selectedSongs, t])
+
+  const isSongPlaying = useCallback((song: LX.Music.MusicInfo) => {
+    const current = playMusicInfo.musicInfo
+    if (!current || !isPlay) return false
+    return current.id === song.id && current.source === song.source
+  }, [isPlay, playMusicInfo.musicInfo])
+
   const renderSongItem: ListRenderItem<LX.Music.MusicInfo> = useCallback(({ item, index }) => {
     const songKey = drag.getSongRowKey(item, index)
     const isDraggingRow = drag.dragStateRef.current.songKey == songKey && drag.dragStateRef.current.active
     const shiftAnim = drag.getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTone(item.source, colors)
-    const canEditSongs = Boolean(selectedListIdRef.current)
+    const canEditSongs = Boolean(selectedListIdRef.current) && !selecting
+    const selectKey = songKeyOf(item, index)
     return (
       <PlaylistDetailSongItem
         song={item}
-        sourceTone={sourceTagColor}
+        index={index}
         shiftAnim={shiftAnim}
         fallbackCover={detailHeroCoverRef.current}
         isGhost={isDraggingRow}
         canEdit={canEditSongs}
+        selecting={selecting}
+        selected={Boolean(selectedMap[selectKey])}
+        playing={isSongPlaying(item)}
+        last={index >= detailData.detailSongs.length - 1}
         onLayout={(event) => { drag.handleSongRowLayout(item, index, event) }}
         onDragPressIn={canEditSongs ? (event) => { drag.handleStartSongDrag(item, index, event) } : undefined}
         onPress={() => {
+          if (selecting) {
+            handleToggleSongSelect(item, index)
+            return
+          }
           if (drag.skipNextSongPressRef.current) {
             if (drag.dragStateRef.current.active) {
               void drag.handleFinishSongDrag()
@@ -285,11 +443,45 @@ const PlaylistDetailViewInner = ({
     drag.handleStartSongDrag, drag.handleFinishSongDrag, drag.clearDragPressGuard,
     drag.dragStateRef, drag.skipNextSongPressRef,
     handlePlaySong, handlePlayOnlineDetailSong, handlePlayLeaderboardSong,
-    handleShowRemoveSongModal,
-    colors,
+    handleShowRemoveSongModal, handleToggleSongSelect,
+    selecting, selectedMap, isSongPlaying, detailData.detailSongs.length,
   ])
 
+  const playlistEyebrow = useMemo(() => {
+    if (detailData.selectedLeaderboardDetail) {
+      return t('library_playlist_eyebrow_chart', {
+        source: detailData.detailHeroSourceLabel || detailData.selectedLeaderboardDetail.source,
+      })
+    }
+    if (detailData.selectedOnlineDetail) return t('library_playlist_eyebrow_online')
+    if (detailData.selectedListId === LIST_IDS.LOVE) return t('library_playlist_eyebrow_love')
+    if (detailData.selectedListId === LIST_IDS.DEFAULT) return t('library_playlist_eyebrow_default')
+    return t('library_playlist_eyebrow_user')
+  }, [detailData.selectedLeaderboardDetail, detailData.selectedOnlineDetail, detailData.selectedListId, detailData.detailHeroSourceLabel, t])
+
+  const selectTabs = useMemo(() => [
+    { id: 'single', label: t('list_select_single') },
+    { id: 'range', label: t('list_select_range') },
+    { id: 'inverse', label: t('list_select_unall') },
+  ], [t])
+
   const detailHeader = useMemo(() => {
+    if (selecting) {
+      return (
+        <PlaylistSelectHeader
+          statusBarHeight={statusBarHeight}
+          cancelLabel={t('list_select_cancel')}
+          selectAllLabel={t('list_select_all')}
+          eyebrow={`${detailData.detailHeroName} · ${t('me_tracks_count', { num: detailData.detailSongs.length })}`}
+          title={t('library_selected_count', { num: selectedCount })}
+          tabs={selectTabs}
+          mode={selectMode}
+          onCancel={handleCancelSelect}
+          onSelectAll={handleSelectAll}
+          onModeChange={handleSelectModeChange}
+        />
+      )
+    }
     const detailActionLabel = detailData.selectedOnlineOrLeaderboard
       ? t('playlist_transfer_all')
       : detailData.selectedListId
@@ -304,26 +496,39 @@ const PlaylistDetailViewInner = ({
         cover={detailData.detailHeroCover}
         name={detailData.detailHeroName}
         metaText={detailData.detailHeroMetaText}
+        eyebrow={playlistEyebrow}
         sectionTitle={t('me_songs')}
-        sourceCode={detailData.selectedOnlineOrLeaderboard?.source}
-        sourceLabel={detailData.detailHeroSourceLabel}
-        sourceTone={detailData.detailHeroSourceTone}
+        sectionMeta={t('me_tracks_count', { num: detailData.detailSongs.length })}
         canRename={detailData.canRenameSelectedList}
-        actionLabel={detailActionLabel}
+        canSelect={canSelect}
+        primaryLabel={t('play_all')}
+        secondaryLabel={detailData.selectedOnlineOrLeaderboard ? t('playlist_transfer_all') : t('play_shuffle_short')}
+        actionLabel={detailData.selectedOnlineOrLeaderboard ? null : detailActionLabel}
         actionDisabled={detailActionDisabled}
         onBack={handleCloseDetail}
         onRename={handleShowRenameListModal}
         onRemove={handleShowRemoveListModal}
-        onActionPress={detailData.selectedOnlineOrLeaderboard ? handleShowPlaylistTransferModal : imprt.handleOpenImportDrawer}
+        onPrimaryPress={() => { void playAllSongs(false) }}
+        onSecondaryPress={() => {
+          if (detailData.selectedOnlineOrLeaderboard) {
+            handleShowPlaylistTransferModal()
+            return
+          }
+          void playAllSongs(true)
+        }}
+        onActionPress={imprt.handleOpenImportDrawer}
+        onToggleSelect={handleToggleSelectMode}
       />
     )
   }, [
+    selecting, selectedCount, selectTabs, selectMode,
     detailData.detailHeroCover, detailData.detailHeroMetaText, detailData.detailHeroName,
-    detailData.detailHeroSourceLabel, detailData.detailHeroSourceTone,
     detailData.canRenameSelectedList, detailData.selectedOnlineOrLeaderboard,
     detailData.selectedListId, detailData.detailLoading, detailData.detailSongs.length,
+    playlistEyebrow, canSelect,
     handleCloseDetail, handleShowPlaylistTransferModal, handleShowRemoveListModal,
-    handleShowRenameListModal, imprt.handleOpenImportDrawer,
+    handleShowRenameListModal, imprt.handleOpenImportDrawer, handleToggleSelectMode,
+    handleCancelSelect, handleSelectAll, handleSelectModeChange, playAllSongs,
     statusBarHeight, t,
   ])
 
@@ -344,18 +549,22 @@ const PlaylistDetailViewInner = ({
   }, [drag.measureDetailListWrap, detailData.selectedDetailCacheKey])
 
   useBackHandler(useCallback(() => {
+    if (selecting) {
+      handleCancelSelect()
+      return true
+    }
     if (imprt.isImportDrawerVisible) {
       imprt.handleCloseImportDrawer()
       return true
     }
     handleCloseDetail()
     return true
-  }, [handleCloseDetail, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
+  }, [handleCloseDetail, handleCancelSelect, selecting, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
 
   const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source, colors) : null
 
   return (
-    <Animated.View style={[styles.root, sceneStyle, { backgroundColor: appBg }]}>
+    <Animated.View style={[styles.root, sceneStyle, { backgroundColor: r.paper }]}>
       <View
         ref={drag.detailListWrapRef}
         style={styles.detailListWrap}
@@ -365,8 +574,8 @@ const PlaylistDetailViewInner = ({
       >
         <FlatList
           ref={drag.detailListRef}
-          style={[styles.container, { backgroundColor: appBg }]}
-          contentContainerStyle={[styles.detailContent, { paddingBottom: bottomPadding }]}
+          style={[styles.container, { backgroundColor: r.paper }]}
+          contentContainerStyle={[styles.detailContent, { paddingBottom: bottomPadding + (selecting ? 72 : 0) }]}
           data={detailData.detailSongs}
           renderItem={renderSongItem}
           keyExtractor={(item, index) => drag.getSongRowKey(item, index)}
@@ -377,9 +586,10 @@ const PlaylistDetailViewInner = ({
           })}
           ListHeaderComponent={detailHeader}
           ListEmptyComponent={(
-            <View style={styles.emptyCard}>
-              <Text size={13} color={colors.ink.meta}>{detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}</Text>
-            </View>
+            <EmptyState
+              eyebrow={detailData.detailLoading ? 'LOADING' : 'EMPTY · 0'}
+              title={detailData.detailLoading ? t('me_loading_songs') : t('me_no_songs')}
+            />
           )}
           showsVerticalScrollIndicator={false}
           initialNumToRender={12}
@@ -408,6 +618,34 @@ const PlaylistDetailViewInner = ({
             />
           : null}
       </View>
+      {selecting
+        ? (
+          <View style={[styles.selectBar, { bottom: bottomPadding + 8, borderTopColor: r.ink }]}>
+            <SecondaryButton
+              label={t('add_to')}
+              icon="playlist-plus"
+              disabled={!selectedCount}
+              onPress={() => { handleMultiAdd(false) }}
+              style={{ flex: 1 }}
+            />
+            <SecondaryButton
+              label={t('move_to')}
+              icon="folder-move-outline"
+              disabled={!selectedCount}
+              onPress={() => { handleMultiAdd(true) }}
+              style={{ flex: 1 }}
+            />
+            <PrimaryButton
+              label={t('list_remove')}
+              icon="trash-can-outline"
+              danger
+              disabled={!selectedCount}
+              onPress={() => { void handleMultiRemove() }}
+              style={{ flex: 1 }}
+            />
+          </View>
+          )
+        : null}
       {detailData.selectedListId
         ? <PlaylistImportPanel
             visible={imprt.isImportDrawerVisible}
@@ -471,7 +709,6 @@ const PlaylistDetailViewInner = ({
   )
 }
 
-/** Inline playlist detail view. Handles local, online, and leaderboard playlists. */
 const PlaylistDetailView = ({ detail, onClose, bottomPadding }: PlaylistDetailViewProps) => {
   if (!detail) return null
   return <PlaylistDetailViewInner detail={detail} onClose={onClose} bottomPadding={bottomPadding ?? 0} />
@@ -481,36 +718,29 @@ export default memo(PlaylistDetailView, (prev, next) => {
   return prev.detail === next.detail && prev.onClose === next.onClose && prev.bottomPadding === next.bottomPadding
 })
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => createStyle({
   root: {
     flex: 1,
-    backgroundColor: colors.bg.app,
   },
   container: {
     flex: 1,
-    backgroundColor: colors.bg.app,
   },
   detailContent: {
     paddingBottom: 0,
-    paddingHorizontal: 18,
+    paddingHorizontal: PAGE_GUTTER,
   },
   detailListWrap: {
     flex: 1,
     position: 'relative',
   },
-  emptyCard: {
-    width: '100%',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.glass.rim72,
-    backgroundColor: colors.glass.fill88,
-    shadowColor: colors.shadow.card,
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
-    padding: 20,
+  selectBar: {
+    position: 'absolute',
+    left: PAGE_GUTTER,
+    right: PAGE_GUTTER,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
-})))
+}))

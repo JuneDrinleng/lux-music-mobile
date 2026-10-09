@@ -1,10 +1,12 @@
-import { memo, useCallback, useEffect, useState } from 'react'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
+import { Checkbox, Hairline, ICON_BUTTON_SIZE, IconButton, MagMenu, SourceTag } from '@/components/magazine'
 import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { recordCoverFailure, clearCoverFailure } from '@/utils/coverFailureRegistry'
@@ -14,18 +16,15 @@ import { peekPlaylistCover, subscribePlaylistCover, subscribePlaylistCoverStore 
 import { playlistCoverKey, preferStableCover, resolvePlaylistRowCover } from '@/utils/playlistCoverMap'
 import { isRetainedPlaylistSong, prioritizePlaylistCovers } from '@/utils/playlistCoverPrefetch'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { COVER_LIST, ROW_MIN_HEIGHT, magType } from '@/theme/magazineType'
+import { useI18n } from '@/lang'
 
 export const SONG_ITEM_HEIGHT = 70
 
-interface SourceTone {
-  text: string
-  background: string
-}
-
 interface PlaylistDetailSongItemProps {
   song: LX.Music.MusicInfo
-  sourceTone: SourceTone
+  index: number
   shiftAnim: Animated.Value
   fallbackCover?: string | null
   listId?: string | null
@@ -34,15 +33,20 @@ interface PlaylistDetailSongItemProps {
   detailNote?: string | null
   selecting?: boolean
   selected?: boolean
+  playing?: boolean
+  last?: boolean
+  sourceLabel?: string
+  statusLabel?: string | null
   onLayout: (event: LayoutChangeEvent) => void
   onPress: () => void
   onDragPressIn?: (event: GestureResponderEvent) => void
   onRemove?: () => void
+  trailing?: React.ReactNode
 }
 
 const PlaylistDetailSongItem = ({
   song,
-  sourceTone,
+  index,
   shiftAnim,
   fallbackCover = null,
   listId = null,
@@ -51,13 +55,24 @@ const PlaylistDetailSongItem = ({
   detailNote = null,
   selecting = false,
   selected = false,
+  playing = false,
+  last = false,
+  sourceLabel,
+  statusLabel = null,
   onLayout,
   onPress,
   onDragPressIn,
   onRemove,
+  trailing,
 }: PlaylistDetailSongItemProps) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const t = useI18n()
+  const rawSourceLabel = sourceLabel ?? (song.source === 'local' ? '' : t(`source_real_${song.source}`))
+  const resolvedSourceLabel = rawSourceLabel
+    ? rawSourceLabel.replace(/音乐$/, '').replace(/ Music$/i, '')
+    : null
 
   const coverForSong = useCallback((currentSong: LX.Music.MusicInfo, fallback: string | null) => {
     const direct = currentSong.meta.picUrl?.trim() ?? ''
@@ -129,157 +144,188 @@ const PlaylistDetailSongItem = ({
     }
   }, [song, listId])
 
+  const moreRef = useRef<View>(null)
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false)
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState({ top: 0, left: 0 })
+
+  const openMoreMenu = useCallback(() => {
+    moreRef.current?.measureInWindow((x, y, _w, h) => {
+      setMoreMenuAnchor({ top: y + h + 4, left: x })
+      setMoreMenuVisible(true)
+    })
+  }, [])
+
+  const indexLabel = index < 9 ? `0${index + 1}` : String(index + 1)
+  const subtitle = detailNote ?? [song.singer, song.meta.albumName].filter(Boolean).join(' · ')
+
   return (
     <View onLayout={onLayout} style={styles.wrap}>
       <Animated.View
         style={[
-          styles.card,
-          isGhost ? styles.ghostCard : null,
+          isGhost ? styles.ghost : null,
           { transform: [{ translateY: shiftAnim }] },
         ]}
       >
-        <TouchableOpacity
-          style={styles.main}
-          activeOpacity={0.8}
-          onPress={onPress}
-        >
+        {playing && !selecting ? <View style={[styles.playingMark, { backgroundColor: r.accent }]} /> : null}
+        <TouchableOpacity style={styles.row} activeOpacity={0.8} onPress={onPress}>
           {selecting
-            ? <MdiIcon name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'} size={18} color={colors.ink.icon} style={styles.selectMark} />
-            : null}
-          <Image
-            style={styles.cover}
-            url={displayCoverUrl}
-            cachePin={song.source == 'local'
-              ? /^https?:\/\//i.test(displayCoverUrl ?? '')
-              : isRetainedPlaylistSong(song.source, song.id)}
-            onError={handleCoverError}
-          />
-          <View style={styles.info}>
-            <Text size={14} color={colors.ink.strong} style={styles.name} numberOfLines={1}>{song.name}</Text>
-            <View style={styles.metaRow}>
-              <Text size={10} color={sourceTone.text} style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}>
-                {song.source.toUpperCase()}
-              </Text>
-              <Text size={11} color={colors.ink.meta} numberOfLines={1}>{song.singer}</Text>
-            </View>
-            {detailNote
-              ? <Text size={11} color={colors.ink.secondary} numberOfLines={1} style={styles.detailNote}>{detailNote}</Text>
-              : null}
+            ? <Checkbox checked={selected} />
+            : playing
+              ? <MdiIcon name="equalizer" size={18} color={r.accentInk} />
+              : <Text size={magType.index.size} color={r.faint} style={styles.index}>{indexLabel}</Text>}
+          <View style={[styles.cover, { backgroundColor: r.placeholder }]}>
+            <Image
+              style={styles.coverImage}
+              url={displayCoverUrl}
+              cachePin={song.source == 'local'
+                ? /^https?:\/\//i.test(displayCoverUrl ?? '')
+                : isRetainedPlaylistSong(song.source, song.id)}
+              onError={handleCoverError}
+            />
           </View>
-        </TouchableOpacity>
-        <View style={styles.actions}>
-          <Text size={11} color={colors.ink.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
-          {canEdit
+          <View style={styles.info}>
+            <Text size={magType.rowTitle.size} color={r.ink} style={styles.name} numberOfLines={1}>{song.name}</Text>
+            <View style={styles.metaRow}>
+              {resolvedSourceLabel && song.source !== 'local'
+                ? <SourceTag source={song.source} label={resolvedSourceLabel} />
+                : null}
+              {subtitle
+                ? <Text size={magType.meta.size} color={r.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{subtitle}</Text>
+                : null}
+            </View>
+          </View>
+          {statusLabel
             ? (
-                <>
-                  <TouchableOpacity style={styles.actionButton} activeOpacity={0.75} onPress={onRemove}>
-                    <MaterialCommunityIcon name="trash-can" size={16} color={colors.ink.faint} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dragButton}
-                    activeOpacity={0.75}
-                    delayLongPress={0}
-                    onLongPress={onDragPressIn}
-                  >
-                    <MdiIcon name="drag-horizontal-variant" size={16} color={colors.ink.nearBlack} />
-                  </TouchableOpacity>
-                </>
+              <View style={[styles.statusChip, { borderColor: r.ink }]}>
+                <Text size={11} color={r.ink} style={{ fontWeight: '600' }}>{statusLabel}</Text>
+              </View>
+              )
+            : (
+              <Text size={12} color={r.faint} style={styles.interval}>{song.interval ?? '--:--'}</Text>
+              )}
+          {trailing}
+          {canEdit && !selecting && onRemove
+            ? (
+              <View ref={moreRef} collapsable={false}>
+                <IconButton
+                  name="dots-vertical"
+                  size={20}
+                  color={r.quiet}
+                  accessibilityLabel={t('more_actions')}
+                  onPress={openMoreMenu}
+                />
+              </View>
               )
             : null}
-        </View>
+          {canEdit && !selecting
+            ? (
+              <TouchableOpacity
+                style={styles.dragButton}
+                activeOpacity={0.75}
+                delayLongPress={0}
+                onLongPress={onDragPressIn}
+                accessibilityRole="button"
+                accessibilityLabel={t('library_drag_sort')}
+              >
+                <MdiIcon name="drag-horizontal-variant" size={18} color={r.quiet} />
+              </TouchableOpacity>
+              )
+            : null}
+        </TouchableOpacity>
+        {onRemove
+          ? (
+            <MagMenu
+              visible={moreMenuVisible}
+              onClose={() => { setMoreMenuVisible(false) }}
+              anchor={moreMenuAnchor}
+              items={[{ id: 'remove', label: t('list_remove') }]}
+              onChange={(id) => {
+                if (id === 'remove') onRemove()
+              }}
+            />
+            )
+          : null}
+        {last ? null : <Hairline />}
       </Animated.View>
     </View>
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => createStyle({
   wrap: {
     position: 'relative',
   },
-  card: {
-    borderRadius: 14,
-    backgroundColor: colors.bg.app,
-    padding: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  ghostCard: {
+  ghost: {
     opacity: 0,
-    borderColor: 'transparent',
-    backgroundColor: 'transparent',
   },
-  main: {
-    flex: 1,
+  playingMark: {
+    position: 'absolute',
+    left: -22,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    zIndex: 1,
+  },
+  row: {
+    minHeight: ROW_MIN_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    gap: 10,
+  },
+  index: {
+    width: 30,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   cover: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.surface.neutral,
+    width: COVER_LIST,
+    height: COVER_LIST,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  coverImage: {
+    width: COVER_LIST,
+    height: COVER_LIST,
+    borderRadius: 6,
   },
   info: {
     flex: 1,
-    marginLeft: 10,
-    marginRight: 8,
+    minWidth: 0,
   },
   name: {
     fontWeight: '700',
-    marginBottom: 4,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  detailNote: {
-    marginTop: 2,
-  },
-  selectMark: {
-    marginRight: 8,
-  },
-  sourceBadge: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    fontWeight: '600',
-    marginRight: 6,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 4,
+    gap: 6,
+    marginTop: 3,
   },
   interval: {
-    marginRight: 4,
+    fontVariant: ['tabular-nums'],
     minWidth: 40,
     textAlign: 'right',
   },
+  statusChip: {
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dragButton: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 2,
-  },
-  dragIcon: {
-    width: 16,
-    height: 16,
-    resizeMode: 'contain',
-  },
-  actionButton: {
-    width: 30,
-    height: 30,
+    width: ICON_BUTTON_SIZE,
+    height: ICON_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-})))
+}))
 
 export default memo(PlaylistDetailSongItem, (prev, next) => {
   return prev.song === next.song &&
-    prev.sourceTone === next.sourceTone &&
+    prev.index === next.index &&
     prev.shiftAnim === next.shiftAnim &&
     prev.fallbackCover === next.fallbackCover &&
     prev.listId === next.listId &&
@@ -288,8 +334,13 @@ export default memo(PlaylistDetailSongItem, (prev, next) => {
     prev.detailNote === next.detailNote &&
     prev.selecting === next.selecting &&
     prev.selected === next.selected &&
+    prev.playing === next.playing &&
+    prev.last === next.last &&
+    prev.sourceLabel === next.sourceLabel &&
+    prev.statusLabel === next.statusLabel &&
     prev.onLayout === next.onLayout &&
     prev.onPress === next.onPress &&
     prev.onDragPressIn === next.onDragPressIn &&
-    prev.onRemove === next.onRemove
+    prev.onRemove === next.onRemove &&
+    prev.trailing === next.trailing
 })

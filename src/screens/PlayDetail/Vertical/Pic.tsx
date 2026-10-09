@@ -1,141 +1,114 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, TouchableOpacity, View } from 'react-native'
-import { useStatusbarHeight } from '@/store/common/hook'
-import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
-import { createStyle, shareMusic, toast } from '@/utils/tools'
-import { Icon } from '@/components/common/Icon'
+import { Animated, Easing, ScrollView, TouchableOpacity, View } from 'react-native'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
-import { usePlayDetailClose } from '../context'
-import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
-import { useWindowSize } from '@/utils/hooks'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from './coverTheme'
+import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
+import { SourceTag } from '@/components/magazine'
+import { Icon } from '@/components/common/Icon'
 import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import { getListMusics } from '@/core/list'
-import SeekBar from './components/SeekBar'
-import { useSettingValue } from '@/store/setting/hook'
+import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { updateSetting } from '@/core/common'
-import { useI18n } from '@/lang'
-import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { limeColors, type LuxColors } from '@/theme/luxTokens'
+import { useI18n, type Message } from '@/lang'
+import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
+import { useMyList } from '@/store/list/hook'
+import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { useSettingValue } from '@/store/setting/hook'
+import { useWindowSize } from '@/utils/hooks'
+import { createStyle, toast } from '@/utils/tools'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
 
 const TONEARM_OUT_ANGLE = '18deg'
 const TONEARM_IN_ANGLE = '-2deg'
-const TONEARM_PIVOT_X = 111
-const TONEARM_PIVOT_Y = 9
+const TONEARM_PIVOT_X = 104
+const TONEARM_PIVOT_Y = 15
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
+/** Non-record content above the pinned transport (eyebrow / title / lyrics + min gaps). */
+const PLAYER_RESERVED_ABOVE = 38
+const PLAYER_RESERVED_TITLE = 90
+const PLAYER_RESERVED_LYRIC = 48 + 14
+/** Min flex gaps: after record / title / lyric. */
+const PLAYER_RESERVED_GAPS = 30 + 18 + 14
+const PLAYER_DISC_MIN = 200
 
-const readSourceAccentColorMap = memoLuxColors((colors: LuxColors): Record<string, string> => ({
-  tx: colors.source.tx.text,
-  wy: colors.source.wy.text,
-  kg: colors.source.kg.text,
-  kw: colors.source.kw.text,
-  mg: colors.source.mg.text,
-  local: colors.source.localDetail,
-  bd: colors.source.unknown.text,
-}))
+const sourceShortKey = (source: string): keyof Message => {
+  switch (source) {
+    case 'kw': return 'source_short_kw'
+    case 'kg': return 'source_short_kg'
+    case 'tx': return 'source_short_tx'
+    case 'wy': return 'source_short_wy'
+    case 'mg': return 'source_short_mg'
+    default: return `source_real_${source}` as keyof Message
+  }
+}
+
 const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null | undefined) => {
   if (!musicInfo) return null
   if ('progress' in musicInfo) return musicInfo.metadata.musicInfo.source
   return musicInfo.source
 }
-const getSourceAccentColor = (source: string | null | undefined, colors: LuxColors = limeColors) => {
-  if (!source) return colors.source.unknown.text
-  return readSourceAccentColorMap(colors)[source.toLowerCase()] ?? colors.source.unknown.text
-}
-const getSourceTrackColor = (color: string, colors: LuxColors = limeColors) => {
-  if (/^#[0-9a-f]{6}$/i.test(color)) return `${color}33`
-  return colors.line.neutral
-}
 
-export default ({ componentId, active, onCommentPress }: { componentId: string, active: boolean, onCommentPress?: () => void }) => {
+export default ({ active }: { componentId: string, active: boolean }) => {
   const styles = useLuxStyles()
-  const { colors } = useLuxTheme()
-
-  const statusBarHeight = useStatusbarHeight()
-  const closePlayDetail = usePlayDetailClose()
+  const { colors, mode } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const t = useI18n()
   const musicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
+  const myLists = useMyList()
   const { nowPlayTimeStr, maxPlayTimeStr, progress, maxPlayTime } = useProgress(active)
-  const shareType = useSettingValue('common.shareType')
-  const downloadFileName = useSettingValue('download.fileName')
   const togglePlayMethod = useSettingValue('player.togglePlayMethod')
-  const t = useI18n()
   const isPlay = useIsPlay()
+  const { line } = useLrcPlay(active)
+  const lyricLines = useLrcSet()
   const tonearmProgress = useRef(new Animated.Value(isPlay ? 1 : 0)).current
   const recordSpinProgress = useRef(new Animated.Value(0)).current
   const recordSpinAnim = useRef<Animated.CompositeAnimation | null>(null)
   const coverTransition = useRef(new Animated.Value(1)).current
   const loveCheckId = useRef(0)
   const hasMountedRef = useRef(false)
+  const musicAddModalRef = useRef<MusicAddModalType>(null)
   const [currentCover, setCurrentCover] = useState(musicInfo.pic)
   const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const [isLoved, setIsLoved] = useState(false)
+  const [scrollHeight, setScrollHeight] = useState(0)
   const winSize = useWindowSize()
-  const discSize = Math.min(winSize.width * 0.9, 450)
-  const coverTheme = useMemo(() => getCoverTheme(musicInfo?.pic ?? `${musicInfo?.id ?? 'track'}`, colors), [musicInfo?.id, musicInfo?.pic, colors])
-  const sourceAccentColor = useMemo(() => {
-    return getSourceAccentColor(getMusicSource(playMusicInfo.musicInfo), colors)
-  }, [playMusicInfo.musicInfo, colors])
-  const sourceTrackColor = useMemo(() => getSourceTrackColor(sourceAccentColor, colors), [sourceAccentColor, colors])
-  const hasBackgroundCover = Boolean(musicInfo?.pic)
-  const gradientColors = useMemo(() => {
-    return hasBackgroundCover
-      ? createWhiteFadeMaskColors(84, 0.12, 1, colors.bg.plain)
-      : createLinearGradientColors(coverTheme, 84)
-  }, [coverTheme, hasBackgroundCover, colors])
-  const radialCenterX = discSize * 0.5
-  const radialCenterY = discSize * 0.28
-  const radialMaxRadius = discSize * 0.74
-  const radialLayersPrimary = useMemo(() => {
-    const count = 20
-    return Array.from({ length: count }, (_, index) => {
-      const t = index / (count - 1) // outer -> inner
-      const radius = radialMaxRadius * (1 - t * 0.8)
-      const size = radius * 2
-      const alpha = 0.004 + Math.pow(t, 1.7) * 0.012
-      return {
-        key: `radial_primary_${index}`,
-        size,
-        opacity: alpha,
-        color: coverTheme.top,
-      }
-    })
-  }, [coverTheme.top, radialMaxRadius])
-  const radialLayersSecondary = useMemo(() => {
-    const count = 10
-    return Array.from({ length: count }, (_, index) => {
-      const t = index / (count - 1) // outer -> inner
-      const radius = radialMaxRadius * (0.82 - t * 0.64)
-      const size = radius * 2
-      const alpha = 0.002 + Math.pow(t, 1.8) * 0.008
-      return {
-        key: `radial_secondary_${index}`,
-        size,
-        opacity: alpha,
-        color: coverTheme.glow,
-      }
-    })
-  }, [coverTheme.glow, radialMaxRadius])
-  const radialLayersHighlight = useMemo(() => {
-    const count = 6
-    return Array.from({ length: count }, (_, index) => {
-      const t = index / (count - 1) // outer -> inner
-      const radius = radialMaxRadius * (0.5 - t * 0.45)
-      const size = radius * 2
-      const alpha = 0.0008 + Math.pow(t, 2.2) * 0.0028
-      return {
-        key: `radial_highlight_${index}`,
-        size,
-        opacity: alpha,
-        color: coverTheme.middle,
-      }
-    })
-  }, [coverTheme.middle, radialMaxRadius])
+
+  const currentLyric = lyricLines[line]?.text ?? ''
+  const nextLyric = lyricLines[line + 1]?.text ?? ''
+  const hasLyricPreview = Boolean(currentLyric || nextLyric)
+
+  const discSize = useMemo(() => {
+    const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
+    const reservedBelow = PLAYER_RESERVED_TITLE +
+      (hasLyricPreview ? PLAYER_RESERVED_LYRIC : 0) +
+      PLAYER_RESERVED_GAPS
+    const heightBased = scrollHeight > 0
+      ? scrollHeight - PLAYER_RESERVED_ABOVE - reservedBelow
+      : widthBased
+    return Math.max(PLAYER_DISC_MIN, Math.min(widthBased, heightBased))
+  }, [hasLyricPreview, scrollHeight, winSize.width])
+
+  const source = getMusicSource(playMusicInfo.musicInfo)
+  const sourceLabel = source && source !== 'local' ? t(sourceShortKey(source)) : ''
+  const singerMeta = [musicInfo.singer, musicInfo.album].filter(Boolean).join(' · ')
+
+  const fromListName = useMemo(() => {
+    const listId = playMusicInfo.listId
+    if (!listId) return ''
+    if (listId === LIST_IDS.DEFAULT) return t('list_name_default')
+    if (listId === LIST_IDS.LOVE) return t('list_name_love')
+    if (listId === LIST_IDS.TEMP) return t('list_name_temp')
+    return myLists.find(list => list.id === listId)?.name ?? ''
+  }, [myLists, playMusicInfo.listId, t])
+
   const vinylGrooves = useMemo(() => {
     const grooves: Array<{ key: string, inset: number, opacity: number }> = []
     const start = Math.max(10, discSize * 0.06)
@@ -151,6 +124,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     }
     return grooves
   }, [discSize])
+
   const recordRotate = recordSpinProgress.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
@@ -163,9 +137,10 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     borderRadius: discSize * 0.29,
   }), [discSize])
 
-  const goBack = () => {
-    closePlayDetail()
-  }
+  const armCore = mode === 'dark' ? r.ink : colors.surface.card
+  const armEdge = mode === 'dark' ? r.paper : r.ink
+  const vinylRing = mode === 'dark' ? r.hairline : colors.scrim.vinylRing
+
   const refreshLovedState = useCallback(async(targetId?: string | null) => {
     const musicId = targetId ?? musicInfo.id
     if (!musicId) {
@@ -177,6 +152,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     if (currentCheckId !== loveCheckId.current) return
     setIsLoved(loveList.some(song => song.id === musicId))
   }, [musicInfo.id])
+
   const animateTonearm = useCallback((isIn: boolean) => {
     Animated.timing(tonearmProgress, {
       toValue: isIn ? 1 : 0,
@@ -185,6 +161,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
       useNativeDriver: true,
     }).start()
   }, [tonearmProgress])
+
   const tonearmRotate = tonearmProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [TONEARM_OUT_ANGLE, TONEARM_IN_ANGLE],
@@ -309,22 +286,28 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     animateTonearm(!isPlay)
     togglePlay()
   }
-  const handleShare = () => {
-    const currentMusicInfo = playMusicInfo.musicInfo
-    if (!currentMusicInfo) return
-    const targetMusicInfo = 'progress' in currentMusicInfo ? currentMusicInfo.metadata.musicInfo : currentMusicInfo
-    shareMusic(shareType, downloadFileName, targetMusicInfo)
+
+  const handleShowMusicAddModal = () => {
+    const current = playMusicInfo.musicInfo
+    if (!current) return
+    musicAddModalRef.current?.show({
+      musicInfo: 'progress' in current ? current.metadata.musicInfo : current,
+      listId: '',
+      isMove: false,
+    })
   }
+
   const handleToggleQueuePanel = () => {
     global.app_event.togglePlayQueuePanel()
   }
+
   const handleTogglePlayMode = () => {
     let index = MUSIC_TOGGLE_MODE_LIST.indexOf(togglePlayMethod)
     if (++index >= MUSIC_TOGGLE_MODE_LIST.length) index = 0
-    const mode = MUSIC_TOGGLE_MODE_LIST[index]
-    updateSetting({ 'player.togglePlayMethod': mode })
+    const modeNext = MUSIC_TOGGLE_MODE_LIST[index]
+    updateSetting({ 'player.togglePlayMethod': modeNext })
     let modeName: 'play_list_loop' | 'play_list_random' | 'play_list_order' | 'play_single_loop' | 'play_single'
-    switch (mode) {
+    switch (modeNext) {
       case MUSIC_TOGGLE_MODE.listLoop:
         modeName = 'play_list_loop'
         break
@@ -343,6 +326,7 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
     }
     toast(t(modeName))
   }
+
   const playModeIcon = useMemo(() => {
     switch (togglePlayMethod) {
       case MUSIC_TOGGLE_MODE.listLoop:
@@ -359,83 +343,36 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
   }, [togglePlayMethod])
 
   return (
-    <View style={styles.container}>
-      <View pointerEvents="none" style={styles.gradientLinearWrap}>
-        {hasBackgroundCover
-          ? <Image url={musicInfo.pic} cache={false} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
-          : null}
-        {gradientColors.map((color, index) => (
-          <View key={`pic_gradient_${index}`} style={[styles.gradientLinearRow, { backgroundColor: color }]} />
-        ))}
-      </View>
-      <View style={[styles.header, { paddingTop: statusBarHeight + 8 }]}>
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={goBack}>
-          <Icon name="chevron-left" rawSize={24} color={colors.ink.strong} style={styles.backIcon} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter} />
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7} onPress={handleShare}>
-          <MdiIcon name="share-variant" size={20} color={colors.ink.strong} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        onLayout={(event) => {
+          const next = event.nativeEvent.layout.height
+          if (next > 0 && next !== scrollHeight) setScrollHeight(next)
+        }}
+      >
+        <Text
+          size={magType.eyebrow.size}
+          color={r.eyebrow}
+          style={styles.eyebrow}
+          numberOfLines={1}
+        >
+          {fromListName
+            ? t('player_now_playing_from', { name: fromListName })
+            : t('player_now_playing')}
+        </Text>
 
-      <View style={styles.main}>
+        <View style={styles.flexGapSm} />
+
         <View style={[styles.recordWrap, { width: discSize, height: discSize }]}>
-          {radialLayersPrimary.map(layer => (
-            <View
-              key={layer.key}
-              pointerEvents="none"
-              style={[
-                styles.radialLayer,
-                {
-                  width: layer.size,
-                  height: layer.size,
-                  borderRadius: layer.size / 2,
-                  left: radialCenterX - layer.size / 2,
-                  top: radialCenterY - layer.size / 2,
-                  backgroundColor: layer.color,
-                  opacity: layer.opacity,
-                },
-              ]}
-            />
-          ))}
-          {radialLayersSecondary.map(layer => (
-            <View
-              key={layer.key}
-              pointerEvents="none"
-              style={[
-                styles.radialLayer,
-                {
-                  width: layer.size,
-                  height: layer.size,
-                  borderRadius: layer.size / 2,
-                  left: radialCenterX - layer.size / 2,
-                  top: radialCenterY - layer.size / 2,
-                  backgroundColor: layer.color,
-                  opacity: layer.opacity,
-                },
-              ]}
-            />
-          ))}
-          {radialLayersHighlight.map(layer => (
-            <View
-              key={layer.key}
-              pointerEvents="none"
-              style={[
-                styles.radialLayer,
-                {
-                  width: layer.size,
-                  height: layer.size,
-                  borderRadius: layer.size / 2,
-                  left: radialCenterX - layer.size / 2,
-                  top: radialCenterY - layer.size / 2,
-                  backgroundColor: layer.color,
-                  opacity: layer.opacity,
-                },
-              ]}
-            />
-          ))}
           <Animated.View style={[styles.recordSpin, { transform: [{ rotate: recordRotate }] }]}>
-            <View style={styles.record}>
+            <View style={[styles.record, {
+              backgroundColor: colors.surface.vinyl,
+              borderColor: vinylRing,
+            }]}>
               {vinylGrooves.map(groove => (
                 <View
                   key={groove.key}
@@ -448,29 +385,37 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
                       right: groove.inset,
                       bottom: groove.inset,
                       opacity: groove.opacity,
+                      borderColor: colors.line.white,
                     },
                   ]}
                 />
               ))}
-              <View pointerEvents="none" style={[styles.vinylSheen, vinylSheenStyle]} />
-              <View style={styles.recordInner}>
-                {prevCover ? (
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.coverLayer,
-                      { opacity: prevCoverOpacity, transform: [{ scale: prevCoverScale }] },
-                    ]}
-                  >
-                    <Image style={styles.recordImage} url={prevCover} />
-                  </Animated.View>
-                ) : null}
+              <View
+                pointerEvents="none"
+                style={[styles.vinylSheen, vinylSheenStyle, { borderColor: colors.glass.line16 }]}
+              />
+              <View style={[styles.recordInner, { borderColor: colors.scrim.vinylInner }]}>
+                {prevCover
+                  ? (
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.coverLayer,
+                        { opacity: prevCoverOpacity, transform: [{ scale: prevCoverScale }] },
+                      ]}
+                    >
+                      <Image style={styles.recordImage} url={prevCover} />
+                    </Animated.View>
+                    )
+                  : null}
                 <Animated.View style={[styles.coverLayer, { opacity: currentCoverOpacity, transform: [{ scale: currentCoverScale }] }]}>
                   <Image style={styles.recordImage} url={currentCover} />
                 </Animated.View>
+                <View style={[styles.centerHole, { backgroundColor: r.paper }]} />
               </View>
             </View>
           </Animated.View>
+
           <View pointerEvents="none" style={styles.tonearm}>
             <Animated.View
               style={[
@@ -486,192 +431,151 @@ export default ({ componentId, active, onCommentPress }: { componentId: string, 
                 },
               ]}
             >
-              <View style={styles.tonearmPivot} />
-              <View style={styles.tonearmArm} />
-              <View style={styles.tonearmHead} />
+              <View style={[styles.tonearmPivotOuter, { backgroundColor: armCore, borderColor: armEdge }]}>
+                <View style={[styles.tonearmPivotDot, { backgroundColor: armEdge }]} />
+              </View>
+              <View style={[styles.tonearmArmOuter, { backgroundColor: armEdge }]} />
+              <View style={[styles.tonearmArmInner, { backgroundColor: armCore }]} />
+              <View style={[styles.tonearmHead, { backgroundColor: armCore, borderColor: armEdge }]} />
+              <View style={[styles.tonearmNeedle, { backgroundColor: r.accent }]} />
             </Animated.View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.bottomPanel}>
-        <View style={styles.songInfo}>
+        <View style={styles.flexGapRecord} />
+
+        <View>
           <View style={styles.titleRow}>
-            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={() => { onCommentPress?.() }}>
-              <Icon name="comment" rawSize={20} color={colors.ink.faint} />
-            </TouchableOpacity>
-            <Text size={24} color={colors.ink.strong} numberOfLines={1} style={styles.songTitle}>
-              {musicInfo.name || 'Midnight City Echoes'}
+            <Text size={32} color={r.display} numberOfLines={2} style={styles.songTitle}>
+              {musicInfo.name || '—'}
             </Text>
-            <TouchableOpacity style={styles.sideActionBtn} activeOpacity={0.7} onPress={handleToggleLoved}>
-              {isLoved
-                ? <MdiIcon name="heart" size={24} color={colors.like} />
-                : <MdiIcon name="heart-outline" size={24} color={colors.ink.faint} />}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              activeOpacity={0.7}
+              onPress={handleShowMusicAddModal}
+              accessibilityRole="button"
+              accessibilityLabel={t('add_to')}
+            >
+              <MdiIcon name="playlist-plus" size={26} color={r.ink} />
             </TouchableOpacity>
-          </View>
-          <Text size={18} color={sourceAccentColor} numberOfLines={1} style={styles.singer}>
-            {musicInfo.singer || 'Neon Dreamer'}
-          </Text>
-          <View>
-            <View style={styles.progressWrap}>
-              <SeekBar
-                progress={progress}
-                duration={maxPlayTime}
-                accentColor={sourceAccentColor}
-                trackColor={sourceTrackColor}
-                barHeight={4}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              activeOpacity={0.7}
+              onPress={handleToggleLoved}
+              accessibilityRole="button"
+            >
+              <MdiIcon
+                name={isLoved ? 'heart' : 'heart-outline'}
+                size={26}
+                color={isLoved ? r.like : r.ink}
               />
-            </View>
-            <View style={styles.timeRow}>
-              <Text size={11} color={colors.ink.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
-              <Text size={11} color={colors.ink.faint} style={styles.timeText}>{maxPlayTimeStr}</Text>
-            </View>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.metaRow}>
+            {source && sourceLabel ? <SourceTag source={source} label={sourceLabel} /> : null}
+            {singerMeta
+              ? <Text size={magType.meta.size} color={r.muted} numberOfLines={1} style={styles.metaText}>{singerMeta}</Text>
+              : null}
           </View>
         </View>
 
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
-            <Icon name={playModeIcon} rawSize={22} color={colors.ink.faint} />
-          </TouchableOpacity>
-          <View style={styles.controlRow}>
-            <TouchableOpacity style={styles.mediumBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
-              <Icon name="prevMusic" rawSize={28} color={colors.control.skip} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.playBtn} activeOpacity={0.85} onPress={handleTogglePlay}>
-              <Icon name={isPlay ? 'pause' : 'play'} rawSize={34} color={colors.ink.onControl} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediumBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
-              <Icon name="nextMusic" rawSize={28} color={colors.control.skip} />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.smallBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
-            <Icon name="menu" rawSize={22} color={colors.ink.faint} />
-          </TouchableOpacity>
-        </View>
-      </View>
+        <View style={styles.flexGapTitle} />
 
+        {hasLyricPreview
+          ? (
+            <>
+              <View style={styles.lyricPreview}>
+                <View style={[styles.lyricAccent, { backgroundColor: r.accent }]} />
+                <View style={styles.lyricLines}>
+                  {currentLyric
+                    ? <Text size={17} color={r.ink} numberOfLines={1} style={styles.lyricCurrent}>{currentLyric}</Text>
+                    : null}
+                  {nextLyric
+                    ? <Text size={14} color={r.faint} numberOfLines={1} style={styles.lyricNext}>{nextLyric}</Text>
+                    : null}
+                </View>
+              </View>
+              <View style={styles.flexGapLyric} />
+            </>
+            )
+          : <View style={styles.flexGapLyric} />}
+      </ScrollView>
+
+      <PlayerTransport
+        progress={progress}
+        duration={maxPlayTime}
+        nowPlayTimeStr={nowPlayTimeStr}
+        maxPlayTimeStr={maxPlayTimeStr}
+      >
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
+          <Icon name={playModeIcon} rawSize={22} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playPrev() }}>
+          <Icon name="prevMusic" rawSize={28} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.playBtn, { backgroundColor: r.ink }]}
+          activeOpacity={0.85}
+          onPress={handleTogglePlay}
+        >
+          <Icon name={isPlay ? 'pause' : 'play'} rawSize={28} color={r.onInk} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => { void playNext() }}>
+          <Icon name="nextMusic" rawSize={28} color={r.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleToggleQueuePanel}>
+          <MdiIcon name="playlist-music" size={24} color={r.ink} />
+        </TouchableOpacity>
+      </PlayerTransport>
+      <MusicAddModal ref={musicAddModalRef} />
     </View>
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => (createStyle({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.plain,
   },
-  gradientLinearWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '62%',
-    overflow: 'hidden',
-  },
-  gradientLinearRow: {
+  scroll: {
     flex: 1,
   },
-  gradientCoverImage: {
-    position: 'absolute',
-    top: -26,
-    left: -24,
-    right: -24,
-    bottom: -18,
-    opacity: 0.92,
-    transform: [{ scale: 1.1 }],
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: PAGE_GUTTER,
   },
-  radialLayer: {
-    position: 'absolute',
-  },
-  header: {
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: {
-    transform: [{ rotate: '-90deg' }],
-  },
-  headerShareIcon: {
-    width: 20,
-    height: 20,
-    tintColor: colors.ink.strong,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerUpper: {
+  eyebrow: {
+    fontWeight: '700',
+    letterSpacing: 2,
     textTransform: 'uppercase',
-    fontWeight: '600',
-    letterSpacing: 1.3,
+    marginTop: 10,
   },
-  headerTitle: {
-    marginTop: 2,
-    fontWeight: '500',
+  /** Absorb leftover height so the control row sits near the bottom on tall screens. */
+  flexGapSm: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 8,
   },
-  main: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingTop: 6,
+  flexGapRecord: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 30,
+  },
+  flexGapTitle: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 18,
+  },
+  flexGapLyric: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 14,
   },
   recordWrap: {
+    alignSelf: 'center',
     position: 'relative',
     overflow: 'visible',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-  },
-  tonearm: {
-    position: 'absolute',
-    top: 36,
-    right: 2,
-    width: 118,
-    height: 76,
-    opacity: 0.66,
-    zIndex: 5,
-  },
-  tonearmMotion: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  tonearmPivot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.decor.tonearmPivot,
-  },
-  tonearmArm: {
-    position: 'absolute',
-    top: 6,
-    right: 12,
-    width: 82,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.decor.tonearmArm,
-  },
-  tonearmHead: {
-    position: 'absolute',
-    top: 5,
-    right: 92,
-    width: 14,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: colors.decor.tonearmHead,
   },
   recordSpin: {
     width: '100%',
@@ -684,25 +588,17 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     height: '100%',
     borderRadius: 999,
     borderWidth: 3,
-    borderColor: colors.scrim.vinylRing,
-    backgroundColor: colors.surface.vinyl,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.shadow.black,
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
   },
   vinylGroove: {
     position: 'absolute',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.line.white,
   },
   vinylSheen: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: colors.glass.line16,
     transform: [{ rotate: '-18deg' }],
     opacity: 0.35,
   },
@@ -712,7 +608,6 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     borderRadius: 999,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.scrim.vinylInner,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -728,99 +623,117 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     height: '100%',
     borderRadius: 999,
   },
-  songInfo: {
-    width: '100%',
-    maxWidth: 420,
+  centerHole: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    zIndex: 2,
   },
-  bottomPanel: {
-    backgroundColor: colors.surface.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 22,
-    shadowColor: colors.shadow.black,
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -2 },
+  tonearm: {
+    position: 'absolute',
+    top: 8,
+    right: -4,
+    width: 120,
+    height: 90,
+    zIndex: 5,
+  },
+  tonearmMotion: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  tonearmPivotOuter: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tonearmPivotDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tonearmArmOuter: {
+    position: 'absolute',
+    top: 11.5,
+    right: 22,
+    width: 86,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  tonearmArmInner: {
+    position: 'absolute',
+    top: 13,
+    right: 24,
+    width: 82,
+    height: 4,
+    borderRadius: 2,
+  },
+  tonearmHead: {
+    position: 'absolute',
+    top: 6,
+    right: 96,
+    width: 20,
+    height: 24,
+    borderRadius: 2.5,
+    borderWidth: 1.5,
+  },
+  tonearmNeedle: {
+    position: 'absolute',
+    top: 28,
+    right: 102,
+    width: 10,
+    height: 4,
+    borderRadius: 1,
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 42,
-    marginBottom: 4,
-  },
-  sideActionBtn: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sideActionIcon: {
-    width: 24,
-    height: 24,
-    tintColor: colors.ink.faint,
-  },
-  likedIcon: {
-    width: 24,
-    height: 24,
+    alignItems: 'flex-start',
+    gap: 4,
   },
   songTitle: {
     flex: 1,
-    textAlign: 'center',
-    fontWeight: '700',
-    marginHorizontal: 4,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    textAlign: 'left',
   },
-  singer: {
-    textAlign: 'center',
-    fontWeight: '400',
-    marginBottom: 12,
-  },
-  progressWrap: {
-    marginTop: 4,
-  },
-  timeRow: {
+  iconBtn: playerTransportControlStyles.iconBtn,
+  playBtn: playerTransportControlStyles.playBtn,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 8,
+  },
+  metaText: {
+    flexShrink: 1,
+  },
+  lyricPreview: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: 10,
+    minHeight: 48,
   },
-  timeText: {
-    fontWeight: '700',
+  lyricAccent: {
+    width: 3,
+    borderRadius: 1.5,
   },
-  footer: {
-    paddingTop: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  smallBtn: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
+  lyricLines: {
+    flex: 1,
     justifyContent: 'center',
+    gap: 4,
   },
-  controlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  lyricCurrent: {
+    fontWeight: '800',
   },
-  mediumBtn: {
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.control.play,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 10,
-    shadowColor: colors.control.playShadow,
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+  lyricNext: {
+    fontWeight: '400',
   },
 })))
-

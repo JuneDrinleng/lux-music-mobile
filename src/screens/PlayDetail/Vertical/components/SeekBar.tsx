@@ -4,14 +4,22 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { PanResponder, View } from 'react-native'
 import { useDrag } from '@/utils/hooks'
 import { createStyle } from '@/utils/tools'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
 
 interface Props {
   progress: number
   duration: number
-  accentColor: string
-  trackColor: string
+  /** @deprecated Magazine seek uses ink fill + accent thumb; kept for call-site compat. */
+  accentColor?: string
+  /** @deprecated */
+  trackColor?: string
   barHeight?: number
 }
+
+const THUMB = 14
+const TRACK_H = 2
+const FILL_H = 4
 
 const clampProgress = (progress: number) => {
   if (!Number.isFinite(progress)) return 0
@@ -20,7 +28,9 @@ const clampProgress = (progress: number) => {
   return progress
 }
 
-export default memo(({ progress, duration, accentColor, trackColor, barHeight = 4 }: Props) => {
+export default memo(({ progress, duration }: Props) => {
+  const { colors, mode } = useLuxTheme()
+  const r = magazineRoles(colors)
   const [draging, setDraging] = useState(false)
   const [dragProgress, setDragProgress] = useState(0)
   const durationRef = useRef(duration)
@@ -63,20 +73,34 @@ export default memo(({ progress, duration, accentColor, trackColor, barHeight = 
   ).current
 
   const visibleProgress = clampProgress(draging ? dragProgress : progress)
+  const thumbLeft = `${visibleProgress * 100}%`
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.track, { backgroundColor: trackColor, height: barHeight }]}>
-        <View
-          style={[
-            styles.fill,
-            {
-              width: `${visibleProgress * 100}%`,
-              backgroundColor: accentColor,
-            },
-          ]}
-        />
-      </View>
+      <View style={[styles.track, { backgroundColor: r.hairline, height: TRACK_H }]} />
+      <View
+        style={[
+          styles.fill,
+          {
+            width: thumbLeft as `${number}%`,
+            backgroundColor: r.ink,
+            height: FILL_H,
+            marginTop: -(FILL_H - TRACK_H) / 2,
+          },
+        ]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.thumb,
+          {
+            left: thumbLeft as `${number}%`,
+            backgroundColor: r.accent,
+            borderColor: mode === 'dark' ? r.paper : r.ink,
+            marginLeft: -THUMB / 2,
+          },
+        ]}
+      />
       <View onLayout={onLayout} style={styles.touchArea} {...panResponder.panHandlers} />
     </View>
   )
@@ -86,20 +110,32 @@ const styles = createStyle({
   wrap: {
     position: 'relative',
     width: '100%',
+    height: 44,
+    justifyContent: 'center',
   },
   track: {
     borderRadius: 999,
-    overflow: 'hidden',
+    width: '100%',
   },
   fill: {
-    height: '100%',
+    position: 'absolute',
+    left: 0,
+    borderRadius: 999,
+  },
+  thumb: {
+    position: 'absolute',
+    width: THUMB,
+    height: THUMB,
+    borderRadius: THUMB / 2,
+    borderWidth: 2,
+    top: (44 - THUMB) / 2,
   },
   touchArea: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: -10,
-    bottom: -10,
+    top: 0,
+    bottom: 0,
     zIndex: 5,
   },
 })

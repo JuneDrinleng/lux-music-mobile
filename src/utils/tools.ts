@@ -15,6 +15,7 @@ import { stringMd5 } from 'react-native-quick-md5'
 import { windowSizeTools } from '@/utils/windowSizeTools'
 import { type PermissionPromptAction, type PermissionPromptPayload } from '@/types/permissionPrompt'
 import { type AppDialogAction, type AppDialogPayload } from '@/types/appDialog'
+import { showMagToast } from '@/components/magazine/toastBus'
 
 
 // https://stackoverflow.com/a/47349998
@@ -103,40 +104,24 @@ export const requestStoragePermission = async() => {
 
 
 /**
- * 显示toast
+ * 显示toast（杂志风 MagToast；无 Host 时退回 ToastAndroid）
  * @param message 消息
  * @param duration 时长
- * @param position 位置
+ * @param position 位置（杂志风固定在 Dock 上方，忽略 position）
  */
-export const toast = (message: string, duration: 'long' | 'short' = 'short', position: 'top' | 'center' | 'bottom' = 'bottom') => {
-  let _duration
-  switch (duration) {
-    case 'long':
-      _duration = ToastAndroid.LONG
-      break
-    case 'short':
-    default:
-      _duration = ToastAndroid.SHORT
-      break
-  }
-  let _position
-  let offset: number
-  switch (position) {
-    case 'top':
-      _position = ToastAndroid.TOP
-      offset = 120
-      break
-    case 'center':
-      _position = ToastAndroid.CENTER
-      offset = 0
-      break
-    case 'bottom':
-    default:
-      _position = ToastAndroid.BOTTOM
-      offset = 120
-      break
-  }
-  ToastAndroid.showWithGravityAndOffset(message, _duration, _position, 0, offset)
+export const toast = (message: string, duration: 'long' | 'short' = 'short', _position: 'top' | 'center' | 'bottom' = 'bottom') => {
+  const shown = showMagToast({
+    message,
+    durationMs: duration === 'long' ? 3600 : 2200,
+  })
+  if (shown) return
+  ToastAndroid.showWithGravityAndOffset(
+    message,
+    duration === 'long' ? ToastAndroid.LONG : ToastAndroid.SHORT,
+    ToastAndroid.BOTTOM,
+    0,
+    120,
+  )
 }
 
 export const openUrl = async(url: string): Promise<void> => Linking.canOpenURL(url).then(async() => Linking.openURL(url))
@@ -214,6 +199,9 @@ const showAppDialog = async({
   confirmText,
   showConfirm = true,
   bgHide = true,
+  eyebrow,
+  eyebrowDanger,
+  confirmDanger,
 }: Omit<AppDialogPayload, 'requestId'>): Promise<AppDialogAction> => {
   const ready = await waitForPromptHostReady('appDialogReady')
   if (!ready) return 'cancel'
@@ -235,6 +223,9 @@ const showAppDialog = async({
       confirmText,
       showConfirm,
       bgHide,
+      eyebrow,
+      eyebrowDanger,
+      confirmDanger,
     })
   })
 }
@@ -245,6 +236,18 @@ export const confirmDialog = async({
   cancelButtonText = global.i18n.t('dialog_cancel'),
   confirmButtonText = global.i18n.t('dialog_confirm'),
   bgClose = true,
+  eyebrow,
+  eyebrowDanger,
+  confirmDanger,
+}: {
+  title?: string
+  message?: string
+  cancelButtonText?: string
+  confirmButtonText?: string
+  bgClose?: boolean
+  eyebrow?: string
+  eyebrowDanger?: boolean
+  confirmDanger?: boolean
 }) => {
   const action = await showAppDialog({
     title,
@@ -253,6 +256,9 @@ export const confirmDialog = async({
     confirmText: confirmButtonText,
     showConfirm: true,
     bgHide: bgClose,
+    eyebrow,
+    eyebrowDanger,
+    confirmDanger,
   })
   return action == 'confirm'
 }

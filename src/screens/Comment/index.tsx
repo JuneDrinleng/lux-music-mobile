@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { memo, useMemo, useEffect, useRef, useState, useCallback } from 'react'
 import { View, TouchableOpacity } from 'react-native'
 import Header from './components/Header'
@@ -5,7 +7,9 @@ import Image from '@/components/common/Image'
 import CommentHot from './CommentHot'
 import CommentNew from './CommentNew'
 import { createStyle, shareMusic } from '@/utils/tools'
+import { formatPlayCount } from '@/utils'
 import Text from '@/components/common/Text'
+import { TextTabs } from '@/components/magazine'
 import { useI18n } from '@/lang'
 import { COMPONENT_IDS } from '@/config/constant'
 import { setComponentId } from '@/core/common'
@@ -13,26 +17,12 @@ import PageContent from '@/components/PageContent'
 import playerState from '@/store/player/state'
 import { usePlayerMusicInfo, usePlayMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
-import { createLinearGradientColors, createWhiteFadeMaskColors, getCoverTheme } from '../PlayDetail/Vertical/coverTheme'
-import { MdiIcon } from '@/components/common/MdiIcon'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { PLAYER_ICON_TAP } from '@/screens/PlayDetail/Vertical/PlayerChrome'
 
 type ActiveId = 'hot' | 'new'
-
-const TabIconBtn = ({ icon, isActive, onPress }: {
-  icon: string
-  isActive: boolean
-  onPress: () => void
-}) => {
-  return (
-    <TouchableOpacity
-      style={[styles.tabIconBtn, isActive && styles.tabIconBtnActive]}
-      activeOpacity={0.7}
-      onPress={onPress}
-    >
-      <MdiIcon name={icon} size={18} color="#111827" />
-    </TouchableOpacity>
-  )
-}
 
 const HotCommentPage = memo(({ activeId, musicInfo, onUpdateTotal, refreshKey }: {
   activeId: ActiveId
@@ -72,32 +62,30 @@ const getMusicInfo = (musicInfo: LX.Player.PlayMusic | null) => {
   if (!musicInfo) return null
   return 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
 }
-export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
+
+export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0 }: {
   componentId?: string
   embedded?: boolean
+  hideChrome?: boolean
   onBack?: () => void
   refreshKey?: number
 }) => {
+  const styles = useLuxStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const [activeId, setActiveId] = useState<ActiveId>('hot')
   const [musicInfo, setMusicInfo] = useState<LX.Music.MusicInfo | null>(getMusicInfo(playerState.playMusicInfo.musicInfo))
   const [internalRefreshKey, setInternalRefreshKey] = useState(0)
   const combinedRefreshKey = refreshKey + internalRefreshKey
   const t = useI18n()
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [total, setTotal] = useState({ hot: 0, new: 0 })
   const playerMusicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
-  const coverPic = playerMusicInfo.pic
-
-  const coverTheme = useMemo(() => getCoverTheme(coverPic ?? `${playerMusicInfo.id ?? 'track'}`), [playerMusicInfo.id, coverPic])
-  const hasBackgroundCover = Boolean(coverPic)
-  const gradientColors = useMemo(() => {
-    return hasBackgroundCover
-      ? createWhiteFadeMaskColors(84, 0.12, 1)
-      : createLinearGradientColors(coverTheme, 84)
-  }, [coverTheme, hasBackgroundCover])
   const shareType = useSettingValue('common.shareType')
   const downloadFileName = useSettingValue('download.fileName')
+
+  const displayTotal = activeId === 'hot' ? total.hot : total.new
+  const totalLabel = formatPlayCount(displayTotal)
 
   const handleShare = useCallback(() => {
     const currentMusicInfo = playMusicInfo.musicInfo
@@ -113,47 +101,64 @@ export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const toggleTab = useCallback((id: ActiveId) => {
-    setActiveId(id)
+  const toggleTab = useCallback((id: string) => {
+    if (id === 'hot' || id === 'new') setActiveId(id)
   }, [])
 
   const refreshComment = useCallback(() => {
     if (!playerState.playMusicInfo.musicInfo) return
-    let playerMusicInfo = playerState.playMusicInfo.musicInfo
-    if ('progress' in playerMusicInfo) playerMusicInfo = playerMusicInfo.metadata.musicInfo
+    let playerMusic = playerState.playMusicInfo.musicInfo
+    if ('progress' in playerMusic) playerMusic = playerMusic.metadata.musicInfo
 
-    if (musicInfo && musicInfo.id != playerMusicInfo.id) {
-      setMusicInfo(playerMusicInfo)
+    if (musicInfo && musicInfo.id != playerMusic.id) {
+      setMusicInfo(playerMusic)
     } else {
       setInternalRefreshKey(k => k + 1)
     }
   }, [musicInfo])
 
-  const setHotTotal = useCallback((total: number) => {
-    setTotal(totalInfo => ({ ...totalInfo, hot: total }))
+  const setHotTotal = useCallback((next: number) => {
+    setTotal(info => ({ ...info, hot: next }))
   }, [])
-  const setNewTotal = useCallback((total: number) => {
-    setTotal(totalInfo => ({ ...totalInfo, new: total }))
+  const setNewTotal = useCallback((next: number) => {
+    setTotal(info => ({ ...info, new: next }))
   }, [])
+
+  const filterTabs = useMemo(() => ([
+    { id: 'hot', label: t('player_comment_hot') },
+    { id: 'new', label: t('player_comment_new') },
+  ]), [t])
 
   const commentComponent = useMemo(() => {
     return (
       <View style={styles.innerContainer}>
-        <View style={styles.infoRow}>
-          <View style={styles.songInfo}>
-            <Text size={15} color="#111827" numberOfLines={2} style={styles.songName}>
+        <View style={styles.songHead}>
+          <Image style={styles.cover} url={playerMusicInfo.pic} />
+          <View style={styles.songText}>
+            <Text size={magType.rowTitle.size} color={r.ink} numberOfLines={1} style={styles.songName}>
               {musicInfo?.name ?? ''}
             </Text>
-            <Text size={11} color="#64748b" numberOfLines={1}>
+            <Text size={magType.meta.size} color={r.muted} numberOfLines={1}>
               {musicInfo?.singer ?? ''}
             </Text>
           </View>
-          <View style={styles.tabIcons}>
-            <TabIconBtn icon="clock" isActive={activeId === 'new'} onPress={() => { toggleTab('new') }} />
-            <TabIconBtn icon="fire" isActive={activeId === 'hot'} onPress={() => { toggleTab('hot') }} />
-            <TabIconBtn icon="refresh" isActive={false} onPress={refreshComment} />
-          </View>
+          <TouchableOpacity style={styles.refreshBtn} activeOpacity={0.7} onPress={refreshComment}>
+            <Text size={13} color={r.muted} style={styles.refreshText}>{t('comment_refresh')}</Text>
+          </TouchableOpacity>
         </View>
+
+        <View style={styles.countBlock}>
+          <Text size={56} color={r.display} style={styles.countNum}>{totalLabel}</Text>
+          <Text size={magType.meta.size} color={r.muted} style={styles.countUnit}>{t('player_comment_count_unit')}</Text>
+        </View>
+
+        <TextTabs
+          items={filterTabs}
+          value={activeId}
+          onChange={toggleTab}
+          style={styles.filterTabs}
+        />
+
         <View collapsable={false} style={[styles.pageStyle, activeId !== 'hot' && styles.hiddenPage]}>
           <HotCommentPage activeId={activeId} musicInfo={musicInfo as LX.Music.MusicInfoOnline} onUpdateTotal={setHotTotal} refreshKey={combinedRefreshKey} />
         </View>
@@ -162,17 +167,35 @@ export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
         </View>
       </View>
     )
-  }, [activeId, musicInfo, refreshComment, setHotTotal, setNewTotal, toggleTab, combinedRefreshKey])
+  }, [
+    activeId,
+    combinedRefreshKey,
+    filterTabs,
+    musicInfo,
+    playerMusicInfo.pic,
+    r.display,
+    r.ink,
+    r.muted,
+    refreshComment,
+    setHotTotal,
+    setNewTotal,
+    styles,
+    t,
+    toggleTab,
+    totalLabel,
+  ])
 
   const content = musicInfo == null
     ? null
     : <>
-        <Header embedded={embedded} onBack={onBack} onShare={handleShare} />
+        {!hideChrome
+          ? <Header embedded={embedded} onBack={onBack} onShare={handleShare} />
+          : null}
         {
           musicInfo.source == 'local'
             ? (
             <View style={styles.emptyContainer}>
-              <Text>{t('comment_not support')}</Text>
+              <Text color={r.muted}>{t('comment_not support')}</Text>
             </View>
               )
             : commentComponent
@@ -181,15 +204,7 @@ export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
 
   if (embedded) {
     return (
-      <View style={styles.container}>
-        <View pointerEvents="none" style={styles.gradientLinearWrap}>
-          {hasBackgroundCover
-            ? <Image url={coverPic} cache={false} style={styles.gradientCoverImage} blurRadius={46} showFallback={false} />
-            : null}
-          {gradientColors.map((color, index) => (
-            <View key={`comment_gradient_${index}`} style={[styles.gradientLinearRow, { backgroundColor: color }]} />
-          ))}
-        </View>
+      <View style={[styles.container, { backgroundColor: r.paper }]}>
         {content}
       </View>
     )
@@ -202,69 +217,59 @@ export default memo(({ componentId, embedded, onBack, refreshKey = 0 }: {
   )
 })
 
-const styles = createStyle({
+const useLuxStyles = sharedLuxStyles(() => createStyle({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  gradientLinearWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '42%',
-    overflow: 'hidden',
-  },
-  gradientLinearRow: {
-    flex: 1,
-  },
-  gradientCoverImage: {
-    position: 'absolute',
-    top: -26,
-    left: -24,
-    right: -24,
-    bottom: -18,
-    opacity: 0.82,
-    transform: [{ scale: 1.1 }],
   },
   innerContainer: {
     flex: 1,
+    paddingHorizontal: PAGE_GUTTER,
   },
-  infoRow: {
+  songHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 14,
+    gap: 12,
+    paddingTop: 10,
+    marginBottom: 18,
   },
-  songInfo: {
+  cover: {
+    width: 48,
+    height: 48,
+    borderRadius: 4,
+  },
+  songText: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 12,
   },
   songName: {
     fontWeight: '700',
     marginBottom: 2,
   },
-  tabIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  tabIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  refreshBtn: {
+    minWidth: PLAYER_ICON_TAP,
+    minHeight: PLAYER_ICON_TAP,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
-  tabIconBtnActive: {
-    backgroundColor: 'rgba(15,23,42,0.06)',
+  refreshText: {
+    fontWeight: '600',
   },
-  tabIconBlack: {
-    width: 18,
-    height: 18,
-    tintColor: '#111827',
+  countBlock: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 14,
+  },
+  countNum: {
+    fontWeight: '800',
+    letterSpacing: -2,
+  },
+  countUnit: {
+    fontWeight: '600',
+  },
+  filterTabs: {
+    marginBottom: 6,
   },
   pageStyle: {
     flex: 1,
@@ -278,4 +283,4 @@ const styles = createStyle({
     alignItems: 'center',
     justifyContent: 'center',
   },
-})
+}))

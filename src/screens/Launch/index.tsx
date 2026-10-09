@@ -2,25 +2,33 @@
 
 // Lux Proprietary
 import { memo, useEffect, useState } from 'react'
-import { Image, StyleSheet, View } from 'react-native'
-import Loading from '@/components/common/Loading'
+import { Image, View } from 'react-native'
 import Text from '@/components/common/Text'
-import { useTheme } from '@/store/theme/hook'
-import { scaleSizeH, scaleSizeW } from '@/utils/pixelRatio'
+import { MagLoadingBar } from '@/components/magazine'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
+import { useI18n } from '@/lang'
 import { storageDataPrefix } from '@/config/constant'
 import { getData } from '@/plugins/storage'
 import { getSyncHost } from '@/plugins/sync/data'
+import defaultAvatar from '../../../assets/img/DefaultAvatar.png'
 
-const STATUS_TEXT = 'Sync...'
 let launchSyncHint = false
 
+/** ~40% of content width on a 375 baseline (content ≈ 331 with PAGE_GUTTER 22). */
+const SYNC_TRACK_WIDTH = 150
+
 export default memo(() => {
-  const theme = useTheme()
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const t = useI18n()
   const [showSyncHint, setShowSyncHint] = useState(launchSyncHint)
 
   useEffect(() => {
     let isUnmounted = false
-
     void Promise.all([
       getData<Partial<LX.AppSetting>>(storageDataPrefix.setting),
       getSyncHost(),
@@ -29,80 +37,55 @@ export default memo(() => {
       launchSyncHint = Boolean(setting?.['sync.enable'] && syncHost)
       setShowSyncHint(launchSyncHint)
     })
-
-    return () => {
-      isUnmounted = true
-    }
+    return () => { isUnmounted = true }
   }, [])
 
   return (
-    <View style={[styles.container, { backgroundColor: theme['c-content-background'] }]}>
+    <View style={[styles.container, { backgroundColor: r.paper }]}>
       <View style={styles.main}>
-        <View
-          style={[
-            styles.mark,
-            {
-              backgroundColor: theme['c-main-background'],
-            },
-          ]}
-        >
-          <Image
-            source={require('../../../assets/img/whitebg.png')}
-            style={styles.markImage}
-            resizeMode="contain"
-          />
-        </View>
-        <Text style={styles.title} size={26}>Lux Music</Text>
-        {
-          showSyncHint ? (
+        <Image source={defaultAvatar} style={styles.mark} accessibilityIgnoresInvertColors />
+        <Text size={magType.h1.size} color={r.display} style={styles.title}>Lux{'\n'}Music</Text>
+        <Text size={15} color={r.muted} style={styles.tagline}>{t('launch_tagline')}</Text>
+        {showSyncHint
+          ? (
             <View style={styles.syncHint}>
-              <Loading size={14} />
-              <Text style={styles.syncHintText} size={12} color={theme['c-font-label']}>
-                {STATUS_TEXT}
-              </Text>
+              <MagLoadingBar label="SYNC" trackWidth={SYNC_TRACK_WIDTH} />
             </View>
-          ) : null
-        }
+            )
+          : null}
       </View>
     </View>
   )
 })
 
-const styles = StyleSheet.create({
+const useStyles = sharedLuxStyles(() => createStyle({
   container: {
     flex: 1,
-    paddingHorizontal: scaleSizeW(24),
-    paddingTop: scaleSizeH(40),
-    paddingBottom: scaleSizeH(28),
+    paddingHorizontal: PAGE_GUTTER,
+    paddingTop: 72,
+    paddingBottom: 36,
   },
   main: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
   },
   mark: {
-    width: scaleSizeW(92),
-    height: scaleSizeW(92),
-    borderRadius: scaleSizeW(18),
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  markImage: {
-    width: '100%',
-    height: '100%',
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginBottom: 22,
   },
   title: {
-    marginTop: scaleSizeH(18),
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: -1,
+    lineHeight: 44,
+  },
+  tagline: {
+    marginTop: 14,
+    lineHeight: 22,
   },
   syncHint: {
-    marginTop: scaleSizeH(12),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 18,
+    alignSelf: 'flex-start',
   },
-  syncHintText: {
-    marginLeft: scaleSizeW(8),
-  },
-})
+}))

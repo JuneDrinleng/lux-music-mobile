@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       skip: ${{ steps.p.outputs.skip }}
       version: ${{ steps.p.outputs.version }}
@@ -38,12 +38,12 @@ jobs:
       prerelease: ${{ steps.p.outputs.prerelease }}
       prev_tag: ${{ steps.p.outputs.prev_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -111,9 +111,9 @@ jobs:
   build:
     needs: plan
     if: needs.plan.outputs.skip == 'false'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.tag }}
           fetch-depth: 1
@@ -245,18 +245,18 @@ jobs:
   feed:
     needs: [plan, build]
     if: always() && needs.plan.outputs.skip == 'false' && needs.build.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: feed
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: master
           fetch-depth: 0
           persist-credentials: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
 
@@ -295,3 +295,71 @@ jobs:
             sleep 5
           done
           exit 1
+
+      # 开发版发布成功且 version.json 已更新后：只保留最近 N 个 -dev. 预发布，删除更早的 Release 与 tag。
+      # 绝不触碰不含 -dev. 的正式版。单项删除失败不阻断整条 release。
+      - name: 清理旧的开发版 Release
+        if: needs.plan.outputs.prerelease == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_RELEASES_KEEP: 2
+        run: |
+          set -u
+          keep="${DEV_RELEASES_KEEP:-2}"
+          echo "DEV_RELEASES_KEEP=${keep}"
+
+          # 按创建时间倒序列出所有 Release，筛出 tag 含 -dev. 的开发版
+          mapfile -t all_dev < <(
+            gh release list --limit 1000 --json tagName,createdAt \
+              --jq 'sort_by(.createdAt) | reverse | .[].tagName' \
+              | grep -- '-dev\.' || true
+          )
+
+          total="${#all_dev[@]}"
+          echo "找到 ${total} 个开发版 Release（tag 含 -dev.）"
+
+          if [ "$total" -eq 0 ]; then
+            echo "无需清理"
+            exit 0
+          fi
+
+          kept=()
+          to_delete=()
+          i=0
+          for tag in "${all_dev[@]}"; do
+            if [ "$i" -lt "$keep" ]; then
+              kept+=("$tag")
+            else
+              to_delete+=("$tag")
+            fi
+            i=$((i + 1))
+          done
+
+          echo "保留（最新 ${keep} 个）："
+          if [ "${#kept[@]}" -eq 0 ]; then
+            echo "  （无）"
+          else
+            for tag in "${kept[@]}"; do
+              echo "  KEEP  $tag"
+            done
+          fi
+
+          echo "将删除："
+          if [ "${#to_delete[@]}" -eq 0 ]; then
+            echo "  （无）"
+          else
+            for tag in "${to_delete[@]}"; do
+              echo "  DELETE $tag"
+            done
+          fi
+
+          for tag in "${to_delete[@]}"; do
+            echo "删除 Release 与 tag：$tag"
+            gh release delete "$tag" --yes --cleanup-tag || {
+              echo "::warning::删除失败（已忽略）：$tag"
+              true
+            }
+          done
+
+          echo "清理完成：保留 ${#kept[@]} 个，尝试删除 ${#to_delete[@]} 个"

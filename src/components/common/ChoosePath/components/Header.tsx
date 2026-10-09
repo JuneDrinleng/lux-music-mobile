@@ -1,16 +1,19 @@
+/* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
+
 import { memo, useCallback, useEffect, useRef } from 'react'
-import { View, TouchableOpacity } from 'react-native'
+import { View } from 'react-native'
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
+import { IconButton, Rule } from '@/components/magazine'
 import { createStyle } from '@/utils/tools'
 import { getExternalStoragePaths, stat } from '@/utils/fs'
-import { useTheme } from '@/store/theme/hook'
-import { scaleSizeH } from '@/utils/pixelRatio'
 import { useStatusbarHeight } from '@/store/common/hook'
+import { useI18n } from '@/lang'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import NewFolderModal, { type NewFolderType } from './NewFolderModal'
 import OpenStorageModal, { type OpenDirModalType } from './OpenStorageModal'
 import type { PathItem } from './ListItem'
-
 
 export default memo(({
   title,
@@ -23,7 +26,10 @@ export default memo(({
   onRefreshDir: (dir: string) => Promise<PathItem[]>
   onOpenDir: (dir: string) => Promise<PathItem[]>
 }) => {
-  const theme = useTheme()
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const t = useI18n()
   const newFolderTypeRef = useRef<NewFolderType>(null)
   const openDirModalTypeRef = useRef<OpenDirModalType>(null)
   const storagePathsRef = useRef<string[]>([])
@@ -32,11 +38,11 @@ export default memo(({
   const checkExternalStoragePath = useCallback(() => {
     storagePathsRef.current = []
     void getExternalStoragePaths().then(async(storagePaths) => {
-      for (const path of storagePaths) {
+      for (const storagePath of storagePaths) {
         try {
-          if (!(await stat(path)).canRead) continue
+          if (!(await stat(storagePath)).canRead) continue
         } catch { continue }
-        storagePathsRef.current.push(path)
+        storagePathsRef.current.push(storagePath)
       }
     })
   }, [])
@@ -57,29 +63,29 @@ export default memo(({
     newFolderTypeRef.current?.show(path)
   }
 
+  const pathTail = path.split('/').filter(Boolean).pop() ?? path
+
   return (
     <>
-      <View style={{
-        ...styles.header,
-        height: scaleSizeH(50) + statusBarHeight,
-        paddingTop: statusBarHeight,
-        backgroundColor: theme['c-content-background'],
-      }} onStartShouldSetResponder={() => true}>
-        <View style={styles.titleContent}>
-          <Text color={theme['c-primary-font']} numberOfLines={1}>{title}</Text>
-          <Text style={styles.subTitle} color={theme['c-primary-font']} size={13} numberOfLines={1}>{path}</Text>
+      <View style={[styles.header, { paddingTop: statusBarHeight + 10, backgroundColor: r.paper }]} onStartShouldSetResponder={() => true}>
+        <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow}>{t('choose_path_eyebrow')}</Text>
+        <View style={styles.titleRow}>
+          <Text size={magType.sheetTitle.size} color={r.display} style={styles.title} numberOfLines={2}>{title || t('choose_path_title')}</Text>
+          <View style={styles.actions}>
+            <IconButton name="sd-card" accessibilityLabel={t('open_storage_select_path')} onPress={openStorage} size={22} />
+            <IconButton name="folder-plus-outline" accessibilityLabel={t('create_new_folder')} onPress={handleShowNewFolderModal} size={22} />
+            <IconButton name="refresh" accessibilityLabel={t('choose_path_refresh')} onPress={refresh} size={22} />
+          </View>
         </View>
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={openStorage}>
-            <Icon name="sd-card" color={theme['c-primary-font']} size={22} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleShowNewFolderModal}>
-            <Icon name="add_folder" color={theme['c-primary-font']} size={22} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={refresh}>
-            <Icon name="available_updates" color={theme['c-primary-font']} size={22} />
-          </TouchableOpacity>
-        </View>
+        <Rule compact gapTop={14} />
+        <Text size={12} color={r.muted} style={styles.path} numberOfLines={2}>
+          {path
+            ? <>
+                <Text size={12} color={r.muted}>{path.replace(/\/[^/]*$/, '/')}</Text>
+                <Text size={12} color={r.ink} style={styles.pathTail}>{pathTail}</Text>
+              </>
+            : null}
+        </Text>
       </View>
       <OpenStorageModal ref={openDirModalTypeRef} onOpenDir={onOpenDir} />
       <NewFolderModal ref={newFolderTypeRef} onRefreshDir={onRefreshDir} />
@@ -87,56 +93,36 @@ export default memo(({
   )
 })
 
-const styles = createStyle({
+const useStyles = sharedLuxStyles(() => createStyle({
   header: {
     flexGrow: 0,
     flexShrink: 0,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingBottom: 8,
+  },
+  eyebrow: {
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  titleRow: {
     flexDirection: 'row',
-    paddingLeft: 15,
-    paddingRight: 15,
-    alignItems: 'center',
-    elevation: 2,
-    zIndex: 2,
-    // borderBottomWidth: BorderWidths.normal,
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 8,
   },
-  titleContent: {
-    flexGrow: 1,
-    flexShrink: 1,
-    // height: 57,
-    // paddingRight: 5,
-    // paddingBottom: 10,
-  },
-  // title: {
-  //   paddingTop: 10,
-  // },
-  subTitle: {
-    paddingTop: 1,
+  title: {
+    flex: 1,
+    fontWeight: '800',
   },
   actions: {
     flexDirection: 'row',
-    // backgroundColor: 'rgba(0,0,0,0.2)',
   },
-  actionBtn: {
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingLeft: 6,
-    paddingRight: 6,
-    marginLeft: 10,
+  path: {
+    marginTop: 10,
+    lineHeight: 18,
   },
-  newFolderContent: {
-    flexShrink: 1,
-    flexDirection: 'column',
+  pathTail: {
+    fontWeight: '700',
   },
-  newFolderTitle: {
-    marginBottom: 5,
-  },
-  input: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 240,
-    borderRadius: 4,
-    paddingTop: 2,
-    paddingBottom: 2,
-  },
-})
-
+}))

@@ -1,49 +1,51 @@
-import { type MutableRefObject, type RefObject, type ReactNode } from 'react'
-import { Animated, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type GestureResponderHandlers, type LayoutChangeEvent } from 'react-native'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import Image from '@/components/common/Image'
+import { type MutableRefObject, type RefObject, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  ScrollView,
+  TouchableOpacity,
+  View,
+  type GestureResponderEvent,
+  type GestureResponderHandlers,
+  type LayoutChangeEvent,
+} from 'react-native'
+
 import { MdiIcon } from '@/components/common/MdiIcon'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
-import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import Text from '@/components/common/Text'
-import { type useI18n } from '@/lang'
+import {
+  EmptyState,
+  IconButton,
+  MagMenu,
+  MagSegmented,
+  MagTopBar,
+} from '@/components/magazine'
+import { MAG_SEGMENTED_COMPACT } from '@/components/magazine/magSegmentedLayout'
 import PlaylistLibraryCard, { type PlaylistCardShiftAnims, type PlaylistDragController } from '@/components/playlist/PlaylistLibraryCard'
+import { type useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 
-interface FeaturedLibraryCard {
-  id: string
-  list: LX.List.MyListInfo
-  icon: string
-  title: string
-  count: number
-  cover: string | null
-}
+export type PlaylistSortMode = 'default' | 'time' | 'custom'
 
 export interface PlaylistLibrarySceneProps {
-  styles: Record<string, any>
   t: ReturnType<typeof useI18n>
-  headerHeight: number
+  statusBarHeight: number
   bottomDockHeight: number
+  masthead: string
+  onSearchPress: () => void
   profileHero?: ReactNode
   quickActionsRow?: ReactNode
-  hideGreeting?: boolean
-  featuredLibraryCards: FeaturedLibraryCard[]
   displayPlaylists: LX.List.UserListInfo[]
   playlistMetaMap: Record<string, { count: number, pic: string | null }>
   playlistDisplayMode: 'grid' | 'list'
-  displaySwitchItems: SegmentedIconSwitchItem[]
-  isPlaylistTimeSort: boolean
-  playlistSortIcon: string
-  playlistAddIcon: string
+  sectionMeta: string
+  playlistSortMode: PlaylistSortMode
   isPlaylistListMode: boolean
   isPlay: boolean
-  isSourceMenuVisible: boolean
-  sourceMenuBackdropOpacity: Animated.AnimatedInterpolation<number>
   createListDialogRef: RefObject<PromptDialogType>
-  getPlaylistCardTone: (index: number) => { surface: string, accent: string, ink: string }
   isPlaylistCurrent: (listId: string | null | undefined) => boolean
-  isPlaylistCustomSort?: boolean
   isPlaylistDragActive?: boolean
   draggingPlaylistId?: string | null
   playlistShiftAnimMap?: Map<string, PlaylistCardShiftAnims>
@@ -60,39 +62,40 @@ export interface PlaylistLibrarySceneProps {
   onPlaylistContentSizeChange?: (width: number, height: number) => void
   onPlaylistCardLayout?: (itemId: string, layout: { x: number, y: number, width: number, height: number }) => void
   onPlaylistSectionLayout?: (event: LayoutChangeEvent) => void
-  onCloseSourceMenu: () => void
   onOpenList: (listInfo: LX.List.MyListInfo) => void
   onPlaylistDisplayModeChange: (mode: 'grid' | 'list') => void
-  onTogglePlaylistSort: () => void
+  onPlaylistSortChange: (mode: PlaylistSortMode) => void
   onShowCreateListModal: () => void
   onPlayPlaylistPress: (listId: string | null | undefined) => (event: GestureResponderEvent) => void
   onCreateList: (value: string) => Promise<boolean>
 }
 
+/** Shared visual height for 新建 / 排序 controls; MagSegmented compact is 28. */
+const TOOLBAR_VISUAL_H = MAG_SEGMENTED_COMPACT.visualHeight
+const TOOLBAR_HIT_SLOP = {
+  top: Math.ceil((44 - TOOLBAR_VISUAL_H) / 2),
+  bottom: Math.ceil((44 - TOOLBAR_VISUAL_H) / 2),
+  left: 6,
+  right: 6,
+} as const
+
 export default ({
-  styles,
   t,
-  headerHeight,
+  statusBarHeight,
   bottomDockHeight,
+  masthead,
+  onSearchPress,
   profileHero,
   quickActionsRow,
-  hideGreeting,
-  featuredLibraryCards,
   displayPlaylists,
   playlistMetaMap,
   playlistDisplayMode,
-  displaySwitchItems,
-  isPlaylistTimeSort,
-  playlistSortIcon,
-  playlistAddIcon,
+  sectionMeta,
+  playlistSortMode,
   isPlaylistListMode,
   isPlay,
-  isSourceMenuVisible,
-  sourceMenuBackdropOpacity,
   createListDialogRef,
-  getPlaylistCardTone,
   isPlaylistCurrent,
-  isPlaylistCustomSort,
   isPlaylistDragActive,
   draggingPlaylistId,
   playlistShiftAnimMap,
@@ -109,27 +112,62 @@ export default ({
   onPlaylistContentSizeChange,
   onPlaylistCardLayout,
   onPlaylistSectionLayout,
-  onCloseSourceMenu,
   onOpenList,
   onPlaylistDisplayModeChange,
-  onTogglePlaylistSort,
+  onPlaylistSortChange,
   onShowCreateListModal,
   onPlayPlaylistPress,
   onCreateList,
 }: PlaylistLibrarySceneProps) => {
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const sortAnchorRef = useRef<View>(null)
+  const [sortMenuVisible, setSortMenuVisible] = useState(false)
+  const [sortAnchor, setSortAnchor] = useState({ top: 120, left: 22, width: 220 })
+
+  const viewItems = useMemo(() => ([
+    { id: 'grid', label: t('library_view_grid') },
+    { id: 'list', label: t('library_view_list') },
+  ]), [t])
+
+  const sortShortLabel = playlistSortMode === 'custom'
+    ? t('library_sort_custom_short')
+    : playlistSortMode === 'time'
+      ? t('library_sort_oldest_short')
+      : t('library_sort_recent_short')
+
+  const sortMenuItems = useMemo(() => ([
+    { id: 'default', label: t('library_sort_recent') },
+    { id: 'time', label: t('library_sort_oldest') },
+    {
+      id: 'custom',
+      label: t('library_sort_custom'),
+      note: t('library_sort_custom_note'),
+    },
+  ]), [t])
+
+  const openSortMenu = useCallback(() => {
+    sortAnchorRef.current?.measureInWindow((x, y, width, height) => {
+      const menuWidth = 220
+      setSortAnchor({
+        top: y + height + 6,
+        left: Math.max(PAGE_GUTTER, x + width - menuWidth),
+        width: menuWidth,
+      })
+      setSortMenuVisible(true)
+    })
+  }, [])
 
   return (
-    <View style={styles.container} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
-      {isSourceMenuVisible
-        ? <Animated.View style={[styles.sourceMenuPageBackdropWrap, styles.sourceMenuBackdrop, { opacity: sourceMenuBackdropOpacity }]}>
-            <TouchableOpacity style={styles.sourceMenuPageBackdrop} activeOpacity={1} onPress={onCloseSourceMenu} />
-          </Animated.View>
-        : null}
+    <View style={{ flex: 1, backgroundColor: r.paper }} {...playlistPanHandlers} onTouchEndCapture={onPlaylistTouchEnd}>
       <ScrollView
         ref={playlistScrollRef}
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 2, paddingBottom: bottomDockHeight }]}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: statusBarHeight,
+          paddingHorizontal: PAGE_GUTTER,
+          paddingBottom: bottomDockHeight + 24,
+        }}
         showsVerticalScrollIndicator={false}
         bounces={false}
         alwaysBounceVertical={false}
@@ -144,88 +182,137 @@ export default ({
         onLayout={onPlaylistScrollLayout}
         onContentSizeChange={onPlaylistContentSizeChange}
       >
+        <MagTopBar
+          masthead={masthead}
+          trailing={
+            <IconButton
+              name="magnify"
+              accessibilityLabel={t('action_search')}
+              onPress={onSearchPress}
+            />
+          }
+        />
+
         {profileHero}
 
         {quickActionsRow}
 
-        {!hideGreeting
-          ? <View style={styles.greetingBlock}>
-              <Text size={30} color={colors.ink.pageTitle} style={styles.greetingTitle}>{t('me_my_playlists')}</Text>
-            </View>
-          : null}
-
-        <View style={styles.quickRow}>
-          {featuredLibraryCards.map((card, index) => {
-            const tone = getPlaylistCardTone(index)
-            return (
-              <TouchableOpacity
-                key={card.id}
-                style={[
-                  styles.quickCard,
-                  { backgroundColor: tone.surface },
-                  index === featuredLibraryCards.length - 1 ? styles.quickCardLast : null,
-                ]}
-                activeOpacity={0.86}
-                onPress={() => { onOpenList(card.list) }}
-              >
-                <View style={styles.quickMedia}>
-                  {card.cover
-                    ? <Image style={styles.quickMediaImage} url={card.cover} />
-                    : <View style={[styles.quickMediaImage, styles.listPicFallback, { backgroundColor: tone.surface }]}>
-                        <MaterialCommunityIcon name={card.icon} size={24} color={tone.accent} />
-                      </View>}
-                </View>
-                <View style={styles.quickInfo}>
-                  <Text size={15} color={colors.ink.cardTitle} style={styles.quickTitle} numberOfLines={1}>{card.title}</Text>
-                  <View style={styles.quickMetaRow}>
-                    <MaterialCommunityIcon name={card.icon} size={12} color={tone.accent} />
-                    <Text size={12} color={colors.ink.songCount} style={styles.quickMeta}>{t('me_tracks_count', { num: card.count })}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-
-        <View ref={playlistSectionRef} style={styles.section} onLayout={onPlaylistSectionLayout}>
-          <View style={[styles.sectionHeader, styles.playlistSectionHeader]}>
-            <View style={styles.playlistSectionTitleWrap}>
-              <Text size={18} color={colors.ink.strong} style={[styles.sectionTitle, styles.playlistSectionTitle]} numberOfLines={1}>{t('me_playlist_list')}</Text>
-            </View>
-            <View style={[styles.sectionHeaderActions, styles.playlistSectionHeaderActions]}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={[styles.sectionIconBtn, isPlaylistTimeSort ? styles.sectionIconBtnActive : null]}
-                onPress={onTogglePlaylistSort}
-              >
-                <MdiIcon name={playlistSortIcon} size={22} color={isPlaylistCustomSort ? colors.ink.strong : isPlaylistTimeSort ? colors.ink.strong : colors.ink.meta} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.sectionIconBtn}
-                onPress={onShowCreateListModal}
-              >
-                <MdiIcon name={playlistAddIcon} size={22} color={colors.ink.strong} />
-              </TouchableOpacity>
-            </View>
+        <View ref={playlistSectionRef} onLayout={onPlaylistSectionLayout} style={{ marginTop: 16 }}>
+          {/* Row 1: title left · ＋新建 right — shared vertical centerline. */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}>
+            <Text
+              size={magType.section.size}
+              color={r.display}
+              style={{ flex: 1, minWidth: 0, fontWeight: '800', letterSpacing: -0.3 }}
+              numberOfLines={1}
+            >
+              {t('me_my_playlists')}
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onShowCreateListModal}
+              accessibilityRole="button"
+              accessibilityLabel={t('me_create_new')}
+              hitSlop={TOOLBAR_HIT_SLOP}
+              style={{
+                height: TOOLBAR_VISUAL_H,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: r.ink,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text size={13} color={r.onInk} style={{ fontWeight: '800' }}>
+                {t('library_create_new')}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <View style={isPlaylistListMode ? styles.listPanel : styles.listGrid}>
+
+          <Text
+            size={magType.sectionMeta.size}
+            color={r.eyebrow}
+            style={{ fontWeight: '600', letterSpacing: 1, marginTop: 4, marginBottom: 10 }}
+          >
+            {sectionMeta}
+          </Text>
+
+          {/* Row 2: [宫格|列表] left · 排序 right — shared centerline ~28. */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+            gap: 10,
+          }}>
+            <MagSegmented
+              compact
+              items={viewItems}
+              value={playlistDisplayMode}
+              onChange={(id) => { onPlaylistDisplayModeChange(id as 'grid' | 'list') }}
+              renderItem={(item, selected) => (
+                <>
+                  <MdiIcon
+                    name={item.id === 'grid' ? 'view-grid-outline' : 'format-list-bulleted'}
+                    size={MAG_SEGMENTED_COMPACT.iconSize}
+                    color={selected ? r.paper : r.ink}
+                  />
+                  <Text
+                    size={MAG_SEGMENTED_COMPACT.labelSize}
+                    color={selected ? r.paper : r.ink}
+                    style={{ fontWeight: selected ? '800' : '600' }}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Text>
+                </>
+              )}
+            />
+            <TouchableOpacity
+              ref={sortAnchorRef}
+              activeOpacity={0.7}
+              onPress={openSortMenu}
+              accessibilityRole="button"
+              accessibilityLabel={t('library_sort_trigger', { sort: sortShortLabel })}
+              hitSlop={TOOLBAR_HIT_SLOP}
+              style={{
+                height: TOOLBAR_VISUAL_H,
+                justifyContent: 'center',
+                paddingHorizontal: 2,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              <Text size={13} color={r.ink} style={{ fontWeight: '700' }}>
+                {t('library_sort_trigger', { sort: sortShortLabel })}
+              </Text>
+              <MdiIcon name="chevron-down" size={18} color={r.ink} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={isPlaylistListMode
+            ? { width: '100%', overflow: 'visible' }
+            : { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', overflow: 'visible' }}
+          >
             {displayPlaylists.length
               ? displayPlaylists.map((item, index) => {
                 const shiftAnims = playlistShiftAnimMap?.get(item.id)
                 if (!dragControllerRef || !shiftAnims || !onPlaylistCardLayout) return null
-                const tone = getPlaylistCardTone(index + 2)
                 const playlistCount = playlistMetaMap[item.id]?.count ?? 0
                 return (
                   <PlaylistLibraryCard
                     key={item.id}
-                    styles={styles}
                     t={t}
                     item={item}
                     index={index}
                     isListMode={isPlaylistListMode}
                     isLast={index >= displayPlaylists.length - 1}
-                    tone={tone}
                     count={playlistCount}
                     pic={playlistMetaMap[item.id]?.pic ?? null}
                     isCurrent={isPlaylistCurrent(item.id)}
@@ -240,15 +327,27 @@ export default ({
                   />
                 )
               })
-              : <View style={[styles.emptyCard, styles.emptyPlaylistCard]}>
-                  <TouchableOpacity style={styles.emptyActionBtn} activeOpacity={0.85} onPress={onShowCreateListModal}>
-                    <Text size={13} color={colors.ink.emptyAction} style={styles.emptyActionText}>{t('me_create_new')}</Text>
-                  </TouchableOpacity>
-                </View>}
+              : (
+                  <EmptyState
+                    eyebrow="EMPTY · 0"
+                    title={t('library_empty_title')}
+                    message={t('library_empty_message')}
+                    actionLabel={t('me_create_new')}
+                    onAction={onShowCreateListModal}
+                  />
+                )}
           </View>
         </View>
-
       </ScrollView>
+      <MagMenu
+        visible={sortMenuVisible}
+        onClose={() => { setSortMenuVisible(false) }}
+        items={sortMenuItems}
+        value={playlistSortMode}
+        onChange={(id) => { onPlaylistSortChange(id as PlaylistSortMode) }}
+        anchor={sortAnchor}
+        title={t('library_sort_menu_title')}
+      />
       <PromptDialog
         ref={createListDialogRef}
         title={t('me_create_new')}

@@ -11,4 +11,7 @@ export interface AppDialogPayload {
   confirmText: string
   showConfirm?: boolean
   bgHide?: boolean
+  eyebrow?: string
+  eyebrowDanger?: boolean
+  confirmDanger?: boolean
 }

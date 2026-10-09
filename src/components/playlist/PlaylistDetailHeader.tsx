@@ -1,59 +1,46 @@
-import { ImageBackground, StyleSheet, TouchableOpacity, View } from 'react-native'
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { Icon } from '@/components/common/Icon'
+import { View } from 'react-native'
+
+import Image from '@/components/common/Image'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
+import {
+  IconButton,
+  MagTopBar,
+  PrimaryButton,
+  SecondaryButton,
+  SectionHeader,
+  TextButton,
+  TextTabs,
+} from '@/components/magazine'
+import { useI18n } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
-
-const BOTTOM_FADE_HEIGHT = 280
-
-const BottomFade = ({ color }: { color: string }) => {
-  const styles = useLuxStyles()
-  return (
-  <View style={styles.bottomFade} pointerEvents="none">
-    <Svg width="100%" height="100%">
-      <Defs>
-        <LinearGradient id="bottomFadeGradient" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0" />
-          <Stop offset="0.3" stopColor={color} stopOpacity="0.2" />
-          <Stop offset="0.55" stopColor={color} stopOpacity="0.7" />
-          <Stop offset="0.8" stopColor={color} stopOpacity="0.95" />
-          <Stop offset="1" stopColor={color} stopOpacity="1" />
-        </LinearGradient>
-      </Defs>
-      <Rect width="100%" height="100%" fill="url(#bottomFadeGradient)" />
-    </Svg>
-  </View>
-  )
-}
-
-interface SourceTone {
-  text: string
-  background: string
-}
+import { magazineRoles } from '@/theme/magazineRoles'
+import { magType } from '@/theme/magazineType'
 
 interface PlaylistDetailHeaderProps {
   statusBarHeight: number
   cover: string | null
   name: string
   metaText: string
+  eyebrow: string
   sectionTitle: string
-  sourceCode?: string | null
-  sourceLabel?: string
-  sourceTone?: SourceTone | null
+  sectionMeta?: string
   canRename: boolean
+  canSelect?: boolean
+  primaryLabel: string
+  secondaryLabel: string
   actionLabel?: string | null
-  actionIcon?: string
   actionDisabled?: boolean
   onBack: () => void
   onRename?: () => void
   onRemove?: () => void
+  onPrimaryPress?: () => void
+  onSecondaryPress?: () => void
   onActionPress?: () => void
   onToggleSelect?: () => void
-  selecting?: boolean
 }
 
 export default ({
@@ -61,276 +48,232 @@ export default ({
   cover,
   name,
   metaText,
+  eyebrow,
   sectionTitle,
-  sourceCode,
-  sourceLabel,
-  sourceTone,
+  sectionMeta,
   canRename,
+  canSelect = false,
+  primaryLabel,
+  secondaryLabel,
   actionLabel,
-  actionIcon = 'import',
   actionDisabled = false,
   onBack,
   onRename,
   onRemove,
+  onPrimaryPress,
+  onSecondaryPress,
   onActionPress,
   onToggleSelect,
-  selecting = false,
 }: PlaylistDetailHeaderProps) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
-
-  const appBg = colors.bg.app
-
-  const heroBody = (
-    <View style={styles.heroContent}>
-      <Text size={22} color={colors.ink.strong} style={styles.heroTitle} numberOfLines={2}>{name}</Text>
-      <Text size={12} color={colors.ink.meta} style={styles.heroMeta} numberOfLines={2}>{metaText}</Text>
-      {sourceCode && sourceTone
-        ? (
-            <View style={styles.sourceRow}>
-              <Text
-                size={10}
-                color={sourceTone.text}
-                style={[styles.sourceBadge, { backgroundColor: sourceTone.background }]}
-              >
-                {sourceCode.toUpperCase()}
-              </Text>
-              {sourceLabel
-                ? <Text size={11} color={colors.ink.meta} numberOfLines={1} style={styles.sourceLabel}>{sourceLabel}</Text>
-                : null}
-            </View>
-          )
-        : null}
-    </View>
-  )
+  const r = magazineRoles(colors)
+  const t = useI18n()
 
   return (
-    <>
-      {cover ? (
-        <ImageBackground
-          style={[styles.heroBanner, { backgroundColor: appBg }]}
-          source={{ uri: cover.startsWith('/') ? `file://${cover}` : cover }}
-          resizeMode="cover"
-        >
-          <View style={styles.heroOverlay} pointerEvents="none" />
-          <View style={[styles.topBarPad, { paddingTop: statusBarHeight + 18 }]}>
-            <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
-              <View style={styles.backButtonInner}>
-                <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
-              </View>
-            </TouchableOpacity>
-          </View>
-          <BottomFade color={appBg} />
-          {heroBody}
-        </ImageBackground>
-      ) : (
-        <>
-          <View style={[styles.header, { paddingTop: statusBarHeight + 18 }]}>
-            <View style={styles.topBar}>
-              <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={() => { onBack() }}>
-                <View style={styles.backButtonInner}>
-                  <Icon name="chevron-left" rawSize={20} color={colors.ink.input} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.heroArea}>
-            <View style={[styles.heroBgFallback, { backgroundColor: appBg }]} />
-            <BottomFade color={appBg} />
-            {heroBody}
-          </View>
-        </>
-      )}
-
-      <View style={[styles.sectionHeader, { backgroundColor: appBg }]}>
-        <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{sectionTitle}</Text>
-        <View style={styles.sectionActions}>
-          {onToggleSelect
-            ? (
-                <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onToggleSelect}>
-                  <MdiIcon name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'} size={15} color={colors.ink.nearBlack} />
-                </TouchableOpacity>
-              )
-            : null}
-          {actionLabel
-            ? (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  disabled={actionDisabled}
-                  onPress={onActionPress}
-                  style={[
-                    styles.actionButton,
-                    actionDisabled ? { opacity: 0.4 } : null,
-                  ]}
-                >
-                  <MdiIcon
-                    name={actionIcon}
-                    size={18}
-                    color={colors.ink.nearBlack}
-                    style={actionDisabled ? styles.actionIconDisabled : undefined}
-                  />
-                </TouchableOpacity>
-              )
-            : null}
-          {canRename
-            ? (
+    <View style={{ paddingTop: statusBarHeight }}>
+      <MagTopBar
+        onBack={onBack}
+        trailing={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {canSelect && onToggleSelect
+              ? (
+                <IconButton
+                  name="checkbox-multiple-outline"
+                  size={22}
+                  accessibilityLabel={t('library_select_manage')}
+                  onPress={onToggleSelect}
+                />
+                )
+              : null}
+            {canRename
+              ? (
                 <>
-                  <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRename}>
-                    <MdiIcon name="pencil" size={15} color={colors.ink.nearBlack} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.editButton} activeOpacity={0.8} onPress={onRemove}>
-                    <MdiIcon name="trash-can" size={15} color={colors.ink.nearBlack} />
-                  </TouchableOpacity>
+                  <IconButton
+                    name="pencil-outline"
+                    size={22}
+                    accessibilityLabel={t('list_rename')}
+                    onPress={onRename}
+                  />
+                  <IconButton
+                    name="trash-can-outline"
+                    size={22}
+                    accessibilityLabel={t('list_remove')}
+                    onPress={onRemove}
+                  />
                 </>
-              )
-            : null}
+                )
+              : null}
+          </View>
+        }
+      />
+
+      <View style={styles.hero}>
+        <View style={[styles.cover, { backgroundColor: r.placeholder }]}>
+          {cover
+            ? <Image style={styles.coverImage} url={cover} />
+            : (
+              <View style={[styles.coverImage, styles.coverFallback]}>
+                <MdiIcon name="music-note-eighth" size={36} color={r.quiet} />
+              </View>
+              )}
+        </View>
+        <View style={styles.heroText}>
+          <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
+          <Text size={magType.h2.size} color={r.display} style={styles.title} numberOfLines={2}>{name}</Text>
+          <Text size={magType.meta.size} color={r.muted} style={styles.meta} numberOfLines={2}>{metaText}</Text>
         </View>
       </View>
-    </>
+
+      <View style={styles.actions}>
+        <PrimaryButton
+          label={primaryLabel}
+          icon="play"
+          onPress={onPrimaryPress}
+          style={{ flex: 1 }}
+        />
+        <SecondaryButton
+          label={secondaryLabel}
+          icon="shuffle-variant"
+          onPress={onSecondaryPress}
+          style={{ flex: 1 }}
+        />
+      </View>
+
+      <SectionHeader
+        title={sectionTitle}
+        compactRule
+        ruleGap={12}
+        style={styles.section}
+        trailing={
+          <View style={styles.sectionTrailing}>
+            {sectionMeta
+              ? (
+                <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.sectionMeta}>
+                  {sectionMeta}
+                </Text>
+                )
+              : null}
+            {actionLabel
+              ? (
+                <TextButton
+                  label={actionLabel}
+                  onPress={actionDisabled ? undefined : onActionPress}
+                  disabled={actionDisabled}
+                />
+                )
+              : null}
+          </View>
+        }
+      />
+    </View>
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  header: {
-    position: 'relative',
-    overflow: 'visible',
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-  },
-  topBar: {
+/** Selecting-mode header chrome used by PlaylistDetailView. */
+export const PlaylistSelectHeader = ({
+  statusBarHeight,
+  cancelLabel,
+  selectAllLabel,
+  eyebrow,
+  title,
+  tabs,
+  mode,
+  onCancel,
+  onSelectAll,
+  onModeChange,
+}: {
+  statusBarHeight: number
+  cancelLabel: string
+  selectAllLabel: string
+  eyebrow: string
+  title: string
+  tabs: Array<{ id: string, label: string }>
+  mode: string
+  onCancel: () => void
+  onSelectAll: () => void
+  onModeChange: (id: string) => void
+}) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  return (
+    <View style={{ paddingTop: statusBarHeight + 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40 }}>
+        <TextButton label={cancelLabel} muted underline={false} onPress={onCancel} />
+        <TextButton label={selectAllLabel} onPress={onSelectAll} />
+      </View>
+      <Text size={magType.eyebrow.size} color={r.eyebrow} style={{ fontWeight: '700', letterSpacing: 1, marginTop: 18 }}>
+        {eyebrow}
+      </Text>
+      <Text size={magType.h2.size} color={r.display} style={{ fontWeight: '800', letterSpacing: -0.8, marginTop: 8 }}>
+        {title}
+      </Text>
+      <TextTabs
+        items={tabs}
+        value={mode}
+        onChange={onModeChange}
+        style={{ marginTop: 18 }}
+      />
+    </View>
+  )
+}
+
+const useLuxStyles = sharedLuxStyles(() => createStyle({
+  hero: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  heroBanner: {
-    position: 'relative',
-    overflow: 'hidden',
-    marginHorizontal: -18,
+    marginTop: 18,
     marginBottom: 18,
-    minHeight: 340,
-    justifyContent: 'flex-end',
-    backgroundColor: colors.bg.app,
+    gap: 14,
   },
-  topBarPad: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 3,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
+  cover: {
+    width: 116,
+    height: 116,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.card,
-    padding: 2,
+  coverImage: {
+    width: 116,
+    height: 116,
+    borderRadius: 6,
   },
-  backButtonInner: {
+  coverFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroText: {
     flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: colors.surface.avatar,
-    alignItems: 'center',
-    justifyContent: 'center',
+    minWidth: 0,
   },
-  heroArea: {
-    position: 'relative',
-    overflow: 'hidden',
-    marginHorizontal: -18,
-    marginBottom: 18,
-    padding: 20,
-    minHeight: 300,
-    justifyContent: 'flex-end',
-  },
-  heroBgFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.surface.heroFallback,
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.scrim.heroPhoto,
-  },
-  heroContent: {
-    position: 'relative',
-    zIndex: 2,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  heroTitle: {
-    fontWeight: '800',
-  },
-  heroMeta: {
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  sourceBadge: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  sourceLabel: {
-    flexShrink: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: -18,
-    marginBottom: 14,
-    paddingHorizontal: 20,
-    backgroundColor: colors.bg.app,
-    zIndex: 2,
-  },
-  sectionActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 0,
-  },
-  editButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
+  eyebrow: {
     fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
-  actionButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+  title: {
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    marginTop: 6,
+  },
+  meta: {
+    marginTop: 6,
+  },
+  actions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 0,
   },
-  actionIcon: {
-    width: 18,
-    height: 18,
-    resizeMode: 'contain',
+  section: {
+    marginTop: 0,
   },
-  editIcon: {
-    width: 15,
-    height: 15,
-    resizeMode: 'contain',
+  sectionTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  actionIconDisabled: {
-    opacity: 0.4,
+  sectionMeta: {
+    fontWeight: '600',
+    letterSpacing: 1,
   },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: BOTTOM_FADE_HEIGHT,
-    zIndex: 1,
-  },
-})))
+}))

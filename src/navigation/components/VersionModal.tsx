@@ -1,18 +1,27 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { View, TouchableOpacity, ScrollView } from 'react-native'
-import { createStyle } from '@/utils/tools'
+import { ScrollView, View } from 'react-native'
+import { MagDialog, StatusChip } from '@/components/magazine'
 import Text from '@/components/common/Text'
 import ChangelogView from '@/components/ChangelogView'
 import { useI18n } from '@/lang'
-import { useVersionInfo } from '@/store/version/hook'
+import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 import { downloadUpdate, hideModal, setIgnoreVersion } from '@/core/version'
 import { isDevBuild } from '@/utils/releaseChannel'
+import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { magType } from '@/theme/magazineType'
+import { createStyle } from '@/utils/tools'
 
 const currentVer = process.versions.app
+
 const VersionModal = ({ componentId }: { componentId: string }) => {
+  const styles = useStyles()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
   const versionInfo = useVersionInfo()
+  const progress = useVersionDownloadProgressUpdated()
 
   const handleIgnore = () => {
     if (!versionInfo.newVersion) return
@@ -28,92 +37,91 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
 
   const nextVersion = versionInfo.newVersion?.version ?? '-'
   const nextIsDev = nextVersion != '-' && isDevBuild(nextVersion)
+  const pct = progress.total > 0 ? Math.min(100, Math.round((progress.current / progress.total) * 100)) : 0
+  const downloading = versionInfo.status === 'downloading' || versionInfo.status === 'downloaded'
 
   return (
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalCard}>
-        <View style={styles.contentBox}>
-          <Text style={styles.label} color="#111827">{t('version_label_current_ver')}{currentVer}</Text>
-          <Text style={styles.label} color="#111827">{t('version_label_latest_ver')}{nextVersion}{nextIsDev ? ` · ${t('setting_release_channel_dev')}` : ''}</Text>
-          {versionInfo.newVersion?.desc
-            ? <ScrollView style={styles.descScroll} nestedScrollEnabled>
-                <ChangelogView desc={versionInfo.newVersion.desc} compact />
-              </ScrollView>
-            : null}
+    <View style={styles.fill}>
+      <MagDialog
+        visible
+        embedded
+        bgHide={false}
+        onClose={handleIgnore}
+        eyebrow={t('version_modal_eyebrow')}
+        title=""
+        cancelLabel={t('version_btn_ignore')}
+        confirmLabel={t('version_btn_new')}
+        onCancel={handleIgnore}
+        onConfirm={handleConfirm}
+      >
+        <View style={styles.versionRow}>
+          <Text size={magType.h1.size} color={r.display} style={styles.version}>{nextVersion}</Text>
+          {nextIsDev ? <StatusChip label={t('setting_release_channel_dev')} small /> : null}
         </View>
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={handleIgnore} activeOpacity={0.75}>
-            <Text size={14} color="#4b5563">{t('version_btn_ignore')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={handleConfirm} activeOpacity={0.85}>
-            <Text size={14} color="#111827" style={styles.modalBtnPrimaryText}>{t('version_btn_new')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        <Text size={13} color={r.muted} style={styles.meta}>
+          {t('version_modal_current_meta', { version: currentVer })}
+        </Text>
+        {versionInfo.newVersion?.desc
+          ? (
+            <ScrollView style={styles.descScroll} nestedScrollEnabled>
+              <ChangelogView desc={versionInfo.newVersion.desc} compact />
+            </ScrollView>
+            )
+          : null}
+        {downloading && progress.total > 0
+          ? (
+            <View style={styles.progressBlock}>
+              <View style={styles.progressLabels}>
+                <Text size={12} color={r.muted}>{t('version_btn_downloading', { current: progress.current, total: progress.total, progress: pct })}</Text>
+                <Text size={12} color={r.muted}>{pct}%</Text>
+              </View>
+              <View style={[styles.track, { backgroundColor: r.hairline }]}>
+                <View style={[styles.fillBar, { backgroundColor: r.ink, width: `${pct}%` }]} />
+              </View>
+            </View>
+            )
+          : null}
+      </MagDialog>
     </View>
   )
 }
 
-const styles = createStyle({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.22)',
-    justifyContent: 'center',
+const useStyles = sharedLuxStyles(() => createStyle({
+  fill: { flex: 1 },
+  versionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    gap: 10,
+    marginTop: -6,
   },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#eef0f3',
-    paddingTop: 18,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+  version: {
+    fontWeight: '800',
+    letterSpacing: -1,
   },
-  contentBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#eef0f3',
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
+  meta: {
+    marginTop: 6,
+    marginBottom: 10,
   },
   descScroll: {
     maxHeight: 220,
+  },
+  progressBlock: {
+    marginTop: 14,
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  modalActions: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 10,
+  track: {
+    height: 2,
+    width: '100%',
+    overflow: 'hidden',
   },
-  modalBtn: {
-    flexGrow: 1,
-    flexShrink: 1,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  fillBar: {
+    height: 4,
+    marginTop: -1,
   },
-  modalBtnGhost: {
-    backgroundColor: '#f3f4f6',
-  },
-  modalBtnPrimary: {
-    backgroundColor: '#e5e7eb',
-  },
-  modalBtnPrimaryText: {
-    fontWeight: '600',
-  },
-})
+}))
 
 export default VersionModal
-
