@@ -5,7 +5,7 @@ import { Animated, useWindowDimensions } from 'react-native'
 
 import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 
@@ -13,12 +13,15 @@ import { ListeningStatsMagazine } from './ListeningStatsMagazine'
 import { ListeningStatsReplay } from './ListeningStatsReplay'
 import { useListeningStatsModel } from './useListeningStatsModel'
 
-const useRootStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg.app,
-  },
-})))
+const useRootStyles = sharedLuxStyles((colors) => {
+  const r = magazineRoles(colors)
+  return createStyle({
+    root: {
+      flex: 1,
+      backgroundColor: r.paper,
+    },
+  })
+})
 
 export interface ListeningStatsPageProps {
   onClose: () => void

@@ -1,14 +1,29 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { Fragment, useCallback, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
 import { ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg'
 
 import Image from '@/components/common/Image'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
+import {
+  BackButton,
+  DeltaPill,
+  Hairline,
+  RankNumber,
+  SectionHeader,
+  TextTabs,
+} from '@/components/magazine'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
+import {
+  PAGE_GUTTER,
+  SECTION_TO_LIST,
+  TABS_AFTER_EYEBROW,
+  TOP_BAR_MARGIN_TOP,
+  magType,
+} from '@/theme/magazineType'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { buildStatsChartLayout, statsBucketLabel } from '@/utils/playHistory/chartLayout'
 import { type ChartBucket, type PlayRangeId, type RankedArtist, type RankedSong } from '@/utils/playHistory/range'
@@ -28,145 +43,58 @@ import {
 } from './statsShared'
 
 const BAR_MAX = 100
+const ARTIST_GRID_N = 4
 
-const useStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  root: { flex: 1, backgroundColor: colors.bg.app },
-  hero: {
-    backgroundColor: colors.accent.primary,
-    paddingBottom: 20,
-    overflow: 'hidden',
-  },
-  heroBlob: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    right: -140,
-    top: -120,
-    backgroundColor: colors.glass.fill08,
-  },
-  heroInner: { paddingHorizontal: 20, position: 'relative' },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  back: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.glass.fill14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: { fontWeight: '700' },
-  navSpacer: { width: 44 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 20 },
-  chip: {
-    height: 32,
-    paddingHorizontal: 13,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.glass.line45,
-  },
-  chipOn: {
-    backgroundColor: colors.ink.onAccent,
-    borderColor: colors.ink.onAccent,
-  },
-  chipLabel: { fontWeight: '600' },
-  say: { fontWeight: '600', marginTop: 26, opacity: 0.78 },
-  bigRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 4 },
-  bigNumber: { fontWeight: '900', letterSpacing: -5, lineHeight: 92 },
-  bigUnit: { fontWeight: '800', marginLeft: 6 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  pill: {
-    height: 30,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.glass.fill14,
-  },
-  pillPrimary: {
-    backgroundColor: colors.ink.onAccent,
-  },
-  pillText: { fontWeight: '700' },
-  chartHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 26 },
-  chartCaption: { fontWeight: '700', opacity: 0.78, flex: 1, marginRight: 8 },
-  chartToggle: { flexDirection: 'row', gap: 4 },
-  chartToggleItem: {
-    width: 34,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chartToggleOn: { backgroundColor: colors.ink.onAccent },
-  chartArea: { width: '100%', height: 148, marginTop: 6 },
+const useStyles = sharedLuxStyles(() => (createStyle({
+  root: { flex: 1 },
+  content: { paddingHorizontal: PAGE_GUTTER, paddingBottom: 72 },
+  topBar: { minHeight: 40, flexDirection: 'row', alignItems: 'center', marginTop: TOP_BAR_MARGIN_TOP },
+  tabs: { marginTop: TABS_AFTER_EYEBROW },
+  lead: { fontWeight: '600', marginTop: 28 },
+  heroNumber: { fontWeight: '800', letterSpacing: -4, lineHeight: 96, includeFontPadding: false, marginTop: 4 },
+  heroUnit: { fontWeight: '800', marginTop: 2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 14 },
+  metaText: { fontWeight: '600' },
+  chartArea: { width: '100%', height: 148, marginTop: 14 },
   bars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end' },
   barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   dayLabel: { marginTop: 6, height: 16, textAlign: 'center' },
   hourLabel: { maxWidth: '100%' },
   lineWrap: { flex: 1 },
   axisEndRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  page: { paddingHorizontal: 20, paddingBottom: 72 },
-  eyebrow: { fontWeight: '700', letterSpacing: 1.4, marginTop: 30 },
-  h2: { fontWeight: '800', marginTop: 4 },
-  no1: { flexDirection: 'row', gap: 16, alignItems: 'flex-end', marginTop: 16 },
+  listBlock: { marginTop: SECTION_TO_LIST },
+  no1: { marginTop: 14 },
   no1Cover: {
-    width: 128,
-    height: 128,
-    borderRadius: 18,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.shadow.card,
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
-  },
-  no1CoverImage: { width: 128, height: 128, borderRadius: 18 },
-  no1Rank: { fontWeight: '900', letterSpacing: -2, lineHeight: 44 },
-  no1Name: { fontWeight: '800', marginTop: 6 },
-  no1Sub: { marginTop: 4 },
-  no1Meta: { fontWeight: '700', marginTop: 10 },
-  songList: { marginTop: 12 },
-  songRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  songRank: { width: 26, fontWeight: '800' },
-  songCover: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 6,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  songCoverImage: { width: 44, height: 44, borderRadius: 10 },
-  songInfo: { flex: 1, minWidth: 0, marginLeft: 12 },
-  songTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  songName: { fontWeight: '700', flex: 1 },
-  songDur: { fontWeight: '700' },
-  songArtist: { marginTop: 2 },
-  progressTrack: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.line.divider,
-    marginTop: 6,
-    overflow: 'hidden',
+  no1CoverImage: { width: '100%', height: '100%', borderRadius: 6 },
+  no1Meta: { fontWeight: '600', letterSpacing: 1, marginTop: 14 },
+  no1Name: { fontWeight: '800', marginTop: 6, letterSpacing: -0.3 },
+  no1Sub: { marginTop: 6 },
+  songRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
   },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.accent.primary,
+  songName: { flex: 1, minWidth: 0, fontWeight: '700', marginLeft: 8 },
+  songDur: { fontWeight: '800', marginLeft: 10, fontVariant: ['tabular-nums'] },
+  artistGrid: {
+    marginTop: SECTION_TO_LIST + 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 14,
+    rowGap: 18,
   },
-  artistHero: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
-  artistHeroLabel: { fontWeight: '800' },
-  artistHeroName: { fontWeight: '800', marginTop: 2 },
-  artistHeroMeta: { marginTop: 4 },
-  artistGrid: { flexDirection: 'row', marginTop: 20, gap: 8 },
-  artistCell: { flex: 1, alignItems: 'center' },
-  artistCellName: { fontWeight: '700', marginTop: 7, textAlign: 'center' },
-  artistCellMeta: { marginTop: 1, textAlign: 'center' },
+  artistCell: { width: '47%', alignItems: 'flex-start' },
+  artistRank: { fontWeight: '700', marginTop: 10 },
+  artistName: { fontWeight: '800', marginTop: 2 },
+  artistMeta: { marginTop: 2 },
   empty: { paddingVertical: 22, alignItems: 'center' },
   footnote: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 28 },
   footnoteText: { flex: 1, lineHeight: 18 },
@@ -177,29 +105,37 @@ const ReplayChart = ({
   range,
   mode,
   styles,
-  colors,
   t,
 }: {
   buckets: ChartBucket[]
   range: PlayRangeId
   mode: 'bar' | 'line'
   styles: ReturnType<typeof useStyles>
-  colors: LuxColors
   t: (key: string, params?: Record<string, string | number>) => string
 }) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const [measuredWidth, setMeasuredWidth] = useState(0)
   const { width: windowWidth } = useWindowDimensions()
-  const width = measuredWidth || Math.max(1, windowWidth - scaleSizeW(40))
+  const width = measuredWidth || Math.max(1, windowWidth - scaleSizeW(PAGE_GUTTER * 2))
   const maxHeight = scaleSizeH(BAR_MAX)
   const plotHeight = maxHeight + scaleSizeH(10)
   const labelReserve = scaleSizeH(24)
   const { points, slotWidth } = buildStatsChartLayout(buckets, width, maxHeight, scaleSizeH(3))
   const barWidth = Math.min(scaleSizeW(16), Math.max(scaleSizeW(8), slotWidth * 0.55))
-  const ink = colors.ink.onAccent
+  const peakStart = useMemo(() => {
+    let best = buckets[0]
+    for (const bucket of buckets) {
+      if (!best || bucket.listenedMs > best.listenedMs) best = bucket
+    }
+    return best && best.listenedMs > 0 ? best.start : null
+  }, [buckets])
   const onLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
     const nextWidth = event.nativeEvent.layout.width
     if (Number.isFinite(nextWidth) && nextWidth > 0) setMeasuredWidth(nextWidth)
   }, [])
+
+  const isPeak = (bucket: ChartBucket) => peakStart != null && bucket.start == peakStart
 
   const axisLabels = (
     <View style={[styles.bars, { height: labelReserve, alignItems: 'flex-start' }]}>
@@ -211,14 +147,14 @@ const ReplayChart = ({
               ? (
                 <Text
                   size={10}
-                  color={ink}
-                  style={[styles.dayLabel, { opacity: 0.78 }, bucket.kind == 'hour2' ? styles.hourLabel : null]}
+                  color={r.eyebrow}
+                  style={[styles.dayLabel, bucket.kind == 'hour2' ? styles.hourLabel : null]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
                 >{label.text}</Text>
                 )
-              : <Text size={10} color={ink} style={styles.dayLabel}> </Text>}
+              : <Text size={10} color={r.eyebrow} style={styles.dayLabel}> </Text>}
           </View>
         )
       })}
@@ -231,24 +167,24 @@ const ReplayChart = ({
       <View style={styles.chartArea} onLayout={onLayout}>
         <View style={styles.lineWrap}>
           <Svg width={width} height={plotHeight} viewBox={`0 0 ${width} ${plotHeight}`}>
-            <Line x1={0} y1={plotHeight - 1} x2={width} y2={plotHeight - 1} stroke={ink} strokeWidth={1} opacity={0.3} />
+            <Line x1={0} y1={plotHeight - 1} x2={width} y2={plotHeight - 1} stroke={r.ink} strokeWidth={1} />
             {polyline
-              ? <Polyline points={polyline} fill="none" stroke={ink} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+              ? <Polyline points={polyline} fill="none" stroke={r.ink} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
               : null}
             {points.map(point => (
               <Circle
                 key={point.bucket.start}
                 cx={point.x}
                 cy={point.y + scaleSizeH(4)}
-                r={point.bucket.isCurrent ? 4.5 : 3}
-                fill={point.bucket.isCurrent ? ink : colors.accent.primary}
-                stroke={ink}
-                strokeWidth={point.bucket.isCurrent ? 0 : 2}
+                r={isPeak(point.bucket) ? 4.5 : 3}
+                fill={isPeak(point.bucket) ? r.accent : r.paper}
+                stroke={isPeak(point.bucket) ? r.accent : r.ink}
+                strokeWidth={isPeak(point.bucket) ? 0 : 2}
               />
             ))}
           </Svg>
           {axisLabels}
-          {range == 'today' ? <View style={styles.axisEndRow}><Text size={10} color={ink} style={{ opacity: 0.78 }}>{t('stats_hour_end')}</Text></View> : null}
+          {range == 'today' ? <View style={styles.axisEndRow}><Text size={10} color={r.eyebrow}>{t('stats_hour_end')}</Text></View> : null}
         </View>
       </View>
     )
@@ -257,40 +193,41 @@ const ReplayChart = ({
   return (
     <View style={styles.chartArea} onLayout={onLayout}>
       <Svg width={width} height={plotHeight} viewBox={`0 0 ${width} ${plotHeight}`}>
-        <Line x1={0} y1={plotHeight - 1} x2={width} y2={plotHeight - 1} stroke={ink} strokeWidth={1} opacity={0.3} />
+        <Line x1={0} y1={plotHeight - 1} x2={width} y2={plotHeight - 1} stroke={r.ink} strokeWidth={1} />
         {points.map(({ bucket, empty, height, x }) => {
           const barHeight = empty ? scaleSizeH(3) : height
           const y = plotHeight - barHeight
-          const label = !empty && bucket.isCurrent
+          const peak = isPeak(bucket)
+          const fill = empty ? r.hairline : peak ? r.accent : r.ink
+          const label = !empty && peak
             ? (bucket.minutes > 0 ? `${bucket.minutes}${t('stats_unit_minute')}` : t('stats_minute_less_than_one'))
             : null
           return (
             <Fragment key={bucket.start}>
               {label
-                ? <SvgText x={x} y={Math.max(12, y - 8)} fill={ink} fontSize={11} fontWeight="700" textAnchor="middle">{label}</SvgText>
+                ? <SvgText x={x} y={Math.max(12, y - 8)} fill={r.ink} fontSize={11} fontWeight="700" textAnchor="middle">{label}</SvgText>
                 : null}
               <Rect
                 x={x - barWidth / 2}
                 y={y}
                 width={barWidth}
                 height={barHeight}
-                rx={empty ? scaleSizeW(1.5) : scaleSizeW(8)}
-                fill={ink}
-                opacity={empty ? 0.25 : bucket.isCurrent ? 1 : 0.45}
+                rx={empty ? scaleSizeW(1.5) : scaleSizeW(3)}
+                fill={fill}
+                opacity={empty ? 0.55 : 1}
               />
             </Fragment>
           )
         })}
       </Svg>
       {axisLabels}
-      {range == 'today' ? <View style={styles.axisEndRow}><Text size={10} color={ink} style={{ opacity: 0.78 }}>{t('stats_hour_end')}</Text></View> : null}
+      {range == 'today' ? <View style={styles.axisEndRow}><Text size={10} color={r.eyebrow}>{t('stats_hour_end')}</Text></View> : null}
     </View>
   )
 }
 
 const SongBlock = ({
   styles,
-  colors,
   songs,
   totalListenedMs,
   range,
@@ -299,7 +236,6 @@ const SongBlock = ({
   onPlay,
 }: {
   styles: ReturnType<typeof useStyles>
-  colors: LuxColors
   songs: RankedSong[]
   totalListenedMs: number
   range: PlayRangeId
@@ -307,123 +243,88 @@ const SongBlock = ({
   t: (key: string, params?: Record<string, string | number>) => string
   onPlay: (song: PlayHistorySong) => void
 }) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   if (!songs.length) {
-    return <View style={styles.empty}><Text size={13} color={colors.ink.meta}>{t('stats_empty')}</Text></View>
+    return <View style={styles.empty}><Text size={13} color={r.muted}>{t('stats_empty')}</Text></View>
   }
   const top = songs[0]
   const topParts = durationParts(top.listenedMs)
   const topPercent = totalListenedMs > 0 ? Math.round(top.listenedMs / totalListenedMs * 100) : 0
-  const restMax = Math.max(...songs.slice(1).map(song => song.listenedMs), 1)
+  const rest = songs.slice(1)
+  const coverTone = colors.playlistCovers[0]
+
   return (
-    <>
+    <View style={styles.listBlock}>
       <TouchableOpacity style={styles.no1} activeOpacity={0.85} onPress={() => { onPlay(top.song) }}>
-        <View style={[styles.no1Cover, { backgroundColor: colors.playlistCovers[0].surface }]}>
+        <View style={[styles.no1Cover, { backgroundColor: coverTone.surface }]}>
           {top.song.img
             ? <Image style={styles.no1CoverImage} url={top.song.img} />
-            : <MdiIcon name="music-note" size={40} color={colors.playlistCovers[0].accent} />}
+            : <MdiIcon name="music-note" size={48} color={coverTone.accent} />}
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text size={44} color={colors.accent.primary} style={styles.no1Rank}>{t('stats_replay_rank1')}</Text>
-          <Text size={24} color={colors.ink.pageTitle} style={styles.no1Name} numberOfLines={2}>{top.song.name}</Text>
-          <Text size={13} color={colors.ink.secondary} style={styles.no1Sub} numberOfLines={1}>{top.song.singer}</Text>
-          <Text size={13} color={colors.ink.strong} style={styles.no1Meta}>
-            {t('stats_share_inline', {
-              duration: `${topParts.value}${topParts.unit}`,
-              period: t(sharePeriodKey[range]),
-              percent: topPercent,
-            })}
-          </Text>
-        </View>
+        <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.no1Meta}>
+          {t('stats_replay_no1_plays', { count: top.playCount })}
+        </Text>
+        <Text size={magType.section.size} color={r.display} style={styles.no1Name} numberOfLines={2}>{top.song.name}</Text>
+        <Text size={magType.meta.size} color={r.muted} style={styles.no1Sub} numberOfLines={2}>
+          {top.song.singer} · {t('stats_share_inline', {
+            duration: `${topParts.value}${topParts.unit}`,
+            period: t(sharePeriodKey[range]),
+            percent: topPercent,
+          })}
+        </Text>
       </TouchableOpacity>
-      <View style={styles.songList}>
-        {songs.slice(1).map((song, index) => {
-          const parts = durationParts(song.listenedMs)
-          const ratio = Math.max(0.08, song.listenedMs / restMax)
-          return (
-            <TouchableOpacity key={song.key} style={styles.songRow} activeOpacity={0.85} onPress={() => { onPlay(song.song) }}>
-              <Text size={15} color={colors.ink.faint} style={styles.songRank}>{index + 2}</Text>
-              <View style={[styles.songCover, { backgroundColor: colors.playlistCovers[(index + 1) % colors.playlistCovers.length].surface }]}>
-                {song.song.img
-                  ? <Image style={styles.songCoverImage} url={song.song.img} />
-                  : <MdiIcon name="music-note" size={18} color={colors.playlistCovers[(index + 1) % colors.playlistCovers.length].accent} />}
-              </View>
-              <View style={styles.songInfo}>
-                <View style={styles.songTop}>
-                  <Text size={15} color={colors.ink.strong} style={styles.songName} numberOfLines={1}>{song.song.name}</Text>
-                  <Text size={13} color={colors.ink.strong} style={styles.songDur}>{parts.value}{parts.unit}</Text>
-                </View>
-                <Text size={12} color={colors.ink.secondary} style={styles.songArtist} numberOfLines={1}>{song.song.singer}</Text>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${Math.round(ratio * 100)}%` }]} />
-                </View>
-              </View>
+
+      {rest.map((song, index) => {
+        const parts = durationParts(song.listenedMs)
+        return (
+          <View key={song.key}>
+            <Hairline />
+            <TouchableOpacity style={styles.songRow} activeOpacity={0.85} onPress={() => { onPlay(song.song) }}>
+              <RankNumber rank={index + 2} />
+              <Text size={magType.rowTitle.size} color={r.ink} style={styles.songName} numberOfLines={1}>{song.song.name}</Text>
+              <Text size={magType.value.size} color={r.ink} style={styles.songDur}>{parts.value}{parts.unit}</Text>
             </TouchableOpacity>
-          )
-        })}
-      </View>
-    </>
+          </View>
+        )
+      })}
+    </View>
   )
 }
 
 const ArtistBlock = ({
   styles,
-  colors,
   artists,
-  totalListenedMs,
-  range,
   durationParts,
   t,
 }: {
   styles: ReturnType<typeof useStyles>
-  colors: LuxColors
   artists: RankedArtist[]
-  totalListenedMs: number
-  range: PlayRangeId
   durationParts: (ms: number) => { value: string, unit: string }
   t: (key: string, params?: Record<string, string | number>) => string
 }) => {
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   if (!artists.length) {
-    return <View style={styles.empty}><Text size={13} color={colors.ink.meta}>{t('stats_empty')}</Text></View>
+    return <View style={styles.empty}><Text size={13} color={r.muted}>{t('stats_empty')}</Text></View>
   }
-  const top = artists[0]
-  const topParts = durationParts(top.listenedMs)
-  const topPercent = totalListenedMs > 0 ? Math.round(top.listenedMs / totalListenedMs * 100) : 0
-  const rest = artists.slice(1, 5)
+  const grid = artists.slice(0, ARTIST_GRID_N)
   return (
-    <>
-      <View style={styles.artistHero}>
-        <ArtistFace name={top.name} fallback={top.fallbackImg} size={96} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text size={13} color={colors.accent.primary} style={styles.artistHeroLabel}>{t('stats_replay_rank1_artist')}</Text>
-          <Text size={20} color={colors.ink.pageTitle} style={styles.artistHeroName} numberOfLines={1}>{top.name}</Text>
-          <Text size={13} color={colors.ink.secondary} style={styles.artistHeroMeta}>
-            {t('stats_share_inline', {
-              duration: `${topParts.value}${topParts.unit}`,
-              period: t(sharePeriodKey[range]),
-              percent: topPercent,
-            })}
-          </Text>
-        </View>
-      </View>
-      {rest.length
-        ? (
-          <View style={styles.artistGrid}>
-            {rest.map((artist, index) => {
-              const parts = durationParts(artist.listenedMs)
-              return (
-                <View key={artist.name} style={styles.artistCell}>
-                  <ArtistFace name={artist.name} fallback={artist.fallbackImg} size={60} />
-                  <Text size={12} color={colors.ink.strong} style={styles.artistCellName} numberOfLines={1}>
-                    {t('stats_replay_artist_cell', { rank: index + 2, name: artist.name })}
-                  </Text>
-                  <Text size={11} color={colors.ink.secondary} style={styles.artistCellMeta}>{parts.value}{parts.unit}</Text>
-                </View>
-              )
-            })}
+    <View style={styles.artistGrid}>
+      {grid.map((artist, index) => {
+        const parts = durationParts(artist.listenedMs)
+        return (
+          <View key={artist.name} style={styles.artistCell}>
+            <ArtistFace name={artist.name} fallback={artist.fallbackImg} size={88} toneIndex={index} />
+            <Text size={magType.meta.size} color={r.eyebrow} style={styles.artistRank}>
+              {t('stats_replay_artist_rank_label', { rank: index + 1 })}
+            </Text>
+            <Text size={magType.rowTitle.size} color={r.display} style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+            <Text size={magType.meta.size} color={r.muted} style={styles.artistMeta}>{parts.value}{parts.unit}</Text>
           </View>
-          )
-        : null}
-    </>
+        )
+      })}
+    </View>
   )
 }
 
@@ -438,12 +339,17 @@ export const ListeningStatsReplay = ({
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const statusBarHeight = useStatusbarHeight()
-  const ink = colors.ink.onAccent
   const {
-    t, range, setRange, luxSync, chartMode, onChartModeChange, stats, songs, artists,
-    hours, minutes, totalMinutes, compareDiffMinutes, peakBucket, dailyAvgMs, durationText, durationParts, playSong,
+    t, range, setRange, luxSync, chartMode, stats, songs, artists,
+    hours, minutes, totalMinutes, compareDiffMinutes, peakBucket, durationText, durationParts, playSong,
   } = model
+
+  const rangeTabs = useMemo(
+    () => RANGES.map(id => ({ id, label: t(rangeLabelKey[id]) })),
+    [t],
+  )
 
   const displayValue = hours > 0 ? hours : totalMinutes
   const displayUnit = hours > 0
@@ -452,154 +358,108 @@ export const ListeningStatsReplay = ({
         : t('stats_replay_unit_h'))
     : t('stats_replay_unit_m')
 
-  let compare: { up: boolean, flat: boolean, text: string } | null = null
-  if (compareDiffMinutes != null) {
-    const flat = compareDiffMinutes == 0
-    const delta = `${compareDiffMinutes > 0 ? '+' : '-'}${durationText(Math.abs(compareDiffMinutes) * 60_000, false)}`
-    compare = {
-      up: compareDiffMinutes >= 0,
-      flat,
-      text: flat
-        ? t('stats_compare_flat')
-        : t('stats_replay_compare', {
-          label: t(compareLabelKey[range as Exclude<PlayRangeId, 'all'>]),
-          delta,
-        }),
-    }
-  }
+  const compare = compareDiffMinutes == null
+    ? null
+    : {
+        up: compareDiffMinutes >= 0,
+        flat: compareDiffMinutes == 0,
+        delta: compareDiffMinutes == 0
+          ? t('stats_compare_flat')
+          : durationText(Math.abs(compareDiffMinutes) * 60_000, false),
+        label: t(compareLabelKey[range as Exclude<PlayRangeId, 'all'>]),
+      }
 
-  const chartCaption = (() => {
+  const chartHead = (() => {
     if (!peakBucket || peakBucket.listenedMs <= 0) {
-      return range == 'today' ? t('stats_replay_chart_idle_today') : t('stats_daily_title')
+      if (range == 'today') return { title: t('stats_chart_title_slots'), meta: undefined as string | undefined }
+      if (range == 'year') return { title: t('stats_chart_title_month'), meta: undefined }
+      if (range == 'all') return { title: t('stats_chart_title_year'), meta: undefined }
+      return { title: t('stats_chart_title_day'), meta: undefined }
     }
     if (peakBucket.kind == 'hour2') {
-      return t('stats_replay_chart_peak_today', { start: peakBucket.hour, end: peakBucket.hour + 2 })
+      return {
+        title: t('stats_chart_title_slots'),
+        meta: t('stats_chart_meta_peak_today', { start: peakBucket.hour, end: peakBucket.hour + 2 }),
+      }
     }
     if (peakBucket.kind == 'day') {
-      return t('stats_replay_chart_peak_day', { label: statsBucketLabel(peakBucket, range, t).text })
+      return {
+        title: t('stats_chart_title_day'),
+        meta: t('stats_chart_meta_peak_day', { label: statsBucketLabel(peakBucket, range, t).text }),
+      }
     }
     if (peakBucket.kind == 'month') {
-      return t('stats_replay_chart_peak_month', { month: peakBucket.month + 1 })
+      return {
+        title: t('stats_chart_title_month'),
+        meta: t('stats_chart_meta_peak_month', { month: peakBucket.month + 1 }),
+      }
     }
-    return t('stats_replay_chart_peak_year', { year: peakBucket.year })
+    return {
+      title: t('stats_chart_title_year'),
+      meta: t('stats_chart_meta_peak_year', { year: peakBucket.year }),
+    }
   })()
 
   return (
     <ScrollView
-      style={styles.root}
-      contentContainerStyle={{ paddingBottom: 72 + bottomPadding }}
+      style={[styles.root, { backgroundColor: r.paper }]}
+      contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 72 + bottomPadding }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.hero, { paddingTop: statusBarHeight }]}>
-        <View style={styles.heroBlob} />
-        <View style={styles.heroInner}>
-          <View style={styles.nav}>
-            <TouchableOpacity style={styles.back} activeOpacity={0.82} onPress={onClose}>
-              <MdiIcon name="chevron-left" rawSize={24} color={ink} />
-            </TouchableOpacity>
-            <Text size={17} color={ink} style={styles.title}>{t('stats_title')}</Text>
-            <View style={styles.navSpacer} />
-          </View>
-
-          <View style={styles.chips}>
-            {RANGES.map(id => {
-              const selected = id == range
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.chip, selected ? styles.chipOn : null]}
-                  activeOpacity={0.85}
-                  onPress={() => { setRange(id) }}
-                >
-                  <Text
-                    size={13}
-                    color={selected ? colors.accent.primary : ink}
-                    style={styles.chipLabel}
-                  >{t(rangeLabelKey[id])}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-
-          <Text size={15} color={ink} style={styles.say}>{t(replayLeadKey[range])}</Text>
-          <View style={styles.bigRow}>
-            <Text size={96} color={ink} style={styles.bigNumber}>{displayValue}</Text>
-            <Text size={26} color={ink} style={styles.bigUnit}>{displayUnit}</Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            {compare
-              ? (
-                <View style={[styles.pill, styles.pillPrimary]}>
-                  {compare.flat ? null : <MdiIcon name={compare.up ? 'arrow-up' : 'arrow-down'} rawSize={14} color={colors.accent.primary} />}
-                  <Text size={13} color={colors.accent.primary} style={styles.pillText}>{compare.text}</Text>
-                </View>
-                )
-              : null}
-            <View style={styles.pill}>
-              <Text size={13} color={ink} style={styles.pillText}>
-                {t('stats_daily_avg', { duration: durationText(dailyAvgMs, false) })}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.chartHead}>
-            <Text size={13} color={ink} style={styles.chartCaption} numberOfLines={1}>{chartCaption}</Text>
-            <View style={styles.chartToggle}>
-              <TouchableOpacity
-                style={[styles.chartToggleItem, chartMode == 'bar' ? styles.chartToggleOn : null]}
-                activeOpacity={0.85}
-                onPress={() => { onChartModeChange('bar') }}
-                accessibilityLabel={t('stats_chart_bar')}
-              >
-                <MdiIcon name="chart-bar" rawSize={16} color={chartMode == 'bar' ? colors.accent.primary : ink} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.chartToggleItem, chartMode == 'line' ? styles.chartToggleOn : null]}
-                activeOpacity={0.85}
-                onPress={() => { onChartModeChange('line') }}
-                accessibilityLabel={t('stats_chart_line')}
-              >
-                <MdiIcon name="chart-line" rawSize={16} color={chartMode == 'line' ? colors.accent.primary : ink} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <ReplayChart buckets={stats.chart} range={range} mode={chartMode} styles={styles} colors={colors} t={t} />
-        </View>
+      <View style={styles.topBar}>
+        <BackButton onPress={onClose} />
       </View>
 
-      <View style={styles.page}>
-        <Text size={11} color={colors.ink.eyebrow} style={styles.eyebrow}>{t('stats_top_songs')}</Text>
-        <Text size={22} color={colors.ink.pageTitle} style={styles.h2}>{t(replaySongsTitleKey[range])}</Text>
-        <SongBlock
-          styles={styles}
-          colors={colors}
-          songs={songs}
-          totalListenedMs={stats.listenedMs}
-          range={range}
-          durationParts={durationParts}
-          t={t}
-          onPlay={playSong}
-        />
+      <TextTabs
+        items={rangeTabs}
+        value={range}
+        onChange={(id) => { setRange(id as PlayRangeId) }}
+        style={styles.tabs}
+      />
 
-        <Text size={11} color={colors.ink.eyebrow} style={[styles.eyebrow, { marginTop: 28 }]}>{t('stats_top_artists')}</Text>
-        <Text size={22} color={colors.ink.pageTitle} style={styles.h2}>{t('stats_replay_artists_title')}</Text>
-        <ArtistBlock
-          styles={styles}
-          colors={colors}
-          artists={artists}
-          totalListenedMs={stats.listenedMs}
-          range={range}
-          durationParts={durationParts}
-          t={t}
-        />
+      <Text size={magType.lead.size} color={r.ink} style={styles.lead}>{t(replayLeadKey[range])}</Text>
+      <Text size={96} color={r.display} style={styles.heroNumber}>{displayValue}</Text>
+      <Text size={26} color={r.display} style={styles.heroUnit}>{displayUnit}</Text>
 
-        <View style={styles.footnote}>
-          <MdiIcon name="information-outline" rawSize={14} color={colors.ink.faint} />
-          <Text size={12} color={colors.ink.faint} style={styles.footnoteText}>
-            {t('stats_footnote_rule')}{luxSync ? t('stats_footnote_lux') : t('stats_footnote_local')}
-          </Text>
-        </View>
+      {compare
+        ? (
+          <View style={styles.metaRow}>
+            <DeltaPill
+              label={compare.delta}
+              direction={compare.flat ? 'none' : compare.up ? 'up' : 'down'}
+            />
+            <Text size={14} color={r.muted} style={styles.metaText}>{compare.label}</Text>
+          </View>
+          )
+        : null}
+
+      <SectionHeader title={chartHead.title} meta={chartHead.meta} />
+      <ReplayChart buckets={stats.chart} range={range} mode={chartMode} styles={styles} t={t} />
+
+      <SectionHeader title={t(replaySongsTitleKey[range])} meta={t('stats_replay_rank1')} />
+      <SongBlock
+        styles={styles}
+        songs={songs}
+        totalListenedMs={stats.listenedMs}
+        range={range}
+        durationParts={durationParts}
+        t={t}
+        onPlay={playSong}
+      />
+
+      <SectionHeader title={t('stats_replay_artists_title')} meta={t('stats_top_artists')} />
+      <ArtistBlock
+        styles={styles}
+        artists={artists}
+        durationParts={durationParts}
+        t={t}
+      />
+
+      <View style={styles.footnote}>
+        <MdiIcon name="information-outline" size={14} color={r.faint} />
+        <Text size={12} color={r.faint} style={styles.footnoteText}>
+          {t('stats_footnote_rule')}{luxSync ? t('stats_footnote_lux') : t('stats_footnote_local')}
+        </Text>
       </View>
     </ScrollView>
   )
