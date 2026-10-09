@@ -35,3 +35,49 @@ runs:
     - name: Install dependencies
       shell: bash
       run: npm ci --legacy-peer-deps
+
+    # Gradle 会按 android/build.gradle 的 ndkVersion 在构建时自己下载 NDK。
+    # dl.google.com 偶发返回损坏压缩包（ZipException: Archive is not a ZIP archive）。
+    # 这里先装好并缓存，构建时目录已存在，Gradle 不再下载。
+    - name: Read NDK version
+      id: ndk
+      shell: bash
+      run: |
+        set -euo pipefail
+        sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+        if [ -z "$sdk_root" ] || [ ! -d "$sdk_root" ]; then
+          echo "::error::ANDROID_SDK_ROOT / ANDROID_HOME 未指向已存在的 Android SDK（当前: ${sdk_root:-空}）"
+          exit 1
+        fi
+        mapfile -t versions < <(sed -nE 's/^[[:space:]]*ndkVersion[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' android/build.gradle)
+        if [ "${#versions[@]}" -ne 1 ]; then
+          echo "::error::android/build.gradle 里应有且只有一行 ndkVersion = \"...\"（读到 ${#versions[@]} 行）"
+          exit 1
+        fi
+        version="${versions[0]}"
+        case "$version" in
+          *[!0-9.]*)
+            echo "::error::ndkVersion 含非法字符: ${version}"
+            exit 1
+            ;;
+        esac
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "sdk_root=${sdk_root}" >> "$GITHUB_OUTPUT"
+        echo "dir=${sdk_root}/ndk/${version}" >> "$GITHUB_OUTPUT"
+        echo "NDK ${version} -> ${sdk_root}/ndk/${version}"
+
+    - name: Cache NDK
+      id: cache-ndk
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.ndk.outputs.dir }}
+        key: ${{ runner.os }}-ndk-${{ steps.ndk.outputs.version }}
+
+    - name: Install NDK
+      if: steps.cache-ndk.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        NDK_VERSION: ${{ steps.ndk.outputs.version }}
+        NDK_DIR: ${{ steps.ndk.outputs.dir }}
+        SDK_ROOT: ${{ steps.ndk.outputs.sdk_root }}
+      run: bash .github/actions/setup/install-ndk.sh
