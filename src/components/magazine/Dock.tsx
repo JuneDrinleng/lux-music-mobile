@@ -15,7 +15,7 @@ import { Hairline } from './Hairline'
 import { IconButton } from './IconButton'
 
 /**
- * Magazine bottom dock shell (§4.16): paper + top ink rule.
+ * Magazine bottom dock shell (§4.16): paper + progress track (no top ink hairline).
  * Player strip (64) + nav (58). Page PRs wire real PlayerBar / BottomNav content into slots.
  */
 
@@ -41,8 +41,7 @@ const useStyles = sharedLuxStyles((colors) => {
   return createStyle({
     dock: {
       backgroundColor: r.paper,
-      borderTopWidth: 1,
-      borderTopColor: r.ink,
+      // Progress track separates the mini bar; no top ink hairline.
       overflow: 'visible',
     },
     progressBand: {
