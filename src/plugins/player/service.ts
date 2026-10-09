@@ -9,6 +9,7 @@ import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
 import { exitApp } from '@/core/common'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
+import { scheduleImageCacheTrim } from '@/utils/imageCache'
 
 let isInitialized = false
 
@@ -122,6 +123,7 @@ const registerPlaybackService = async() => {
     // console.log('PlaybackTrackChanged====>', info)
     global.lx.playerTrackId = await getCurrentTrackId()
     if (info.track == null) return
+    scheduleImageCacheTrim()
     if (global.lx.isPlayedStop) return handleExitApp('Timeout Exit')
 
     // console.log('global.lx.playerTrackId====>', global.lx.playerTrackId)

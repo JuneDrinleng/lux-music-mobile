@@ -5,6 +5,7 @@ import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '
 import { throttle } from './common'
 import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
+import { parseMusicUrlRecord, serializeMusicUrlRecord } from './musicUrlCache'
 import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
@@ -439,8 +440,17 @@ export const hasMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
 export const clearMusicUrlByMusic = async(musicInfo: LX.Music.MusicInfo) => {
   await removeDataMultiple(qualitys.map(q => `${storageDataPrefix.musicUrl}${musicInfo.id}_${q}`))
 }
-export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => getData<string>(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`).then((url) => url ?? '')
-export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, url)
+export const readMusicUrlRecord = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => {
+  const raw = await getData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`)
+  return parseMusicUrlRecord(raw)
+}
+export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality) => {
+  const record = await readMusicUrlRecord(musicInfo, type)
+  return record?.url ?? ''
+}
+export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => {
+  await saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, serializeMusicUrlRecord(url, Date.now()))
+}
 export const clearMusicUrl = async(keys?: string[]) => {
   if (!keys) keys = (await getAllKeys()).filter(key => key.startsWith(storageDataPrefix.musicUrl))
   await removeDataMultiple(keys)

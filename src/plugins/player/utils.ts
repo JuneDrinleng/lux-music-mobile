@@ -188,6 +188,12 @@ export const resetPlay = async() => Promise.all([setPause(), setCurrentTime(0)])
 export const isCached = async(url: string, musicInfo?: LX.Player.PlayMusic) => TrackPlayer.isCached(url, musicInfo ? getTrackCacheKey(musicInfo) : null)
 export const getCacheSize = async() => TrackPlayer.getCacheSize()
 export const clearCache = async() => TrackPlayer.clearCache()
+/** `mb` is the setting value. Native setup multiplies by 1024 again to reach bytes. */
+export const setMaxCacheSize = async(mb: number) => {
+  if (!global.lx.playerStatus.isInitialized) return
+  const value = Number.isFinite(mb) ? Math.max(0, mb) : 0
+  await TrackPlayer.setMaxCacheSize(value * 1024)
+}
 export const migratePlayerCache = async() => {
   const newCachePath = privateStorageDirectoryPath + '/TrackPlayer'
   if (await existsFile(newCachePath)) return

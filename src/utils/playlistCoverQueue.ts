@@ -23,6 +23,8 @@ const PRIORITY_RANK: Record<PlaylistCoverPriority, number> = {
   background: 2,
 }
 
+const LANE_ORDER: readonly PlaylistCoverPriority[] = ['visible', 'playlist', 'background']
+
 export const playlistCoverPriorityRank = (priority: PlaylistCoverPriority) => PRIORITY_RANK[priority]
 
 /** Backoff after a failed attempt. `failedAttempts` is 1-based. */
@@ -33,16 +35,89 @@ export const playlistCoverRetryDelay = (failedAttempts: number) => {
 
 export type CoverEnqueueResult = 'added' | 'upgraded' | 'duplicate'
 
+interface Slot {
+  key: string
+  gen: number
+}
+
+/**
+ * One lane. Visible work is a stack (newest taken first). Playlist and background
+ * are queues (oldest taken first). Stale slots are skipped, so moving a key is O(1).
+ */
+class CoverLane {
+  private slots: Slot[] = []
+  private head = 0
+
+  pushBack(slot: Slot) {
+    this.slots.push(slot)
+  }
+
+  pushFront(slot: Slot) {
+    if (this.head > 0) {
+      this.head -= 1
+      this.slots[this.head] = slot
+      return
+    }
+    this.slots.unshift(slot)
+  }
+
+  popBack(): Slot | null {
+    if (this.slots.length <= this.head) return null
+    const slot = this.slots.pop()!
+    if (this.slots.length === this.head) {
+      this.slots = []
+      this.head = 0
+    }
+    return slot
+  }
+
+  popFront(): Slot | null {
+    if (this.head >= this.slots.length) {
+      this.slots = []
+      this.head = 0
+      return null
+    }
+    const slot = this.slots[this.head]
+    this.head += 1
+    if (this.head > 64 && this.head * 2 > this.slots.length) {
+      this.slots = this.slots.slice(this.head)
+      this.head = 0
+    }
+    return slot
+  }
+
+  take(priority: PlaylistCoverPriority): Slot | null {
+    return priority == 'visible' ? this.popBack() : this.popFront()
+  }
+}
+
 /**
  * In-memory prefetch queue.
  * Visible work is always taken before playlist work, and playlist work before background.
  * A lower-priority enqueue never downgrades a job. Failed jobs retry with backoff until
  * PLAYLIST_COVER_MAX_ATTEMPTS, then stay blocked for background re-enqueue.
+ *
+ * Each lane is its own queue plus a membership generation, so enqueue of a new key does
+ * not scan the library.
  */
 export class PlaylistCoverQueue {
   private readonly pending = new Map<string, CoverQueueJob>()
-  private order: string[] = []
+  private readonly lanes: Record<PlaylistCoverPriority, CoverLane> = {
+    visible: new CoverLane(),
+    playlist: new CoverLane(),
+    background: new CoverLane(),
+  }
+
+  private readonly generation = new Map<string, number>()
+  private readonly readyCount: Record<PlaylistCoverPriority, number> = {
+    visible: 0,
+    playlist: 0,
+    background: 0,
+  }
+
   private readonly blocked = new Map<string, number>()
+  private delayed: CoverQueueJob[] = []
+  private nextGen = 1
 
   size() {
     return this.pending.size
@@ -53,48 +128,51 @@ export class PlaylistCoverQueue {
     if (blockedUntil > now && priority == 'background') return 'duplicate'
     if (blockedUntil > 0) this.blocked.delete(key)
 
-    const place = (itemKey: string, itemPriority: PlaylistCoverPriority) => {
-      this.order = this.order.filter(item => item != itemKey)
-      if (itemPriority == 'visible') this.order.unshift(itemKey)
-      else this.order.push(itemKey)
-    }
     const existing = this.pending.get(key)
     if (!existing) {
-      this.pending.set(key, { key, priority, attempts: 0, notBefore: now })
-      place(key, priority)
+      const job: CoverQueueJob = { key, priority, attempts: 0, notBefore: now }
+      this.pending.set(key, job)
+      this.placeReady(job, 'back')
       return 'added'
     }
     const promoted = playlistCoverPriorityRank(priority) < playlistCoverPriorityRank(existing.priority)
-    if (promoted) {
-      existing.priority = priority
-      existing.notBefore = now
-    }
     if (promoted || priority == 'visible') {
-      place(key, existing.priority)
+      this.detach(key, false)
+      if (promoted) {
+        existing.priority = priority
+        existing.notBefore = now
+      }
+      this.placeReady(existing, 'back')
       return promoted ? 'upgraded' : 'duplicate'
     }
     return 'duplicate'
   }
 
   take(now: number, priorities?: readonly PlaylistCoverPriority[]): CoverQueueJob | null {
-    let bestIndex = -1
-    let bestRank = Number.POSITIVE_INFINITY
-    for (let index = 0; index < this.order.length; index++) {
-      const job = this.pending.get(this.order[index])
-      if (!job || job.notBefore > now) continue
-      if (priorities && !priorities.includes(job.priority)) continue
-      const rank = playlistCoverPriorityRank(job.priority)
-      if (rank < bestRank) {
-        bestRank = rank
-        bestIndex = index
+    this.promote(now)
+    for (const priority of LANE_ORDER) {
+      if (priorities && !priorities.includes(priority)) continue
+      const lane = this.lanes[priority]
+      while (this.readyCount[priority] > 0) {
+        const slot = lane.take(priority)
+        if (!slot) {
+          this.readyCount[priority] = 0
+          break
+        }
+        if (!this.isCurrent(slot)) continue
+        const job = this.pending.get(slot.key)
+        this.generation.delete(slot.key)
+        this.readyCount[priority] -= 1
+        if (!job) continue
+        if (job.notBefore > now) {
+          this.delayed.push(job)
+          continue
+        }
+        this.pending.delete(slot.key)
+        return { ...job }
       }
     }
-    if (bestIndex < 0) return null
-    const key = this.order[bestIndex]
-    this.order.splice(bestIndex, 1)
-    const job = this.pending.get(key)
-    this.pending.delete(key)
-    return job ? { ...job } : null
+    return null
   }
 
   fail(job: CoverQueueJob, now: number): 'retry' | 'drop' {
@@ -109,37 +187,101 @@ export class PlaylistCoverQueue {
       notBefore: now + playlistCoverRetryDelay(attempts),
     }
     this.pending.set(job.key, next)
-    this.order.push(job.key)
+    this.delayed.push(next)
     return 'retry'
   }
 
   /** Put a taken job back without counting a failure (for example while waiting for Wi-Fi). */
   delay(job: CoverQueueJob, notBefore: number) {
-    this.pending.set(job.key, { ...job, notBefore })
-    this.order.push(job.key)
+    const next = { ...job, notBefore }
+    this.pending.set(job.key, next)
+    if (notBefore <= Date.now()) this.placeReady(next, 'back')
+    else this.delayed.push(next)
   }
 
   hasReady(priority: PlaylistCoverPriority, now: number) {
-    for (const job of this.pending.values()) {
-      if (job.priority == priority && job.notBefore <= now) return true
-    }
-    return false
+    this.promote(now)
+    return this.readyCount[priority] > 0
   }
 
   demote(from: PlaylistCoverPriority, to: PlaylistCoverPriority) {
     if (playlistCoverPriorityRank(to) <= playlistCoverPriorityRank(from)) return
-    for (const job of this.pending.values()) {
-      if (job.priority == from) job.priority = to
+    this.promote(Date.now())
+    const moved: CoverQueueJob[] = []
+    const lane = this.lanes[from]
+    while (this.readyCount[from] > 0) {
+      const slot = lane.take(from)
+      if (!slot || !this.isCurrent(slot)) continue
+      const job = this.pending.get(slot.key)
+      this.generation.delete(slot.key)
+      this.readyCount[from] -= 1
+      if (job) moved.push(job)
+    }
+    const stay: CoverQueueJob[] = []
+    for (const job of this.delayed) {
+      if (job.priority == from) moved.push(job)
+      else stay.push(job)
+    }
+    this.delayed = stay
+    for (let index = moved.length - 1; index >= 0; index -= 1) {
+      const job = moved[index]
+      job.priority = to
+      if (job.notBefore > Date.now()) this.delayed.push(job)
+      else this.placeReady(job, 'front')
     }
   }
 
   forget(key: string) {
-    this.pending.delete(key)
     this.blocked.delete(key)
-    this.order = this.order.filter(item => item != key)
+    this.detach(key, true)
   }
 
   isBlocked(key: string, now: number) {
     return (this.blocked.get(key) ?? 0) > now
+  }
+
+  private isCurrent(slot: Slot) {
+    return this.generation.get(slot.key) == slot.gen
+  }
+
+  private detach(key: string, dropPending: boolean) {
+    const job = this.pending.get(key)
+    const hadGen = this.generation.delete(key)
+    if (!hadGen) {
+      this.delayed = this.delayed.filter(item => item.key != key)
+      if (dropPending) this.pending.delete(key)
+      return
+    }
+    if (job && this.readyCount[job.priority] > 0) this.readyCount[job.priority] -= 1
+    this.delayed = this.delayed.filter(item => item.key != key)
+    if (dropPending) this.pending.delete(key)
+  }
+
+  private placeReady(job: CoverQueueJob, where: 'back' | 'front') {
+    const gen = this.nextGen
+    this.nextGen += 1
+    this.generation.set(job.key, gen)
+    const slot = { key: job.key, gen }
+    const lane = this.lanes[job.priority]
+    if (where == 'front') lane.pushFront(slot)
+    else lane.pushBack(slot)
+    this.readyCount[job.priority] += 1
+  }
+
+  private promote(now: number) {
+    if (!this.delayed.length) return
+    const due: CoverQueueJob[] = []
+    const stay: CoverQueueJob[] = []
+    for (const job of this.delayed) {
+      if (job.notBefore <= now) due.push(job)
+      else stay.push(job)
+    }
+    if (!due.length) return
+    this.delayed = stay
+    for (const job of due) {
+      if (this.pending.get(job.key) != job) continue
+      // Retries wait behind work that is already ready in the same lane.
+      this.placeReady(job, job.priority == 'visible' ? 'front' : 'back')
+    }
   }
 }

@@ -19,9 +19,11 @@ import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailure
 import { fetchAltCoverUrl } from '@/core/music/utils'
 import { getListMusics, updateListMusics } from '@/core/list'
 import listState from '@/store/list/state'
-import { primeImageCacheIndex } from '@/utils/imageCache'
+import { primeImageCacheIndex, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
+import { UNPINNED_IMAGE_CACHE_LIMIT } from '@/utils/imageCachePolicy'
 import { loadPlaylistCoverStore } from '@/utils/playlistCoverStore'
-import { installPlaylistCoverPrefetch, runIdlePlaylistCoverPrefetch } from '@/utils/playlistCoverPrefetch'
+import { installPlaylistCoverPrefetch, pinStoredPlaylistCovers, runIdlePlaylistCoverPrefetch } from '@/utils/playlistCoverPrefetch'
+import { enforceListenListLimit } from '@/core/list/enforceListenListLimit'
 import BackgroundTimer from 'react-native-background-timer'
 import { InteractionManager } from 'react-native'
 
@@ -100,7 +102,12 @@ export default async() => {
   bootLog('Data inited.')
   await primeImageCacheIndex().catch(() => {})
   await loadPlaylistCoverStore().catch(() => {})
+  const imageCacheCount = parseInt(setting['player.imageCacheCount'] || '', 10)
+  setImageCacheLimits(Number.isFinite(imageCacheCount) && imageCacheCount > 0 ? imageCacheCount : UNPINNED_IMAGE_CACHE_LIMIT)
+  pinStoredPlaylistCovers()
+  scheduleImageCacheTrim()
   installPlaylistCoverPrefetch()
+  void enforceListenListLimit()
   void InteractionManager.runAfterInteractions(() => {
     setTimeout(() => { runIdlePlaylistCoverPrefetch() }, 1000)
   })

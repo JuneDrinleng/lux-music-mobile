@@ -1,8 +1,8 @@
 import {
   saveLyric,
   saveMusicUrl,
-  getMusicUrl as getStoreMusicUrl,
 } from '@/utils/data'
+import { readReusableMusicUrl } from './reuseMusicUrl'
 import { updateListMusics } from '@/core/list'
 import { getListMusicSync } from '@/utils/listManage'
 import listState from '@/store/list/state'
@@ -55,8 +55,8 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh, allowToggleSou
   //   // return Promise.reject(new Error('该歌曲没有可播放的音频'))
   // }
   const targetQuality = quality ?? getPlayQuality(settingState.setting['player.playQuality'], musicInfo)
-  const cachedUrl = await getStoreMusicUrl(musicInfo, targetQuality)
-  if (cachedUrl && !isRefresh) return cachedUrl
+  const cachedUrl = await readReusableMusicUrl(musicInfo, targetQuality, isRefresh)
+  if (cachedUrl) return cachedUrl
 
   return handleGetOnlineMusicUrl({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }).then(({ url, quality: targetQuality, musicInfo: targetMusicInfo, isFromCache }) => {
     if (targetMusicInfo.id != musicInfo.id && !isFromCache) void saveMusicUrl(targetMusicInfo, targetQuality, url)

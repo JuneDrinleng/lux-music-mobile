@@ -155,6 +155,11 @@ declare global {
       'player.cacheSize': string
 
       /**
+       * 未固定图片缓存的张数上限。歌单内歌曲封面不计入。
+       */
+      'player.imageCacheCount': string
+
+      /**
        * 定时暂停播放-倒计时时间
        */
       'player.timeoutExit': string

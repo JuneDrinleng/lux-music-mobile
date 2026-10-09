@@ -1,5 +1,6 @@
 
 import { saveLyric, saveMusicUrl } from '@/utils/data'
+import { readReusableMusicUrl } from './reuseMusicUrl'
 import { updateListMusics } from '@/core/list'
 import {
   buildLyricInfo,
@@ -79,6 +80,8 @@ export const getMusicUrl = async({ musicInfo, isRefresh, allowToggleSource = tru
   }
 
   try {
+    const reused = await readReusableMusicUrl(musicInfo, '128k', isRefresh)
+    if (reused) return reused
     return await getOnlineOtherSourceMusicUrlByLocal(musicInfo, isRefresh).then(({ url, quality, isFromCache }) => {
       if (!isFromCache) void saveMusicUrl(musicInfo, quality, url)
       return url

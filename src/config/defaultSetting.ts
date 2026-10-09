@@ -26,6 +26,7 @@ const defaultSetting: LX.AppSetting = {
   'player.volume': 1,
   'player.playbackRate': 1,
   'player.cacheSize': '1024',
+  'player.imageCacheCount': '400',
   'player.timeoutExit': '',
   'player.timeoutExitPlayed': true,
   'player.isAutoCleanPlayedList': false,

@@ -160,9 +160,6 @@ export const getOnlineOtherSourceMusicUrlByLocal = async(musicInfo: LX.Music.Mus
 
   const quality = '128k'
 
-  const cachedUrl = await getStoreMusicUrl(musicInfo, quality)
-  if (cachedUrl && !isRefresh) return { url: cachedUrl, quality, isFromCache: true }
-
   let reqPromise
   try {
     reqPromise = apis('local').getMusicUrl(toOldMusicInfo(musicInfo), null).promise
@@ -441,8 +438,7 @@ export const getOnlineOtherSourceLyricInfo = async({ musicInfos, onToggleSource,
 
   let reqPromise
   try {
-    // TODO: remove any type
-    reqPromise = (musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)) as any).promise
+    reqPromise = musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)).promise
   } catch (err: any) {
     reqPromise = Promise.reject(err)
   }
@@ -464,7 +460,7 @@ let altCoverInflight = 0
 const altCoverQueue: Array<() => void> = []
 const MAX_ALT_COVER_CONCURRENCY = 3
 
-const acquireAltCoverSlot = (): Promise<void> => {
+const acquireAltCoverSlot = async(): Promise<void> => {
   if (altCoverInflight < MAX_ALT_COVER_CONCURRENCY) {
     altCoverInflight++
     return Promise.resolve()
@@ -520,8 +516,7 @@ export const handleGetOnlineLyricInfo = async({ musicInfo, onToggleSource, isRef
   // console.log(musicInfo.source)
   let reqPromise
   try {
-    // TODO: remove any type
-    reqPromise = (musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)) as any).promise
+    reqPromise = musicSdk[musicInfo.source].getLyric(toOldMusicInfo(musicInfo)).promise
   } catch (err) {
     reqPromise = Promise.reject(err)
   }
