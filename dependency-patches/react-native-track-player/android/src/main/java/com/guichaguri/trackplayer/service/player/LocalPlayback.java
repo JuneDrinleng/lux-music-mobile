@@ -134,16 +134,53 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         promise.resolve(null);
     }
 
+    /**
+     * Trailing unread bytes (ID3 / padding) often remain after a full listen.
+     * Treat nearly-complete contiguous ranges as fully cached for the local page.
+     */
+    private static final long FULL_CACHE_TAIL_TOLERANCE_BYTES = 128L * 1024L;
+
+    /**
+     * Open SimpleCache for listing even when write ceiling is 0 or the player
+     * has not enabled caching yet, so complete files already on disk are visible.
+     */
+    private void ensureCacheReadable() {
+        if (cache != null) return;
+        long openBytes = cacheMaxSize > 0 ? cacheMaxSize : Long.MAX_VALUE;
+        openCache(openBytes);
+        if (cacheMaxSize <= 0 && cacheEvictor != null) {
+            cacheEvictor.setMaxBytes(0);
+        }
+    }
+
+    private boolean isFullyCachedKey(String key, long cachedBytes, long contentLength) {
+        if (contentLength == C.LENGTH_UNSET || contentLength <= 0) return false;
+        if (cache.isCached(key, 0, contentLength)) return true;
+        long covered = Math.max(0L, contentLength - FULL_CACHE_TAIL_TOLERANCE_BYTES);
+        if (covered <= 0) return cachedBytes > 0;
+        return cachedBytes + FULL_CACHE_TAIL_TOLERANCE_BYTES >= contentLength
+            && cache.isCached(key, 0, covered);
+    }
+
     public void listCachedEntries(Promise promise) {
         WritableArray result = Arguments.createArray();
+        try {
+            ensureCacheReadable();
+        } catch (Exception e) {
+            Log.e(Utils.LOG, "listCachedEntries openCache: " + e.getMessage());
+            promise.resolve(result);
+            return;
+        }
         if (cache == null) {
             promise.resolve(result);
             return;
         }
         for (String key : cache.getKeys()) {
-            long cachedBytes = cache.getCachedBytes(key, 0, C.LENGTH_UNSET);
             long contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(key));
-            boolean fullyCached = contentLength != C.LENGTH_UNSET && contentLength > 0 && cachedBytes >= contentLength;
+            long cachedBytes = contentLength != C.LENGTH_UNSET && contentLength > 0
+                ? cache.getCachedBytes(key, 0, contentLength)
+                : cache.getCachedBytes(key, 0, C.LENGTH_UNSET);
+            boolean fullyCached = isFullyCachedKey(key, cachedBytes, contentLength);
             WritableMap item = Arguments.createMap();
             item.putString("key", key);
             item.putDouble("cachedBytes", cachedBytes);

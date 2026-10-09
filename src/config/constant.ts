@@ -94,6 +94,7 @@ export const storageDataPrefix = {
   playHistoryDevice: '@play_history_device',
   playHistoryCursor: '@play_history_cursor',
   playHistoryAvatars: '@play_history_avatars',
+  statsChartMode: '@stats_chart_mode',
 
   userApi: '@user_api__',
   userAvatar: '@user_avatar',

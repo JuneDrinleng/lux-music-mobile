@@ -26,11 +26,32 @@ export interface RankedArtist {
   fallbackImg?: string
 }
 
+/** Chart X-axis bucket for the listening-time summary. */
+export type ChartBucketKind = 'hour2' | 'day' | 'month' | 'year'
+
+export interface ChartBucket {
+  start: number
+  end: number
+  isCurrent: boolean
+  kind: ChartBucketKind
+  /** `Date#getDay` when `kind` is `day`. */
+  weekday: number
+  /** Start hour (0, 2, …, 22) when `kind` is `hour2`. */
+  hour: number
+  /** 1–31 when useful for day-of-month labels. */
+  dayOfMonth: number
+  /** 0–11 month index. */
+  month: number
+  year: number
+  listenedMs: number
+  minutes: number
+}
+
+/** @deprecated Prefer ChartBucket; kept for older call sites during the chart rewrite. */
 export interface DayBucket {
   start: number
   end: number
   isToday: boolean
-  /** `Date#getDay`, 0 = Sunday. */
   weekday: number
   listenedMs: number
   minutes: number
@@ -46,15 +67,28 @@ export interface RangeStats {
   dayCount: number
   songs: RankedSong[]
   artists: RankedArtist[]
-  days: DayBucket[]
+  /** Listening-time buckets for the selected range. */
+  chart: ChartBucket[]
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
 const ARTIST_SPLIT = /[、&/;；,，|]/
+const HOUR2_SLOT_MS = 2 * HOUR_MS
 
 export const startOfLocalDay = (time: number): number => {
   const date = new Date(time)
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+export const startOfLocalMonth = (time: number): number => {
+  const date = new Date(time)
+  return new Date(date.getFullYear(), date.getMonth(), 1).getTime()
+}
+
+export const startOfLocalYear = (time: number): number => {
+  const date = new Date(time)
+  return new Date(date.getFullYear(), 0, 1).getTime()
 }
 
 export const rangeBounds = (range: PlayRangeId, now: number): RangeBounds => {
@@ -99,6 +133,134 @@ export const last7DayStarts = (now: number): number[] => {
   const starts: number[] = []
   for (let offset = 6; offset >= 0; offset -= 1) starts.push(today - offset * DAY_MS)
   return starts
+}
+
+const sumListenedInWindow = (records: readonly PlayRecord[], start: number, end: number): number => {
+  let listenedMs = 0
+  for (const record of records) {
+    if (record.startedAt >= start && record.startedAt < end) listenedMs += record.listenedMs
+  }
+  return listenedMs
+}
+
+const bucketMeta = (start: number, kind: ChartBucketKind, hour = 0): Omit<ChartBucket, 'listenedMs' | 'minutes' | 'isCurrent' | 'end'> & { end: number } => {
+  const date = new Date(start)
+  const end = kind == 'hour2'
+    ? start + HOUR2_SLOT_MS
+    : kind == 'day'
+      ? start + DAY_MS
+      : kind == 'month'
+        ? new Date(date.getFullYear(), date.getMonth() + 1, 1).getTime()
+        : new Date(date.getFullYear() + 1, 0, 1).getTime()
+  return {
+    start,
+    end,
+    kind,
+    weekday: date.getDay(),
+    hour,
+    dayOfMonth: date.getDate(),
+    month: date.getMonth(),
+    year: date.getFullYear(),
+  }
+}
+
+const finishBucket = (
+  meta: ReturnType<typeof bucketMeta>,
+  records: readonly PlayRecord[],
+  isCurrent: boolean,
+): ChartBucket => {
+  const listenedMs = sumListenedInWindow(records, meta.start, meta.end)
+  return {
+    ...meta,
+    isCurrent,
+    listenedMs,
+    minutes: Math.round(listenedMs / 60_000),
+  }
+}
+
+/** Today: 12 two-hour slots (0时–22时). */
+export const buildTodayHourlyBuckets = (records: readonly PlayRecord[], now: number): ChartBucket[] => {
+  const todayStart = startOfLocalDay(now)
+  const currentHour = new Date(now).getHours()
+  const currentSlot = Math.floor(currentHour / 2) * 2
+  const buckets: ChartBucket[] = []
+  for (let hour = 0; hour < 24; hour += 2) {
+    const start = todayStart + hour * HOUR_MS
+    const meta = bucketMeta(start, 'hour2', hour)
+    buckets.push(finishBucket(meta, records, hour == currentSlot))
+  }
+  return buckets
+}
+
+const buildDayBuckets = (starts: number[], records: readonly PlayRecord[], now: number): ChartBucket[] => {
+  const today = startOfLocalDay(now)
+  return starts.map((start) => {
+    const meta = bucketMeta(start, 'day')
+    return finishBucket(meta, records, start == today)
+  })
+}
+
+const buildMonthDayBuckets = (records: readonly PlayRecord[], now: number): ChartBucket[] => {
+  const monthStart = startOfLocalMonth(now)
+  const today = startOfLocalDay(now)
+  const starts: number[] = []
+  for (let start = monthStart; start <= today; start += DAY_MS) starts.push(start)
+  return buildDayBuckets(starts, records, now)
+}
+
+const buildYearMonthBuckets = (records: readonly PlayRecord[], now: number): ChartBucket[] => {
+  const yearStart = startOfLocalYear(now)
+  const currentMonth = startOfLocalMonth(now)
+  const buckets: ChartBucket[] = []
+  for (let start = yearStart; start <= currentMonth;) {
+    const meta = bucketMeta(start, 'month')
+    buckets.push(finishBucket(meta, records, start == currentMonth))
+    start = meta.end
+  }
+  return buckets
+}
+
+const monthsBetween = (from: number, to: number): number => {
+  const a = new Date(from)
+  const b = new Date(to)
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth())
+}
+
+/** All-time: per month, or per year when the span exceeds 24 months. */
+export const buildAllChartBuckets = (records: readonly PlayRecord[], now: number): ChartBucket[] => {
+  const currentMonth = startOfLocalMonth(now)
+  const earliest = records.reduce((min, record) => Math.min(min, record.startedAt), now)
+  const firstMonth = startOfLocalMonth(earliest)
+  if (monthsBetween(firstMonth, currentMonth) > 24) {
+    const firstYear = startOfLocalYear(earliest)
+    const currentYear = startOfLocalYear(now)
+    const buckets: ChartBucket[] = []
+    for (let start = firstYear; start <= currentYear;) {
+      const meta = bucketMeta(start, 'year')
+      buckets.push(finishBucket(meta, records, start == currentYear))
+      start = meta.end
+    }
+    return buckets
+  }
+  const buckets: ChartBucket[] = []
+  for (let start = firstMonth; start <= currentMonth;) {
+    const meta = bucketMeta(start, 'month')
+    buckets.push(finishBucket(meta, records, start == currentMonth))
+    start = meta.end
+  }
+  return buckets
+}
+
+export const buildChartBuckets = (
+  records: readonly PlayRecord[],
+  range: PlayRangeId,
+  now: number,
+): ChartBucket[] => {
+  if (range == 'today') return buildTodayHourlyBuckets(records, now)
+  if (range == 'days7') return buildDayBuckets(last7DayStarts(now), records, now)
+  if (range == 'month') return buildMonthDayBuckets(records, now)
+  if (range == 'year') return buildYearMonthBuckets(records, now)
+  return buildAllChartBuckets(records, now)
 }
 
 const artistNames = (singer: string): string[] => {
@@ -188,22 +350,6 @@ export const buildRangeStats = (records: readonly PlayRecord[], range: PlayRange
   }
   const rankedArtists = [...artists.values()].sort((a, b) => b.playCount - a.playCount || b.listenedMs - a.listenedMs || a.name.localeCompare(b.name))
 
-  const days = last7DayStarts(now).map((start) => {
-    const end = start + DAY_MS
-    let listenedMs = 0
-    for (const record of records) {
-      if (record.startedAt >= start && record.startedAt < end) listenedMs += record.listenedMs
-    }
-    return {
-      start,
-      end,
-      isToday: start == startOfLocalDay(now),
-      weekday: new Date(start).getDay(),
-      listenedMs,
-      minutes: Math.round(listenedMs / 60_000),
-    }
-  })
-
   return {
     bounds,
     previousBounds,
@@ -213,6 +359,6 @@ export const buildRangeStats = (records: readonly PlayRecord[], range: PlayRange
     dayCount: dayCountFor(range, now, selected),
     songs: rankedSongs,
     artists: rankedArtists,
-    days,
+    chart: buildChartBuckets(selected, range, now),
   }
 }
