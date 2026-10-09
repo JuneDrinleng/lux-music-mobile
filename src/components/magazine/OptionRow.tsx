@@ -18,10 +18,13 @@ const useStyles = sharedLuxStyles((colors) => {
       minHeight: OPTION_ROW_MIN_HEIGHT,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingVertical: 12,
+      gap: 12,
     },
     label: {
       flex: 1,
+      minWidth: 0,
       fontWeight: '600',
     },
     labelOn: {
@@ -32,6 +35,7 @@ const useStyles = sharedLuxStyles((colors) => {
       height: 10,
       borderRadius: 5,
       backgroundColor: r.accent,
+      flexShrink: 0,
     },
   })
 })
@@ -62,7 +66,8 @@ export const OptionRow = memo(({
         <Text
           size={magType.rowTitle.size}
           color={selected ? r.ink : r.option}
-          style={selected ? styles.labelOn : styles.label}
+          style={[styles.label, selected ? styles.labelOn : null]}
+          numberOfLines={1}
         >{label}</Text>
         {selected
           ? (

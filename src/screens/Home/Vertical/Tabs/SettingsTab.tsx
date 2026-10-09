@@ -1456,7 +1456,9 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
+    gap: 12,
   },
   themeOptionLabel: {
     fontWeight: '600',
@@ -1469,22 +1471,26 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     height: 10,
     borderRadius: 5,
     backgroundColor: colors.accent.primary,
+    flexShrink: 0,
   },
   optionErrorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: colors.danger,
+    flexShrink: 0,
   },
   manageOptionRow: {
     minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
-    gap: 8,
+    gap: 12,
   },
   manageOptionLabel: {
     flex: 1,
+    minWidth: 0,
     fontWeight: '600',
   },
   scroll: {
