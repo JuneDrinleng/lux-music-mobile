@@ -5,6 +5,8 @@ declare global {
 
       interface LuxAuth {
         token: string
+        serverId?: string
+        serverUrl?: string
         user: {
           id: string
           username: string
@@ -34,6 +36,9 @@ declare global {
         clientId: string
         key: string
         serverName: string
+        /** Local ownership metadata; never sent as part of the sync protocol. */
+        luxUserId?: string
+        lxAuthCodeHash?: string
       }
 
       interface Socket extends WebSocket {

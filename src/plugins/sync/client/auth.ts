@@ -6,6 +6,8 @@ import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
 import { SYNC_CODE } from '../constants'
+import { getSyncDeviceId } from '../deviceId'
+import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential } from './credentials'
 
 export const requestJson = async<T>(url: string, body?: unknown, token?: string): Promise<T> => {
   const { text, code } = await request(url, {
@@ -53,7 +55,7 @@ const getServerId = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpPr
     throw err
   })
 
-const codeAuth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode: string) => {
+const codeAuth = async(urlInfo: LX.Sync.UrlInfo, authCode: string) => {
   let key = toMD5(authCode).substring(0, 16)
   // const iv = Buffer.from(key.split('').reverse().join('')).toString('base64')
   key = Buffer.from(key).toString('base64')
@@ -61,7 +63,8 @@ const codeAuth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode: str
   publicKey = publicKey.replace(/\n/g, '')
     .replace('-----BEGIN PUBLIC KEY-----', '')
     .replace('-----END PUBLIC KEY-----', '')
-  const msg = aesEncrypt(`${SYNC_CODE.authMsg}\n${publicKey}\n${await getDeviceName()}\nlx_music_mobile`, key)
+  const msg = aesEncrypt(buildLxAuthMessage(SYNC_CODE.authMsg, publicKey, await getDeviceName(), await getSyncDeviceId()), key)
+  // Do not send header i here: old LX servers route it to key-auth, not code-auth.
   // console.log(msg, key)
   return request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/ah`, { headers: { m: msg } }).then(async({ text, code }) => {
     // console.log(text)
@@ -82,16 +85,16 @@ const codeAuth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode: str
     }
     // console.log(msg)
     if (!msg) return Promise.reject(new Error(SYNC_CODE.authFailed))
-    const info = JSON.parse(msg) as LX.Sync.KeyInfo
-    void setSyncAuthKey(serverId, info)
-    return info
+    return JSON.parse(msg) as LX.Sync.KeyInfo
   })
 }
 
 const keyAuth = async(urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   const msg = aesEncrypt(SYNC_CODE.authMsg + await getDeviceName(), keyInfo.key)
   return request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/ah`, { headers: { i: keyInfo.clientId, m: msg } }).then(async({ text, code }) => {
-    if (code != 200) throw new Error(SYNC_CODE.authFailed)
+    if (text == SYNC_CODE.msgBlockedIp) throw new Error(SYNC_CODE.msgBlockedIp)
+    if (isKeyRejection(code, text, SYNC_CODE.authFailed, SYNC_CODE.msgBlockedIp)) throw new CredentialRejectedError(SYNC_CODE.authFailed)
+    if (code != 200) throw new Error(SYNC_CODE.connectServiceFailed)
 
     let msg
     try {
@@ -105,19 +108,28 @@ const keyAuth = async(urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
 }
 
 const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string) => {
-  if (authCode) return codeAuth(urlInfo, serverId, authCode)
-  const keyInfo = await getSyncAuthKey(serverId)
-  if (!keyInfo) throw new Error(SYNC_CODE.missingAuthCode)
-  await keyAuth(urlInfo, keyInfo)
+  const currentKey = credentialStorageKey(serverId, 'lx', '')
+  const legacy = await getSyncAuthKey(serverId)
+  const codeHash = authCode ? toMD5(`${await getSyncDeviceId()}\n${authCode}`) : ''
+  const accountKey = codeHash ? credentialStorageKey(serverId, 'lx', codeHash) : currentKey
+  const saved = selectLxCredential(await getSyncAuthKey(accountKey), legacy, codeHash)
+  const keyInfo = await reuseOrRequestKey({
+    saved,
+    verify: async(info) => keyAuth(urlInfo, info),
+    request: async() => {
+      if (!authCode) throw new Error(SYNC_CODE.missingAuthCode)
+      return { ...await codeAuth(urlInfo, authCode), lxAuthCodeHash: codeHash }
+    },
+    save: async(info) => setSyncAuthKey(accountKey, info),
+  })
+  await setSyncAuthKey(currentKey, keyInfo)
+  await setSyncAuthKey(serverId, keyInfo)
   return keyInfo
 }
 
-const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string) => {
-  const deviceName = await getDeviceName()
-  return requestJson<LX.Sync.KeyInfo>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/sync/key`, {
-    deviceName,
-    platform: 'lux_music_mobile',
-  }, token)
+const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string, clientId?: string) => {
+  const body = buildLuxKeyRequest(await getSyncDeviceId(), await getDeviceName(), clientId)
+  return requestJson<LX.Sync.KeyInfo>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/sync/key`, body, token)
 }
 
 export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
@@ -126,19 +138,35 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
 
-  let authInfo = await getLuxAuth()
+  let authInfo = await getLuxAuth(serverId)
   if (username && password) {
     authInfo = await requestJson<LX.Sync.LuxAuth>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
-    await setLuxAuth(authInfo)
   }
   if (!authInfo?.token) throw new Error(SYNC_CODE.missingAuthCode)
-  const keyInfo = await getLuxSyncKey(urlInfo, authInfo.token)
+  const session = authInfo
+  const accountKey = credentialStorageKey(serverId, 'lux', session.user.id)
+  const legacy = await getSyncAuthKey(serverId)
+  const { saved, previousClientId: legacyClientId } = selectLuxCredential(await getSyncAuthKey(accountKey), legacy, session.user.id)
+  // Old keys have no account owner. Reconcile once using the authenticated API;
+  // /ah alone cannot prove that an old key belongs to the newly logged-in user.
+  const keyInfo = await reuseOrRequestKey({
+    saved,
+    verify: async(info) => keyAuth(urlInfo, info),
+    request: async(previousClientId) => ({
+      ...await getLuxSyncKey(urlInfo, session.token, previousClientId ?? legacyClientId),
+      luxUserId: session.user.id,
+    }),
+    save: async(info) => setSyncAuthKey(accountKey, info),
+  })
   await setSyncAuthKey(serverId, keyInfo)
+  // Commit login state after obtaining the matching key, so a failed account
+  // switch cannot leave a new session paired with the previous account's key.
+  await setLuxAuth({ ...session, serverId, serverUrl: urlInfo.href })
   return keyInfo
 }
 
 export default async(urlInfo: LX.Sync.UrlInfo, authCode?: string) => {
-  console.log('connect: ', urlInfo.href, authCode)
+  console.log('connect: ', urlInfo.href)
   console.log(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/hello`)
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)

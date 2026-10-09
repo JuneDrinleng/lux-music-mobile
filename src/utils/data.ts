@@ -7,6 +7,8 @@ import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unli
 import { log } from './log'
 import { parseMusicUrlRecord, serializeMusicUrlRecord } from './musicUrlCache'
 import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { createCredentialStore } from '@/plugins/sync/client/credentials'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
 // import { isNotificationsEnabled, openNotificationPermissionActivity, shareText } from '@/utils/nativeModules/utils'
@@ -551,19 +553,15 @@ export const getSelectedManagedFolder = async() => {
   return selectedManagedFolder
 }
 
-export const getSyncAuthKey = async(serverId: string) => {
-  const keys = await getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix)
-  if (!keys) return null
-  return keys[serverId] ?? null
-}
-export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => {
-  let keys = await getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix) ?? {}
-  keys[serverId] = info
-  await saveData(syncAuthKeyPrefix, keys)
-}
-export const clearSyncAuthKey = async() => {
-  await removeData(syncAuthKeyPrefix)
-}
+const syncKeys = createCredentialStore<LX.Sync.KeyInfo>({
+  read: async() => getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix),
+  // Credentials are small; replace atomically without saveData's remove-before-write gap.
+  write: async(keys) => AsyncStorage.setItem(syncAuthKeyPrefix, JSON.stringify(keys)),
+  remove: async() => removeData(syncAuthKeyPrefix),
+})
+export const getSyncAuthKey = async(serverId: string) => syncKeys.get(serverId)
+export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => syncKeys.set(serverId, info)
+export const clearSyncAuthKey = async() => syncKeys.clear()
 
 export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
   const mode = await getData<LX.Sync.Mode>(syncModePrefix)
@@ -573,12 +571,27 @@ export const setSyncMode = async(mode: LX.Sync.Mode) => {
   await saveData(syncModePrefix, mode)
   global.app_event?.syncModeUpdated(mode)
 }
-export const getLuxAuth = async() => getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+const luxSessions = createCredentialStore<LX.Sync.LuxAuth>({
+  read: async() => getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers),
+  write: async(sessions) => AsyncStorage.setItem(storageDataPrefix.luxAuthServers, JSON.stringify(sessions)),
+  remove: async() => removeData(storageDataPrefix.luxAuthServers),
+})
+export const getLuxAuth = async(serverId?: string) => {
+  if (serverId) {
+    const session = await luxSessions.get(serverId)
+    if (session) return session
+  }
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  // Accept the old unscoped session once, then bind it when authentication succeeds.
+  if (serverId && active?.serverId && active.serverId != serverId) return null
+  return active
+}
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
-  await saveData(luxAuthPrefix, auth)
+  if (auth.serverId) await luxSessions.set(auth.serverId, auth)
+  await AsyncStorage.setItem(luxAuthPrefix, JSON.stringify(auth))
 }
 export const clearLuxAuth = async() => {
-  await removeData(luxAuthPrefix)
+  await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
 }
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {

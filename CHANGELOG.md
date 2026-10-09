@@ -3,6 +3,15 @@
 本文档用于记录本仓库（fork 分支）的版本变更历史。
 <!-- Modified by Lux Music: derived from the upstream LX Music Mobile documentation file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. -->
 
+## 未发布
+
+### 修复
+
+- 同步使用独立持久化的安装 UUID；Lux 申请凭据发送 deviceId 和已有 clientId，LX 连接码认证追加兼容旧服务端的第五行 deviceId。
+- 按服务器及账号保存和复用同步凭据，重复登录、应用重启和切换回原服务器时先验证已有凭据；网络错误、限流和服务器故障不触发重新申请。
+- 旧 Lux 凭据没有账号归属，首次使用会携带旧 clientId 向已登录账号做一次绑定；旧 LX 凭据自动连接继续复用，首次显式提交连接码时绑定该连接码，避免切换账号时误用旧密钥。
+- 退出登录仍清除认证信息，安装 UUID 保留。无界面、文案或版本号变更。
+
 ## [0.3.1](https://github.com/lyswhut/lx-music-mobile/compare/v0.3.0...v0.3.1) - 2026-07-10
 
 ## v0.3.1
@@ -884,4 +893,3 @@ v0.2.0
 - 检查更新目标仓库切换为 `JuneDrinleng/lux-music-mobile`。
 - APK 产物命名前缀切换为 `lux-music-mobile`。
 - 增加适配本仓库的 GitHub Actions 自动构建与发布流程。
-
