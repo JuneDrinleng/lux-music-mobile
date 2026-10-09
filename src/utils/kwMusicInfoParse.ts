@@ -9,7 +9,7 @@ export const kwRidMusicInfoUrl = (songmid: string) => {
 }
 
 export const kwAlbumCoverUrl = (shortPath: string | null | undefined) => {
-  const path = String(shortPath || '').trim().replace(/^\/+/, '')
+  const path = String(shortPath ?? '').trim().replace(/^\/+/, '')
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   return `https://img1.kuwo.cn/star/albumcover/${path}`
@@ -91,7 +91,8 @@ export const parseKwSearchMusicInfo = (body: unknown, expectedMid?: string): KwP
   if (!name) return null
 
   const ridRaw = cleanText(row.MUSICRID ?? row.rid ?? expectedMid ?? '')
-  const songmid = ridRaw.replace(/^(MUSIC_|kw_)+/i, '') || String(expectedMid || '').trim()
+  const stripped = ridRaw.replace(/^(MUSIC_|kw_)+/i, '')
+  const songmid = stripped || String(expectedMid ?? '').trim()
   if (expectedMid) {
     const want = String(expectedMid).replace(/^(MUSIC_|kw_)+/i, '')
     if (songmid && want && songmid != want) return null

@@ -211,7 +211,7 @@ const fetchKw = async(songmid: string) => {
   if (!info?.name) return null
   const duration = Number(info.duration)
   const seconds = Number.isFinite(duration) ? (duration > 10000 ? duration / 1000 : duration) : 0
-  const mid = info.songmid || songmid
+  const mid = info.songmid ?? songmid
   return toNewMusicInfo({
     name: info.name,
     singer: typeof info.artist == 'string' ? formatSinger(info.artist) : '',
