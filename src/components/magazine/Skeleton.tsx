@@ -36,10 +36,18 @@ export const SkeletonRow = memo(({ last = false }: { last?: boolean }) => {
   )
 })
 
-export const MagLoadingBar = memo(({ label = 'LOADING' }: { label?: string }) => {
+export const MagLoadingBar = memo(({
+  label = 'LOADING',
+  trackWidth,
+}: {
+  label?: string
+  /** When set, bar is this wide (design pt), left-aligned, no side padding. */
+  trackWidth?: number
+}) => {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const slide = useRef(new Animated.Value(0)).current
+  const travel = trackWidth != null ? Math.max(0, trackWidth * 0.7) : 240
   useEffect(() => {
     const loop = Animated.loop(Animated.timing(slide, {
       toValue: 1,
@@ -50,13 +58,18 @@ export const MagLoadingBar = memo(({ label = 'LOADING' }: { label?: string }) =>
     return () => { loop.stop() }
   }, [slide])
   return (
-    <View style={{ paddingHorizontal: PAGE_GUTTER, paddingVertical: 18 }}>
+    <View style={{
+      paddingHorizontal: trackWidth != null ? 0 : PAGE_GUTTER,
+      paddingVertical: 18,
+      width: trackWidth,
+      alignSelf: trackWidth != null ? 'flex-start' : undefined,
+    }}>
       <Text
         size={magType.eyebrow.size}
         color={r.eyebrow}
         style={{ fontWeight: '700', letterSpacing: 2, marginBottom: 10 }}
       >{label}</Text>
-      <View style={{ height: 2, backgroundColor: r.hairline, overflow: 'hidden' }}>
+      <View style={{ height: 2, backgroundColor: r.hairline, overflow: 'hidden', width: '100%' }}>
         <Animated.View style={{
           width: '30%',
           height: 2,
@@ -64,7 +77,7 @@ export const MagLoadingBar = memo(({ label = 'LOADING' }: { label?: string }) =>
           transform: [{
             translateX: slide.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 240],
+              outputRange: [0, travel],
             }),
           }],
         }} />
