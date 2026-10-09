@@ -1,13 +1,15 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 import { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { FlatList, type FlatListProps, RefreshControl, View } from 'react-native'
 
-// import { useMusicList } from '@/store/list/hook'
 import CommentFloor from './CommentFloor'
 import { createStyle } from '@/utils/tools'
-import { useTheme } from '@/store/theme/hook'
 import { type Comment } from '../utils'
 import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
 
 type FlatListType = FlatListProps<Comment>
 
@@ -26,13 +28,11 @@ const List = forwardRef<ListType, ListProps>(({
   onRefresh,
   onLoadMore,
 }, ref) => {
-  // const t = useI18n()
-  const theme = useTheme()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const flatListRef = useRef<FlatList>(null)
   const [currentList, setList] = useState<Comment[]>([])
   const [status, setStatus] = useState<Status>('idle')
-  // const currentListIdRef = useRef('')
-  // console.log('render comment list')
 
   useImperativeHandle(ref, () => ({
     setList(list) {
@@ -51,17 +51,21 @@ const List = forwardRef<ListType, ListProps>(({
     onLoadMore()
   }
 
-  const renderItem: FlatListType['renderItem'] = ({ item }) => <CommentFloor comment={item} />
+  const renderItem: FlatListType['renderItem'] = ({ item, index }) => (
+    <CommentFloor comment={item} isLast={index === currentList.length - 1} />
+  )
 
   const getkey: FlatListType['keyExtractor'] = item => item.id
 
   const refreshControl = useMemo(() => (
     <RefreshControl
-      colors={[theme['c-primary']]}
-      // progressBackgroundColor={theme.primary}
+      colors={[r.accent]}
+      tintColor={r.accent}
       refreshing={status == 'refreshing'}
-      onRefresh={onRefresh} />
-  ), [status, onRefresh, theme])
+      onRefresh={onRefresh}
+    />
+  ), [status, onRefresh, r.accent])
+
   const footerComponent = useMemo(() => {
     let label: FooterLabel
     switch (status) {
@@ -88,15 +92,9 @@ const List = forwardRef<ListType, ListProps>(({
       style={styles.list}
       data={currentList}
       onEndReachedThreshold={0.5}
-      // maxToRenderPerBatch={4}
-      // updateCellsBatchingPeriod={80}
-      // windowSize={8}
       removeClippedSubviews={false}
-      // initialNumToRender={12}
       renderItem={renderItem}
       keyExtractor={getkey}
-      // onRefresh={onRefresh}
-      // refreshing={refreshing}
       onEndReached={handleLoadMore}
       refreshControl={refreshControl}
       ListFooterComponent={footerComponent}
@@ -109,7 +107,8 @@ const Footer = ({ label, onLoadMore }: {
   label: FooterLabel
   onLoadMore: () => void
 }) => {
-  const theme = useTheme()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
   const handlePress = () => {
     if (label != 'list_error') return
@@ -119,7 +118,7 @@ const Footer = ({ label, onLoadMore }: {
     label
       ? (
           <View>
-            <Text onPress={handlePress} style={styles.footer} color={theme['c-font-label']}>{t(label)}</Text>
+            <Text onPress={handlePress} style={styles.footer} color={r.faint}>{t(label)}</Text>
           </View>
         )
       : null
@@ -127,14 +126,9 @@ const Footer = ({ label, onLoadMore }: {
 }
 
 const styles = createStyle({
-  container: {
-    flex: 1,
-  },
   list: {
     flexGrow: 1,
     flexShrink: 1,
-    paddingLeft: 15,
-    paddingRight: 15,
   },
   footer: {
     textAlign: 'center',
