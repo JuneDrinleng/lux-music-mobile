@@ -18,6 +18,7 @@ import { useMyList } from '@/store/list/hook'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { useWindowSize } from '@/utils/hooks'
+import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -31,6 +32,17 @@ const TONEARM_PIVOT_X = 104
 const TONEARM_PIVOT_Y = 15
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
+/** Controls sit above safe-area + this design padding. */
+const PLAYER_BOTTOM_PAD = 24
+/** Non-record content reservation (eyebrow / title / lyrics / progress / controls + min gaps). */
+const PLAYER_RESERVED_ABOVE = 38
+const PLAYER_RESERVED_TITLE = 90
+const PLAYER_RESERVED_LYRIC = 48 + 14
+const PLAYER_RESERVED_PROGRESS = 40
+const PLAYER_RESERVED_CONTROLS = 56
+/** Min flex gaps always present: after record / title / progress. */
+const PLAYER_RESERVED_GAPS = 30 + 18 + 10
+const PLAYER_DISC_MIN = 200
 
 const sourceShortKey = (source: string): keyof Message => {
   switch (source) {
@@ -72,8 +84,27 @@ export default ({ active }: { componentId: string, active: boolean }) => {
   const [currentCover, setCurrentCover] = useState(musicInfo.pic)
   const [prevCover, setPrevCover] = useState<string | null | undefined>(null)
   const [isLoved, setIsLoved] = useState(false)
+  const [pageHeight, setPageHeight] = useState(0)
   const winSize = useWindowSize()
-  const discSize = Math.max(240, winSize.width - PAGE_GUTTER * 2 - 16)
+  const bottomInset = useSystemGestureInsetBottom()
+  const bottomPad = bottomInset + PLAYER_BOTTOM_PAD
+
+  const currentLyric = lyricLines[line]?.text ?? ''
+  const nextLyric = lyricLines[line + 1]?.text ?? ''
+  const hasLyricPreview = Boolean(currentLyric || nextLyric)
+
+  const discSize = useMemo(() => {
+    const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
+    const reservedBelow = PLAYER_RESERVED_TITLE +
+      (hasLyricPreview ? PLAYER_RESERVED_LYRIC : 0) +
+      PLAYER_RESERVED_PROGRESS +
+      PLAYER_RESERVED_CONTROLS +
+      PLAYER_RESERVED_GAPS
+    const heightBased = pageHeight > 0
+      ? pageHeight - bottomPad - PLAYER_RESERVED_ABOVE - reservedBelow
+      : widthBased
+    return Math.max(PLAYER_DISC_MIN, Math.min(widthBased, heightBased))
+  }, [bottomPad, hasLyricPreview, pageHeight, winSize.width])
 
   const source = getMusicSource(playMusicInfo.musicInfo)
   const sourceLabel = source && source !== 'local' ? t(sourceShortKey(source)) : ''
@@ -87,9 +118,6 @@ export default ({ active }: { componentId: string, active: boolean }) => {
     if (listId === LIST_IDS.TEMP) return t('list_name_temp')
     return myLists.find(list => list.id === listId)?.name ?? ''
   }, [myLists, playMusicInfo.listId, t])
-
-  const currentLyric = lyricLines[line]?.text ?? ''
-  const nextLyric = lyricLines[line + 1]?.text ?? ''
 
   const vinylGrooves = useMemo(() => {
     const grooves: Array<{ key: string, inset: number, opacity: number }> = []
@@ -325,10 +353,16 @@ export default ({ active }: { componentId: string, active: boolean }) => {
   }, [togglePlayMethod])
 
   return (
-    <View style={[styles.container, { backgroundColor: r.paper }]}>
+    <View
+      style={[styles.container, { backgroundColor: r.paper }]}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height
+        if (next > 0 && next !== pageHeight) setPageHeight(next)
+      }}
+    >
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
@@ -342,6 +376,8 @@ export default ({ active }: { componentId: string, active: boolean }) => {
             ? t('player_now_playing_from', { name: fromListName })
             : t('player_now_playing')}
         </Text>
+
+        <View style={styles.flexGapSm} />
 
         <View style={[styles.recordWrap, { width: discSize, height: discSize }]}>
           <Animated.View style={[styles.recordSpin, { transform: [{ rotate: recordRotate }] }]}>
@@ -418,7 +454,9 @@ export default ({ active }: { componentId: string, active: boolean }) => {
           </View>
         </View>
 
-        <View style={styles.titleBlock}>
+        <View style={styles.flexGapRecord} />
+
+        <View>
           <View style={styles.titleRow}>
             <Text size={32} color={r.display} numberOfLines={2} style={styles.songTitle}>
               {musicInfo.name || '—'}
@@ -453,29 +491,36 @@ export default ({ active }: { componentId: string, active: boolean }) => {
           </View>
         </View>
 
-        {(currentLyric || nextLyric)
+        <View style={styles.flexGapTitle} />
+
+        {hasLyricPreview
           ? (
-            <View style={styles.lyricPreview}>
-              <View style={[styles.lyricAccent, { backgroundColor: r.accent }]} />
-              <View style={styles.lyricLines}>
-                {currentLyric
-                  ? <Text size={17} color={r.ink} numberOfLines={1} style={styles.lyricCurrent}>{currentLyric}</Text>
-                  : null}
-                {nextLyric
-                  ? <Text size={14} color={r.faint} numberOfLines={1} style={styles.lyricNext}>{nextLyric}</Text>
-                  : null}
+            <>
+              <View style={styles.lyricPreview}>
+                <View style={[styles.lyricAccent, { backgroundColor: r.accent }]} />
+                <View style={styles.lyricLines}>
+                  {currentLyric
+                    ? <Text size={17} color={r.ink} numberOfLines={1} style={styles.lyricCurrent}>{currentLyric}</Text>
+                    : null}
+                  {nextLyric
+                    ? <Text size={14} color={r.faint} numberOfLines={1} style={styles.lyricNext}>{nextLyric}</Text>
+                    : null}
+                </View>
               </View>
-            </View>
+              <View style={styles.flexGapLyric} />
+            </>
             )
           : null}
 
-        <View style={styles.progressBlock}>
+        <View>
           <SeekBar progress={progress} duration={maxPlayTime} />
           <View style={styles.timeRow}>
             <Text size={11} color={r.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
             <Text size={11} color={r.faint} style={styles.timeText}>{maxPlayTimeStr}</Text>
           </View>
         </View>
+
+        <View style={styles.flexGapProgress} />
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleTogglePlayMode}>
@@ -512,15 +557,40 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: PAGE_GUTTER,
-    paddingBottom: 28,
   },
   eyebrow: {
     fontWeight: '700',
     letterSpacing: 2,
     textTransform: 'uppercase',
     marginTop: 10,
-    marginBottom: 14,
+  },
+  /** Absorb leftover height so the control row sits near the bottom on tall screens. */
+  flexGapSm: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 8,
+  },
+  flexGapRecord: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 30,
+  },
+  flexGapTitle: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 18,
+  },
+  flexGapLyric: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 14,
+  },
+  flexGapProgress: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 10,
   },
   recordWrap: {
     alignSelf: 'center',
@@ -528,7 +598,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     overflow: 'visible',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 30,
   },
   recordSpin: {
     width: '100%',
@@ -646,9 +715,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     height: 4,
     borderRadius: 1,
   },
-  titleBlock: {
-    marginBottom: 18,
-  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -679,7 +745,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 10,
-    marginBottom: 14,
     minHeight: 48,
   },
   lyricAccent: {
@@ -696,9 +761,6 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   lyricNext: {
     fontWeight: '400',
-  },
-  progressBlock: {
-    marginBottom: 10,
   },
   timeRow: {
     marginTop: 2,
