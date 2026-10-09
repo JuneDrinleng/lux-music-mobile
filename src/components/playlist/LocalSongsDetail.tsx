@@ -35,6 +35,7 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 import {
   alignCachedSong,
+  hasCachedSongMetadata,
   mergeLocalSongRows,
   parseAudioCacheKey,
   resolveCachedSongMetadata,
@@ -251,8 +252,6 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
         const fetched = await fetchCachedSongMusicInfo(parsed)
         if (!fetched || generation != reloadGeneration.current) continue
         const musicInfo = withCachedCover(alignCachedSong(fetched, parsed))
-        await rememberResolvedCacheSong(row.cacheKey, musicInfo)
-        if (generation != reloadGeneration.current) return
         setRows(current => current.map(item => {
           if (item.rowKey != row.rowKey) return item
           return { ...item, musicInfo, needsRemoteMeta: false, playable: true }
@@ -311,7 +310,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
         const musicInfo = withCachedCover(alignCachedSong(resolved.musicInfo, resolved.parsed) as LX.Music.MusicInfo)
         if (row.cacheKey && resolved.via != 'fallback') {
           const existing = catalog.metaByKey.get(row.cacheKey)
-          if (!existing?.name || existing.name == row.cacheKey) void rememberResolvedCacheSong(row.cacheKey, musicInfo)
+          if (!existing || !hasCachedSongMetadata(existing, row.cacheKey)) void rememberResolvedCacheSong(row.cacheKey, musicInfo)
         }
         const parsed = resolved.parsed
         return {

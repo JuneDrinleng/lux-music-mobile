@@ -27,6 +27,7 @@ const files = [
   'src/utils/listenListLimit.ts',
   'src/utils/playlistCoverMap.ts',
   'src/utils/localSongRows.ts',
+  'src/utils/cachedSongMetadata.ts',
   'src/utils/localSongCoverMatch.ts',
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
@@ -36,6 +37,7 @@ const files = [
   'src/utils/playHistory/merge.ts',
   'src/utils/playHistory/range.ts',
   'src/utils/playHistory/chartMode.ts',
+  'src/utils/playHistory/chartLayout.ts',
   'src/utils/playHistory/backup.ts',
   'src/utils/playHistory/wire.ts',
   'src/plugins/sync/deviceIdentity.ts',
@@ -105,6 +107,7 @@ const musicUrlCache = require(join(outDir, 'src/utils/musicUrlCache.js'))
 const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
+const cachedMetadata = require(join(outDir, 'src/utils/cachedSongMetadata.js'))
 const localCover = require(join(outDir, 'src/utils/localSongCoverMatch.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
@@ -113,6 +116,7 @@ const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
 const playChartMode = require(join(outDir, 'src/utils/playHistory/chartMode.js'))
+const playChartLayout = require(join(outDir, 'src/utils/playHistory/chartLayout.js'))
 const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
 const deviceIdentity = require(join(outDir, 'src/plugins/sync/deviceIdentity.js'))
@@ -1661,6 +1665,277 @@ test('credential storage recovers its write queue after failure and orders expli
   await Promise.all(operations)
   assert.equal(await store.get('before-clear'), null)
   assert.deepEqual(await store.get('after-clear'), { clientId: 'retained' })
+})
+
+test('Kuwo cache lookup normalizes catalog IDs without changing playback cache keys', () => {
+  for (const cacheId of ['638844272', 'kw_638844272', 'MUSIC_638844272', 'kw_MUSIC_638844272']) {
+    const cacheKey = `kw_${cacheId}_128k`
+    const parsed = localSongRows.parseAudioCacheKey(cacheKey)
+    assert.equal(parsed.songmid, '638844272')
+    assert.equal(parsed.id, cacheId)
+    for (const id of ['638844272', 'kw_638844272', 'MUSIC_638844272', 'kw_MUSIC_638844272']) {
+      const song = { id, source: 'kw', name: '本地保存的歌名', singer: '歌手', interval: '03:32' }
+      const resolved = localSongRows.resolveCachedSongMetadata({ cacheKey, userLists: [song] })
+      assert.equal(resolved.via, 'userList')
+      assert.equal(resolved.musicInfo.singer, '歌手')
+      assert.equal(localSongRows.alignCachedSong(resolved.musicInfo, parsed).id, cacheId)
+    }
+    assert.equal(localSongRows.songMatchesCacheKey({
+      id: 'legacy-id', source: 'kw', meta: { songId: 'MUSIC_638844272' },
+    }, parsed), true)
+    assert.equal(localSongRows.songMatchesCacheKey({ id: '638844272', source: 'wy' }, parsed), false)
+    assert.equal(localSongRows.songMatchesCacheKey({ id: 'kw_638844273', source: 'kw' }, parsed), false)
+  }
+})
+
+test('persisted listening records restore Kuwo titles, artists and duration over poisoned ID placeholders', () => {
+  const cacheKey = 'kw_kw_2689279_320k'
+  const placeholder = localSongRows.resolveCachedSongMetadata({ cacheKey }).musicInfo
+  const history = cachedMetadata.cachedSongsFromPlayRecords([{
+    id: 'device:1',
+    deviceId: 'device',
+    startedAt: 1,
+    endedAt: 181001,
+    listenedMs: 180000,
+    song: { source: 'kw', songmid: 'MUSIC_2689279', name: '旧记录歌名', singer: '旧记录歌手', interval: '03:00', img: 'file:///cover.jpg' },
+  }])
+  assert.equal(history[0].meta.songId, '2689279')
+  const resolved = localSongRows.resolveCachedSongMetadata({
+    cacheKey, userLists: [placeholder], listenList: [placeholder], playHistory: history, keyedMeta: placeholder,
+  })
+  assert.equal(resolved.via, 'playHistory')
+  assert.equal(resolved.musicInfo.name, '旧记录歌名')
+  assert.equal(resolved.musicInfo.singer, '旧记录歌手')
+  assert.equal(resolved.musicInfo.interval, '03:00')
+  assert.equal(resolved.musicInfo.meta.picUrl, 'file:///cover.jpg')
+  assert.equal(localSongRows.resolveCachedSongMetadata({ cacheKey, keyedMeta: placeholder }).via, 'fallback')
+  assert.equal(localSongRows.hasCachedSongMetadata(placeholder, cacheKey), false)
+  assert.equal(localSongRows.hasCachedSongMetadata({ ...placeholder, singer: '真实歌手' }, cacheKey), true)
+  const user = { ...history[0], name: '用户歌单中的歌名' }
+  assert.equal(localSongRows.resolveCachedSongMetadata({ cacheKey, userLists: [user], playHistory: history }).musicInfo.name, user.name)
+})
+
+test('cache metadata index preserves concurrent writes and rejects replayed placeholders', async() => {
+  let reads = 0
+  let disk = []
+  let release
+  const initialRead = new Promise(resolve => { release = resolve })
+  const index = cachedMetadata.createCachedSongIndex(async() => { reads += 1; return initialRead }, entries => { disk = entries })
+  const song = id => ({ id: `kw_${id}`, source: 'kw', name: `歌曲 ${id}`, singer: '歌手', meta: { songId: id } })
+  const keys = ['638844272', '2689279', '193290598'].map(id => `kw_kw_${id}_128k`)
+  const writes = keys.map((key, i) => index.remember(key, song(['638844272', '2689279', '193290598'][i])))
+  release([])
+  await Promise.all(writes)
+  assert.equal(reads, 1)
+  assert.deepEqual((await index.load()).map(entry => entry.key), keys)
+  assert.deepEqual(disk.map(entry => entry.key), keys)
+  await index.remember(keys[0], localSongRows.resolveCachedSongMetadata({ cacheKey: keys[0] }).musicInfo)
+  assert.equal((await index.load())[0].musicInfo.name, '歌曲 638844272')
+  await Promise.all([
+    index.forget([keys[0]]),
+    index.remember('kw_kw_4_128k', song('4')),
+    index.forget([keys[1]]),
+  ])
+  assert.deepEqual(disk.map(entry => entry.key), [keys[2], 'kw_kw_4_128k'])
+  const reloaded = cachedMetadata.createCachedSongIndex(async() => disk, () => {})
+  assert.equal((await reloaded.load()).length, 2)
+})
+
+test('failed cache index reads are retryable and never overwrite existing disk metadata', async() => {
+  let attempts = 0
+  let writes = 0
+  const disk = [{ key: 'kw_kw_1_128k', musicInfo: { id: 'kw_1', source: 'kw', name: '已保存', singer: '歌手' } }]
+  const index = cachedMetadata.createCachedSongIndex(async() => {
+    if (++attempts == 1) throw new Error('storage temporarily unavailable')
+    return disk
+  }, () => { writes += 1 })
+  await assert.rejects(index.remember('kw_kw_2_128k', { id: 'kw_2', source: 'kw', name: '第二首', singer: '歌手' }))
+  assert.equal(writes, 0)
+  await index.remember('kw_kw_2_128k', { id: 'kw_2', source: 'kw', name: '第二首', singer: '歌手' })
+  assert.equal((await index.load()).length, 2)
+  assert.equal(attempts, 2)
+})
+
+test('missing Kuwo metadata fetches once across aliases and persists through a fresh resolver', async() => {
+  let disk = []
+  const index = cachedMetadata.createCachedSongIndex(async() => disk, entries => { disk = entries })
+  let fetches = 0
+  let release
+  const remote = new Promise(resolve => { release = resolve })
+  const dependencies = {
+    loadStored: async() => (await index.load()).map(entry => entry.musicInfo),
+    fetch: async parsed => { fetches += 1; assert.equal(parsed.songmid, '193290598'); return remote },
+    prepare: song => song,
+    persist: index.remember,
+  }
+  const fetchInfo = cachedMetadata.createCachedSongMetadataFetcher(dependencies)
+  const firstKey = localSongRows.parseAudioCacheKey('kw_kw_193290598_128k')
+  const otherKey = localSongRows.parseAudioCacheKey('kw_MUSIC_193290598_320k')
+  const first = fetchInfo(firstKey)
+  const other = fetchInfo(otherKey)
+  release({ id: 'kw_193290598', source: 'kw', name: '网络补全', singer: '网络歌手', interval: '04:08', meta: { songId: '193290598' } })
+  const [one, two] = await Promise.all([first, other])
+  assert.equal(fetches, 1)
+  assert.equal(one.name, '网络补全')
+  assert.equal(one.interval, '04:08')
+  assert.equal(two.id, 'MUSIC_193290598')
+  assert.equal(disk.length, 2)
+  const reopened = cachedMetadata.createCachedSongIndex(async() => disk, () => {})
+  const afterRestart = cachedMetadata.createCachedSongMetadataFetcher({
+    ...dependencies,
+    loadStored: async() => (await reopened.load()).map(entry => entry.musicInfo),
+    fetch: async() => { throw new Error('must not refetch saved metadata') },
+    persist: reopened.remember,
+  })
+  assert.equal((await afterRestart(firstKey)).singer, '网络歌手')
+  assert.equal(fetches, 1)
+})
+
+test('metadata hydration keeps the ID offline and can recover on a later retry', async() => {
+  const parsed = localSongRows.parseAudioCacheKey('kw_kw_638844272_128k')
+  let online = false
+  const index = cachedMetadata.createCachedSongIndex(async() => [], () => {})
+  const fetchInfo = cachedMetadata.createCachedSongMetadataFetcher({
+    loadStored: async() => (await index.load()).map(entry => entry.musicInfo),
+    fetch: async() => {
+      if (!online) throw new Error('offline')
+      return { id: 'kw_638844272', source: 'kw', name: '恢复歌名', singer: '恢复歌手' }
+    },
+    prepare: song => song,
+    persist: index.remember,
+  })
+  assert.equal(await fetchInfo(parsed), null)
+  assert.equal((await index.load()).length, 0)
+  const fallback = localSongRows.resolveCachedSongMetadata({ cacheKey: parsed.cacheKey })
+  assert.equal(fallback.musicInfo.name, '638844272')
+  online = true
+  assert.equal((await fetchInfo(parsed)).name, '恢复歌名')
+  assert.equal((await index.load()).length, 1)
+})
+
+test('metadata hydration does not coalesce distinct Kugou hashes', async() => {
+  const hashes = []
+  const fetchInfo = cachedMetadata.createCachedSongMetadataFetcher({
+    loadStored: async() => [],
+    fetch: async parsed => {
+      hashes.push(parsed.hash)
+      return { id: parsed.id, source: 'kg', name: `歌曲 ${parsed.hash}`, singer: '歌手', meta: { songId: parsed.songmid, hash: parsed.hash } }
+    },
+    prepare: song => song,
+    persist: async() => {},
+  })
+  const [first, second] = await Promise.all([
+    fetchInfo(localSongRows.parseAudioCacheKey('kg_1_hashA_128k')),
+    fetchInfo(localSongRows.parseAudioCacheKey('kg_1_hashB_128k')),
+  ])
+  assert.deepEqual(hashes, ['hashA', 'hashB'])
+  assert.equal(first.meta.hash, 'hashA')
+  assert.equal(second.meta.hash, 'hashB')
+})
+
+const chartTestRecord = (startedAt, listenedMs) => ({
+  id: `chart:${startedAt}`,
+  deviceId: 'chart',
+  startedAt,
+  endedAt: startedAt + listenedMs,
+  listenedMs,
+  song: { source: 'kw', songmid: '638844272', name: '测试歌曲', singer: '歌手' },
+})
+
+const chartTestTranslate = locale => {
+  const messages = JSON.parse(readFileSync(join(root, `src/lang/${locale}.json`), 'utf8').replace(/^\uFEFF/, ''))
+  return (key, params = {}) => Object.entries(params).reduce(
+    (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+    messages[key],
+  )
+}
+
+test('today chart retains 32 minutes, displays short listens, and positions slots within measured width', () => {
+  const now = new Date(2026, 9, 9, 20, 16).getTime()
+  const records = [
+    chartTestRecord(new Date(2026, 9, 9, 8, 30).getTime(), 16 * 60_000),
+    chartTestRecord(new Date(2026, 9, 9, 18, 10).getTime(), 15 * 60_000 + 50_000),
+    chartTestRecord(new Date(2026, 9, 9, 20, 5).getTime(), 10_000),
+  ]
+  const stats = playRange.buildRangeStats(records, 'today', now)
+  assert.equal(stats.listenedMs, 32 * 60_000)
+  assert.equal(stats.chart.reduce((total, bucket) => total + bucket.listenedMs, 0), stats.listenedMs)
+  assert.equal(stats.chart.length, 12)
+  // Display minutes round to zero; the chart must still use the precise duration.
+  assert.equal(stats.chart[10].minutes, 0)
+  for (const width of [180, 303, 375, 800]) {
+    const geometry = playChartLayout.buildStatsChartLayout(stats.chart, width, 118, 4)
+    assert.equal(geometry.slotWidth, width / 12)
+    assert.equal(geometry.points[4].height, 118)
+    assert.equal(geometry.points[9].height, 950_000 / 960_000 * 118)
+    assert.equal(geometry.points[10].height, 4)
+    assert.equal(geometry.points[10].empty, false)
+    assert.equal(geometry.points[0].height, 0)
+    assert.equal(geometry.points[0].empty, true)
+    geometry.points.forEach((point, index) => {
+      assert.equal(point.x, (index + 0.5) * geometry.slotWidth)
+      assert.ok(point.x > 0 && point.x < width)
+      assert.ok(Number.isFinite(point.y) && point.y >= 0 && point.y <= 118)
+    })
+  }
+})
+
+test('all today slot labels and the current non-six-hour slot remain visible in every language even with no plays', () => {
+  const now = new Date(2026, 9, 9, 20, 16).getTime()
+  const buckets = playRange.buildTodayHourlyBuckets([], now)
+  const expectedHours = Array.from({ length: 12 }, (_, index) => index * 2)
+  assert.deepEqual(buckets.map(bucket => bucket.hour), expectedHours)
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    const translate = chartTestTranslate(locale)
+    const labels = buckets.map(bucket => playChartLayout.statsBucketLabel(bucket, 'today', translate))
+    assert.equal(labels.every(label => label.show && label.text.length > 0), true, locale)
+    assert.deepEqual(labels.map(label => label.text), expectedHours.map(hour => translate('stats_hour_label', { hour })), locale)
+    assert.equal(labels.filter(label => label.highlight).length, 1, locale)
+    assert.equal(labels[10].highlight, true, locale)
+    assert.equal(translate('stats_minute_less_than_one'), '<1', locale)
+  }
+})
+
+test('bar and line modes share finite geometry across all ranges, singleton and long all-time history', () => {
+  const now = new Date(2026, 9, 9, 20, 16).getTime()
+  const scenarios = [
+    { range: 'today', records: [], kind: 'hour2', length: 12 },
+    { range: 'days7', records: [], kind: 'day', length: 7 },
+    { range: 'month', records: [], kind: 'day', length: 9 },
+    { range: 'year', records: [], kind: 'month', length: 10 },
+    { range: 'all', records: [], kind: 'month', length: 1 },
+    { range: 'all', records: [chartTestRecord(new Date(2026, 7, 1).getTime(), 1000)], kind: 'month', length: 3 },
+    { range: 'all', records: [chartTestRecord(new Date(2023, 0, 1).getTime(), 1000)], kind: 'year', length: 4 },
+  ]
+  for (const scenario of scenarios) {
+    const buckets = playRange.buildRangeStats(scenario.records, scenario.range, now).chart
+    assert.equal(buckets.length, scenario.length)
+    assert.equal(buckets.every(bucket => bucket.kind === scenario.kind), true)
+    assert.equal(buckets.filter(bucket => bucket.isCurrent).length, 1)
+    const before = structuredClone(buckets)
+    let lastGeometry
+    for (const selectedMode of ['bar', 'line', 'bar']) {
+      assert.equal(playChartMode.normalizeStatsChartMode(selectedMode), selectedMode)
+      const geometry = playChartLayout.buildStatsChartLayout(buckets, 303, 118)
+      for (const point of geometry.points) {
+        assert.ok(Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.height))
+        assert.ok(point.x >= 0 && point.x <= geometry.width)
+        assert.ok(point.height >= 0 && point.height <= 118)
+        const label = playChartLayout.statsBucketLabel(point.bucket, scenario.range, chartTestTranslate('en-us'))
+        if (point.bucket.isCurrent) assert.equal(label.show && label.highlight, true)
+      }
+      if (lastGeometry) assert.deepEqual(geometry, lastGeometry)
+      lastGeometry = geometry
+    }
+    assert.deepEqual(buckets, before)
+  }
+  assert.deepEqual(playChartLayout.buildStatsChartLayout([], 0, 118).points, [])
+  for (const width of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const singleton = playRange.buildChartBuckets([], 'all', now)
+    const geometry = playChartLayout.buildStatsChartLayout(singleton, width, 118)
+    assert.ok(geometry.width > 0)
+    assert.equal(geometry.points[0].x, geometry.width / 2)
+  }
 })
 
 test('migrated screens reject new color literals', () => {
