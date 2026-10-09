@@ -32,7 +32,6 @@ const Main = () => {
   const [activeNavId, setActiveNavId] = useState<NAV_ID_Type>(commonState.navActiveId)
   const [searchPageVisible, setSearchPageVisible] = useState(false)
   const [searchPageRequest, setSearchPageRequest] = useState<SearchPageRequest | null>(null)
-  const [playlistSharedTopBarVisible, setPlaylistSharedTopBarVisible] = useState(true)
   const [playlistDetailVisible, setPlaylistDetailVisible] = useState(false)
   const [localSongsVisible, setLocalSongsVisible] = useState(false)
   const [listeningStatsVisible, setListeningStatsVisible] = useState(false)
@@ -120,12 +119,9 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  // Home owns MagTopBar (scrolls with content). Hide SharedTopBar on home and
-  // whenever playlist detail is open so the detail header is the only top control.
-  const sharedTopBarVisible = !searchPageVisible && !detailCovering && (
-    activeNavId === 'nav_setting' ||
-    (activeNavId === 'nav_love' && playlistSharedTopBarVisible)
-  )
+  // Home and Library own MagTopBar (scrolls with content). SharedTopBar only
+  // for Settings. Hide whenever search/detail overlays cover the pager.
+  const sharedTopBarVisible = !searchPageVisible && !detailCovering && activeNavId === 'nav_setting'
 
   const handleCloseSearchPage = useCallback(() => {
     setSearchPageVisible(false)
@@ -150,7 +146,7 @@ const Main = () => {
           <HomeTab />
         </View>
         <View collapsable={false} key="nav_love" style={styles.pageStyle}>
-          <PlaylistTab onSharedTopBarVisibleChange={setPlaylistSharedTopBarVisible} />
+          <PlaylistTab />
         </View>
         <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
           <SettingsTab />

@@ -250,12 +250,11 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     const songKey = drag.getSongRowKey(item, index)
     const isDraggingRow = drag.dragStateRef.current.songKey == songKey && drag.dragStateRef.current.active
     const shiftAnim = drag.getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTone(item.source, colors)
     const canEditSongs = Boolean(selectedListIdRef.current)
     return (
       <PlaylistDetailSongItem
         song={item}
-        sourceTone={sourceTagColor}
+        index={index}
         shiftAnim={shiftAnim}
         fallbackCover={detailHeroCoverRef.current}
         isGhost={isDraggingRow}
@@ -308,11 +307,11 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
         cover={detailData.detailHeroCover}
         name={detailData.detailHeroName}
         metaText={detailData.detailHeroMetaText}
+        eyebrow={t('library_playlist_eyebrow_user')}
         sectionTitle={t('me_songs')}
-        sourceCode={detailData.selectedOnlineOrLeaderboard?.source}
-        sourceLabel={detailData.detailHeroSourceLabel}
-        sourceTone={detailData.detailHeroSourceTone}
         canRename={detailData.canRenameSelectedList}
+        primaryLabel={t('play_all')}
+        secondaryLabel={t('play_shuffle_short')}
         actionLabel={detailActionLabel}
         actionDisabled={detailActionDisabled}
         onBack={handleCloseDetail}

@@ -20,7 +20,6 @@ import {
   type ListRenderItem,
   type TextInput,
 } from 'react-native'
-import { type SegmentedIconSwitchItem } from '@/components/common/SegmentedIconSwitch'
 import { type PromptDialogType } from '@/components/common/PromptDialog'
 import { type MusicAddModalType } from '@/components/MusicAddModal'
 import { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
@@ -28,15 +27,16 @@ import SearchMusicResultRow from '@/components/search/SearchMusicResultRow'
 import PlaylistDetailHeader from '@/components/playlist/PlaylistDetailHeader'
 import PlaylistDetailSongItem from '@/components/playlist/PlaylistDetailSongItem'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
-import { useTodayListenedMinutes } from '@/components/stats/useTodayListening'
+import { useDays7ListenedMinutes, useTodayListenedMinutes } from '@/components/stats/useTodayListening'
 import PlaylistLibraryScene from '@/components/playlist/PlaylistLibraryScene'
+import { StatusChip } from '@/components/magazine'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { usePlaylistCardDrag } from '@/components/playlist/hooks/usePlaylistCardDrag'
 import { createSongRowKeyStore, stableSongRowKey } from '@/components/playlist/songRowKey'
 import PlaylistSearchScene from '@/components/playlist/PlaylistSearchScene'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
-import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons'
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
@@ -50,7 +50,7 @@ import { getListDetailAll } from '@/core/songlist'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import settingState from '@/store/setting/state'
 import { useSettingValue } from '@/store/setting/hook'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserGender, getUserName, getUserSignature } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
 import { setNavActiveId, updateSetting } from '@/core/common'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useIsPlay } from '@/store/player/hook'
@@ -90,21 +90,11 @@ const readSourceTagColorMap = memoLuxColors((colors: LuxColors) => ({
   kw: { text: colors.source.kw.text, background: colors.source.kw.background },
   mg: { text: colors.source.mg.text, background: colors.source.mg.background },
 }))
-const readPlaylistCardTones = memoLuxColors((colors: LuxColors) => ([
-  { surface: colors.playlistCovers[0].surface, accent: colors.playlistCovers[0].accent, ink: colors.playlistCovers[0].ink },
-  { surface: colors.playlistCovers[1].surface, accent: colors.playlistCovers[1].accent, ink: colors.playlistCovers[1].ink },
-  { surface: colors.playlistCovers[2].surface, accent: colors.playlistCovers[2].accent, ink: colors.playlistCovers[2].ink },
-  { surface: colors.playlistCovers[3].surface, accent: colors.playlistCovers[3].accent, ink: colors.playlistCovers[3].ink },
-] as const))
 const getSourceTagColor = (source: string, colors: LuxColors = limeColors) => {
   return readSourceTagColorMap(colors)[source.toLowerCase()] ?? { text: colors.source.unknown.text, background: colors.source.unknown.background }
 }
 const getSourceMenuLabel = (source: SourceMenu['action']) => {
   return source == 'all' ? 'All' : source.toUpperCase()
-}
-
-const getPlaylistCardTone = (index: number, colors: LuxColors = limeColors) => {
-  return readPlaylistCardTones(colors)[index % readPlaylistCardTones(colors).length]
 }
 
 const playlistSnapshotCache = new Map<string, {
@@ -156,9 +146,6 @@ interface ImportCandidate {
   musicInfo: LX.Music.MusicInfo
   fromListName: string
 }
-interface PlaylistTabProps {
-  onSharedTopBarVisibleChange?: (visible: boolean) => void
-}
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
 }
@@ -184,17 +171,19 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
-export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
+export default () => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
 
   const t = useI18n()
   const todayListenedMinutes = useTodayListenedMinutes()
+  const days7ListenedMinutes = useDays7ListenedMinutes()
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
-  const headerTopPadding = statusBarHeight + 18
-  const headerHeight = headerTopPadding + 44 + 16
+  // MagTopBar scrolls with content; drag auto-scroll only needs status-bar inset.
+  const headerHeight = statusBarHeight + 50
   const playlists = useMyList()
   const isPlay = useIsPlay()
   const detailSceneWidth = Dimensions.get('window').width
@@ -290,15 +279,7 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
-  const [gender, setGender] = useState<'male' | 'female' | 'unknown'>('unknown')
   const defaultSignature = t('me_profile_status')
-  const genderBadgeText = gender === 'unknown' ? '?' : null
-  const genderIconName = gender === 'male' ? 'gender-male' : gender === 'female' ? 'gender-female' : null
-  const genderBadgeStyle = gender === 'male'
-    ? styles.profileHeroBadgeMale
-    : gender === 'female'
-      ? styles.profileHeroBadgeFemale
-      : styles.profileHeroBadgeUnknown
   const avatarDisplayUrl = useMemo(() => {
     if (!avatarUrl) return DEFAULT_USER_AVATAR
     if (typeof avatarUrl != 'string') return avatarUrl
@@ -389,37 +370,26 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     autoScrollBottomInset: bottomDockHeight,
     setPendingPlaylistOrder,
   })
-  const featuredLibraryCards = useMemo(() => {
-    return []
-  }, [])
   const isPlaylistTimeSort = playlistSortMode == 'time'
   const isPlaylistCustomSort = playlistSortMode == 'custom'
   const playlistSortIcon = isPlaylistTimeSort ? 'sort-clock-ascending' : isPlaylistCustomSort ? 'tune' : 'sort-clock-descending'
   const isPlaylistListMode = playlistDisplayMode == 'list'
-  const displaySwitchItems = useMemo<SegmentedIconSwitchItem[]>(() => [
-    {
-      key: 'grid',
-      renderIcon: active => (
-        <MaterialCommunityIcon
-          name="view-grid"
-          size={15}
-          color={active ? colors.ink.list : colors.ink.displayIdle}
-          style={[styles.displaySwitchIcon, styles.displaySwitchGridIcon]}
-        />
-      ),
-    },
-    {
-      key: 'list',
-      renderIcon: active => (
-        <MaterialCommunityIcon
-          name="view-list"
-          size={15}
-          color={active ? colors.ink.list : colors.ink.displayIdle}
-          style={[styles.displaySwitchIcon, styles.displaySwitchListIcon]}
-        />
-      ),
-    },
-  ], [colors])
+  const playlistSortLabel = isPlaylistCustomSort
+    ? t('library_sort_custom')
+    : isPlaylistTimeSort
+      ? t('library_sort_oldest')
+      : t('library_sort_recent')
+  const playlistSectionMeta = t('library_playlists_meta', {
+    count: displayPlaylists.length,
+    sort: playlistSortLabel,
+  })
+  const days7Meta = useMemo(() => {
+    if (days7ListenedMinutes < 60) return t('library_days7_meta_minutes', { minutes: days7ListenedMinutes })
+    return t('library_days7_meta', {
+      hours: Math.floor(days7ListenedMinutes / 60),
+      minutes: days7ListenedMinutes % 60,
+    })
+  }, [days7ListenedMinutes, t])
   const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
   const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
     inputRange: [0, 1],
@@ -494,27 +464,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       global.app_event.off('userSignatureUpdated', handleSignatureUpdate)
     }
   }, [])
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserGender().then((value) => {
-      if (isUnmounted) return
-      setGender(value ?? 'unknown')
-    })
-    const handleGenderUpdate = (value: 'male' | 'female' | 'unknown') => {
-      setGender(value)
-    }
-    global.app_event.on('userGenderUpdated', handleGenderUpdate)
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userGenderUpdated', handleGenderUpdate)
-    }
-  }, [])
-  useEffect(() => {
-    onSharedTopBarVisibleChange?.(!isSearchMode)
-    return () => {
-      onSharedTopBarVisibleChange?.(true)
-    }
-  }, [isSearchMode, onSharedTopBarVisibleChange])
   useEffect(() => {
     detailSongsRef.current = detailSongs
   }, [detailSongs])
@@ -1225,19 +1174,18 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     const songKey = getSongRowKey(item, index)
     const isDraggingRow = draggingSongKey == songKey && dragStateRef.current.active
     const shiftAnim = getSongShiftAnim(songKey)
-    const sourceTagColor = getSourceTagColor(item.source, colors)
     const canEditSongs = Boolean(selectedListId)
     return (
       <PlaylistDetailSongItem
         song={item}
-        sourceTone={sourceTagColor}
+        index={index}
         shiftAnim={shiftAnim}
         fallbackCover={detailHeroCover}
         listId={selectedListId}
         isGhost={isDraggingRow}
         canEdit={canEditSongs}
         onLayout={(event) => { handleSongRowLayout(item, index, event) }}
-        onLongPress={canEditSongs ? (event: GestureResponderEvent) => { handleStartSongDrag(item, index, event) } : undefined}
+        onDragPressIn={canEditSongs ? (event: GestureResponderEvent) => { handleStartSongDrag(item, index, event) } : undefined}
         onPress={() => {
           if (skipNextSongPressRef.current) {
             if (dragStateRef.current.active) {
@@ -1274,11 +1222,11 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
         cover={detailHeroCover}
         name={detailHeroName}
         metaText={detailHeroMetaText}
+        eyebrow={t('library_playlist_eyebrow_user')}
         sectionTitle={t('me_songs')}
-        sourceCode={selectedOnlineDetail?.source}
-        sourceLabel={detailHeroSourceLabel}
-        sourceTone={detailHeroSourceTone}
         canRename={canRenameSelectedList}
+        primaryLabel={t('play_all')}
+        secondaryLabel={t('play_shuffle_short')}
         actionLabel={detailActionLabel}
         actionDisabled={detailActionDisabled}
         onBack={handleCloseDetail}
@@ -1511,6 +1459,14 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
     setSearchTipList([])
     forceDismissSearchInput()
   }, [closeSourceMenu, forceDismissSearchInput])
+  const handleEnterSearch = useCallback(() => {
+    setSearchMode(true)
+    setSearchInputEditing(true)
+    setKeepPlayBarVisible(true)
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus()
+    })
+  }, [])
   useBackHandler(useCallback(() => {
     if (Object.keys(commonState.componentIds).length != 1) return false
     if (commonState.navActiveId != 'nav_love') return false
@@ -1644,110 +1600,123 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
 
 
   const profileHeroCard = (
-    <TouchableOpacity style={styles.profileHero} activeOpacity={0.82} onPress={handleOpenProfileDetail}>
-      <View style={styles.profileHeroAvatarWrap}>
-        <View style={styles.profileHeroAvatarInner}>
-          <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
+    <View style={{ marginTop: 18, marginBottom: 22 }}>
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+        activeOpacity={0.82}
+        onPress={handleOpenProfileDetail}
+      >
+        <View style={{
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          overflow: 'hidden',
+          backgroundColor: r.placeholder,
+        }}>
+          <Image style={{ width: 56, height: 56, borderRadius: 28 }} url={avatarDisplayUrl} resizeMode="contain" />
         </View>
-        <View style={[styles.profileHeroBadge, genderBadgeStyle]}>
-          {genderIconName
-            ? <MdiIcon name={genderIconName} size={12} color={colors.ink.icon} />
-            : <Text size={10} color={colors.ink.onControl} style={styles.profileHeroBadgeText}>{genderBadgeText}</Text>}
-        </View>
-      </View>
-      <View style={styles.profileHeroContent}>
-        <Text size={24} color={colors.ink.subpageTitle} style={styles.profileHeroName}>{nickname}</Text>
-        <Text size={13} color={colors.ink.option} numberOfLines={2}>{signature || defaultSignature}</Text>
-        <View style={styles.profileHeroMetaRow}>
-          <View style={styles.profileHeroMetaPill}>
-            <Text size={12} color={colors.ink.pill} style={styles.profileHeroMetaText}>{t('me_today_listening', { num: todayListenedMinutes })}</Text>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 14, marginRight: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text size={22} color={r.display} style={{ fontWeight: '800', flexShrink: 1 }} numberOfLines={1}>{nickname}</Text>
+            <MdiIcon name="chevron-right" size={18} color={r.quiet} />
           </View>
+          <Text size={12} color={r.muted} numberOfLines={2} style={{ marginTop: 4 }}>
+            {signature || defaultSignature}
+          </Text>
         </View>
+      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 10 }}>
+        <StatusChip label={t('library_today_minutes', { num: todayListenedMinutes })} />
+        <Text size={magType.meta.size} color={r.muted}>{days7Meta}</Text>
       </View>
-      <View style={styles.profileHeroArrow}>
-        <Icon name="chevron-right-2" rawSize={16} color={colors.ink.heroArrow} />
-      </View>
-    </TouchableOpacity>
+    </View>
   )
 
+  const quickActionItems = [
+    lovePlaylist
+      ? {
+          key: 'love',
+          icon: 'heart-outline',
+          label: t('list_name_love'),
+          onPress: () => { handleOpenList(lovePlaylist) },
+        }
+      : null,
+    {
+      key: 'local',
+      icon: 'folder-download-outline',
+      label: t('me_quick_local'),
+      onPress: () => {
+        global.app_event.closePlaylistDetail()
+        global.app_event.openLocalSongs()
+      },
+    },
+    {
+      key: 'stats',
+      icon: 'chart-bar',
+      label: t('me_quick_statistics'),
+      onPress: () => {
+        global.app_event.closePlaylistDetail()
+        global.app_event.closeLocalSongs()
+        global.app_event.openListeningStats()
+      },
+    },
+    {
+      key: 'together',
+      icon: 'account-multiple-outline',
+      label: t('me_quick_listen_together'),
+      onPress: () => { toast(t('toast_in_development')) },
+    },
+  ].filter(Boolean) as Array<{ key: string, icon: string, label: string, onPress: () => void }>
+
   const quickActionsRow = (
-    <View style={styles.quickActionsRow}>
-      {lovePlaylist
-        ? <TouchableOpacity
-            style={styles.quickActionItem}
-            activeOpacity={0.78}
-            onPress={() => { handleOpenList(lovePlaylist) }}
-          >
-            <View style={styles.quickActionIconWrap}>
-              <MdiIcon name="heart" size={36} color={colors.ink.icon} />
-            </View>
-            <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('list_name_love')}</Text>
-          </TouchableOpacity>
-        : null}
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => {
-          global.app_event.closePlaylistDetail()
-          global.app_event.openLocalSongs()
-        }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="download" size={36} color={colors.ink.icon} />
-        </View>
-        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_local')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => {
-          global.app_event.closePlaylistDetail()
-          global.app_event.closeLocalSongs()
-          global.app_event.openListeningStats()
-        }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="chart-bar" size={36} color={colors.ink.icon} />
-        </View>
-        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_statistics')}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.quickActionItem}
-        activeOpacity={0.78}
-        onPress={() => { toast(t('toast_in_development')) }}
-      >
-        <View style={styles.quickActionIconWrap}>
-          <MdiIcon name="account-multiple" size={36} color={colors.ink.icon} />
-        </View>
-        <Text size={12} color={colors.ink.option} style={styles.quickActionLabel}>{t('me_quick_listen_together')}</Text>
-      </TouchableOpacity>
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      marginBottom: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: r.hairline,
+    }}>
+      {quickActionItems.map((item, index) => (
+        <TouchableOpacity
+          key={item.key}
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical: 14,
+            borderLeftWidth: index === 0 ? 0 : StyleSheet.hairlineWidth,
+            borderLeftColor: r.hairline,
+          }}
+          activeOpacity={0.78}
+          onPress={item.onPress}
+        >
+          <MdiIcon name={item.icon} size={22} color={r.ink} />
+          <Text size={12} color={r.ink} style={{ fontWeight: '600', marginTop: 6 }}>{item.label}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   )
 
   const homeScene = (
     <PlaylistLibraryScene
-      styles={styles}
       t={t}
-      headerHeight={headerHeight}
+      statusBarHeight={statusBarHeight}
       bottomDockHeight={bottomDockHeight}
+      masthead={t('library_masthead')}
+      onSearchPress={handleEnterSearch}
       profileHero={profileHeroCard}
       quickActionsRow={quickActionsRow}
-      hideGreeting
-      featuredLibraryCards={featuredLibraryCards}
       displayPlaylists={displayPlaylists}
       playlistMetaMap={playlistMetaMap}
       playlistDisplayMode={playlistDisplayMode}
-      displaySwitchItems={displaySwitchItems}
+      sectionMeta={playlistSectionMeta}
       isPlaylistTimeSort={isPlaylistTimeSort}
       isPlaylistCustomSort={isPlaylistCustomSort}
       playlistSortIcon={playlistSortIcon}
-      playlistAddIcon="playlist-plus"
       isPlaylistListMode={isPlaylistListMode}
       isPlay={isPlay}
-      isSourceMenuVisible={isSourceMenuVisible}
-      sourceMenuBackdropOpacity={sourceMenuBackdropOpacity}
       createListDialogRef={createListDialogRef}
-      getPlaylistCardTone={(index) => getPlaylistCardTone(index, colors)}
       isPlaylistCurrent={isPlaylistCurrent}
       isPlaylistDragActive={isPlaylistDragActive}
       draggingPlaylistId={draggingPlaylistId}
@@ -1765,7 +1734,6 @@ export default ({ onSharedTopBarVisibleChange }: PlaylistTabProps) => {
       onPlaylistContentSizeChange={handlePlaylistContentSizeChange}
       onPlaylistCardLayout={handlePlaylistCardLayout}
       onPlaylistSectionLayout={handlePlaylistSectionLayout}
-      onCloseSourceMenu={closeSourceMenu}
       onOpenList={handleOpenList}
       onPlaylistDisplayModeChange={setPlaylistDisplayMode}
       onTogglePlaylistSort={handleTogglePlaylistSort}
@@ -1836,7 +1804,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     backgroundColor: colors.bg.app,
   },
   content: {
-    paddingHorizontal: 18,
+    paddingHorizontal: PAGE_GUTTER,
     paddingBottom: 0,
   },
   scroll: {
@@ -1844,7 +1812,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   },
   detailContent: {
     paddingBottom: 0,
-    paddingHorizontal: 18,
+    paddingHorizontal: PAGE_GUTTER,
   },
   detailListWrap: {
     flex: 1,

@@ -3,14 +3,18 @@
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, useWindowDimensions, type ListRenderItem, type ViewToken } from 'react-native'
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
-import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
-import { getSourceTone } from '@/components/search/sourceTone'
+import {
+  EmptyState,
+  MagTopBar,
+  PrimaryButton,
+  SecondaryButton,
+  TextTabs,
+} from '@/components/magazine'
 import { LIST_IDS } from '@/config/constant'
 import { playList } from '@/core/player/player'
 import { setTempList } from '@/core/list'
@@ -30,9 +34,9 @@ import { arrShuffle, sizeFormate } from '@/utils/common'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
-import { rgbaHex } from '@/theme/luxColorMath'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
+import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import {
   alignCachedSong,
   hasCachedSongMetadata,
@@ -105,116 +109,84 @@ const requestAudioPermission = async() => {
   return result == PermissionsAndroid.RESULTS.GRANTED
 }
 
-const HERO_GRADIENT_ID = 'localSongsHero'
+type LocalFilter = 'all' | 'device' | 'cache'
 
 interface LocalSongsOverviewProps {
   statusBarHeight: number
-  metaText: string
-  deviceLabel: string
-  cacheLabel: string
-  deviceBytes: number
-  cacheBytes: number
+  count: number
+  storageMeta: string
+  filter: LocalFilter
+  filterTabs: Array<{ id: string, label: string }>
   selecting: boolean
   onBack: () => void
   onPlayAll: () => void
   onShuffle: () => void
   onToggleSelect: () => void
   onScan: () => void
+  onFilterChange: (id: string) => void
 }
 
 const LocalSongsOverview = ({
   statusBarHeight,
-  metaText,
-  deviceLabel,
-  cacheLabel,
-  deviceBytes,
-  cacheBytes,
+  count,
+  storageMeta,
+  filter,
+  filterTabs,
   selecting,
   onBack,
   onPlayAll,
   onShuffle,
   onToggleSelect,
   onScan,
+  onFilterChange,
 }: LocalSongsOverviewProps) => {
-  const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
   const t = useI18n()
   return (
-    <View>
-      <View style={[styles.backRow, { paddingTop: statusBarHeight + 18 }]}>
-        <TouchableOpacity style={styles.backButton} activeOpacity={0.82} onPress={onBack}>
-          <View style={styles.backButtonInner}>
-            <Icon name="chevron-left" rawSize={22} color={colors.ink.input} />
-          </View>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.heroShadow}>
-        <View style={styles.hero}>
-          <View style={styles.heroFill} pointerEvents="none">
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id={HERO_GRADIENT_ID} x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor={colors.accent.soft} />
-                  <Stop offset="0.58" stopColor={colors.surface.importSelected} />
-                  <Stop offset="1" stopColor={colors.surface.card} />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill={`url(#${HERO_GRADIENT_ID})`} />
-            </Svg>
-          </View>
-          <View style={styles.heroBlob} pointerEvents="none" />
-          <View style={styles.heroRow}>
-            <View style={styles.tile}>
-              <MdiIcon name="folder-music" size={46} color={colors.ink.chipActive} />
-            </View>
-            <View style={styles.heroText}>
-              <Text size={22} color={colors.ink.strong} style={styles.heroTitle} numberOfLines={1}>
-                {t('local_songs_title')}
-              </Text>
-              <Text size={12} color={colors.ink.meta} style={styles.heroMeta} numberOfLines={2}>{metaText}</Text>
-              <View style={styles.bar}>
-                {deviceBytes > 0 ? <View style={[styles.barDevice, { flex: deviceBytes }]} /> : null}
-                {cacheBytes > 0 ? <View style={[styles.barCache, { flex: cacheBytes }]} /> : null}
-              </View>
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View style={styles.dotDevice} />
-                  <Text size={11} color={colors.ink.secondary} style={styles.legendLabel} numberOfLines={1}>{deviceLabel}</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={styles.dotCache} />
-                  <Text size={11} color={colors.ink.secondary} style={styles.legendLabel} numberOfLines={1}>{cacheLabel}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-          <View style={styles.heroButtons}>
-            <TouchableOpacity style={styles.playAll} activeOpacity={0.82} onPress={onPlayAll}>
-              <MdiIcon name="play" size={20} color={colors.ink.onAccent} />
-              <Text size={15} color={colors.ink.onAccent} style={styles.btnLabel} numberOfLines={1}>{t('play_all')}</Text>
+    <View style={{ paddingTop: statusBarHeight }}>
+      <MagTopBar
+        onBack={onBack}
+        trailing={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity activeOpacity={0.7} onPress={onScan} hitSlop={8} accessibilityRole="button">
+              <MdiIcon name="folder-search-outline" size={22} color={r.ink} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.shuffle} activeOpacity={0.82} onPress={onShuffle}>
-              <MdiIcon name="shuffle-variant" size={19} color={colors.ink.list} />
-              <Text size={15} color={colors.ink.list} style={styles.btnLabel} numberOfLines={1}>{t('play_list_random')}</Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={onToggleSelect} hitSlop={8} accessibilityRole="button">
+              <MdiIcon
+                name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'}
+                size={22}
+                color={r.ink}
+              />
             </TouchableOpacity>
           </View>
-        </View>
+        }
+      />
+      <Text size={magType.eyebrow.size} color={r.eyebrow} style={{ fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginTop: 18 }}>
+        {t('local_songs_eyebrow')}
+      </Text>
+      <Text size={magType.h1.size} color={r.display} style={{ fontWeight: '800', letterSpacing: -1, marginTop: 8 }}>
+        {t('local_songs_title')}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 12 }}>
+        <Text size={56} color={r.display} style={{ fontWeight: '800', letterSpacing: -2, fontVariant: ['tabular-nums'], lineHeight: 56 }}>
+          {count}
+        </Text>
+        {t('library_tracks_unit')
+          ? <Text size={18} color={r.muted} style={{ fontWeight: '700', marginLeft: 6, marginBottom: 8 }}>{t('library_tracks_unit')}</Text>
+          : null}
       </View>
-      <View style={styles.sectionHeader}>
-        <Text size={18} color={colors.ink.strong} style={styles.sectionTitle}>{t('me_songs')}</Text>
-        <View style={styles.sectionActions}>
-          <TouchableOpacity style={styles.sectionIcon} activeOpacity={0.8} onPress={onToggleSelect}>
-            <MdiIcon
-              name={selecting ? 'checkbox-marked' : 'checkbox-multiple-outline'}
-              size={16}
-              color={colors.ink.nearBlack}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sectionIcon} activeOpacity={0.8} onPress={onScan}>
-            <MdiIcon name="folder-search" size={19} color={colors.ink.nearBlack} />
-          </TouchableOpacity>
-        </View>
+      <Text size={magType.meta.size} color={r.muted} style={{ marginTop: 8 }}>{storageMeta}</Text>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 22 }}>
+        <PrimaryButton label={t('play_all')} icon="play" onPress={onPlayAll} style={{ flex: 1 }} />
+        <SecondaryButton label={t('play_list_random')} icon="shuffle-variant" onPress={onShuffle} style={{ flex: 1 }} />
       </View>
+      <TextTabs
+        items={filterTabs}
+        value={filter}
+        onChange={onFilterChange}
+        style={{ marginTop: 22 }}
+      />
     </View>
   )
 }
@@ -235,6 +207,8 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const [loading, setLoading] = useState(true)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Record<string, true>>({})
+  const [filter, setFilter] = useState<LocalFilter>('all')
+  const r = magazineRoles(colors)
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const reloadGeneration = useRef(0)
@@ -421,11 +395,13 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
 
   const noteFor = useCallback((row: PageRow) => {
     const parts = [row.origin == 'device' ? t('local_songs_origin_device') : t('local_songs_origin_cache')]
+    if (row.musicInfo.singer) parts.push(row.musicInfo.singer)
     if (row.size != null && row.size > 0) parts.push(sizeFormate(row.size))
-    if (row.origin == 'cache' && row.fullyCached != null) {
-      parts.push(row.fullyCached ? t('local_songs_full') : t('local_songs_partial'))
-    }
     return parts.join(' · ')
+  }, [t])
+  const statusFor = useCallback((row: PageRow) => {
+    if (row.origin != 'cache' || row.fullyCached == null) return null
+    return row.fullyCached ? t('local_songs_full') : t('local_songs_partial')
   }, [t])
 
   const handlePlay = useCallback(async(row: PageRow) => {
@@ -495,11 +471,23 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     await reload()
   }, [reload, t])
 
+  const filteredRows = useMemo(() => {
+    if (filter == 'device') return rows.filter(row => row.origin == 'device')
+    if (filter == 'cache') return rows.filter(row => row.origin == 'cache')
+    return rows
+  }, [filter, rows])
   const selectedRows = useMemo(
-    () => rows.filter(row => selected[row.rowKey]),
-    [rows, selected],
+    () => filteredRows.filter(row => selected[row.rowKey]),
+    [filteredRows, selected],
   )
   const usage = useMemo(() => summarizeLocalSongUsage(rows), [rows])
+  const deviceCount = useMemo(() => rows.filter(row => row.origin == 'device').length, [rows])
+  const cacheCount = useMemo(() => rows.filter(row => row.origin == 'cache').length, [rows])
+  const filterTabs = useMemo(() => [
+    { id: 'all', label: t('local_songs_tab_all', { count: rows.length }) },
+    { id: 'device', label: t('local_songs_tab_device', { count: deviceCount }) },
+    { id: 'cache', label: t('local_songs_tab_cache', { count: cacheCount }) },
+  ], [cacheCount, deviceCount, rows.length, t])
 
   const playPage = useCallback(async(shuffle: boolean) => {
     const playable = rowsRef.current.filter(item => item.playable)
@@ -517,33 +505,38 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     await playList(LIST_IDS.TEMP, 0)
   }, [t])
 
-  const renderItem: ListRenderItem<PageRow> = useCallback(({ item }) => {
+  const renderItem: ListRenderItem<PageRow> = useCallback(({ item, index }) => {
     return (
       <PlaylistDetailSongItem
         song={item.musicInfo}
-        sourceTone={getSourceTone(item.musicInfo.source, colors)}
+        index={index}
         shiftAnim={shiftAnim}
         detailNote={noteFor(item)}
+        statusLabel={statusFor(item)}
         selecting={selecting}
         selected={Boolean(selected[item.rowKey])}
         canEdit={!selecting && (item.origin == 'device' || Boolean(item.cacheKey))}
+        last={index >= filteredRows.length - 1}
         onLayout={() => {}}
         onPress={() => { void handlePlay(item) }}
         onRemove={() => { void removeRows([item]) }}
       />
     )
-  }, [colors, handlePlay, noteFor, removeRows, selected, selecting])
+  }, [filteredRows.length, handlePlay, noteFor, removeRows, selected, selecting, statusFor])
 
   const header = (
     <LocalSongsOverview
       statusBarHeight={statusBarHeight}
-      metaText={loading
+      count={loading ? 0 : usage.count}
+      storageMeta={loading
         ? t('me_loading_songs')
-        : t('local_songs_usage', { count: usage.count, size: sizeFormate(usage.totalBytes) })}
-      deviceLabel={t('local_songs_usage_device', { size: sizeFormate(usage.deviceBytes) })}
-      cacheLabel={t('local_songs_usage_cache', { size: sizeFormate(usage.cacheBytes) })}
-      deviceBytes={usage.deviceBytes}
-      cacheBytes={usage.cacheBytes}
+        : t('local_songs_storage_meta', {
+          total: sizeFormate(usage.totalBytes),
+          device: sizeFormate(usage.deviceBytes),
+          cache: sizeFormate(usage.cacheBytes),
+        })}
+      filter={filter}
+      filterTabs={filterTabs}
       selecting={selecting}
       onBack={handleClose}
       onPlayAll={() => { void playPage(false) }}
@@ -553,22 +546,24 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
         setSelected({})
       }}
       onScan={() => { void handleScan() }}
+      onFilterChange={(id) => { setFilter(id as LocalFilter) }}
     />
   )
 
   return (
-    <Animated.View style={[styles.root, sceneStyle]}>
+    <Animated.View style={[styles.root, sceneStyle, { backgroundColor: r.paper }]}>
       <FlatList
         style={styles.list}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + (selecting ? 72 : 0) }]}
-        data={rows}
+        data={filteredRows}
         renderItem={renderItem}
         keyExtractor={item => item.rowKey}
         ListHeaderComponent={header}
         ListEmptyComponent={(
-          <View style={styles.empty}>
-            <Text size={13} color={colors.ink.meta}>{loading ? t('me_loading_songs') : t('me_no_songs')}</Text>
-          </View>
+          <EmptyState
+            eyebrow={loading ? 'LOADING' : 'EMPTY · 0'}
+            title={loading ? t('me_loading_songs') : t('me_no_songs')}
+          />
         )}
         showsVerticalScrollIndicator={false}
         onViewableItemsChanged={onCoverViewableItemsChanged}
@@ -576,16 +571,15 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
       />
       {selecting
         ? (
-            <View style={[styles.deleteBar, { bottom: bottomPadding + 12, backgroundColor: colors.surface.card }]}>
-              <TouchableOpacity
-                activeOpacity={0.84}
+            <View style={[styles.deleteBar, { bottom: bottomPadding + 12, borderTopColor: r.ink }]}>
+              <PrimaryButton
+                label={t('local_songs_delete_selected', { count: selectedRows.length })}
+                danger
                 disabled={!selectedRows.length}
+                icon="trash-can-outline"
                 onPress={() => { void removeRows(selectedRows) }}
-              >
-                <Text size={15} color={selectedRows.length ? colors.ink.list : colors.ink.quiet}>
-                  {t('local_songs_delete_selected', { count: selectedRows.length })}
-                </Text>
-              </TouchableOpacity>
+                style={{ alignSelf: 'stretch' }}
+              />
             </View>
           )
         : null}
@@ -594,215 +588,23 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   )
 }
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
+const useLuxStyles = sharedLuxStyles(() => createStyle({
   root: {
     flex: 1,
-    backgroundColor: colors.bg.app,
   },
   list: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 18,
-  },
-  empty: {
-    paddingVertical: 28,
-    alignItems: 'center',
+    paddingHorizontal: PAGE_GUTTER,
   },
   deleteBar: {
     position: 'absolute',
-    left: 18,
-    right: 18,
-    minHeight: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    left: PAGE_GUTTER,
+    right: PAGE_GUTTER,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.card,
-    padding: 2,
-    shadowColor: colors.shadow.ink,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  backButtonInner: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: colors.surface.avatar,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroShadow: {
-    borderRadius: 24,
-    marginBottom: 18,
-    backgroundColor: colors.surface.card,
-    shadowColor: colors.shadow.card,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
-  hero: {
-    borderRadius: 24,
-    padding: 18,
-    overflow: 'hidden',
-  },
-  heroFill: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  heroBlob: {
-    position: 'absolute',
-    right: -40,
-    top: -50,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: rgbaHex(colors.accent.primary, 0.18),
-  },
-  heroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tile: {
-    width: 92,
-    height: 92,
-    borderRadius: 18,
-    backgroundColor: colors.accent.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.ink.olive,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  heroText: {
-    flex: 1,
-    marginLeft: 16,
-    minWidth: 0,
-  },
-  heroTitle: {
-    fontWeight: '800',
-  },
-  heroMeta: {
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  bar: {
-    height: 6,
-    borderRadius: 3,
-    marginTop: 10,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    backgroundColor: rgbaHex(colors.surface.card, 0.8),
-  },
-  barDevice: {
-    height: '100%',
-    backgroundColor: colors.ink.olive,
-  },
-  barCache: {
-    height: '100%',
-    backgroundColor: colors.accent.primary,
-  },
-  legend: {
-    marginTop: 5,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 1,
-  },
-  legendLabel: {
-    flexShrink: 1,
-  },
-  dotDevice: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    marginRight: 4,
-    backgroundColor: colors.ink.olive,
-  },
-  dotCache: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    marginRight: 4,
-    backgroundColor: colors.accent.primary,
-  },
-  heroButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  playAll: {
-    flex: 1,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    shadowColor: colors.accent.highlight,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  shuffle: {
-    flex: 1,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.glass.fill78,
-    borderWidth: 1,
-    borderColor: colors.glass.backBorder,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  btnLabel: {
-    fontWeight: '700',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontWeight: '700',
-  },
-  sectionActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  sectionIcon: {
-    width: 26,
-    height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})))
+}))
 
 export default memo(LocalSongsDetail)
