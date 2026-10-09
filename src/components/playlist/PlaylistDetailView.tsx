@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Dimensions,
-  Easing,
   FlatList,
   Image as RNImage,
   Platform,
@@ -34,6 +33,7 @@ import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
 import { usePlaylistImport } from './hooks/usePlaylistImport'
+import { useDetailSceneTransition } from './detailSceneTransition'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
@@ -109,10 +109,7 @@ const PlaylistDetailViewInner = ({
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
-
-  const openAnim = useRef(new Animated.Value(0)).current
-  const openAnimTokenRef = useRef(0)
-  const isClosingRef = useRef(false)
+  const { style: sceneStyle, requestClose } = useDetailSceneTransition(detailData.selectedDetailCacheKey)
 
   useEffect(() => {
     pendingDeleteSongRef.current = pendingDeleteSong
@@ -131,37 +128,12 @@ const PlaylistDetailViewInner = ({
     prioritizePlaylistCovers(detailData.detailSongs, 'playlist')
   }, [detailData.detailSongs])
 
-  useEffect(() => {
-    isClosingRef.current = false
-    openAnimTokenRef.current += 1
-    openAnim.stopAnimation()
-    openAnim.setValue(0)
-    Animated.timing(openAnim, {
-      toValue: 1,
-      duration: 280,
-      easing: Easing.bezier(0.36, 0.66, 0.04, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [openAnim, detailData.selectedDetailCacheKey])
-
   const handleCloseDetail = useCallback(() => {
-    if (isClosingRef.current) return
-    isClosingRef.current = true
     detailData.detailRequestIdRef.current += 1
     drag.resetSongDragState()
     imprt.setImportDrawerVisible(false)
-    const token = ++openAnimTokenRef.current
-    openAnim.stopAnimation()
-    Animated.timing(openAnim, {
-      toValue: 0,
-      duration: 200,
-      easing: Easing.bezier(0.32, 0.72, 0, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (token !== openAnimTokenRef.current) return
-      if (finished) onClose?.()
-    })
-  }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, openAnim])
+    requestClose(() => { onClose?.() })
+  }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, requestClose])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
@@ -380,19 +352,10 @@ const PlaylistDetailViewInner = ({
     return true
   }, [handleCloseDetail, imprt.handleCloseImportDrawer, imprt.isImportDrawerVisible]))
 
-  const openAnimOpacity = useMemo(() => openAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  }), [openAnim])
-  const openAnimTranslateY = useMemo(() => openAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [24, 0],
-  }), [openAnim])
-
   const draggingSourceTagColor = drag.draggingSong ? getSourceTone(drag.draggingSong.source, colors) : null
 
   return (
-    <Animated.View style={[styles.root, { opacity: openAnimOpacity, transform: [{ translateY: openAnimTranslateY }], backgroundColor: appBg }]}>
+    <Animated.View style={[styles.root, sceneStyle, { backgroundColor: appBg }]}>
       <View
         ref={drag.detailListWrapRef}
         style={styles.detailListWrap}

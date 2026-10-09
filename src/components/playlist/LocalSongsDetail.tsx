@@ -2,7 +2,7 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, type ListRenderItem } from 'react-native'
+import { Animated, FlatList, PermissionsAndroid, Platform, TouchableOpacity, View, type ListRenderItem, type ViewToken } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
@@ -44,7 +44,9 @@ import {
   importFolderIntoLibrary,
   removeDeviceSongs,
 } from '@/utils/localSongLibrary'
+import { useDetailSceneTransition } from './detailSceneTransition'
 import PlaylistDetailSongItem from './PlaylistDetailSongItem'
+import { requestDeviceSongCover } from '@/utils/localSongCoverLookup'
 
 interface PageRow extends MergedLocalSong {
   musicInfo: LX.Music.MusicInfo
@@ -215,6 +217,8 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const reloadGeneration = useRef(0)
+  const { style: sceneStyle, requestClose } = useDetailSceneTransition('local-songs')
+  const coverViewabilityConfig = useRef({ itemVisiblePercentThreshold: 25, minimumViewTime: 60 }).current
 
   const hydrateRemoteMeta = useCallback(async(pending: PageRow[], generation: number) => {
     const queue = pending.filter(row => row.cacheKey && row.needsRemoteMeta)
@@ -307,14 +311,56 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
     void reload()
   }, [reload])
 
+  const applyFoundCover = useCallback((rowKey: string, url: string) => {
+    setRows(current => current.map(item => {
+      if (item.rowKey != rowKey || item.musicInfo.meta.picUrl) return item
+      return {
+        ...item,
+        musicInfo: {
+          ...item.musicInfo,
+          meta: { ...item.musicInfo.meta, picUrl: url },
+        },
+      }
+    }))
+  }, [])
+
+  const queueDeviceCovers = useCallback((list: readonly PageRow[]) => {
+    for (const row of list) {
+      if (row.origin != 'device' || row.musicInfo.source != 'local' || row.musicInfo.meta.picUrl) continue
+      const info = row.musicInfo
+      if (info.source != 'local') continue
+      void requestDeviceSongCover(info).then(url => {
+        if (url) applyFoundCover(row.rowKey, url)
+      })
+    }
+  }, [applyFoundCover])
+
+  const onCoverViewableItemsChanged = useRef((info: { viewableItems: ViewToken[] }) => {
+    const visible: PageRow[] = []
+    for (const token of info.viewableItems) {
+      const row = token.item as PageRow | null | undefined
+      if (row?.origin == 'device') visible.push(row)
+    }
+    if (visible.length) queueDeviceCovers(visible)
+  }).current
+
+  const deviceCoverKey = useMemo(
+    () => rows.filter(row => row.origin == 'device').map(row => row.id).join('\n'),
+    [rows],
+  )
+
+  useEffect(() => {
+    queueDeviceCovers(rowsRef.current.filter(row => row.origin == 'device').slice(0, 10))
+  }, [deviceCoverKey, queueDeviceCovers])
+
   const handleClose = useCallback(() => {
     if (selecting) {
       setSelecting(false)
       setSelected({})
       return
     }
-    onClose()
-  }, [onClose, selecting])
+    requestClose(onClose)
+  }, [onClose, requestClose, selecting])
 
   useBackHandler(useCallback(() => {
     handleClose()
@@ -490,7 +536,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   )
 
   return (
-    <View style={styles.root}>
+    <Animated.View style={[styles.root, sceneStyle]}>
       <FlatList
         style={styles.list}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + (selecting ? 72 : 0) }]}
@@ -504,6 +550,8 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
           </View>
         )}
         showsVerticalScrollIndicator={false}
+        onViewableItemsChanged={onCoverViewableItemsChanged}
+        viewabilityConfig={coverViewabilityConfig}
       />
       {selecting
         ? (
@@ -521,7 +569,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
           )
         : null}
       <ChoosePath ref={choosePathRef} onConfirm={(path) => { void handleImportFolder(path) }} />
-    </View>
+    </Animated.View>
   )
 }
 

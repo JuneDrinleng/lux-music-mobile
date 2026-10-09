@@ -27,6 +27,7 @@ const files = [
   'src/utils/listenListLimit.ts',
   'src/utils/playlistCoverMap.ts',
   'src/utils/localSongRows.ts',
+  'src/utils/localSongCoverMatch.ts',
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
   'src/utils/playHistory/types.ts',
@@ -101,6 +102,7 @@ const musicUrlCache = require(join(outDir, 'src/utils/musicUrlCache.js'))
 const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
+const localCover = require(join(outDir, 'src/utils/localSongCoverMatch.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
@@ -1115,6 +1117,111 @@ test('play history counting, rolling range, merge, and backup', () => {
   assert.equal(overflow.length, 2)
   assert.equal(overflow[0].length, 500)
   assert.equal(overflow[1].length, 1)
+})
+
+test('local song covers parse tags first and filenames as 歌手 - 歌名', () => {
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '晴天',
+    artist: '周杰伦',
+    fileName: '/sdcard/Music/别的 - 歌.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '周杰伦 - 晴天',
+    artist: '周杰伦',
+    fileName: '周杰伦 - 晴天.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '',
+    artist: '<unknown>',
+    fileName: '/sdcard/Music/周杰伦 - 晴天.flac',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '周杰伦 - 晴天',
+    artist: '',
+    fileName: '周杰伦 - 晴天.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '晴天',
+    artist: '未知歌手',
+    fileName: '周杰伦 - 晴天.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '周杰伦－晴天.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '林小屿 – 晚风邮局.wav',
+  }), { name: '晚风邮局', singer: '林小屿' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '苏禾—海边来信.ogg',
+  }), { name: '海边来信', singer: '苏禾' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '01 - 周杰伦 - 晴天.mp3',
+  }), { name: '晴天', singer: '周杰伦' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '01.晴天.mp3',
+  }), { name: '晴天', singer: '' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    fileName: '晴天.mp3',
+  }), { name: '晴天', singer: '' })
+  assert.deepEqual(localCover.parseLocalSongIdentity({
+    title: '晴天',
+    artist: '',
+    fileName: '没有分隔.mp3',
+  }), { name: '晴天', singer: '' })
+  assert.equal(localCover.isUnknownArtist('<unknown>'), true)
+  assert.equal(localCover.isUnknownArtist('周杰伦'), false)
+})
+
+test('local song cover matches require both name and singer', () => {
+  const query = { name: '晴天', singer: '周杰伦' }
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '晴天', singer: '周杰伦' }), true)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '晴天!', singer: '周杰伦' }), true)
+  assert.equal(localCover.isLocalCoverMatch(
+    { name: 'Love Story', singer: 'Taylor Swift' },
+    { name: 'love story', singer: 'taylor swift' },
+  ), true)
+  assert.equal(localCover.isLocalCoverMatch(
+    { name: '晴天', singer: '周杰伦、方文山' },
+    { name: '晴天', singer: '周杰伦' },
+  ), true)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '雨天', singer: '周杰伦' }), false)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '晴天', singer: '林俊杰' }), false)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '晴天 (Live)', singer: '周杰伦' }), false)
+  assert.equal(localCover.isLocalCoverMatch({ name: '晴天', singer: '' }, { name: '晴天', singer: '周杰伦' }), false)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '', singer: '周杰伦' }), false)
+  assert.equal(localCover.isLocalCoverMatch(query, { name: '晴天', singer: '' }), false)
+  const ranked = localCover.coverMatchScore(query, { name: '晴天', singer: '周杰伦' })
+  assert.ok(ranked > localCover.coverMatchScore(query, { name: '雨天', singer: '周杰伦' }))
+  assert.equal(localCover.coverMatchScore(query, { name: '七里香', singer: '周杰伦' }), 0)
+})
+
+test('local song cover cache keeps hits and expires misses', () => {
+  const now = 1_700_000_000_000
+  assert.equal(localCover.decideLocalCoverCache(null, now), 'lookup')
+  assert.equal(localCover.decideLocalCoverCache({ url: 'https://img.example/a.jpg', savedAt: now - 86_400_000 }, now), 'use')
+  assert.equal(localCover.decideLocalCoverCache({ url: null, savedAt: now - 1000 }, now), 'skip')
+  assert.equal(localCover.decideLocalCoverCache({
+    url: null,
+    savedAt: now - localCover.LOCAL_COVER_NEGATIVE_TTL_MS,
+  }, now), 'lookup')
+  assert.equal(localCover.decideLocalCoverCache({ url: null, savedAt: now + 1000 }, now), 'lookup')
+  assert.equal(localCover.LOCAL_COVER_NEGATIVE_TTL_MS, 6 * 60 * 60 * 1000)
+  const raw = localCover.serializeLocalCoverCache({
+    '/sdcard/Music/a.mp3': { url: 'https://img.example/a.jpg', savedAt: now },
+    '/sdcard/Music/b.mp3': { url: null, savedAt: now },
+    '/sdcard/Music/old.mp3': { url: null, savedAt: now - localCover.LOCAL_COVER_NEGATIVE_TTL_MS - 1 },
+  })
+  const restored = localCover.parseLocalCoverCache(raw)
+  assert.equal(restored['/sdcard/Music/a.mp3'].url, 'https://img.example/a.jpg')
+  assert.equal(restored['/sdcard/Music/b.mp3'].url, null)
+  const pruned = localCover.pruneLocalCoverCache(restored, now)
+  assert.deepEqual(Object.keys(pruned), ['/sdcard/Music/a.mp3', '/sdcard/Music/b.mp3'])
+  assert.deepEqual(localCover.parseLocalCoverCache('not json'), {})
+  assert.deepEqual(localCover.parseLocalCoverCache(null), {})
+  assert.deepEqual(localCover.parseLocalCoverCache(JSON.stringify({
+    version: 1,
+    entries: { '  ': { url: 'https://img.example/a.jpg', savedAt: now }, bad: { url: '', savedAt: now } },
+  })), {})
 })
 
 test('migrated screens reject new color literals', () => {
