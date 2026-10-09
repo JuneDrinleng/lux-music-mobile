@@ -1063,9 +1063,6 @@ export default () => {
   }, [detailHeroCover, detailHeroName, detailLoading, detailSongs, selectedOnlineDetail])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
-  const areAllImportSongsSelected = useMemo(() => {
-    return importCandidates.length > 0 && importCandidates.every(candidate => importSelectedMap[candidate.id])
-  }, [importCandidates, importSelectedMap])
   const loadImportCandidates = useCallback(async(targetListId: string) => {
     const requestId = ++importRequestIdRef.current
     setImportLoading(true)
@@ -1119,15 +1116,22 @@ export default () => {
     })
   }, [])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
-  const handleToggleSelectAllImportSongs = useCallback(() => {
-    if (!importCandidates.length) return
-    setImportSelectedMap(() => {
-      if (areAllImportSongsSelected) return {}
-      const next: Record<string, true> = {}
-      for (const candidate of importCandidates) next[candidate.id] = true
+  const handleToggleSelectAllImportSongs = useCallback((visibleIds?: string[]) => {
+    const targets = visibleIds?.length
+      ? visibleIds
+      : importCandidates.map(candidate => candidate.id)
+    if (!targets.length) return
+    setImportSelectedMap((prev) => {
+      const allVisibleSelected = targets.every(id => prev[id])
+      const next = { ...prev }
+      if (allVisibleSelected) {
+        for (const id of targets) delete next[id]
+      } else {
+        for (const id of targets) next[id] = true
+      }
       return next
     })
-  }, [areAllImportSongsSelected, importCandidates])
+  }, [importCandidates])
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- leftover after PlaylistDetailView extraction; keep until import drawer UI is rewired
   const handleImportSelectedSongs = useCallback(async() => {
     if (!selectedListId || importSubmitting) return

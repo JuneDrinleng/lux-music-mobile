@@ -309,6 +309,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
         metaText={detailData.detailHeroMetaText}
         eyebrow={t('library_playlist_eyebrow_user')}
         sectionTitle={t('me_songs')}
+        sectionMeta={t('me_tracks_count', { num: detailData.detailSongs.length })}
         canRename={detailData.canRenameSelectedList}
         primaryLabel={t('play_all')}
         secondaryLabel={t('play_shuffle_short')}

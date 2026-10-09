@@ -43,6 +43,7 @@ export const SectionHeader = memo(({
   onLinkPress,
   showRule = true,
   compactRule = false,
+  ruleGap,
   trailing,
   style,
 }: {
@@ -52,6 +53,7 @@ export const SectionHeader = memo(({
   onLinkPress?: () => void
   showRule?: boolean
   compactRule?: boolean
+  ruleGap?: number
   trailing?: ReactNode
   style?: ViewStyle
 }) => {
@@ -60,7 +62,7 @@ export const SectionHeader = memo(({
   const r = magazineRoles(colors)
   return (
     <View style={style}>
-      {showRule ? <Rule compact={compactRule} /> : null}
+      {showRule ? <Rule compact={compactRule} gapTop={ruleGap} /> : null}
       <View style={styles.head}>
         <Text size={magType.section.size} color={r.display} style={styles.title}>{title}</Text>
         {trailing ?? (linkLabel != null

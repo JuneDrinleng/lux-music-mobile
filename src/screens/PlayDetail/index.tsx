@@ -19,12 +19,11 @@ import PlayQueueSheet from '@/screens/Home/Vertical/PlayQueueSheet'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { PlayDetailContext } from './context'
 
-export default ({ componentId, onClose }: { componentId: string, onClose?: () => void }) => {
+export default ({ componentId, onClose, visible = true }: { componentId: string, onClose?: () => void, visible?: boolean }) => {
   const isHorizontalMode = useHorizontalMode()
   const componentIds = useComponentIds()
   const bottomInset = useSystemGestureInsetBottom()
   const musicInfo = usePlayerMusicInfo()
-  const isOverlay = Boolean(onClose)
 
   const pic = useMemo(() => {
     const rawPic = musicInfo.pic
@@ -60,7 +59,7 @@ export default ({ componentId, onClose }: { componentId: string, onClose?: () =>
           {
             isHorizontalMode
               ? <Horizontal componentId={componentId} />
-              : <Vertical componentId={componentId} />
+              : <Vertical componentId={componentId} active={visible} />
           }
           <PlayQueueSheet
             systemGestureInsetBottom={bottomInset}

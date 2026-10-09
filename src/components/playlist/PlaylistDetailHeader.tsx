@@ -138,22 +138,33 @@ export default ({
           onPress={onSecondaryPress}
           style={{ flex: 1 }}
         />
-        {actionLabel
-          ? (
-            <TextButton
-              label={actionLabel}
-              onPress={actionDisabled ? undefined : onActionPress}
-              disabled={actionDisabled}
-            />
-            )
-          : null}
       </View>
 
       <SectionHeader
         title={sectionTitle}
-        meta={sectionMeta}
         compactRule
-        style={{ marginTop: 8 }}
+        ruleGap={12}
+        style={styles.section}
+        trailing={
+          <View style={styles.sectionTrailing}>
+            {sectionMeta
+              ? (
+                <Text size={magType.sectionMeta.size} color={r.eyebrow} style={styles.sectionMeta}>
+                  {sectionMeta}
+                </Text>
+                )
+              : null}
+            {actionLabel
+              ? (
+                <TextButton
+                  label={actionLabel}
+                  onPress={actionDisabled ? undefined : onActionPress}
+                  disabled={actionDisabled}
+                />
+                )
+              : null}
+          </View>
+        }
       />
     </View>
   )
@@ -251,6 +262,18 @@ const useLuxStyles = sharedLuxStyles(() => createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 8,
+    marginBottom: 0,
+  },
+  section: {
+    marginTop: 0,
+  },
+  sectionTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sectionMeta: {
+    fontWeight: '600',
+    letterSpacing: 1,
   },
 }))

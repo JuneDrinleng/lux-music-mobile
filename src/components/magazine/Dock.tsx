@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo, type ReactNode } from 'react'
-import { TouchableOpacity, View, type GestureResponderEvent } from 'react-native'
+import { memo, useState, type ReactNode } from 'react'
+import { TouchableOpacity, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { useI18n } from '@/lang'
@@ -23,6 +23,19 @@ export const DOCK_PLAYER_HEIGHT = 64
 export const DOCK_NAV_HEIGHT = 58
 export const DOCK_BASE_HEIGHT = DOCK_PLAYER_HEIGHT + DOCK_NAV_HEIGHT
 
+/** Display-only mini-bar progress (rail + fill + thumb). */
+const PROGRESS_TRACK_H = 3
+const PROGRESS_THUMB = 9
+const PROGRESS_BAND_H = PROGRESS_THUMB
+const NAV_ICON_SIZE = 28
+
+const clampProgress = (progress: number) => {
+  if (!Number.isFinite(progress)) return 0
+  if (progress <= 0) return 0
+  if (progress >= 1) return 1
+  return progress
+}
+
 const useStyles = sharedLuxStyles((colors) => {
   const r = magazineRoles(colors)
   return createStyle({
@@ -30,6 +43,35 @@ const useStyles = sharedLuxStyles((colors) => {
       backgroundColor: r.paper,
       borderTopWidth: 1,
       borderTopColor: r.ink,
+      overflow: 'visible',
+    },
+    progressBand: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: PROGRESS_BAND_H,
+      justifyContent: 'center',
+      zIndex: 2,
+    },
+    progressRail: {
+      height: PROGRESS_TRACK_H,
+      borderRadius: PROGRESS_TRACK_H / 2,
+      width: '100%',
+    },
+    progressFill: {
+      position: 'absolute',
+      left: 0,
+      height: PROGRESS_TRACK_H,
+      borderRadius: PROGRESS_TRACK_H / 2,
+    },
+    progressThumb: {
+      position: 'absolute',
+      width: PROGRESS_THUMB,
+      height: PROGRESS_THUMB,
+      borderRadius: PROGRESS_THUMB / 2,
+      borderWidth: 1.5,
+      top: (PROGRESS_BAND_H - PROGRESS_THUMB) / 2,
     },
     player: {
       height: DOCK_PLAYER_HEIGHT,
@@ -37,13 +79,6 @@ const useStyles = sharedLuxStyles((colors) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-    },
-    progress: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      height: 2,
-      backgroundColor: r.accent,
     },
     cover: {
       width: 44,
@@ -74,7 +109,6 @@ const useStyles = sharedLuxStyles((colors) => {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 2,
     },
     navMark: {
       position: 'absolute',
@@ -84,14 +118,6 @@ const useStyles = sharedLuxStyles((colors) => {
       borderRadius: 2,
       backgroundColor: r.accent,
     },
-    navLabel: {
-      fontWeight: '600',
-      fontSize: 11,
-    },
-    navLabelOn: {
-      fontWeight: '800',
-      fontSize: 11,
-    },
   })
 })
 
@@ -100,6 +126,46 @@ export interface DockNavItem {
   icon: string
   label: string
 }
+
+const DockProgress = memo(({ progress }: { progress: number }) => {
+  const styles = useStyles()
+  const { colors, mode } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const [bandW, setBandW] = useState(0)
+  const ratio = clampProgress(progress)
+  const travel = Math.max(0, bandW - PROGRESS_THUMB)
+  const thumbLeft = ratio * travel
+  const fillWidth = bandW > 0 ? thumbLeft + PROGRESS_THUMB / 2 : 0
+
+  const onLayout = (event: LayoutChangeEvent) => {
+    setBandW(event.nativeEvent.layout.width)
+  }
+
+  return (
+    <View
+      pointerEvents="none"
+      style={styles.progressBand}
+      onLayout={onLayout}
+    >
+      <View style={[styles.progressRail, { backgroundColor: r.hairline }]} />
+      <View style={[styles.progressFill, { width: fillWidth, backgroundColor: r.accent }]} />
+      {bandW > 0
+        ? (
+          <View
+            style={[
+              styles.progressThumb,
+              {
+                left: thumbLeft,
+                backgroundColor: r.accent,
+                borderColor: mode === 'dark' ? r.paper : r.ink,
+              },
+            ]}
+          />
+          )
+        : null}
+    </View>
+  )
+})
 
 export const Dock = memo(({
   children,
@@ -123,7 +189,7 @@ export const Dock = memo(({
   const r = magazineRoles(colors)
   return (
     <View style={[styles.dock, { paddingBottom: insetBottom }]}>
-      <View style={[styles.progress, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+      <DockProgress progress={progress} />
       {player ?? children}
       {navItems?.length
         ? (
@@ -140,14 +206,10 @@ export const Dock = memo(({
                     onPress={() => onNavPress?.(item.id)}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: on }}
+                    accessibilityLabel={item.label}
                   >
                     {on ? <View style={styles.navMark} /> : null}
-                    <MdiIcon name={item.icon} size={22} color={on ? r.ink : r.quiet} />
-                    <Text
-                      size={11}
-                      color={on ? r.ink : r.quiet}
-                      style={on ? styles.navLabelOn : styles.navLabel}
-                    >{item.label}</Text>
+                    <MdiIcon name={item.icon} size={NAV_ICON_SIZE} color={on ? r.ink : r.quiet} />
                   </TouchableOpacity>
                 )
               })}

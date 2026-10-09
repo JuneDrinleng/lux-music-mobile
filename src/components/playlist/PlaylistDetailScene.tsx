@@ -55,7 +55,7 @@ export interface PlaylistDetailSceneProps {
   onDetailListContentSizeChange: (width: number, height: number) => void
   onCloseImportDrawer: () => void
   onImportSelectedSongs: () => void
-  onToggleSelectAllImportSongs: () => void
+  onToggleSelectAllImportSongs: (visibleIds?: string[]) => void
   onToggleImportSong: (id: string) => void
   onRenameList: (value: string) => Promise<boolean>
   onRemoveSelectedList: () => Promise<boolean>
