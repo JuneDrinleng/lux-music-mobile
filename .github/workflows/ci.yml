@@ -72,6 +72,8 @@ jobs:
               - 'package-lock.json'
               - 'dependency-patches/**'
               - 'dependencies-patch.js'
+              - '.github/actions/setup/**'
+              - '.github/actions/setup/*'
 
       - if: steps.filter.outputs.native == 'true'
         uses: ./.github/actions/setup
