@@ -109,14 +109,6 @@ const useStyles = sharedLuxStyles((colors) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    navMark: {
-      position: 'absolute',
-      top: 0,
-      width: 24,
-      height: 3,
-      borderRadius: 2,
-      backgroundColor: r.accent,
-    },
   })
 })
 
@@ -207,7 +199,6 @@ export const Dock = memo(({
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={item.label}
                   >
-                    {on ? <View style={styles.navMark} /> : null}
                     <MdiIcon name={item.icon} size={NAV_ICON_SIZE} color={on ? r.ink : r.quiet} />
                   </TouchableOpacity>
                 )
