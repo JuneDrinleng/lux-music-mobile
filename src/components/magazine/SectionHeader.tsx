@@ -44,6 +44,7 @@ export const SectionHeader = memo(({
   showRule = true,
   compactRule = false,
   ruleGap,
+  headGap,
   trailing,
   style,
 }: {
@@ -54,6 +55,8 @@ export const SectionHeader = memo(({
   showRule?: boolean
   compactRule?: boolean
   ruleGap?: number
+  /** Override space between the rule and the title row (default RULE_TO_SECTION). */
+  headGap?: number
   trailing?: ReactNode
   style?: ViewStyle
 }) => {
@@ -63,7 +66,7 @@ export const SectionHeader = memo(({
   return (
     <View style={style}>
       {showRule ? <Rule compact={compactRule} gapTop={ruleGap} /> : null}
-      <View style={styles.head}>
+      <View style={[styles.head, headGap != null ? { marginTop: headGap } : null]}>
         <Text size={magType.section.size} color={r.display} style={styles.title}>{title}</Text>
         {trailing ?? (linkLabel != null
           ? (

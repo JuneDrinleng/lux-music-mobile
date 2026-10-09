@@ -51,13 +51,18 @@ import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
-import { H1_AFTER_TOP, PAGE_GUTTER, RULE_GAP, magType } from '@/theme/magazineType'
+import { H1_AFTER_TOP, PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
 import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 
-/** Inter-group gap before each Settings section rule (~35% tighter than RULE_GAP). */
-const SETTINGS_SECTION_GAP = Math.round(RULE_GAP * 0.65)
+/**
+ * Settings group-to-group rhythm (design numbers).
+ * After #55: ruleGap 22 + headGap 12 ≈ 34. Target visual ≈ 16–20.
+ * Now: ruleGap 12 + headGap 6 ≈ 18.
+ */
+const SETTINGS_SECTION_GAP = 12
+const SETTINGS_SECTION_HEAD_GAP = 6
 const BOTTOM_DOCK_BASE_HEIGHT = DOCK_BASE_HEIGHT
 const currentVer = process.versions.app
 const syncHostRxp = /^https?:\/\/\S+/i
@@ -954,7 +959,7 @@ export default () => {
         {showAppearanceSection
           ? (
             <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_appearance')} meta={t('settings_meta_appearance')} showRule ruleGap={SETTINGS_SECTION_GAP} />
+              <SectionHeader title={t('setting_appearance')} meta={t('settings_meta_appearance')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="translate" iconBg={r.iconWrap.orange} title={t('setting_basic_lang')} subtitle={activeLanguageLabel} onPress={handleOpenLanguageDetail} />
               <SettingRow icon="palette-outline" iconBg={r.iconWrap.orange} title={t('setting_lux_theme')} subtitle={luxThemeLabel(luxThemeId)} onPress={handleOpenThemeDetail} />
               <SettingRow icon="newspaper-variant-outline" iconBg={r.iconWrap.orange} title={t('setting_stats_page_style')} subtitle={statsPageStyleLabel(statsPageStyle)} onPress={handleOpenStatsPageStyleDetail} last />
@@ -965,7 +970,7 @@ export default () => {
         {showSearchAndPlayerSection
           ? (
             <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} />
+              <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="text-search" iconBg={r.iconWrap.green} title={t('setting_search_source')} subtitle={activeSearchSourceLabel} onPress={handleOpenSearchSourceDetail} />
               <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} last />
             </View>
@@ -975,7 +980,7 @@ export default () => {
         {showDataSection
           ? (
             <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} />
+              <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('setting_sync_host_title')} subtitle={activeSyncStatusLabel} onPress={handleOpenSyncDetail} />
               <SettingRow icon="swap-horizontal" iconBg={r.iconWrap.purple} title={t('setting_sync_format')} subtitle={syncMode == 'lux' ? 'lux music' : 'lx music'} onPress={handleOpenSyncFormatDetail} />
               <SettingRow icon="source-branch-remove" iconBg={r.iconWrap.purple} title={t('setting_sync_clear_conflict_mode')} subtitle={t('setting_sync_clear_conflict_mode_desc')} onPress={() => { void handleClearSyncConflictMode() }} />
@@ -989,7 +994,7 @@ export default () => {
         {showAboutSection
           ? (
             <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_about')} meta={t('settings_meta_about')} showRule ruleGap={SETTINGS_SECTION_GAP} />
+              <SectionHeader title={t('setting_about')} meta={t('settings_meta_about')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="information-outline" iconBg={r.iconWrap.amber} title={t('version_label_current_ver')} subtitle={currentVersionLabel} onPress={handleOpenChangelog} />
               <SettingRow icon="update" iconBg={r.iconWrap.amber} title={t('version_btn_check_update')} subtitle={aboutStatusText} onPress={handleCheckUpdate} />
               <SettingRow icon="github" iconBg={r.iconWrap.amber} title="GitHub Releases" onPress={handleOpenReleasePage} last />
@@ -1000,7 +1005,7 @@ export default () => {
         {showAccountSection
           ? (
             <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} />
+              <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow
                 icon="logout"
                 iconBg={r.iconWrap.red}
