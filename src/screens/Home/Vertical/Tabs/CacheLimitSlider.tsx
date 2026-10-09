@@ -10,7 +10,6 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import {
   cacheStepRatio,
-  cacheTickAlign,
   clampUnit,
   indexForCacheStep,
   nearestCacheStepIndex,
@@ -24,7 +23,8 @@ import { createStyle } from '@/utils/tools'
  * `@react-native-community/slider` 的拇指只有 `thumbTintColor`，画不出浅色底加强调色描边。
  * 它的 JS 包装层还会把数值 0 当成空值丢掉，而音频上限的 0 就是「关闭」。
  * 这里用 PanResponder：拖动时拇指连续移动，刻度和胶囊只吸附到既有档位；松手才 `onCommit`。
- * 刻度按档位落在轨道下：两端贴齐轨道，中间档中心对准拇指。拇指填色是 `line.white`，描边是 `accent.primary`。
+ * 刻度在轨道下按预览均分：第一档靠左，最后一档靠右，中间居中。
+ * 拇指中心和填充宽度是档位 i/(n-1)。填色 `line.white`，描边 `accent.primary`。
  */
 
 interface CacheLimitSliderProps {
@@ -40,80 +40,92 @@ interface CacheLimitSliderProps {
 
 const useCacheLimitStyles = sharedLuxStyles(colors => createStyle({
   titleRow: {
-    minHeight: 0,
-    paddingTop: 10,
-    paddingBottom: 0,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingRight: 18,
+    paddingBottom: 2,
+    paddingLeft: 18,
+  },
+  titleLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 8,
+    minWidth: 0,
   },
   title: {
     marginBottom: 0,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   chip: {
+    height: 24,
     flexShrink: 0,
-    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 999,
     backgroundColor: colors.accent.soft,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
   chipText: {
     fontWeight: '700',
+    includeFontPadding: false,
   },
   trackPad: {
-    paddingHorizontal: 18,
     paddingTop: 4,
-    paddingBottom: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
   },
-  touch: {
-    height: 24,
-    justifyContent: 'center',
-  },
-  lane: {
-    height: 24,
+  trackWrap: {
+    height: 28,
     justifyContent: 'center',
   },
   track: {
-    height: 6,
-    borderRadius: 999,
-    overflow: 'hidden',
-    backgroundColor: colors.surface.playerTrack,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.line.divider,
   },
   fill: {
-    height: 6,
-    borderRadius: 999,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 2,
     backgroundColor: colors.accent.primary,
   },
   thumb: {
     position: 'absolute',
-    top: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 999,
-    borderWidth: 3,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2.5,
     backgroundColor: colors.line.white,
     borderColor: colors.accent.primary,
+    shadowColor: colors.shadow.ink,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   ticks: {
-    height: 28,
+    flexDirection: 'row',
     marginTop: 6,
+    paddingHorizontal: 2,
   },
-  tickHit: {
-    position: 'absolute',
-    top: 0,
-    height: 28,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  tickStart: {
-    left: 0,
-  },
-  tickEnd: {
-    right: 0,
+  tickCell: {
+    flex: 1,
+    minWidth: 0,
   },
   tick: {
     fontWeight: '400',
+    lineHeight: 13,
   },
   tickActive: {
     fontWeight: '700',
+    lineHeight: 13,
   },
 }))
 
@@ -142,8 +154,8 @@ export const CacheLimitSlider = memo(({
   const restingRatio = cacheStepRatio(restingIndex, steps.length)
   const [dragRatio, setDragRatio] = useState<number | null>(null)
   const [trackWidth, setTrackWidth] = useState(0)
-  const [thumbSize, setThumbSize] = useState(24)
-  const [labelWidths, setLabelWidths] = useState<Readonly<Record<number, number>>>({})
+  const [wrapHeight, setWrapHeight] = useState(0)
+  const [thumbSize, setThumbSize] = useState(22)
   const ratio = dragRatio ?? restingRatio
   const activeIndex = dragRatio == null ? restingIndex : nearestCacheStepIndex(dragRatio, steps.length)
   const displayStep = steps[activeIndex] ?? steps[0] ?? 0
@@ -192,6 +204,7 @@ export const CacheLimitSlider = memo(({
   const onTrackLayout = (event: LayoutChangeEvent) => {
     widthRef.current = event.nativeEvent.layout.width
     setTrackWidth(event.nativeEvent.layout.width)
+    setWrapHeight(event.nativeEvent.layout.height)
   }
 
   const onThumbLayout = (event: LayoutChangeEvent) => {
@@ -200,6 +213,7 @@ export const CacheLimitSlider = memo(({
   }
 
   const thumbLeft = trackWidth > 0 ? (ratio * trackWidth) - (thumbSize / 2) : 0
+  const thumbTop = wrapHeight > 0 ? (wrapHeight - thumbSize) / 2 : 0
   const chipLabel = formatChip(displayStep)
 
   const nudge = (direction: 1 | -1) => {
@@ -212,25 +226,24 @@ export const CacheLimitSlider = memo(({
 
   return (
     <>
-      <View style={[parentStyles.optionDetailRow, localStyles.titleRow]}>
-        <View style={parentStyles.groupRowLeft}>
+      <View style={localStyles.titleRow}>
+        <View style={localStyles.titleLeft}>
           <View style={[parentStyles.groupRowIconWrap, parentStyles.iconWrapPurple]}>
             <MdiIcon name={icon} size={24} color={colors.ink.icon} />
           </View>
           <View style={parentStyles.groupRowTextWrap}>
-            <Text size={15} color={colors.ink.list} style={[parentStyles.groupRowTitle, localStyles.title]}>{title}</Text>
+            <Text size={15} color={colors.ink.list} style={localStyles.title}>{title}</Text>
           </View>
         </View>
         <View style={localStyles.chip}>
-          <Text size={12} color={colors.ink.pill} style={localStyles.chipText}>{chipLabel}</Text>
+          <Text size={12} color={colors.ink.chipActive} style={localStyles.chipText}>{chipLabel}</Text>
         </View>
       </View>
       <View style={localStyles.trackPad}>
         <View
-          style={localStyles.touch}
+          style={localStyles.trackWrap}
           onLayout={onTrackLayout}
           pointerEvents="box-only"
-          hitSlop={{ top: 10, bottom: 8, left: 4, right: 4 }}
           accessibilityRole="adjustable"
           accessibilityLabel={title}
           accessibilityValue={{ text: chipLabel }}
@@ -241,56 +254,33 @@ export const CacheLimitSlider = memo(({
           }}
           {...panResponder.panHandlers}
         >
-          <View pointerEvents="none" style={localStyles.lane}>
-            <View style={localStyles.track}>
-              <View style={[localStyles.fill, { width: `${ratio * 100}%` }]} />
-            </View>
-            <View onLayout={onThumbLayout} style={[localStyles.thumb, { left: thumbLeft }]} />
+          <View pointerEvents="none" style={localStyles.track}>
+            <View style={[localStyles.fill, { width: `${ratio * 100}%` }]} />
           </View>
+          <View pointerEvents="none" onLayout={onThumbLayout} style={[localStyles.thumb, { left: thumbLeft, top: thumbTop }]} />
         </View>
         <View style={localStyles.ticks}>
           {steps.map((step, index) => {
             const active = index === activeIndex
-            const align = cacheTickAlign(index, steps.length)
             let textAlign: 'left' | 'center' | 'right' = 'center'
-            if (align === 'start') textAlign = 'left'
-            else if (align === 'end') textAlign = 'right'
-            const measured = labelWidths[step]
-            const centered = align !== 'center'
-              ? null
-              : {
-                  left: `${cacheStepRatio(index, steps.length) * 100}%` as const,
-                  marginLeft: measured == null ? 0 : -measured / 2,
-                  opacity: measured == null ? 0 : 1,
-                }
-            const slotStyle = align === 'end'
-              ? localStyles.tickEnd
-              : centered ?? localStyles.tickStart
+            if (index === 0) textAlign = 'left'
+            else if (index === steps.length - 1) textAlign = 'right'
             return (
               <TouchableOpacity
                 key={step}
-                style={[localStyles.tickHit, slotStyle]}
+                style={localStyles.tickCell}
                 activeOpacity={0.84}
-                hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                onLayout={(event) => {
-                  const width = Math.round(event.nativeEvent.layout.width)
-                  if (width <= 0) return
-                  setLabelWidths(prev => {
-                    if (prev[step] === width) return prev
-                    return { ...prev, [step]: width }
-                  })
-                }}
                 onPress={() => {
                   if (step !== valueRef.current) onCommitRef.current(step)
                 }}
               >
                 <Text
-                  size={11}
+                  size={10}
                   numberOfLines={1}
-                  color={active ? colors.ink.list : colors.ink.quiet}
-                  style={[active ? localStyles.tickActive : localStyles.tick, { textAlign }]}
+                  color={active ? colors.ink.list : colors.ink.secondary}
+                  style={[active ? localStyles.tickActive : localStyles.tick, { textAlign, width: '100%' }]}
                 >
                   {formatTick(step)}
                 </Text>
