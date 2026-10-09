@@ -26,7 +26,7 @@ import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { useSystemGestureInsetBottom } from '@/utils/hooks'
-import { useStatusbarHeight } from '@/store/common/hook'
+import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
@@ -73,6 +73,9 @@ export default () => {
   const styles = useLuxStyles()
   const { colors, id: luxThemeId, setLuxTheme, mode: luxColorMode } = useLuxTheme()
   const r = magazineRoles(colors)
+  const activeNavId = useNavActiveId()
+  const rootScrollRef = useRef<ScrollView>(null)
+  const wasOnSettingsRef = useRef(activeNavId === 'nav_setting')
 
   const t = useI18n()
   const luxThemeLabel = (id: LuxThemeId) => {
@@ -867,9 +870,28 @@ export default () => {
     }
   }, [handleOpenProfileDetail])
 
+  // Pager keeps Settings mounted: leaving via bottom nav must collapse to the root list
+  // so the next visit never restores a detail/sub-page.
+  useEffect(() => {
+    const onSettings = activeNavId === 'nav_setting'
+    if (!onSettings) {
+      setActiveOptionDetail(null)
+      setProfileDetailVisible(false)
+      setIsManagingApiSources(false)
+      setIsManagingSyncHosts(false)
+      wasOnSettingsRef.current = false
+      return
+    }
+    if (!wasOnSettingsRef.current) {
+      rootScrollRef.current?.scrollTo({ y: 0, animated: false })
+    }
+    wasOnSettingsRef.current = true
+  }, [activeNavId])
+
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={rootScrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
         showsVerticalScrollIndicator={false}
