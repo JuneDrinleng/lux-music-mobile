@@ -4,6 +4,7 @@
 
 import { LIST_IDS, storageDataPrefix } from '@/config/constant'
 import { getListMusics } from '@/core/list'
+import { getTrackCacheKey } from '@/plugins/player/cache'
 import { getData } from '@/plugins/storage'
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
@@ -11,7 +12,7 @@ import { rememberAudioCacheEntry, loadAudioCacheIndex } from '@/utils/audioCache
 import { cachedSongsFromPlayRecords, createCachedSongMetadataFetcher } from '@/utils/cachedSongMetadata'
 import { formatPlayTime, sizeFormate } from '@/utils/common'
 import { toNewMusicInfo } from '@/utils'
-import { type ParsedAudioCacheKey } from '@/utils/localSongRows'
+import { hasCachedSongMetadata, parseAudioCacheKey, type ParsedAudioCacheKey } from '@/utils/localSongRows'
 import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getMusicInfo as getKgMusicInfo } from '@/utils/musicSdk/kg/musicInfo'
 import { getMusicInfo as getKwMusicInfo } from '@/utils/musicSdk/kw/musicInfo'
@@ -202,6 +203,7 @@ interface KwMusicInfo {
   albumId?: string | number
   pic?: string
   pic120?: string
+  songmid?: string
 }
 
 const fetchKw = async(songmid: string) => {
@@ -209,11 +211,12 @@ const fetchKw = async(songmid: string) => {
   if (!info?.name) return null
   const duration = Number(info.duration)
   const seconds = Number.isFinite(duration) ? (duration > 10000 ? duration / 1000 : duration) : 0
+  const mid = info.songmid ?? songmid
   return toNewMusicInfo({
     name: info.name,
     singer: typeof info.artist == 'string' ? formatSinger(info.artist) : '',
     source: 'kw',
-    songmid,
+    songmid: mid,
     interval: seconds ? formatPlayTime(seconds) : null,
     albumName: info.album ?? '',
     albumId: info.albumid ?? info.albumId ?? '',
@@ -260,4 +263,22 @@ export const fetchCachedSongMusicInfo = createCachedSongMetadataFetcher<LX.Music
 
 export const rememberResolvedCacheSong = async(cacheKey: string, musicInfo: LX.Music.MusicInfo) => {
   await rememberAudioCacheEntry(cacheKey, musicInfo)
+}
+
+/**
+ * Persist full song metadata when audio is about to be cached during playback.
+ * Real names from playlists/search are saved immediately; placeholder KW rows are
+ * enriched once via the working rid lookup and then written to the cache index.
+ */
+export const rememberPlayingCacheSong = async(musicInfo: LX.Player.PlayMusic) => {
+  const raw = 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
+  if (!raw?.id || !raw.source) return
+  const cacheKey = getTrackCacheKey(musicInfo)
+  if (hasCachedSongMetadata(raw, cacheKey)) {
+    await rememberAudioCacheEntry(cacheKey, raw)
+    return
+  }
+  const parsed = parseAudioCacheKey(cacheKey)
+  if (!parsed || parsed.source == 'local' || parsed.source == 'unknown') return
+  await fetchCachedSongMusicInfo(parsed)
 }
