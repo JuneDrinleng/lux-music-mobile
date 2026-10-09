@@ -28,6 +28,7 @@ const files = [
   'src/utils/playlistCoverMap.ts',
   'src/utils/localSongRows.ts',
   'src/utils/cachedSongMetadata.ts',
+  'src/utils/kwMusicInfoParse.ts',
   'src/utils/localSongCoverMatch.ts',
   'src/utils/homeBootGate.ts',
   'src/utils/cacheLimitSteps.ts',
@@ -108,6 +109,7 @@ const listenListLimit = require(join(outDir, 'src/utils/listenListLimit.js'))
 const coverMap = require(join(outDir, 'src/utils/playlistCoverMap.js'))
 const localSongRows = require(join(outDir, 'src/utils/localSongRows.js'))
 const cachedMetadata = require(join(outDir, 'src/utils/cachedSongMetadata.js'))
+const kwMusicInfoParse = require(join(outDir, 'src/utils/kwMusicInfoParse.js'))
 const localCover = require(join(outDir, 'src/utils/localSongCoverMatch.js'))
 const homeBoot = require(join(outDir, 'src/utils/homeBootGate.js'))
 const cacheSteps = require(join(outDir, 'src/utils/cacheLimitSteps.js'))
@@ -1831,6 +1833,154 @@ test('metadata hydration does not coalesce distinct Kugou hashes', async() => {
   assert.deepEqual(hashes, ['hashA', 'hashB'])
   assert.equal(first.meta.hash, 'hashA')
   assert.equal(second.meta.hash, 'hashB')
+})
+
+test('Kuwo rid search body yields name, singer, album, duration and cover; www illegal body is rejected', () => {
+  const url = kwMusicInfoParse.kwRidMusicInfoUrl('2689279')
+  assert.match(url, /search\.kuwo\.cn\/r\.s\?/)
+  assert.match(url, /rid=MUSIC_2689279/)
+  assert.match(url, /mobi=1/)
+  assert.equal(kwMusicInfoParse.isIllegalKwMusicInfoBody({
+    success: false, message: 'The request is illegal!',
+  }), true)
+  assert.equal(kwMusicInfoParse.parseKwSearchMusicInfo({
+    success: false, message: 'The request is illegal!',
+  }, '2689279'), null)
+
+  const parsed = kwMusicInfoParse.parseKwSearchMusicInfo({
+    abslist: [{
+      SONGNAME: '东南苦山行',
+      ARTIST: '殷正洋',
+      ALBUM: '雨中的歉意/&nbsp;请你回眸',
+      ALBUMID: '2155852',
+      DURATION: '239',
+      MUSICRID: 'MUSIC_2689279',
+      web_albumpic_short: '120/90/62/700599983.jpg',
+    }],
+  }, '2689279')
+  assert.equal(parsed.name, '东南苦山行')
+  assert.equal(parsed.artist, '殷正洋')
+  assert.equal(parsed.album, '雨中的歉意/ 请你回眸')
+  assert.equal(parsed.albumid, '2155852')
+  assert.equal(parsed.duration, 239)
+  assert.equal(parsed.songmid, '2689279')
+  assert.equal(parsed.pic, 'https://img1.kuwo.cn/star/albumcover/120/90/62/700599983.jpg')
+  assert.equal(kwMusicInfoParse.parseKwSearchMusicInfo({
+    abslist: [{ SONGNAME: '错歌', MUSICRID: 'MUSIC_1' }],
+  }, '2689279'), null)
+
+  const screenshotIds = [
+    { mid: '638844272', name: '小河淌水', artist: 'DJ铁柱&Grimmmz' },
+    { mid: '193290598', name: '如愿', artist: '王菲' },
+  ]
+  for (const song of screenshotIds) {
+    const info = kwMusicInfoParse.parseKwSearchMusicInfo({
+      abslist: [{
+        SONGNAME: song.name,
+        ARTIST: song.artist,
+        DURATION: '100',
+        MUSICRID: `MUSIC_${song.mid}`,
+        web_albumpic_short: 'a/b.jpg',
+      }],
+    }, song.mid)
+    assert.equal(info.name, song.name)
+    assert.equal(info.artist, song.artist)
+  }
+})
+
+test('dev.31 numeric-name cache index entries are treated as missing and backfilled with real Kuwo names', async() => {
+  // Reproduce v0.4.0-dev.31: ExoPlayer has complete KW blobs, but the index only has
+  // songmid placeholders (no singer). Opening 本地歌曲 must fetch and persist real names.
+  const poisoned = [
+    { key: 'kw_kw_638844272_128k', musicInfo: { id: 'kw_638844272', source: 'kw', name: '638844272', singer: '', interval: null, meta: { songId: '638844272', albumName: '', picUrl: '', qualitys: [], _qualitys: {} } } },
+    { key: 'kw_kw_2689279_128k', musicInfo: { id: 'kw_2689279', source: 'kw', name: '2689279', singer: '', interval: null, meta: { songId: '2689279', albumName: '', picUrl: '', qualitys: [], _qualitys: {} } } },
+    { key: 'kw_kw_193290598_128k', musicInfo: { id: 'kw_193290598', source: 'kw', name: '193290598', singer: '', interval: null, meta: { songId: '193290598', albumName: '', picUrl: '', qualitys: [], _qualitys: {} } } },
+  ]
+  let disk = poisoned.slice()
+  const index = cachedMetadata.createCachedSongIndex(async() => disk, entries => { disk = entries })
+  assert.equal(localSongRows.hasCachedSongMetadata(poisoned[0].musicInfo, poisoned[0].key), false)
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: poisoned[0].key,
+    keyedMeta: poisoned[0].musicInfo,
+    metaStore: poisoned.map(entry => entry.musicInfo),
+  }).via, 'fallback')
+  assert.equal(localSongRows.resolveCachedSongMetadata({
+    cacheKey: poisoned[0].key,
+    keyedMeta: poisoned[0].musicInfo,
+    metaStore: poisoned.map(entry => entry.musicInfo),
+  }).musicInfo.name, '638844272')
+
+  const catalog = {
+    638844272: { name: '小河淌水', singer: 'DJ铁柱', interval: '01:48', album: '笑比恨先出现', pic: 'https://img1.kuwo.cn/star/albumcover/a.jpg' },
+    2689279: { name: '东南苦山行', singer: '殷正洋', interval: '03:59', album: '雨中的歉意', pic: 'https://img1.kuwo.cn/star/albumcover/b.jpg' },
+    193290598: { name: '如愿', singer: '王菲', interval: '04:25', album: '如愿', pic: 'https://img1.kuwo.cn/star/albumcover/c.jpg' },
+  }
+  const fetchInfo = cachedMetadata.createCachedSongMetadataFetcher({
+    loadStored: async() => (await index.load()).map(entry => entry.musicInfo),
+    fetch: async parsed => {
+      const hit = catalog[parsed.songmid]
+      assert.ok(hit, `unexpected mid ${parsed.songmid}`)
+      // Mimic parseKwSearchMusicInfo → toNewMusicInfo for the working rid API.
+      const body = kwMusicInfoParse.parseKwSearchMusicInfo({
+        abslist: [{
+          SONGNAME: hit.name,
+          ARTIST: hit.singer,
+          ALBUM: hit.album,
+          ALBUMID: '1',
+          DURATION: '100',
+          MUSICRID: `MUSIC_${parsed.songmid}`,
+          web_albumpic_short: 'x/y.jpg',
+        }],
+      }, parsed.songmid)
+      return {
+        id: parsed.id,
+        source: 'kw',
+        name: body.name,
+        singer: body.artist,
+        interval: hit.interval,
+        meta: {
+          songId: body.songmid,
+          albumName: body.album,
+          picUrl: hit.pic,
+          qualitys: [{ type: parsed.quality, size: null }],
+          _qualitys: { [parsed.quality]: { size: null } },
+        },
+      }
+    },
+    prepare: song => song,
+    persist: index.remember,
+  })
+
+  for (const entry of poisoned) {
+    const parsed = localSongRows.parseAudioCacheKey(entry.key)
+    const resolved = await fetchInfo(parsed)
+    assert.equal(resolved.name, catalog[parsed.songmid].name)
+    assert.equal(resolved.singer, catalog[parsed.songmid].singer)
+    assert.equal(resolved.interval, catalog[parsed.songmid].interval)
+    assert.equal(resolved.meta.albumName, catalog[parsed.songmid].album)
+    assert.equal(resolved.meta.picUrl, catalog[parsed.songmid].pic)
+  }
+
+  assert.equal(disk.length, 3)
+  for (const entry of disk) {
+    const mid = localSongRows.parseAudioCacheKey(entry.key).songmid
+    assert.equal(entry.musicInfo.name, catalog[mid].name)
+    assert.equal(localSongRows.hasCachedSongMetadata(entry.musicInfo, entry.key), true)
+    assert.equal(localSongRows.resolveCachedSongMetadata({
+      cacheKey: entry.key,
+      keyedMeta: entry.musicInfo,
+      metaStore: disk.map(item => item.musicInfo),
+    }).via, 'metaStore')
+  }
+
+  // Playback with full metadata must write the index immediately (no network).
+  const playKey = 'kw_kw_999_320k'
+  await index.remember(playKey, {
+    id: 'kw_999', source: 'kw', name: '播放时写入', singer: '现场歌手', interval: '02:00',
+    meta: { songId: '999', albumName: '现场专辑', picUrl: 'https://cover', qualitys: [], _qualitys: {} },
+  })
+  assert.equal(disk.find(entry => entry.key == playKey).musicInfo.name, '播放时写入')
+  assert.equal(disk.find(entry => entry.key == playKey).musicInfo.meta.albumName, '现场专辑')
 })
 
 const chartTestRecord = (startedAt, listenedMs) => ({

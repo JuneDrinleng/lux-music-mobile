@@ -2,14 +2,21 @@
 
 import { httpFetch } from '../../request'
 import { normalizeCachedSongId } from '../../localSongRows'
+import { kwRidMusicInfoUrl, parseKwSearchMusicInfo } from '../../kwMusicInfoParse'
 
-/** Independent request handles let the local library hydrate several songs concurrently. */
+/**
+ * Look up Kuwo song metadata by rid.
+ * The www musicInfo endpoint returns "The request is illegal!" without a working CSRF
+ * cookie flow (helpers are commented out). search.kuwo.cn?rid=MUSIC_<id>&mobi=1 works
+ * and is the same family already used for Kuwo search/album detail.
+ */
 export const getMusicInfo = songmid => {
   const mid = normalizeCachedSongId('kw', songmid)
-  const request = httpFetch(`http://www.kuwo.cn/api/www/music/musicInfo?mid=${encodeURIComponent(mid)}`)
+  const request = httpFetch(kwRidMusicInfoUrl(mid))
   request.promise = request.promise.then(({ body }) => {
-    if (body?.code != 200 || !body.data) throw new Error(body?.msg || 'Missing music info')
-    return body.data
+    const info = parseKwSearchMusicInfo(body, mid)
+    if (!info?.name) throw new Error(body?.msg || body?.message || 'Missing music info')
+    return info
   })
   return request
 }
