@@ -1,11 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Animated,
   Easing,
   Modal,
-  ScrollView,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -13,6 +12,7 @@ import {
 
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
+import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
@@ -26,6 +26,8 @@ import { TextButton } from './TextButton'
 const OPEN_MS = 220
 const CLOSE_MS = 220
 const OPEN_EASING = Easing.out(Easing.cubic)
+/** Visual close is 34; hitSlop brings the target to ≥44. */
+const CLOSE_HIT_SLOP = 5
 
 export interface MagazineSheetFooter {
   meta?: string
@@ -48,6 +50,7 @@ export interface MagazineSheetProps {
   headerAction?: { text: string, tone?: 'ink' | 'danger', disabled?: boolean, onPress: () => void }
   subject?: ReactNode
   sectionLabel?: string
+  /** FlatList / custom list body. Prefer this over nesting scrollables. */
   children?: ReactNode
   footer?: MagazineSheetFooter
   loading?: boolean
@@ -156,6 +159,7 @@ const useStyles = sharedLuxStyles((colors) => {
     body: {
       flexGrow: 1,
       flexShrink: 1,
+      minHeight: 0,
     },
     footer: {
       paddingTop: 10,
@@ -213,33 +217,45 @@ export const MagazineSheet = memo(({
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const t = useI18n()
   const { height: winH } = useWindowDimensions()
   const panelH = useMemo(() => Math.floor(winH * heightRatio), [winH, heightRatio])
   const anim = useRef(new Animated.Value(0)).current
+  const [mounted, setMounted] = useState(visible)
+  const closingRef = useRef(false)
 
   useEffect(() => {
-    if (!visible) return
-    anim.setValue(0)
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: OPEN_MS,
-      easing: OPEN_EASING,
-      useNativeDriver: true,
-    }).start()
-  }, [visible, anim])
-
-  const requestClose = () => {
+    if (visible) {
+      closingRef.current = false
+      setMounted(true)
+      anim.setValue(0)
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: OPEN_MS,
+        easing: OPEN_EASING,
+        useNativeDriver: true,
+      }).start()
+      return
+    }
+    if (!mounted || closingRef.current) return
+    closingRef.current = true
     Animated.timing(anim, {
       toValue: 0,
       duration: CLOSE_MS,
       easing: OPEN_EASING,
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (finished) onClose()
+      closingRef.current = false
+      if (finished) setMounted(false)
     })
+  }, [visible, anim, mounted])
+
+  const requestClose = () => {
+    if (closingRef.current) return
+    onClose()
   }
 
-  if (!visible) return null
+  if (!mounted) return null
 
   const translateY = anim.interpolate({
     inputRange: [0, 1],
@@ -249,6 +265,8 @@ export const MagazineSheet = memo(({
     inputRange: [0, 1],
     outputRange: [0, 1],
   })
+
+  const showEmpty = !loading && !children && empty
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={requestClose} statusBarTranslucent>
@@ -266,7 +284,14 @@ export const MagazineSheet = memo(({
                   : null}
                 <Text size={magType.sheetTitle.size} color={r.display} style={styles.title} numberOfLines={1}>{title}</Text>
               </View>
-              <TouchableOpacity style={styles.close} activeOpacity={0.7} onPress={requestClose} accessibilityRole="button">
+              <TouchableOpacity
+                style={styles.close}
+                activeOpacity={0.7}
+                onPress={requestClose}
+                hitSlop={CLOSE_HIT_SLOP}
+                accessibilityRole="button"
+                accessibilityLabel={t('close')}
+              >
                 <MdiIcon name="close" size={18} color={r.ink} />
               </TouchableOpacity>
             </View>
@@ -302,13 +327,13 @@ export const MagazineSheet = memo(({
           {sectionLabel
             ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.sectionLabel}>{sectionLabel}</Text>
             : null}
-          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+          <View style={styles.body}>
             {loading
               ? <EmptyState eyebrow="LOADING" title={empty?.text ?? '…'} />
-              : !children && empty
-                  ? <EmptyState eyebrow={empty.eyebrow} title={empty.text} />
-                  : children}
-          </ScrollView>
+              : showEmpty && empty
+                ? <EmptyState eyebrow={empty.eyebrow} title={empty.text} />
+                : children}
+          </View>
           {footer
             ? (
               <View style={styles.footer}>

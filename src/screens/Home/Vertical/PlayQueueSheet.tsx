@@ -1,57 +1,43 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-// Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Animated,
-  Easing,
-  FlatList,
-  TouchableOpacity,
-  View,
-} from 'react-native'
+import { FlatList, View } from 'react-native'
+
 import Text from '@/components/common/Text'
-import { Icon } from '@/components/common/Icon'
-import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import {
+  IconButton,
+  MagazineSheet,
+  MagazineSheetRow,
+  SourceTag,
+} from '@/components/magazine'
+import { LIST_IDS } from '@/config/constant'
 import { clearListMusics, getListMusics, removeListMusics } from '@/core/list'
 import { playList } from '@/core/player/player'
 import { useI18n } from '@/lang'
+import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import { useMyList } from '@/store/list/hook'
 import {
   useIsPlay,
   usePlayInfo,
   usePlayerMusicInfo,
 } from '@/store/player/hook'
-import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { useWindowSize } from '@/utils/hooks'
+import { useLuxTheme } from '@/theme/LuxTheme'
+import { magazineRoles } from '@/theme/magazineRoles'
 import { setSystemBarsTransparent } from '@/utils/nativeModules/utils'
-import { confirmDialog, createStyle } from '@/utils/tools'
-import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
-import { limeColors, type LuxColors } from '@/theme/luxTokens'
+import { pickMusicCover } from '@/utils/musicCover'
+import { confirmDialog } from '@/utils/tools'
 
 const QUEUE_ITEM_HEIGHT = 56
-const QUEUE_LIST_TOP_PADDING = 4
-const QUEUE_PANEL_MIN_HEIGHT = 300
-const QUEUE_PANEL_MAX_HEIGHT_RATIO = 0.82
 const QUEUE_PANEL_HEIGHT_RATIO = 0.62
-const readSourceTagColorMap = memoLuxColors((colors: LuxColors) => ({
-  tx: { text: colors.source.tx.text, background: colors.source.tx.background },
-  wy: { text: colors.source.wy.text, background: colors.source.wy.background },
-  kg: { text: colors.source.kg.text, background: colors.source.kg.background },
-  kw: { text: colors.source.kw.text, background: colors.source.kw.background },
-  mg: { text: colors.source.mg.text, background: colors.source.mg.background },
-}))
 
-const getSourceTagColor = (source: string, colors: LuxColors = limeColors) => {
-  return readSourceTagColorMap(colors)[source.toLowerCase()] ?? { text: colors.source.queueUnknown.text, background: colors.source.queueUnknown.background }
-}
+const pad2 = (value: number) => (value < 10 ? `0${value}` : String(value))
 
 export default memo(
   ({ systemGestureInsetBottom = 0, enabled = true }: { systemGestureInsetBottom?: number, enabled?: boolean }) => {
-    const styles = useLuxStyles()
     const { colors } = useLuxTheme()
-
+    const r = magazineRoles(colors)
     const t = useI18n()
-    const winSize = useWindowSize()
     const myLists = useMyList()
     const playInfo = usePlayInfo()
     const isPlay = useIsPlay()
@@ -60,27 +46,11 @@ export default memo(
     const queueListRef = useRef<FlatList<LX.Music.MusicInfo>>(null)
     const queueInitialAlignedRef = useRef(false)
     const musicAddModalRef = useRef<MusicAddModalType>(null)
-    const panelAnim = useRef(new Animated.Value(0)).current
     const [isVisible, setVisible] = useState(false)
     const [playQueue, setPlayQueue] = useState<LX.Music.MusicInfo[]>([])
     void systemGestureInsetBottom
 
     const isTempQueue = playInfo.playerListId == LIST_IDS.TEMP
-
-    const panelBodyHeight = useMemo(() => {
-      const targetHeight = Math.floor(winSize.height * QUEUE_PANEL_HEIGHT_RATIO)
-      const maxHeight = Math.floor(winSize.height * QUEUE_PANEL_MAX_HEIGHT_RATIO)
-      return Math.min(Math.max(QUEUE_PANEL_MIN_HEIGHT, targetHeight), maxHeight)
-    }, [winSize.height])
-    const panelTotalHeight = panelBodyHeight
-    const panelTranslateY = panelAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [panelTotalHeight, 0],
-    })
-    const maskOpacity = panelAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 0.22],
-    })
 
     const loadPlayQueue = useCallback(
       async(targetListId?: string | null) => {
@@ -115,17 +85,8 @@ export default memo(
 
     const hideQueuePanel = useCallback(() => {
       if (!isVisible) return
-      panelAnim.stopAnimation()
-      Animated.timing(panelAnim, {
-        toValue: 0,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished) return
-        setVisible(false)
-      })
-    }, [isVisible, panelAnim])
+      setVisible(false)
+    }, [isVisible])
 
     const showQueuePanel = useCallback(() => {
       if (!enabled) return
@@ -133,15 +94,7 @@ export default memo(
       queueInitialAlignedRef.current = false
       setSystemBarsTransparent()
       setVisible(true)
-      panelAnim.stopAnimation()
-      panelAnim.setValue(0)
-      Animated.timing(panelAnim, {
-        toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start()
-    }, [enabled, isVisible, panelAnim])
+    }, [enabled, isVisible])
 
     const toggleQueuePanel = useCallback(() => {
       if (!enabled) return
@@ -163,10 +116,8 @@ export default memo(
 
     useEffect(() => {
       if (enabled || !isVisible) return
-      panelAnim.stopAnimation()
-      panelAnim.setValue(0)
       setVisible(false)
-    }, [enabled, isVisible, panelAnim])
+    }, [enabled, isVisible])
 
     useEffect(() => {
       if (!enabled || !isVisible) return
@@ -243,9 +194,9 @@ export default memo(
       },
       [playInfo.playerListId],
     )
-    const handleShowMusicAddModal = useCallback((musicInfo: LX.Music.MusicInfo) => {
+    const handleShowMusicAddModal = useCallback((info: LX.Music.MusicInfo) => {
       musicAddModalRef.current?.show({
-        musicInfo,
+        musicInfo: info,
         listId: '',
         isMove: false,
       })
@@ -270,88 +221,74 @@ export default memo(
       t,
     ])
 
+    const playingNum = currentQueueIndex >= 0 ? pad2(currentQueueIndex + 1) : '--'
+    const eyebrow = t('sheet_queue_eyebrow', { num: playingNum })
+
     const renderQueueItem = useCallback(
       ({ item, index }: { item: LX.Music.MusicInfo, index: number }) => {
         const isCurrent = index == currentQueueIndex
-        const sourceTagColor = getSourceTagColor(item.source, colors)
+        const sourceLabel = item.source !== 'local' ? item.source.toUpperCase() : ''
         return (
-          <View
-            style={[
-              styles.itemRow,
-              isCurrent ? { backgroundColor: sourceTagColor.background } : null,
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.itemPress}
-              activeOpacity={0.8}
-              onPress={() => {
-                handleSelectQueueMusic(index)
-              }}
-            >
+          <MagazineSheetRow
+            coverUri={pickMusicCover(item)}
+            coverSize={36}
+            title={item.name}
+            current={isCurrent}
+            last={index >= playQueue.length - 1}
+            onPress={() => { handleSelectQueueMusic(index) }}
+            leading={
               <Text
-                size={11}
-                color={isCurrent ? sourceTagColor.text : colors.ink.faint}
-                style={styles.itemIndex}
+                size={13}
+                color={r.faint}
+                style={{ width: 28, fontWeight: '700', fontVariant: ['tabular-nums'] }}
               >
-                {`${index + 1}`.padStart(2, '0')}
+                {pad2(index + 1)}
               </Text>
-              <View style={styles.itemMain}>
-                <Text
-                  size={13}
-                  color={isCurrent ? sourceTagColor.text : colors.ink.strong}
-                  numberOfLines={1}
-                  style={styles.itemTitle}
-                >
-                  {item.name}
-                </Text>
-                <View style={styles.itemMetaRow}>
-                  <Text
-                    size={10}
-                    color={sourceTagColor.text}
-                    style={[styles.itemSourceTag, { backgroundColor: sourceTagColor.background }]}
-                  >
-                    {item.source.toUpperCase()}
-                  </Text>
-                  <Text size={11} color={colors.ink.meta} numberOfLines={1} style={styles.itemSinger}>
-                    {item.singer || '-'}
-                  </Text>
-                </View>
+            }
+            subtitle={
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {sourceLabel
+                  ? <SourceTag source={item.source} label={sourceLabel} />
+                  : null}
+                <Text size={12} color={r.muted} numberOfLines={1}>{item.singer || '-'}</Text>
               </View>
-            </TouchableOpacity>
-            <View style={styles.itemActions}>
-              {isCurrent ? (
-                <View style={styles.itemNowPlaying}>
-                  <Icon
-                    name={isPlay ? 'pause' : 'play'}
-                    rawSize={14}
-                    color={sourceTagColor.text}
-                  />
-                </View>
-              ) : null}
-              {isTempQueue ? (
-                <>
-                  <TouchableOpacity
-                    style={styles.itemActionBtn}
-                    activeOpacity={0.75}
-                    onPress={() => {
-                      handleShowMusicAddModal(item)
-                    }}
-                  >
-                    <Icon name="add-music" rawSize={15} color={colors.ink.meta} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.itemActionBtn}
-                    activeOpacity={0.75}
-                    onPress={() => {
-                      void handleRemoveQueueMusic(item.id)
-                    }}
-                  >
-                    <Icon name="remove" rawSize={15} color={colors.ink.meta} />
-                  </TouchableOpacity>
-                </>
-              ) : null}
-            </View>
-          </View>
+            }
+            trailing={
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {isCurrent
+                  ? (
+                    <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                      <MdiIcon
+                        name={isPlay ? 'pause' : 'play'}
+                        size={18}
+                        color={r.accentInk}
+                      />
+                    </View>
+                    )
+                  : null}
+                {isTempQueue
+                  ? (
+                    <>
+                      <IconButton
+                        name="playlist-plus"
+                        size={20}
+                        color={r.muted}
+                        accessibilityLabel={t('list_add_title_first_add')}
+                        onPress={() => { handleShowMusicAddModal(item) }}
+                      />
+                      <IconButton
+                        name="close"
+                        size={20}
+                        color={r.muted}
+                        accessibilityLabel={t('list_remove')}
+                        onPress={() => { void handleRemoveQueueMusic(item.id) }}
+                      />
+                    </>
+                    )
+                  : null}
+              </View>
+            }
+          />
         )
       },
       [
@@ -361,262 +298,62 @@ export default memo(
         handleSelectQueueMusic,
         isTempQueue,
         isPlay,
-        colors,
+        playQueue.length,
+        r.accentInk,
+        r.faint,
+        r.muted,
+        t,
       ],
     )
 
-    if (!isVisible) return null
-
     return (
-      <View pointerEvents="box-none" style={styles.overlayRoot}>
-        <Animated.View
-          style={[
-            styles.mask,
-            { opacity: maskOpacity },
-          ]}
+      <>
+        <MagazineSheet
+          visible={isVisible}
+          onClose={hideQueuePanel}
+          heightRatio={QUEUE_PANEL_HEIGHT_RATIO}
+          eyebrow={eyebrow}
+          title={queueTitle}
+          meta={t('me_tracks_count', { num: playQueue.length })}
+          figure={playQueue.length
+            ? { value: String(playQueue.length), unit: t('library_tracks_unit') }
+            : undefined}
+          headerAction={{
+            text: t('play_queue_clear_current_btn'),
+            tone: 'danger',
+            disabled: !isTempQueue || !playQueue.length,
+            onPress: () => { void handleClearQueue() },
+          }}
+          empty={{ text: t('no_item'), eyebrow: 'EMPTY' }}
         >
-          <TouchableOpacity
-            style={styles.maskTouchable}
-            activeOpacity={1}
-            onPress={hideQueuePanel}
-          />
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.panelShadow,
-            {
-              height: panelTotalHeight,
-              transform: [{ translateY: panelTranslateY }],
-            },
-          ]}
-        >
-          <View style={styles.panel}>
-            <View style={styles.grabWrap}>
-              <View style={styles.grab} />
-            </View>
-            <View style={styles.header}>
-              <View style={styles.headerTitleWrap}>
-                <Text size={14} color={colors.ink.strong} style={styles.headerTitle}>
-                  {queueTitle}
-                </Text>
-                <Text size={11} color={colors.ink.meta}>
-                  {t('me_tracks_count', { num: playQueue.length })}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.closeBtn,
-                  !isTempQueue || !playQueue.length ? styles.closeBtnDisabled : null,
-                ]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  void handleClearQueue()
-                }}
-                disabled={!isTempQueue || !playQueue.length}
-              >
-                <Text
-                  size={12}
-                  color={!isTempQueue || !playQueue.length ? colors.ink.faint : colors.danger}
-                >
-                  {t('play_queue_clear_current_btn')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {playQueue.length ? (
+          {playQueue.length
+            ? (
               <FlatList
                 ref={queueListRef}
                 data={playQueue}
                 renderItem={renderQueueItem}
                 keyExtractor={(item, index) => `${item.id}_${index}`}
-                style={styles.list}
-                contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={20}
                 maxToRenderPerBatch={20}
                 windowSize={8}
-                getItemLayout={(data, index) => ({
+                getItemLayout={(_data, index) => ({
                   length: QUEUE_ITEM_HEIGHT,
                   offset: QUEUE_ITEM_HEIGHT * index,
                   index,
                 })}
                 onScrollToIndexFailed={(info) => {
                   queueListRef.current?.scrollToOffset({
-                    offset: Math.max(
-                      0,
-                      info.index * QUEUE_ITEM_HEIGHT + QUEUE_LIST_TOP_PADDING,
-                    ),
+                    offset: Math.max(0, info.index * QUEUE_ITEM_HEIGHT),
                     animated: false,
                   })
                 }}
               />
-            ) : (
-              <View style={styles.emptyWrap}>
-                <Text size={12} color={colors.ink.faint}>
-                  {t('no_item')}
-                </Text>
-              </View>
-            )}
-          </View>
-          <MusicAddModal ref={musicAddModalRef} />
-        </Animated.View>
-      </View>
+              )
+            : null}
+        </MagazineSheet>
+        <MusicAddModal ref={musicAddModalRef} />
+      </>
     )
   },
 )
-
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
-  overlayRoot: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: APP_LAYER_INDEX.playQueue,
-    elevation: APP_LAYER_INDEX.playQueue,
-  },
-  mask: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.scrim.mask,
-  },
-  maskTouchable: {
-    flex: 1,
-  },
-  panelShadow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    shadowColor: colors.shadow.black,
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -4 },
-  },
-  panel: {
-    flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    backgroundColor: colors.surface.card,
-    overflow: 'hidden',
-  },
-  grabWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  grab: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.line.soft,
-  },
-  header: {
-    minHeight: 52,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surface.queueAlt,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitleWrap: {
-    flex: 1,
-    marginRight: 10,
-  },
-  headerTitle: {
-    fontWeight: '700',
-    marginBottom: 1,
-  },
-  closeBtn: {
-    height: 30,
-    minWidth: 88,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    backgroundColor: colors.queue.close,
-  },
-  closeBtnDisabled: {
-    backgroundColor: colors.surface.neutral,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingTop: QUEUE_LIST_TOP_PADDING,
-    paddingBottom: 12,
-  },
-  itemRow: {
-    height: QUEUE_ITEM_HEIGHT,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemRowCurrent: {
-    backgroundColor: colors.queue.current,
-  },
-  itemPress: {
-    flex: 1,
-    minHeight: QUEUE_ITEM_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 6,
-  },
-  itemIndex: {
-    width: 26,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  itemMain: {
-    flex: 1,
-    marginLeft: 8,
-    minWidth: 0,
-  },
-  itemTitle: {
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  itemMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemSourceTag: {
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    fontWeight: '700',
-    marginRight: 6,
-  },
-  itemSinger: {
-    flex: 1,
-    minWidth: 0,
-  },
-  itemActions: {
-    minWidth: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemNowPlaying: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemActionBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 2,
-  },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})))

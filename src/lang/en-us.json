@@ -970,5 +970,14 @@
   "library_sort_oldest_short": "Oldest first",
   "library_sort_custom_short": "Custom order",
   "library_sort_custom_note": "Dragging cards switches to this",
-  "library_sort_menu_title": "Sort"
+  "library_sort_menu_title": "Sort",
+  "sheet_import_eyebrow": "Import · into “{name}”",
+  "sheet_import_meta": "{num} songs · duplicates excluded",
+  "sheet_import_figure_unit": "importable",
+  "sheet_import_from": "from “{name}”",
+  "sheet_queue_eyebrow": "Queue · playing {num}",
+  "sheet_add_eyebrow": "Add to playlist",
+  "sheet_move_eyebrow": "Move to playlist",
+  "sheet_add_meta": "Tap a playlist to add",
+  "sheet_already_in_list": "Already in list"
 }
