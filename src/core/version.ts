@@ -7,7 +7,7 @@ import settingState from '@/store/setting/state'
 import { pickUpdateTarget, resolveChannel } from '@/utils/releaseChannel'
 import versionActions from '@/store/version/action'
 import versionState, { type InitState } from '@/store/version/state'
-import { getIgnoreVersion, getIgnoreVersionFailTipTime, saveIgnoreVersion, saveIgnoreVersionFailTipTime } from '@/utils/data'
+import { getIgnoreVersionFailTipTime, saveIgnoreVersionFailTipTime } from '@/utils/data'
 import { toast } from '@/utils/tools'
 import { downloadNewVersion, getVersionInfo, isVersionDownloadActive } from '@/utils/version'
 
@@ -156,7 +156,7 @@ export const checkUpdate = (options: CheckUpdateOptions = {}): Promise<void> | u
         if (Date.now() - time < 7 * 86400000) return
         saveIgnoreVersionFailTipTime(Date.now())
         toast(global.i18n.t('version_tip_unknown'))
-      } else if (options.manual === true || versionInfo.newVersion.version != await getIgnoreVersion()) {
+      } else {
         showModal()
       }
     }
@@ -263,9 +263,4 @@ export const initVersionLifecycle = () => {
   if (isVersionLifecycleInited) return
   isVersionLifecycleInited = true
   AppState.addEventListener('change', handleAppStateChange)
-}
-
-export const setIgnoreVersion = (version: InitState['ignoreVersion']) => {
-  versionActions.setIgnoreVersion(version)
-  saveIgnoreVersion(version)
 }

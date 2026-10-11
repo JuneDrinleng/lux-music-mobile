@@ -936,8 +936,6 @@
   "version_btn_close": "关闭",
   "version_btn_downloading": "正在努力下载中... {current}/{total} ({progress}%)",
   "version_btn_failed": "重试",
-  "version_btn_ignore": "忽略此版本",
-  "version_btn_ignore_cancel": "取消忽略",
   "version_btn_min": "后台下载",
   "version_btn_new": "更新",
   "version_btn_unknown": "项目首页",

@@ -45,7 +45,6 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     i18n: { t: key => key },
     state_event: {
       versionInfoUpdated: () => {},
-      versionInfoIgnoreVersionUpdated: () => {},
       versionDownloadProgressUpdated: () => {},
     },
   }
@@ -143,8 +142,6 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     toasts,
     shown: () => shown,
     requests: () => requests,
-    storage: load(join(root, 'src/utils/data.ts')),
-    ignoreKey: load(join(root, 'src/config/constant.ts')).storageDataPrefix.ignoreVersion,
     dialog: () => {
       const Modal = load(join(root, 'src/navigation/components/VersionModal.tsx')).default
       const dialog = Modal({ componentId: 'version-overlay' }).props.children
@@ -153,6 +150,18 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     },
   }
 }
+
+test('the update dialog offers only cancel and update buttons', async() => {
+  const app = createUpdates()
+  await app.service.checkUpdate()
+  const dialog = app.dialog()
+  assert.equal(dialog.cancelLabel, 'cancel')
+  assert.equal(dialog.confirmLabel, 'version_btn_new')
+  assert.equal(typeof dialog.onCancel, 'function')
+  assert.equal(typeof dialog.onConfirm, 'function')
+  assert.equal(Object.hasOwn(dialog, 'extraLabel'), false)
+  assert.equal(Object.hasOwn(dialog, 'onExtra'), false)
+})
 
 test('cancel and close only dismiss the update and allow the next automatic check to prompt again', async() => {
   for (const action of ['onCancel', 'onClose']) {
@@ -165,7 +174,6 @@ test('cancel and close only dismiss the update and allow the next automatic chec
     assert.equal(app.state.showModal, false)
     assert.deepEqual(app.dismissed, ['version-overlay'])
     assert.deepEqual(app.writes, [])
-    assert.equal(await app.storage.getIgnoreVersion(), null)
     await app.service.checkUpdate()
     assert.equal(app.shown(), 2)
     const restarted = createUpdates({ disk: app.disk })
@@ -174,65 +182,52 @@ test('cancel and close only dismiss the update and allow the next automatic chec
   }
 })
 
-test('legacy ignored versions no longer suppress automatic or manual updates', async() => {
+test('automatic and manual checks prompt for every available update without accessing storage', async() => {
   for (const options of [{}, { manual: true }]) {
-    const app = createUpdates({ disk: new Map([['@ignore_version', latest.version]]) })
-    assert.notEqual(app.ignoreKey, '@ignore_version')
-    await app.service.checkUpdate(options)
-    assert.equal(app.shown(), 1)
-    assert.equal(app.reads.includes('@ignore_version'), false)
+    const app = createUpdates()
+    for (let check = 1; check <= 3; check += 1) {
+      await app.service.checkUpdate(options)
+      assert.equal(app.shown(), check)
+      assert.equal(app.state.showModal, true)
+      app.dialog().onCancel()
+    }
+    assert.equal(app.requests(), 3)
+    assert.deepEqual(app.reads, [])
     assert.deepEqual(app.writes, [])
   }
 })
 
-test('explicit ignore persists across launches, automatic checks respect it, and manual checks bypass it', async() => {
-  const app = createUpdates()
-  await app.service.checkUpdate()
-  const dialog = app.dialog()
-  assert.equal(dialog.extraLabel, 'version_btn_ignore')
-  dialog.onExtra()
-  assert.deepEqual(app.writes, [[app.ignoreKey, latest.version]])
-  assert.equal(app.state.showModal, false)
-
-  const restarted = createUpdates({ disk: app.disk })
-  await restarted.service.checkUpdate()
-  await restarted.service.checkUpdate({ force: true })
-  assert.equal(restarted.shown(), 0)
-  restarted.reads.length = 0
-  await restarted.service.checkUpdate({ manual: true })
-  assert.equal(restarted.shown(), 1)
-  assert.equal(restarted.reads.includes(restarted.ignoreKey), false)
-  assert.equal(restarted.disk.get(restarted.ignoreKey), latest.version)
-  assert.deepEqual(restarted.writes, [])
-
-  const newer = createUpdates({ disk: app.disk, readFeed: async() => ({ version: '0.7.0', desc: '' }) })
-  await newer.service.checkUpdate()
-  assert.equal(newer.shown(), 1)
-})
-
 test('manual update checks are not lost while an automatic request is running', async() => {
   let finishAutomatic
-  const pending = new Promise(resolve => { finishAutomatic = resolve })
-  const app = createUpdates({ readFeed: request => request === 1 ? pending : latest })
-  app.service.setIgnoreVersion(latest.version)
+  let finishManual
+  const pendingAutomatic = new Promise(resolve => { finishAutomatic = resolve })
+  const pendingManual = new Promise(resolve => { finishManual = resolve })
+  const app = createUpdates({ readFeed: request => request === 1 ? pendingAutomatic : pendingManual })
   const automatic = app.service.checkUpdate()
   const manual = app.service.checkUpdate({ manual: true })
   assert.equal(app.requests(), 1)
   finishAutomatic(latest)
-  await Promise.all([automatic, manual])
+  await automatic
   assert.equal(app.requests(), 2)
   assert.equal(app.shown(), 1)
+  app.dialog().onCancel()
+  finishManual(latest)
+  await manual
+  assert.equal(app.shown(), 2)
 })
 
 test('manual checks bypass throttling and display an active download without restarting it', async() => {
   const app = createUpdates()
-  app.service.setIgnoreVersion(latest.version)
   await app.service.checkUpdate()
+  assert.equal(app.shown(), 1)
+  app.dialog().onCancel()
   await app.service.checkUpdate({ throttleMs: 60_000 })
   assert.equal(app.requests(), 1)
+  assert.equal(app.shown(), 1)
+  assert.equal(app.state.showModal, false)
   await app.service.checkUpdate({ manual: true, throttleMs: 60_000 })
   assert.equal(app.requests(), 2)
-  assert.equal(app.shown(), 1)
+  assert.equal(app.shown(), 2)
 
   app.service.hideModal('version-overlay')
   app.state.versionInfo.status = 'downloading'
@@ -240,7 +235,7 @@ test('manual checks bypass throttling and display an active download without res
   assert.equal(app.requests(), 2)
   await app.service.checkUpdate({ manual: true })
   assert.equal(app.requests(), 2)
-  assert.equal(app.shown(), 2)
+  assert.equal(app.shown(), 3)
   assert.equal(app.state.versionInfo.status, 'downloading')
 })
 
