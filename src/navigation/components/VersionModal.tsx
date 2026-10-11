@@ -23,6 +23,10 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
   const versionInfo = useVersionInfo()
   const progress = useVersionDownloadProgressUpdated()
 
+  const handleCancel = () => {
+    hideModal(componentId)
+  }
+
   const handleIgnore = () => {
     if (!versionInfo.newVersion) return
     setIgnoreVersion(versionInfo.newVersion.version)
@@ -46,13 +50,15 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
         visible
         embedded
         bgHide={false}
-        onClose={handleIgnore}
+        onClose={handleCancel}
         eyebrow={t('version_modal_eyebrow')}
         title=""
-        cancelLabel={t('version_btn_ignore')}
+        cancelLabel={t('cancel')}
         confirmLabel={t('version_btn_new')}
-        onCancel={handleIgnore}
+        extraLabel={t('version_btn_ignore')}
+        onCancel={handleCancel}
         onConfirm={handleConfirm}
+        onExtra={handleIgnore}
       >
         <View style={styles.versionRow}>
           <Text size={magType.h1.size} color={r.display} style={styles.version}>{nextVersion}</Text>

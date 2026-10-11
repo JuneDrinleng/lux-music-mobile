@@ -769,7 +769,7 @@ export default () => {
     toast(t('setting_sync_clear_conflict_mode_success'))
   }, [t])
   const handleCheckUpdate = () => {
-    void checkUpdate()
+    void checkUpdate({ manual: true })
   }
   const handleOpenChangelog = () => {
     setActiveOptionDetail('changelog')

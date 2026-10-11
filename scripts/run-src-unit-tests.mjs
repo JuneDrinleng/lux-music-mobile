@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import './search-history.test.mjs'
+import './version-update.test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
