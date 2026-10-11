@@ -160,7 +160,7 @@ test('当前仓库的占位日志对得上 package.json 里的稳定版', () => 
   const bundled = JSON.parse(fs.readFileSync(path.join(root, 'src', 'data', 'bundledChangelog.json'), 'utf8'))
   assert.equal(bundled.version, pkg.version)
   assert.equal(bundled.channel, 'stable')
-  assert.equal(bundled.date, '2026-07-10')
+  assert.equal(bundled.date, '2026-10-09')
   assert.equal(bundled.desc, changelogSection(pkg.version, root))
   assert.equal(fs.readFileSync(path.join(root, 'src', 'data', 'bundledChangelog.json'), 'utf8').endsWith('\n'), true)
 })
