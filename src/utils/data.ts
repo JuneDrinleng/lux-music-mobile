@@ -22,7 +22,6 @@ const userListKey = storageDataPrefix.userList
 const viewPrevStateKey = storageDataPrefix.viewPrevState
 const listScrollPositionKey = storageDataPrefix.listScrollPosition
 const listUpdateInfoKey = storageDataPrefix.listUpdateInfo
-const ignoreVersionKey = storageDataPrefix.ignoreVersion
 const ignoreVersionFailTipTimeKey = storageDataPrefix.ignoreVersionFailTipTimeKey
 const searchSettingKey = storageDataPrefix.searchSetting
 const searchHistoryListKey = storageDataPrefix.searchHistoryList
@@ -258,22 +257,6 @@ export const overwriteListUpdateInfo = async(ids: string[]) => {
   saveListUpdateInfoThrottle()
 }
 
-let ignoreVersion: string | null
-export const saveIgnoreVersion = (version: string | null) => {
-  ignoreVersion = version
-  if (version == null) {
-    void removeData(ignoreVersionKey)
-  } else {
-    void saveData(ignoreVersionKey, version)
-  }
-}
-// 获取忽略更新的版本号
-export const getIgnoreVersion = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  if (ignoreVersion === undefined) ignoreVersion = (await getData<string | null>(ignoreVersionKey)) ?? null
-  return ignoreVersion
-}
-
 let ignoreVersionFailTipTime: number | null
 export const saveIgnoreVersionFailTipTime = (time: number | null) => {
   ignoreVersionFailTipTime = time
@@ -328,8 +311,11 @@ export const saveSearchSetting = async(setting: Partial<typeof DEFAULT_SETTING['
 }
 
 export const getSearchHistory = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  searchHistoryList ??= await getData(searchHistoryListKey) ?? []
+  if (!searchHistoryList) {
+    const storedList = await getData<string[]>(searchHistoryListKey) ?? []
+    // A save/clear may have populated the cache while the disk read was pending.
+    searchHistoryList ??= storedList
+  }
   return [...searchHistoryList]
 }
 export const saveSearchHistory = async(historyList: typeof searchHistoryList) => {

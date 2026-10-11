@@ -10,6 +10,8 @@ test('versionCode 与方案中的对照表一致', () => {
     ['0.4.0', 40099, { universal: 400990, 'arm64-v8a': 400993 }],
     ['0.4.1', 40199, { universal: 401990, x86_64: 401994 }],
     ['0.5.0-dev.1', 50001, { universal: 500010, 'arm64-v8a': 500013 }],
+    ['0.5.0', 50099, { universal: 500990, 'arm64-v8a': 500993, x86_64: 500994 }],
+    ['0.5.1-dev.1', 50101, { universal: 501010, 'arm64-v8a': 501013 }],
     ['1.0.0', 1000099, { universal: 10000990, 'arm64-v8a': 10000993 }],
   ]
   for (const [version, base, apks] of cases) {
@@ -40,6 +42,9 @@ test('开发版低于同号稳定版，hotfix 低于下一个 minor 的 dev', ()
   assert.ok(compareVersions('0.4.0-dev.2', '0.4.0') < 0)
   assert.ok(compareVersions('0.4.0', '0.4.1') < 0)
   assert.ok(compareVersions('0.4.1', '0.5.0-dev.1') < 0)
+  assert.ok(compareVersions('0.5.0', '0.5.1-dev.1') < 0)
+  // 0.5.1-dev.N 的任意 ABI 都必须能覆盖安装 0.5.0 稳定版（最大 500994）
+  assert.ok(apkVersionCode('0.5.1-dev.1', 'universal') > apkVersionCode('0.5.0', 'x86_64'))
   assert.equal(parseVersion('v0.2.9-beta'), null)
   assert.equal(parseVersion('v0.4.0-dev.3')?.version, '0.4.0-dev.3')
 })

@@ -6,7 +6,7 @@ import Text from '@/components/common/Text'
 import ChangelogView from '@/components/ChangelogView'
 import { useI18n } from '@/lang'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
-import { downloadUpdate, hideModal, setIgnoreVersion } from '@/core/version'
+import { downloadUpdate, hideModal } from '@/core/version'
 import { isDevBuild } from '@/utils/releaseChannel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -23,9 +23,7 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
   const versionInfo = useVersionInfo()
   const progress = useVersionDownloadProgressUpdated()
 
-  const handleIgnore = () => {
-    if (!versionInfo.newVersion) return
-    setIgnoreVersion(versionInfo.newVersion.version)
+  const handleCancel = () => {
     hideModal(componentId)
   }
 
@@ -46,12 +44,12 @@ const VersionModal = ({ componentId }: { componentId: string }) => {
         visible
         embedded
         bgHide={false}
-        onClose={handleIgnore}
+        onClose={handleCancel}
         eyebrow={t('version_modal_eyebrow')}
         title=""
-        cancelLabel={t('version_btn_ignore')}
+        cancelLabel={t('cancel')}
         confirmLabel={t('version_btn_new')}
-        onCancel={handleIgnore}
+        onCancel={handleCancel}
         onConfirm={handleConfirm}
       >
         <View style={styles.versionRow}>

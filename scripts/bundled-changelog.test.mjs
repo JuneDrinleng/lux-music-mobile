@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
-import { changelogSection, updateFeed } from './update-feed.mjs'
+import { changelogSection, changelogSectionMeta, updateFeed } from './update-feed.mjs'
 import {
   bodyFromGenerateNotes,
   buildBundledChangelog,
@@ -160,7 +160,7 @@ test('当前仓库的占位日志对得上 package.json 里的稳定版', () => 
   const bundled = JSON.parse(fs.readFileSync(path.join(root, 'src', 'data', 'bundledChangelog.json'), 'utf8'))
   assert.equal(bundled.version, pkg.version)
   assert.equal(bundled.channel, 'stable')
-  assert.equal(bundled.date, '2026-10-09')
+  assert.equal(bundled.date, changelogSectionMeta(pkg.version, root).date)
   assert.equal(bundled.desc, changelogSection(pkg.version, root))
   assert.equal(fs.readFileSync(path.join(root, 'src', 'data', 'bundledChangelog.json'), 'utf8').endsWith('\n'), true)
 })

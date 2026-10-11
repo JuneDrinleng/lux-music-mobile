@@ -24,7 +24,6 @@ export interface InitState {
     channel: 'stable' | 'dev'
     waitStable: boolean
   }
-  ignoreVersion: string | null
   progress: ProgressInfo
 }
 
@@ -41,7 +40,6 @@ const state: InitState = {
     channel: 'stable',
     waitStable: false,
   },
-  ignoreVersion: null,
   progress: {
     total: 0,
     current: 0,

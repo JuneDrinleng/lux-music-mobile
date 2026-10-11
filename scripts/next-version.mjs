@@ -2,7 +2,8 @@
 // 结果打印为 key=value；若设置了 GITHUB_OUTPUT，同时追加到该文件。
 // master：版本 = package.json（必须是 X.Y.Z）。对应 tag 已存在则 skip。
 //         版本不大于最新稳定版 tag，或 CHANGELOG 没有该版本段落，则失败（不发版）。
-// dev：  版本 = 最新稳定版的下一个 minor + -dev.N（可用 .github/dev-target 抬高目标）。
+// dev：  版本 = 最新稳定版的下一个 patch + -dev.N（例：0.5.0 → 0.5.1-dev.N；patch 超过 99 时进到下一个 minor）。
+//         需要更大的目标（如 0.6.0）时写 .github/dev-target，只在大于默认目标时生效。
 //         HEAD 已有 dev tag，或代码树与最新稳定版 tag 相同，则 skip。
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -69,9 +70,11 @@ export function plan(branch, cwd = process.cwd()) {
         out.prerelease = 'true'
       }
     } else {
-      let target = parseVersion(`${lastStable.major}.${lastStable.minor + 1}.0`)
-      if (lastStable.minor + 1 > 99) {
-        target = parseVersion(`${lastStable.major + 1}.0.0`)
+      let target = parseVersion(`${lastStable.major}.${lastStable.minor}.${lastStable.patch + 1}`)
+      if (lastStable.patch + 1 > 99) {
+        target = lastStable.minor + 1 > 99
+          ? parseVersion(`${lastStable.major + 1}.0.0`)
+          : parseVersion(`${lastStable.major}.${lastStable.minor + 1}.0`)
       }
       const targetFile = path.join(cwd, '.github', 'dev-target')
       if (fs.existsSync(targetFile)) {

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import './search-history.src-test.mjs'
+import './version-update.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
@@ -16,6 +18,7 @@ const files = [
   'src/components/playlist/playlistDragMath.ts',
   'src/components/playlist/playlistDragState.ts',
   'src/components/playlist/songRowKey.ts',
+  'src/components/search/resultIndex.ts',
   'src/utils/imagePresentation.ts',
   'src/theme/luxColorMath.ts',
   'src/theme/luxStyleCache.ts',
@@ -31,6 +34,7 @@ const files = [
   'src/utils/kwMusicInfoParse.ts',
   'src/utils/localSongCoverMatch.ts',
   'src/utils/homeBootGate.ts',
+  'src/utils/homeBackHandler.ts',
   'src/utils/cacheLimitSteps.ts',
   'src/utils/formatMinutes.ts',
   'src/components/magazine/magSegmentedLayout.ts',
@@ -73,10 +77,22 @@ const require = createRequire(import.meta.url)
 const math = require(join(outDir, 'src/components/playlist/playlistDragMath.js'))
 const dragState = require(join(outDir, 'src/components/playlist/playlistDragState.js'))
 const rowKey = require(join(outDir, 'src/components/playlist/songRowKey.js'))
+const resultIndex = require(join(outDir, 'src/components/search/resultIndex.js'))
+const homeBackHandler = require(join(outDir, 'src/utils/homeBackHandler.js'))
 const presentation = require(join(outDir, 'src/utils/imagePresentation.js'))
 const lux = require(join(outDir, 'src/theme/luxTokens.js'))
 const colorMath = require(join(outDir, 'src/theme/luxColorMath.js'))
 const styleCache = require(join(outDir, 'src/theme/luxStyleCache.js'))
+
+test('Home back handlers remain active after the embedded player closes and defer to active screens', () => {
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id' }), true)
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id', playDetail: '' }), true)
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id', playDetail: '', comment: undefined }), true)
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id', playDetail: 'home-id' }), false)
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id', playDetail: 'player-id' }), false)
+  assert.equal(homeBackHandler.isHomeScreenActive({ home: 'home-id', playDetail: '', comment: 'comment-id' }), false)
+  assert.equal(homeBackHandler.isHomeScreenActive({}), false)
+})
 
 const LIME_COLOR_LITERALS = [
   '#000000', '#0f172a', '#111111', '#111827', '#16181f', '#17191f', '#171a22', '#19171c', '#1A1A1A', '#1a1c1e',
@@ -142,6 +158,18 @@ const flags = (overrides = {}) => ({
   fromIndex: -1,
   toIndex: -1,
   ...overrides,
+})
+
+test('search result indices keep two-digit padding and continue into three digits', () => {
+  assert.deepEqual([0, 1, 8, 9, 98, 99, 998, 999].map(resultIndex.formatSearchResultIndex), [
+    '01', '02', '09', '10', '99', '100', '999', '1000',
+  ])
+})
+
+test('search result indices safely handle missing and invalid runtime values', () => {
+  for (const index of [undefined, null, Number.NaN, Infinity, -Infinity, -1, 1.5, '2', '', {}, Number.MAX_SAFE_INTEGER]) {
+    assert.equal(resultIndex.formatSearchResultIndex(index), '01')
+  }
 })
 
 test('playlist drag math shifts cards into the target slot', () => {
@@ -2017,7 +2045,11 @@ test('dev.31 numeric-name cache index entries are treated as missing and backfil
   // Playback with full metadata must write the index immediately (no network).
   const playKey = 'kw_kw_999_320k'
   await index.remember(playKey, {
-    id: 'kw_999', source: 'kw', name: '播放时写入', singer: '现场歌手', interval: '02:00',
+    id: 'kw_999',
+    source: 'kw',
+    name: '播放时写入',
+    singer: '现场歌手',
+    interval: '02:00',
     meta: { songId: '999', albumName: '现场专辑', picUrl: 'https://cover', qualitys: [], _qualitys: {} },
   })
   assert.equal(disk.find(entry => entry.key == playKey).musicInfo.name, '播放时写入')
