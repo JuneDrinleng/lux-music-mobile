@@ -328,8 +328,11 @@ export const saveSearchSetting = async(setting: Partial<typeof DEFAULT_SETTING['
 }
 
 export const getSearchHistory = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  searchHistoryList ??= await getData(searchHistoryListKey) ?? []
+  if (!searchHistoryList) {
+    const storedList = await getData<string[]>(searchHistoryListKey) ?? []
+    // A save/clear may have populated the cache while the disk read was pending.
+    searchHistoryList ??= storedList
+  }
   return [...searchHistoryList]
 }
 export const saveSearchHistory = async(historyList: typeof searchHistoryList) => {
