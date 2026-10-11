@@ -11,6 +11,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { ROW_MIN_HEIGHT, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import HighlightText from './HighlightText'
+import { formatSearchResultIndex } from './resultIndex'
 
 const sourceShortKey = (source: string): keyof Message => {
   switch (source) {
@@ -26,7 +27,7 @@ const sourceShortKey = (source: string): keyof Message => {
 export default ({
   item,
   index,
-  keyword,
+  keyword = '',
   isLoved,
   last = false,
   onPress,
@@ -35,7 +36,7 @@ export default ({
 }: {
   item: LX.Music.MusicInfoOnline
   index: number
-  keyword: string
+  keyword?: string
   isLoved: boolean
   last?: boolean
   onPress: () => void
@@ -47,7 +48,7 @@ export default ({
   const r = magazineRoles(colors)
   const t = useI18n()
 
-  const indexLabel = index + 1 < 10 ? `0${index + 1}` : String(index + 1)
+  const indexLabel = formatSearchResultIndex(index)
   const sourceLabel = t(sourceShortKey(item.source))
   const metaParts = [item.singer, item.meta?.albumName].filter(Boolean)
   const metaText = metaParts.join(' · ')
@@ -60,7 +61,7 @@ export default ({
           activeOpacity={0.7}
           onPress={onPress}
         >
-          <Text size={magType.index.size} color={r.faint} style={styles.rankNum}>{indexLabel}</Text>
+          <Text size={magType.index.size} color={r.faint} style={styles.rankNum} numberOfLines={1}>{indexLabel}</Text>
           <View style={styles.songInfo}>
             <HighlightText
               text={item.name}
@@ -115,7 +116,9 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     minWidth: 0,
   },
   rankNum: {
-    width: 30,
+    minWidth: 36,
+    paddingRight: 6,
+    flexShrink: 0,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },

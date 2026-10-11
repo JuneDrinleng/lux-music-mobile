@@ -18,13 +18,34 @@ export const setTipList: typeof searchActions['setTipList'] = (list) => {
   searchActions.setTipList(list)
 }
 
+let historyLoaded = false
+let historyLoadPromise: Promise<void> | undefined
+let historyClearRevision = 0
+
+const loadSearchHistory = async() => {
+  if (historyLoaded) return
+  historyLoadPromise ??= getSearchHistoryFromStore().then((list) => {
+    // Clearing history while storage is loading must not restore the old words.
+    if (historyLoaded) return
+    searchActions.setHistoryWord(list)
+    historyLoaded = true
+  }).finally(() => {
+    historyLoadPromise = undefined
+  })
+  await historyLoadPromise
+}
+
 export const getSearchHistory = async() => {
-  if (!searchState.historyList.length) searchActions.setHistoryWord(await getSearchHistoryFromStore())
-  return searchState.historyList
+  await loadSearchHistory()
+  // Store actions mutate the list; React consumers need an independent snapshot.
+  return [...searchState.historyList]
 }
 export const addHistoryWord = async(word: string) => {
+  word = word.trim()
   if (!word) return
-  if (!searchState.historyList.length) searchActions.setHistoryWord(await getSearchHistoryFromStore())
+  const clearRevision = historyClearRevision
+  await loadSearchHistory()
+  if (clearRevision !== historyClearRevision) return
   const list = searchActions.addHistoryWord(word)
   if (!list) return
   void saveSearchHistory(list)
@@ -34,7 +55,8 @@ export const removeHistoryWord = (index: number) => {
   void saveSearchHistory(list)
 }
 export const clearHistoryList = () => {
+  historyClearRevision += 1
+  historyLoaded = true
   const list = searchActions.clearHistoryList()
   void saveSearchHistory(list)
 }
-

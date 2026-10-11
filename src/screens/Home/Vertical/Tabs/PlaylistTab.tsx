@@ -60,6 +60,7 @@ import { type OnlinePlaylistDetailPayload, type PlaylistDetailPayload } from '@/
 import listState from '@/store/list/state'
 import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { isHomeScreenActive } from '@/utils/homeBackHandler'
 import { applyMusicCoverFallback, pickMusicCover } from '@/utils/musicCover'
 import musicSdk from '@/utils/musicSdk'
 import { debounce } from '@/utils'
@@ -1440,6 +1441,8 @@ export default () => {
     forceDismissSearchInput()
   }, [closeSourceMenu, forceDismissSearchInput, runSearch, searchSource, searchText])
   const handleExitSearch = useCallback(() => {
+    searchRequestIdRef.current += 1
+    setSearchLoading(false)
     setSearchMode(false)
     setSearchInputEditing(false)
     setSearchKeyword('')
@@ -1454,12 +1457,13 @@ export default () => {
     setSearchMode(true)
     setSearchInputEditing(true)
     setKeepPlayBarVisible(true)
+    loadSearchHistoryList()
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
     })
-  }, [])
+  }, [loadSearchHistoryList])
   useBackHandler(useCallback(() => {
-    if (Object.keys(commonState.componentIds).length != 1) return false
+    if (!isHomeScreenActive(commonState.componentIds)) return false
     if (commonState.navActiveId != 'nav_love') return false
     if (isImportDrawerVisible && !importSubmitting) {
       setImportDrawerVisible(false)
@@ -1469,13 +1473,13 @@ export default () => {
       handleCloseDetail()
       return true
     }
-    if (isSearchMode || isSearchInputEditing) {
-      handleExitSearch()
-      return true
-    }
     if (isSourceMenuVisible) {
       closeSourceMenu()
       forceDismissSearchInput()
+      return true
+    }
+    if (isSearchMode || isSearchInputEditing) {
+      handleExitSearch()
       return true
     }
     return false
@@ -1527,11 +1531,12 @@ export default () => {
       return nextList
     })
   }, [])
-  const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item }) => {
+  const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item, index }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
     return (
       <SearchMusicResultRow
         item={item}
+        index={index}
         isLoved={isLoved}
         onPress={() => { void handlePlaySearchSong(item) }}
         onToggleLoved={() => { void handleToggleSearchLoved(item) }}

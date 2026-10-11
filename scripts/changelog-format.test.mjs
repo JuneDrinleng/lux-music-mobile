@@ -58,9 +58,22 @@ test('GitHub What\'s Changed 按类型分组，并去掉自动生成的噪音', 
 
 test('稳定版 0.3.1 说明去掉开头版本号，小标题加粗、列表保留，行内代码去掉反引号', () => {
   const feed = JSON.parse(fs.readFileSync(new URL('../publish/version.json', import.meta.url), 'utf8'))
-  const doc = parseChangelog(feed.desc)
+  // 顶层随转正推进（现为 0.4.0，合并 0.5.0 后会再压入 history）；按版本号取 0.3.1 条目。
+  const history = Array.isArray(feed.history) ? feed.history : []
+  const entry = feed.version === '0.3.1'
+    ? { version: feed.version, desc: feed.desc }
+    : history.find(item => item.version === '0.3.1')
+  assert.ok(entry, 'publish/version.json 应保留 0.3.1（顶层或 history）')
+  assert.equal(entry.version, '0.3.1')
+  // 转正后 history 顺序：较新稳定版在前（0.4.0 → 0.3.1 → …）
+  if (feed.version !== '0.3.1') {
+    const older = history.findIndex(item => item.version === '0.3.1')
+    const newer = history.findIndex(item => item.version === '0.4.0')
+    if (newer !== -1) assert.ok(newer < older, 'history 中 0.4.0 应排在 0.3.1 之前')
+    else assert.equal(feed.version, '0.4.0')
+  }
+  const doc = parseChangelog(entry.desc)
   assert.equal(doc.fallback, false)
-  assert.equal(feed.version, '0.3.1')
   assert.equal(doc.blocks.some(block => block.kind == 'heading' && block.text == 'v0.3.1'), false)
   assert.equal(doc.blocks.some(block => block.kind == 'paragraph' && inlineText(block.inlines) == 'v0.3.1'), false)
   assert.equal(doc.blocks[0].kind, 'paragraph')

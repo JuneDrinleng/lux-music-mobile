@@ -87,12 +87,24 @@ const Main = () => {
   }, [listeningStatsVisible, localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
-    const handleOpen = () => { setPlaylistDetailVisible(true) }
+    const handleOpen = () => {
+      setPlaylistDetailVisible(true)
+      setLocalSongsVisible(false)
+      setListeningStatsVisible(false)
+    }
     const handleClose = () => { setPlaylistDetailVisible(false) }
 
-    const handleOpenLocalSongs = () => { setLocalSongsVisible(true) }
+    const handleOpenLocalSongs = () => {
+      setLocalSongsVisible(true)
+      setPlaylistDetailVisible(false)
+      setListeningStatsVisible(false)
+    }
     const handleCloseLocalSongs = () => { setLocalSongsVisible(false) }
-    const handleOpenListeningStats = () => { setListeningStatsVisible(true) }
+    const handleOpenListeningStats = () => {
+      setListeningStatsVisible(true)
+      setPlaylistDetailVisible(false)
+      setLocalSongsVisible(false)
+    }
     const handleCloseListeningStats = () => { setListeningStatsVisible(false) }
     global.app_event.on('openPlaylistDetail', handleOpen)
     global.app_event.on('closePlaylistDetail', handleClose)
@@ -154,6 +166,7 @@ const Main = () => {
       </PagerView>
       <SearchPage
         visible={searchPageVisible}
+        covered={detailCovering}
         request={searchPageRequest}
         onClose={handleCloseSearchPage}
       />

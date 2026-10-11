@@ -91,26 +91,26 @@ test('master：新稳定版在 CHANGELOG 写好后可以发布', () => {
   assert.equal(result.prev_tag, 'v0.3.1')
 })
 
-test('dev：忽略 beta tag，第一个开发版是下一个 minor 的 dev.1', () => {
+test('dev：忽略 beta tag，第一个开发版是下一个 patch 的 dev.1', () => {
   const cwd = initRepo()
   commitChange(cwd)
   const result = plan('dev', cwd)
   assert.deepEqual(
     { skip: result.skip, version: result.version, tag: result.tag, prerelease: result.prerelease },
-    { skip: 'false', version: '0.4.0-dev.1', tag: 'v0.4.0-dev.1', prerelease: 'true' },
+    { skip: 'false', version: '0.3.2-dev.1', tag: 'v0.3.2-dev.1', prerelease: 'true' },
   )
 })
 
 test('dev：已有 dev tag 时 N 递增；HEAD 已挂 dev tag 时跳过', () => {
   const cwd = initRepo()
   commitChange(cwd, 'first')
-  git(cwd, ['tag', 'v0.4.0-dev.1'])
+  git(cwd, ['tag', 'v0.3.2-dev.1'])
   commitChange(cwd, 'second')
-  assert.equal(plan('dev', cwd).version, '0.4.0-dev.2')
-  git(cwd, ['tag', 'v0.4.0-dev.2'])
+  assert.equal(plan('dev', cwd).version, '0.3.2-dev.2')
+  git(cwd, ['tag', 'v0.3.2-dev.2'])
   const again = plan('dev', cwd)
   assert.equal(again.skip, 'true')
-  assert.equal(again.tag, 'v0.4.0-dev.2')
+  assert.equal(again.tag, 'v0.3.2-dev.2')
 })
 
 test('dev：与最新稳定版代码相同（例如刚回并）时跳过', () => {
@@ -119,7 +119,7 @@ test('dev：与最新稳定版代码相同（例如刚回并）时跳过', () =>
   assert.equal(result.skip, 'true')
 })
 
-test('hotfix 之后开发版仍指向下一个 minor，转正后切到再下一个 minor', () => {
+test('hotfix 之后开发版指向 hotfix 的下一个 patch，转正后切到下一个 patch', () => {
   const cwd = initRepo()
   git(cwd, ['tag', 'v0.4.0'])
   git(cwd, ['tag', 'v0.4.0-dev.3', 'HEAD'])
@@ -128,11 +128,11 @@ test('hotfix 之后开发版仍指向下一个 minor，转正后切到再下一�
   git(cwd, ['commit', '-m', 'hotfix'])
   git(cwd, ['tag', 'v0.4.1'])
   commitChange(cwd, 'after hotfix')
-  assert.equal(plan('dev', cwd).version, '0.5.0-dev.1')
+  assert.equal(plan('dev', cwd).version, '0.4.2-dev.1')
 
   const promoted = initRepo('0.4.0')
   commitChange(promoted, 'next cycle')
-  assert.equal(plan('dev', promoted).version, '0.5.0-dev.1')
+  assert.equal(plan('dev', promoted).version, '0.4.1-dev.1')
 })
 
 test('dev-target 可以抬高目标版本，但不能把目标降回去', () => {
@@ -145,14 +145,38 @@ test('dev-target 可以抬高目标版本，但不能把目标降回去', () => 
   fs.writeFileSync(path.join(cwd, '.github', 'dev-target'), '0.4.0\n')
   assert.equal(plan('dev', cwd).version, '0.4.0-dev.1')
 
+  fs.writeFileSync(path.join(cwd, '.github', 'dev-target'), '0.3.0\n')
+  assert.equal(plan('dev', cwd).version, '0.3.2-dev.1')
+
   fs.writeFileSync(path.join(cwd, '.github', 'dev-target'), '0.4.0-dev.1\n')
   assert.throws(() => plan('dev', cwd), /dev-target/)
+})
+
+test('dev：最新稳定版 0.5.0 默认得到 0.5.1-dev.1，dev-target 0.6.0 得到 0.6.0-dev.1', () => {
+  const cwd = initRepo('0.5.0')
+  commitChange(cwd)
+  assert.equal(plan('dev', cwd).version, '0.5.1-dev.1')
+  assert.equal(plan('dev', cwd).tag, 'v0.5.1-dev.1')
+
+  fs.mkdirSync(path.join(cwd, '.github'))
+  fs.writeFileSync(path.join(cwd, '.github', 'dev-target'), '0.6.0\n')
+  assert.equal(plan('dev', cwd).version, '0.6.0-dev.1')
+})
+
+test('dev：patch 超过 99 时进到下一个 minor，minor 也超过 99 时进到下一个 major', () => {
+  const patchFull = initRepo('0.5.99')
+  commitChange(patchFull)
+  assert.equal(plan('dev', patchFull).version, '0.6.0-dev.1')
+
+  const minorFull = initRepo('0.99.99')
+  commitChange(minorFull)
+  assert.equal(plan('dev', minorFull).version, '1.0.0-dev.1')
 })
 
 test('dev.N 到达 98 后拒绝再分配', () => {
   const cwd = initRepo()
   commitChange(cwd)
-  git(cwd, ['tag', 'v0.4.0-dev.98', 'HEAD~1'])
+  git(cwd, ['tag', 'v0.3.2-dev.98', 'HEAD~1'])
   assert.throws(() => plan('dev', cwd), /上限 98/)
 })
 

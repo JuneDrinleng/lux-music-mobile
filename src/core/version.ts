@@ -46,6 +46,7 @@ const isNoSpaceError = (err: unknown) => {
 
 interface CheckUpdateOptions {
   force?: boolean
+  manual?: boolean
   throttleMs?: number
 }
 
@@ -62,18 +63,23 @@ export const hideModal = (componentId: string) => {
 }
 
 export const checkUpdate = (options: CheckUpdateOptions = {}): Promise<void> | undefined => {
+  // A manual request must run even if an automatic check is already in progress.
+  const force = options.force === true || options.manual === true
   if (checkUpdateTask) {
-    if (!options.force) return checkUpdateTask
+    if (!force) return checkUpdateTask
     return checkUpdateTask.then(async() => {
       await checkUpdate(options)
     }, async() => {
       await checkUpdate(options)
     })
   }
-  if (versionState.versionInfo.status == 'downloading' && !options.force) return
+  if (versionState.versionInfo.status == 'downloading' && !options.force) {
+    if (options.manual) showModal()
+    return
+  }
 
   const now = Date.now()
-  if (!options.force && options.throttleMs != null && now - lastCheckUpdateTime < options.throttleMs) return
+  if (!force && options.throttleMs != null && now - lastCheckUpdateTime < options.throttleMs) return
 
   checkUpdateTask = (async() => {
     versionActions.setVersionInfo({
@@ -150,7 +156,7 @@ export const checkUpdate = (options: CheckUpdateOptions = {}): Promise<void> | u
         if (Date.now() - time < 7 * 86400000) return
         saveIgnoreVersionFailTipTime(Date.now())
         toast(global.i18n.t('version_tip_unknown'))
-      } else if (versionInfo.newVersion.version != await getIgnoreVersion()) {
+      } else if (options.manual === true || versionInfo.newVersion.version != await getIgnoreVersion()) {
         showModal()
       }
     }

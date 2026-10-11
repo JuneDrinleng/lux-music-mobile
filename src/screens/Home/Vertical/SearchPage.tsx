@@ -40,6 +40,7 @@ import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord }
 import { APP_LAYER_INDEX, LIST_IDS } from '@/config/constant'
 import { useI18n, type Message } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
+import commonState from '@/store/common/state'
 import { useSettingValue } from '@/store/setting/hook'
 import searchMusicState, { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import searchSonglistState, { type Source as OnlineSonglistSearchSource } from '@/store/search/songlist/state'
@@ -47,6 +48,7 @@ import settingState from '@/store/setting/state'
 import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
 import { type VerticalSearchPagePayload, type VerticalSearchSource } from '@/event/appEvent'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { isHomeScreenActive } from '@/utils/homeBackHandler'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { debounce } from '@/utils'
@@ -78,10 +80,12 @@ export interface SearchPageRequest extends VerticalSearchPagePayload {
 
 export default function SearchPage({
   visible,
+  covered,
   request,
   onClose,
 }: {
   visible: boolean
+  covered: boolean
   request: SearchPageRequest | null
   onClose: () => void
 }) {
@@ -117,6 +121,7 @@ export default function SearchPage({
   const [shouldRender, setShouldRender] = useState(visible)
   const searchRequestIdRef = useRef(0)
   const searchTipRequestIdRef = useRef(0)
+  const searchHistoryRequestIdRef = useRef(0)
   const hotSearchRequestIdRef = useRef(0)
   const searchInputRef = useRef<TextInput>(null)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
@@ -225,10 +230,24 @@ export default function SearchPage({
   }, [pageAnim, resetSearchPageState, visible])
 
   const loadSearchHistoryList = useCallback(() => {
+    const requestId = ++searchHistoryRequestIdRef.current
     void getSearchHistory().then((list) => {
+      if (requestId !== searchHistoryRequestIdRef.current) return
       setSearchHistoryList(list)
-    })
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!visible) return
+    loadSearchHistoryList()
+    return () => {
+      searchHistoryRequestIdRef.current += 1
+    }
+  }, [loadSearchHistoryList, visible])
+
+  const saveSearchHistoryWord = useCallback((keyword: string) => {
+    void addHistoryWord(keyword).then(loadSearchHistoryList).catch(() => {})
+  }, [loadSearchHistoryList])
 
   const loadHotSearchList = useCallback((source: PageSearchSource) => {
     const requestId = ++hotSearchRequestIdRef.current
@@ -356,27 +375,13 @@ export default function SearchPage({
     onClose()
   }, [onClose, resetSearchPageState])
 
-  const handleSearchTextChange = useCallback((text: string) => {
-    setSearchText(text)
-    if (!isSearchInputEditing) return
-    const keyword = text.trim()
-    if (!keyword) {
-      searchTipRequestIdRef.current += 1
-      setSearchTipLoading(false)
-      setSearchTipList([])
-      loadSearchHistoryList()
-      return
-    }
-    requestSearchTips(keyword, pageSearchSource)
-  }, [isSearchInputEditing, loadSearchHistoryList, pageSearchSource, requestSearchTips])
-
   const handleSearchInputBlur = useCallback(() => {
     requestAnimationFrame(() => {
       setSearchInputEditing(false)
     })
   }, [])
 
-  const handleClearSearchText = useCallback(() => {
+  const clearSearchResults = useCallback(() => {
     searchRequestIdRef.current += 1
     searchTipRequestIdRef.current += 1
     setSearchLoading(false)
@@ -393,21 +398,34 @@ export default function SearchPage({
     setSonglistPage(1)
     searchLoadedKeyRef.current.music = ''
     searchLoadedKeyRef.current.songlist = ''
-    setSearchInputEditing(true)
     global.app_event.verticalSearchStateUpdated({
       keyword: '',
       source: pageSearchSource,
     })
     loadSearchHistoryList()
+  }, [loadSearchHistoryList, pageSearchSource])
+
+  const handleSearchTextChange = useCallback((text: string) => {
+    if (!text.trim()) {
+      clearSearchResults()
+      return
+    }
+    setSearchText(text)
+    if (isSearchInputEditing) requestSearchTips(text, pageSearchSource)
+  }, [clearSearchResults, isSearchInputEditing, pageSearchSource, requestSearchTips])
+
+  const handleClearSearchText = useCallback(() => {
+    clearSearchResults()
+    setSearchInputEditing(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
     })
-  }, [loadSearchHistoryList, pageSearchSource])
+  }, [clearSearchResults])
 
   const handleSubmitSearch = useCallback((text: string) => {
     forceDismissSearchInput()
-    const input = (text || searchText).trim()
-    setSearchText(text || searchText)
+    const input = text.trim()
+    setSearchText(input)
     setSearchInputEditing(false)
     searchTipRequestIdRef.current += 1
     setSearchTipLoading(false)
@@ -415,13 +433,7 @@ export default function SearchPage({
     setSourceMenuVisible(false)
 
     if (!input) {
-      setSearchKeyword('')
-      setMusicSearchResults([])
-      setSonglistSearchResults([])
-      setMusicTotal(0)
-      setSonglistTotal(0)
-      searchLoadedKeyRef.current.music = ''
-      searchLoadedKeyRef.current.songlist = ''
+      clearSearchResults()
       requestAnimationFrame(() => {
         setSearchInputEditing(true)
         loadSearchHistoryList()
@@ -443,10 +455,10 @@ export default function SearchPage({
       keyword: input,
       source: pageSearchSource,
     })
-    void addHistoryWord(input)
+    saveSearchHistoryWord(input)
     void runSearch(input, pageSearchSource, searchResultType, 1, false)
     forceDismissSearchInput()
-  }, [forceDismissSearchInput, loadSearchHistoryList, pageSearchSource, runSearch, searchResultType, searchText])
+  }, [clearSearchResults, forceDismissSearchInput, loadSearchHistoryList, pageSearchSource, runSearch, saveSearchHistoryWord, searchResultType])
 
   const handleBeginSearchInputEdit = useCallback(() => {
     setSearchInputEditing(true)
@@ -470,20 +482,17 @@ export default function SearchPage({
   }, [handleSubmitSearch])
 
   const handleClearSearchHistoryList = useCallback(() => {
+    searchHistoryRequestIdRef.current += 1
     clearHistoryList()
     setSearchHistoryList([])
   }, [])
 
   const handleRemoveSearchHistoryItem = useCallback((keyword: string) => {
-    setSearchHistoryList((list) => {
-      const index = list.indexOf(keyword)
-      if (index < 0) return list
-      const nextList = [...list]
-      nextList.splice(index, 1)
-      removeHistoryWord(index)
-      return nextList
-    })
-  }, [])
+    const index = searchHistoryList.indexOf(keyword)
+    if (index < 0) return
+    removeHistoryWord(index)
+    loadSearchHistoryList()
+  }, [loadSearchHistoryList, searchHistoryList])
 
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     await addMusicToQueueAndPlay(song)
@@ -632,7 +641,7 @@ export default function SearchPage({
         keyword: nextKeyword,
         source: nextSource,
       })
-      void addHistoryWord(nextKeyword)
+      saveSearchHistoryWord(nextKeyword)
       void runSearch(nextKeyword, nextSource, 'music', 1, false)
       forceDismissSearchInput()
       return
@@ -648,7 +657,7 @@ export default function SearchPage({
       return
     }
     requestSearchTips(nextKeyword, nextSource)
-  }, [defaultSearchSource, forceDismissSearchInput, loadHotSearchList, loadSearchHistoryList, requestSearchTips, runSearch])
+  }, [defaultSearchSource, forceDismissSearchInput, loadHotSearchList, loadSearchHistoryList, requestSearchTips, runSearch, saveSearchHistoryWord])
 
   useEffect(() => {
     if (!visible || !request) return
@@ -658,10 +667,17 @@ export default function SearchPage({
   }, [initializeFromRequest, request, visible])
 
   useBackHandler(useCallback(() => {
-    if (!visible) return false
+    if (covered) return false
+    if (!isHomeScreenActive(commonState.componentIds)) return false
+    // Keep consuming back presses until the closing page has left the screen.
+    if (!visible) return shouldRender
+    if (sourceMenuVisible) {
+      setSourceMenuVisible(false)
+      return true
+    }
     handleClose()
     return true
-  }, [handleClose, visible]))
+  }, [covered, handleClose, shouldRender, sourceMenuVisible, visible]))
 
   const renderSearchResultItem: ListRenderItem<SearchResultItem> = useCallback(({ item, index }) => {
     const isLoved = Boolean(lovedSongMap[String(item.id)])
