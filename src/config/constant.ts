@@ -76,8 +76,6 @@ export const storageDataPrefix = {
 
   searchHistoryList: '@search_history_list',
   listUpdateInfo: '@list_update_info',
-  // The legacy @ignore_version also recorded dismissals; only explicit ignores use this key.
-  ignoreVersion: '@ignore_version_explicit',
   ignoreVersionFailTipTimeKey: '@ignore_version_fail_tip_time',
   leaderboardSetting: '@leaderboard_setting',
   songListSetting: '@songist_setting',

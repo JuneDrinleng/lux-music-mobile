@@ -27,19 +27,6 @@ export const useVersionDownloadProgressUpdated = () => {
   return status
 }
 
-export const useVersionInfoIgnoreVersionUpdated = () => {
-  const [version, setVersion] = useState(state.ignoreVersion)
-
-  useEffect(() => {
-    global.state_event.on('versionInfoIgnoreVersionUpdated', setVersion)
-    return () => {
-      global.state_event.off('versionInfoIgnoreVersionUpdated', setVersion)
-    }
-  }, [])
-
-  return version
-}
-
 // export const useActiveListId = () => {
 //   const [id, setId] = useState(state.activeListId)
 
