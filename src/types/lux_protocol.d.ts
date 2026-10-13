@@ -1,3 +1,5 @@
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
 // lux_protocol.d.ts (source + common)
 declare namespace LX {
   namespace Sync {
@@ -5,10 +7,10 @@ declare namespace LX {
       // common
       | 'INVALID_PARAMS' | 'RATE_LIMITED' | 'INTERNAL'
       // source
-      | 'NO_SOURCE'          // 没有启用的脚本声明支持这个 source+action
+      | 'NO_SOURCE' // 没有启用的脚本声明支持这个 source+action
       | 'ACTION_UNSUPPORTED' // action 不可用（例如没有脚本提供 lyric）
-      | 'SOURCE_FAILED'      // 所有尝试都失败了
-      | 'TIMEOUT'            // 超过 LUX_SOURCE_TIMEOUT_MS
+      | 'SOURCE_FAILED' // 所有尝试都失败了
+      | 'TIMEOUT' // 超过 LUX_SOURCE_TIMEOUT_MS
       // together
       | 'NOT_LUX_ACCOUNT' | 'ROOM_NOT_FOUND' | 'ROOM_FULL' | 'ROOM_LIMIT'
       | 'ALREADY_IN_ROOM' | 'NOT_IN_ROOM' | 'NOT_HOST' | 'MEMBER_NOT_FOUND'
@@ -23,31 +25,31 @@ declare namespace LX {
 
       interface Capability {
         actions: Action[]
-        qualitys: LX.Quality[]   // 所有启用脚本对这个 source 声明的音质取并集
+        qualitys: LX.Quality[] // 所有启用脚本对这个 source 声明的音质取并集
       }
       interface Info {
         /** 至少有一个脚本已启用并完成初始化 */
         available: boolean
         sources: Partial<Record<LX.OnlineSource, Capability>>
-        proxyStream: boolean     // LUX_SOURCE_PROXY_STREAM
+        proxyStream: boolean // LUX_SOURCE_PROXY_STREAM
         updatedAt: number
       }
 
       interface MusicUrlRequest {
         musicInfo: LX.Music.MusicInfoOnline
-        quality: LX.Quality      // 期望音质（客户端 getPlayQuality 的结果）
-        isRefresh?: boolean      // true = 跳过服务端缓存（播放出错后重试时用）
-        allowToggleSource?: boolean           // 默认 true
+        quality: LX.Quality // 期望音质（客户端 getPlayQuality 的结果）
+        isRefresh?: boolean // true = 跳过服务端缓存（播放出错后重试时用）
+        allowToggleSource?: boolean // 默认 true
         toggleCandidates?: LX.Music.MusicInfoOnline[] // 最多 10 条，见 §2.3
       }
       interface MusicUrlResult {
-        url: string              // 绝对 http(s) 地址；proxied=true 时是以 /api/source/stream/ 开头的路径
+        url: string // 绝对 http(s) 地址；proxied=true 时是以 /api/source/stream/ 开头的路径
         proxied: boolean
-        quality: LX.Quality      // 实际音质
+        quality: LX.Quality // 实际音质
         musicInfo: LX.Music.MusicInfoOnline // 实际解析成功的那首（发生换源时和请求里的不同）
         toggled: boolean
         fromCache: boolean
-        expiresAt: number        // 缓存提示：客户端过了这个时间就不要再复用这个 URL
+        expiresAt: number // 缓存提示：客户端过了这个时间就不要再复用这个 URL
       }
 
       interface LyricRequest {
@@ -72,17 +74,17 @@ declare namespace LX {
       }
       interface PicResult {
         url: string
-        from: 'meta' | 'script'  // meta = 直接用了 musicInfo.meta.picUrl
+        from: 'meta' | 'script' // meta = 直接用了 musicInfo.meta.picUrl
         musicInfo: LX.Music.MusicInfoOnline
         toggled: boolean
         fromCache: boolean
         expiresAt: number
       }
 
-      interface AttemptError {   // 放在 SOURCE_FAILED / TIMEOUT 的 detail 里，内容为 AttemptError[]
+      interface AttemptError { // 放在 SOURCE_FAILED / TIMEOUT 的 detail 里，内容为 AttemptError[]
         scriptId: string
         source: LX.OnlineSource
-        songId: string           // musicInfo.id
+        songId: string // musicInfo.id
         quality?: LX.Quality
         message: string
       }

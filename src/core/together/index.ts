@@ -52,7 +52,7 @@ const thrownMessage = (error: unknown): string => {
 
 const memberName = (memberId: string) => {
   const member = togetherState.room?.members.find(item => item.memberId == memberId)
-  return member?.displayName || member?.username || ''
+  return member?.displayName ?? member?.username ?? ''
 }
 
 /** Start or stop host reporting / member following to match the current role. */
@@ -128,6 +128,7 @@ export const refreshRoom = async(): Promise<void> => {
   try {
     await run
   } finally {
+    // eslint-disable-next-line require-atomic-updates
     refreshing = null
   }
 }

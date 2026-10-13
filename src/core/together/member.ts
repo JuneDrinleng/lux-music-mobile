@@ -59,7 +59,7 @@ const queueFor = (room: LX.Sync.Together.RoomSnapshot, song: LX.Music.MusicInfoO
 
 const correctDrift = async(force = false) => {
   const room = togetherState.room
-  if (!active || !room || !room.playback.musicInfo || isLoading()) return
+  if (!active || !room?.playback.musicInfo || isLoading()) return
   if (!playerState.isPlay && !force) return
   if (!isSameSong(currentSong(), room.playback.musicInfo)) return
   const position = await getPosition().catch(() => playerState.progress.nowPlayTime)
@@ -157,12 +157,14 @@ export const applyQueue = async(room: LX.Sync.Together.RoomSnapshot) => {
   if (signature == appliedQueueSignature) return
   const current = await getListMusics(LIST_IDS.TEMP)
   if (queueSignature(current, song.id) == signature) {
+    // eslint-disable-next-line require-atomic-updates
     appliedQueueSignature = signature
     return
   }
   await runAsTogetherApply(async() => {
     await setTempList(listState.tempListMeta.id, [...list])
   })
+  // eslint-disable-next-line require-atomic-updates
   appliedQueueSignature = signature
 }
 

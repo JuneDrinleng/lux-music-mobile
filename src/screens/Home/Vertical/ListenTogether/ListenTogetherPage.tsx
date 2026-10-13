@@ -29,8 +29,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { H1_AFTER_TOP, PAGE_GUTTER, SECTION_TO_LIST, TOP_BAR_MARGIN_TOP, magType } from '@/theme/magazineType'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
-import { clipboardWriteText, toast } from '@/utils/tools'
-import { createStyle } from '@/utils/tools'
+import { clipboardWriteText, createStyle, toast } from '@/utils/tools'
 
 const useStyles = sharedLuxStyles((colors) => {
   const r = magazineRoles(colors)

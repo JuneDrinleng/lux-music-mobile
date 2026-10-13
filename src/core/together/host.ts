@@ -44,9 +44,10 @@ const toOnlineMusic = (musicInfo: LX.Player.PlayMusic | null | undefined): LX.Mu
   if (!musicInfo) return null
   const raw = 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
   if (raw.source == 'local') return null
-  const meta = { ...raw.meta } as LX.Music.MusicInfoOnline['meta'] & { toggleMusicInfo?: unknown }
-  delete meta.toggleMusicInfo
-  return { ...raw, meta } as LX.Music.MusicInfoOnline
+  const metaWithToggle: LX.Music.MusicInfoOnline['meta'] & { toggleMusicInfo?: unknown } = { ...raw.meta }
+  const { toggleMusicInfo: _omitToggle, ...meta } = metaWithToggle
+  const online: LX.Music.MusicInfoOnline = { ...raw, meta }
+  return online
 }
 
 const buildStateRequest = async(): Promise<Omit<LX.Sync.Together.HostUpdateStateRequest, 'roomId' | 'baseVersion'>> => {
@@ -124,6 +125,7 @@ const sendState = async() => {
   } catch (error) {
     log.warn('together hostUpdateState error:', error instanceof Error ? error.message : error)
   } finally {
+    // eslint-disable-next-line require-atomic-updates
     stateInFlight = false
     if (active && stateDirty) scheduleState()
   }
@@ -164,6 +166,7 @@ const sendQueue = async(force = false) => {
     }
     if (!active) return
     if (result.ok) {
+      // eslint-disable-next-line require-atomic-updates
       lastQueueSignature = signature
       callbacks?.onAck(result.data, 'queue')
     } else if (result.code == 'NOT_HOST' || result.code == 'NOT_IN_ROOM') {
@@ -176,6 +179,7 @@ const sendQueue = async(force = false) => {
   } catch (error) {
     log.warn('together hostUpdateQueue error:', error instanceof Error ? error.message : error)
   } finally {
+    // eslint-disable-next-line require-atomic-updates
     queueInFlight = false
     if (active && queueDirty) scheduleQueue()
   }
