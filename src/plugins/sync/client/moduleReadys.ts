@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-export type SyncModuleReadyMap = {
+export interface SyncModuleReadyMap {
   list: boolean
   dislike: boolean
   playHistory: boolean
@@ -10,7 +10,7 @@ export type SyncModuleReadyMap = {
 
 export type SyncModuleReadyName = keyof SyncModuleReadyMap
 
-type SyncSocketLike = { moduleReadys?: SyncModuleReadyMap }
+interface SyncSocketLike { moduleReadys?: SyncModuleReadyMap }
 
 export const createInitialModuleReadys = (): SyncModuleReadyMap => ({
   list: false,
