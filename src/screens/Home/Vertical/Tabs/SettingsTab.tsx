@@ -19,7 +19,8 @@ import {
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { createStyle, openUrl, syncLogoutCredentialDialog, tipDialog, toast } from '@/utils/tools'
+import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
@@ -33,7 +34,7 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearLuxAuth, clearSyncAuthKey, clearSyncConflictMode, setSyncLoginCompleted } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearSyncConflictMode } from '@/utils/data'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
@@ -533,6 +534,14 @@ export default () => {
   }, [activeOptionDetail])
 
   useEffect(() => {
+    const host = syncHost.trim()
+    if (!host) return
+    void findLuxAuthForHost(host).then(auth => {
+      if (auth?.user?.username) setLuxUsername(auth.user.username)
+    })
+  }, [syncHost])
+
+  useEffect(() => {
     switch (syncStatus.message) {
       case SYNC_CODE.authFailed:
         toast(t('setting_sync_code_fail'))
@@ -596,17 +605,20 @@ export default () => {
   }
   const handleLuxLogin = useCallback(() => {
     const username = luxUsername.trim()
-    if (!syncHost || !username || !luxPassword) {
-      toast(t('setting_sync_lux_login_missing_tip'), 'long')
-      return
-    }
-    updateSetting({ 'sync.enable': true })
-    void connectLuxServer(syncHost, username, luxPassword).then(() => {
-      void syncLuxProfileOnLogin(syncHost).catch(() => null)
-      setLuxLoginModalVisible(false)
-      setLuxPassword('')
-    }).catch((err: any) => {
-      toast(String(err?.message ?? err), 'long')
+    void findLuxAuthForHost(syncHost).then(savedLux => {
+      const canUseSavedLux = Boolean(savedLux?.token)
+      if (!syncHost || !username || (!luxPassword && !canUseSavedLux)) {
+        toast(t('setting_sync_lux_login_missing_tip'), 'long')
+        return
+      }
+      updateSetting({ 'sync.enable': true })
+      void connectLuxServer(syncHost, username, luxPassword || undefined).then(() => {
+        void syncLuxProfileOnLogin(syncHost).catch(() => null)
+        setLuxLoginModalVisible(false)
+        setLuxPassword('')
+      }).catch((err: any) => {
+        toast(String(err?.message ?? err), 'long')
+      })
     })
   }, [syncHost, luxUsername, luxPassword, t])
   const handleSelectSyncHost = (host: string) => {
@@ -770,28 +782,23 @@ export default () => {
     })
   }
   const handleLogoutSyncAccount = useCallback(async() => {
-    const confirmed = await confirmDialog({
+    const choice = await syncLogoutCredentialDialog({
       title: t('setting_sync_logout_title'),
       message: t('setting_sync_logout_message'),
       cancelButtonText: t('cancel'),
-      confirmButtonText: t('setting_sync_logout_confirm'),
+      keepButtonText: t('setting_sync_logout_keep_credentials'),
+      clearButtonText: t('setting_sync_logout_clear_credentials'),
       eyebrow: t('mag_dialog_eyebrow_account_logout'),
       eyebrowDanger: true,
-      confirmDanger: true,
     })
-    if (!confirmed) return
+    if (choice == 'cancel') return
 
-    updateSetting({ 'sync.enable': false })
-    await Promise.all([
-      disconnectServer(),
-      clearLuxAuth(),
-      clearSyncAuthKey(),
-      clearSyncConflictMode(),
-      saveSyncHost(''),
-      setSyncLoginCompleted(false),
-    ])
-    setSyncHostLocal('')
-    setLuxUsername('')
+    const clearSavedCredentials = choice == 'clear'
+    await applySyncAccountLogout(clearSavedCredentials)
+    if (clearSavedCredentials) {
+      setSyncHostLocal('')
+      setLuxUsername('')
+    }
     setLuxPassword('')
     setAuthCode('')
     await pushSyncLoginScreen()

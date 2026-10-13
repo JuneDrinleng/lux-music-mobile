@@ -579,6 +579,22 @@ export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
 export const clearLuxAuth = async() => {
   await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
 }
+
+const normalizeSyncHostUrl = (host: string) => host.trim().replace(/\/+$/, '')
+
+export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth | null> => {
+  const normalized = normalizeSyncHostUrl(host)
+  if (!normalized) return null
+  const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
+  if (sessions) {
+    for (const session of Object.values(sessions)) {
+      if (session.serverUrl && normalizeSyncHostUrl(session.serverUrl) == normalized) return session
+    }
+  }
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  if (active?.serverUrl && normalizeSyncHostUrl(active.serverUrl) == normalized) return active
+  return null
+}
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {
   await saveData(syncLoginCompletedPrefix, completed)
