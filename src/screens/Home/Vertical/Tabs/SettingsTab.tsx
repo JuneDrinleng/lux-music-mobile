@@ -57,6 +57,7 @@ import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/stat
 import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 import { getLuxSourceStatus, type LuxSourceStatus } from '@/core/music/lux'
 import { onSourceInfoChanged } from '@/plugins/sync/client/modules/source'
+import { AdminConsoleLayer } from '@/screens/AdminConsole'
 
 /**
  * Settings group-to-group rhythm (design numbers).
@@ -106,6 +107,7 @@ export default () => {
   const backupModeRef = useRef<'export' | 'import'>('export')
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
+  const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
@@ -182,11 +184,13 @@ export default () => {
   ] as const, [t])
   useEffect(() => {
     void getSyncMode().then(setSyncModeLocal)
+    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
     const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode) }
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
     return () => { global.app_event.off('syncModeUpdated', handleSyncModeUpdated) }
   }, [])
   const isLuxSourceMode = syncMode == 'lux'
+  const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
   const [luxSourceStatus, setLuxSourceStatus] = useState<LuxSourceStatus>(getLuxSourceStatus)
   useEffect(() => {
     setLuxSourceStatus(getLuxSourceStatus())
@@ -426,6 +430,8 @@ export default () => {
     t('setting_export_data_desc'),
     t('setting_import_data'),
     t('setting_import_data_desc'),
+    t('admin_console_entry_title'),
+    t('admin_console_entry_subtitle'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -514,6 +520,12 @@ export default () => {
       useNativeDriver: true,
     }).start()
   }, [activeOptionDetail, optionDetailAnim])
+  const handleOpenAdminConsole = useCallback(() => {
+    setAdminConsoleVisible(true)
+  }, [])
+  const handleCloseAdminConsole = useCallback(() => {
+    setAdminConsoleVisible(false)
+  }, [])
   useEffect(() => {
     if (activeOptionDetail !== 'sync') return
     void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
@@ -885,6 +897,10 @@ export default () => {
       handleCloseProfileDetail()
       return true
     }
+    if (isAdminConsoleVisible) {
+      handleCloseAdminConsole()
+      return true
+    }
     return false
   })
 
@@ -904,6 +920,7 @@ export default () => {
       setProfileDetailVisible(false)
       setIsManagingApiSources(false)
       setIsManagingSyncHosts(false)
+      setAdminConsoleVisible(false)
       wasOnSettingsRef.current = false
       return
     }
@@ -1007,6 +1024,17 @@ export default () => {
               <SettingRow icon="swap-horizontal" iconBg={r.iconWrap.purple} title={t('setting_sync_format')} subtitle={syncMode == 'lux' ? 'lux music' : 'lx music'} onPress={handleOpenSyncFormatDetail} />
               {isLuxSourceMode
                 ? <SettingRow icon="cloud-check-outline" iconBg={r.iconWrap.purple} title={t('source_resolved_by_server')} subtitle={luxSourceStatusLabel} />
+                : null}
+              {showAdminConsoleEntry
+                ? (
+                  <SettingRow
+                    icon="shield-account-outline"
+                    iconBg={r.iconWrap.green}
+                    title={t('admin_console_entry_title')}
+                    subtitle={t('admin_console_entry_subtitle')}
+                    onPress={handleOpenAdminConsole}
+                  />
+                  )
                 : null}
               <SettingRow icon="source-branch-remove" iconBg={r.iconWrap.purple} title={t('setting_sync_clear_conflict_mode')} subtitle={t('setting_sync_clear_conflict_mode_desc')} onPress={() => { void handleClearSyncConflictMode() }} />
               <SettingRow icon="broom" iconBg={r.iconWrap.purple} title={t('setting_cache_management')} subtitle={resourceCacheSizeLabel} onPress={handleOpenResourceCacheDetail} />
@@ -1404,6 +1432,14 @@ export default () => {
           secureTextEntry
         />
       </MagDialog>
+      <AdminConsoleLayer
+        visible={isAdminConsoleVisible}
+        onClose={handleCloseAdminConsole}
+        syncHost={syncHost}
+        topPadding={topPadding}
+        bottomDockHeight={bottomDockHeight}
+        detailSceneWidth={detailSceneWidth}
+      />
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )
