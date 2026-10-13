@@ -14,6 +14,7 @@ import listState from '@/store/list/state'
 import { requestMsg } from '@/utils/message'
 import BackgroundTimer from 'react-native-background-timer'
 import { apis } from '@/utils/musicSdk/api-source'
+import { fetchLuxAltCoverUrl, isLuxSourceMode } from './lux'
 
 
 const getOtherSourcePromises = new Map()
@@ -508,6 +509,7 @@ const releaseAltCoverSlot = () => {
 export const fetchAltCoverUrl = async(musicInfo: LX.Music.MusicInfoOnline): Promise<string | null> => {
   await acquireAltCoverSlot()
   try {
+    if (await isLuxSourceMode()) return await fetchLuxAltCoverUrl(musicInfo)
     try {
       const url = await (musicSdk[musicInfo.source].getPic(toOldMusicInfo(musicInfo)) as Promise<string>)
       if (url && typeof url === 'string' && url.trim()) return url
