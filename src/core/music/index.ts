@@ -17,6 +17,13 @@ import {
   getPicUrl as getLocalPicUrl,
   getLyricInfo as getLocalLyricInfo,
 } from './local'
+import {
+  getLuxLyricInfo,
+  getLuxMusicUrl,
+  getLuxPicUrl,
+  isLuxSourceMode,
+  shouldResolveLyricOnServer,
+} from './lux'
 
 
 export const getMusicUrl = async({
@@ -36,6 +43,8 @@ export const getMusicUrl = async({
     return getDownloadMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else if (musicInfo.source == 'local') {
     return getLocalMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
+  } else if (await isLuxSourceMode()) {
+    return getLuxMusicUrl({ musicInfo, isRefresh, quality, onToggleSource, allowToggleSource })
   } else {
     return getOnlineMusicUrl({ musicInfo, isRefresh, quality, onToggleSource, allowToggleSource })
   }
@@ -56,9 +65,21 @@ export const getPicPath = async({
     return getDownloadPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   } else if (musicInfo.source == 'local') {
     return getLocalPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
+  } else if (await isLuxSourceMode()) {
+    return getLuxPicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   } else {
     return getOnlinePicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   }
+}
+
+/** Online-song cover lookup for callers that bypass getPicPath (for example the home tab cover prewarm). */
+export const getOnlineSongPicUrl = async(params: {
+  musicInfo: LX.Music.MusicInfoOnline
+  listId?: string | null
+  isRefresh: boolean
+  allowToggleSource?: boolean
+}): Promise<string> => {
+  return await isLuxSourceMode() ? getLuxPicUrl(params) : getOnlinePicUrl(params)
 }
 
 export const getLyricInfo = async({
@@ -74,6 +95,8 @@ export const getLyricInfo = async({
     return getDownloadLyricInfo({ musicInfo, isRefresh, onToggleSource })
   } else if (musicInfo.source == 'local') {
     return getLocalLyricInfo({ musicInfo, isRefresh, onToggleSource })
+  } else if (shouldResolveLyricOnServer() && await isLuxSourceMode()) {
+    return getLuxLyricInfo({ musicInfo, isRefresh, onToggleSource })
   } else {
     return getOnlineLyricInfo({ musicInfo, isRefresh, onToggleSource })
   }

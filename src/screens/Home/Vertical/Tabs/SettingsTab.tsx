@@ -55,6 +55,8 @@ import { H1_AFTER_TOP, PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
 import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
+import { getLuxSourceStatus, type LuxSourceStatus } from '@/core/music/lux'
+import { onSourceInfoChanged } from '@/plugins/sync/client/modules/source'
 
 /**
  * Settings group-to-group rhythm (design numbers).
@@ -180,7 +182,24 @@ export default () => {
   ] as const, [t])
   useEffect(() => {
     void getSyncMode().then(setSyncModeLocal)
+    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode) }
+    global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
+    return () => { global.app_event.off('syncModeUpdated', handleSyncModeUpdated) }
   }, [])
+  const isLuxSourceMode = syncMode == 'lux'
+  const [luxSourceStatus, setLuxSourceStatus] = useState<LuxSourceStatus>(getLuxSourceStatus)
+  useEffect(() => {
+    setLuxSourceStatus(getLuxSourceStatus())
+    return onSourceInfoChanged(() => { setLuxSourceStatus(getLuxSourceStatus()) })
+  }, [syncStatus])
+  const luxSourceStatusLabel = luxSourceStatus == 'ready'
+    ? t('source_status_ready')
+    : luxSourceStatus == 'no_source'
+      ? t('source_status_no_source')
+      : t('source_lux_server_unavailable')
+  useEffect(() => {
+    if (isLuxSourceMode && activeOptionDetail === 'player') setActiveOptionDetail(null)
+  }, [isLuxSourceMode, activeOptionDetail])
 
   const activeSearchSourceLabel = useMemo(() => {
     return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
@@ -395,6 +414,7 @@ export default () => {
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
     t('setting_sync_format'),
+    t('source_resolved_by_server'),
     t('setting_sync_clear_conflict_mode'),
     t('setting_sync_clear_conflict_mode_desc'),
     t('setting_cache_management'),
@@ -972,7 +992,9 @@ export default () => {
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="text-search" iconBg={r.iconWrap.green} title={t('setting_search_source')} subtitle={activeSearchSourceLabel} onPress={handleOpenSearchSourceDetail} />
-              <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} last />
+              {isLuxSourceMode
+                ? <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={t('source_resolved_by_server')} last />
+                : <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} last />}
             </View>
             )
           : null}
@@ -983,6 +1005,9 @@ export default () => {
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('setting_sync_host_title')} subtitle={activeSyncStatusLabel} onPress={handleOpenSyncDetail} />
               <SettingRow icon="swap-horizontal" iconBg={r.iconWrap.purple} title={t('setting_sync_format')} subtitle={syncMode == 'lux' ? 'lux music' : 'lx music'} onPress={handleOpenSyncFormatDetail} />
+              {isLuxSourceMode
+                ? <SettingRow icon="cloud-check-outline" iconBg={r.iconWrap.purple} title={t('source_resolved_by_server')} subtitle={luxSourceStatusLabel} />
+                : null}
               <SettingRow icon="source-branch-remove" iconBg={r.iconWrap.purple} title={t('setting_sync_clear_conflict_mode')} subtitle={t('setting_sync_clear_conflict_mode_desc')} onPress={() => { void handleClearSyncConflictMode() }} />
               <SettingRow icon="broom" iconBg={r.iconWrap.purple} title={t('setting_cache_management')} subtitle={resourceCacheSizeLabel} onPress={handleOpenResourceCacheDetail} />
               <SettingRow icon="database-export-outline" iconBg={r.iconWrap.purple} title={t('setting_export_data')} subtitle={t('setting_export_data_desc')} onPress={handleExportData} />

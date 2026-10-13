@@ -27,6 +27,8 @@ export const DEFAULT_MUSIC_URL_TTL_MS = 30 * 60 * 1000
 export interface MusicUrlRecord {
   url: string
   savedAt: number
+  /** Set for URLs resolved by a Lux server; the server's reuse deadline. */
+  expiresAt?: number
 }
 
 export const musicUrlTtlMs = (source: string) => {
@@ -46,16 +48,19 @@ export const parseMusicUrlRecord = (raw: unknown): MusicUrlRecord | null => {
     return { url, savedAt: 0 }
   }
   if (!raw || typeof raw != 'object') return null
-  const record = raw as { url?: unknown, savedAt?: unknown }
+  const record = raw as { url?: unknown, savedAt?: unknown, expiresAt?: unknown }
   if (typeof record.url != 'string' || !record.url.trim()) return null
   const savedAt = typeof record.savedAt == 'number' && Number.isFinite(record.savedAt) ? record.savedAt : 0
-  return { url: record.url.trim(), savedAt }
+  const parsed: MusicUrlRecord = { url: record.url.trim(), savedAt }
+  if (typeof record.expiresAt == 'number' && Number.isFinite(record.expiresAt)) parsed.expiresAt = record.expiresAt
+  return parsed
 }
 
-export const serializeMusicUrlRecord = (url: string, savedAt: number): MusicUrlRecord => ({
-  url,
-  savedAt,
-})
+export const serializeMusicUrlRecord = (url: string, savedAt: number, expiresAt?: number): MusicUrlRecord => {
+  const record: MusicUrlRecord = { url, savedAt }
+  if (expiresAt != null) record.expiresAt = expiresAt
+  return record
+}
 
 export const isMusicUrlFresh = (record: MusicUrlRecord, source: string, now: number) => {
   if (isDirectMediaUrl(record.url)) return true
@@ -73,10 +78,15 @@ export const decideMusicUrlReuse = (input: {
   now: number
   isRefresh: boolean
   audioCached: boolean
+  /** Lux server resolution: only `expiresAt` decides reuse, and records without it are not reused. */
+  serverResolved?: boolean
 }): 'use' | 'refresh' => {
   if (!input.record?.url) return 'refresh'
   if (isDirectMediaUrl(input.record.url)) return 'use'
   if (input.isRefresh) return 'refresh'
+  if (input.serverResolved) {
+    return input.record.expiresAt != null && input.now < input.record.expiresAt ? 'use' : 'refresh'
+  }
   if (input.audioCached) return 'use'
   return isMusicUrlFresh(input.record, input.source, input.now) ? 'use' : 'refresh'
 }

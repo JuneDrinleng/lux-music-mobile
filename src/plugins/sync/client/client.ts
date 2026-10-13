@@ -13,6 +13,7 @@ import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
 import { setTogetherFeatureEnabled } from '../togetherFlag'
+import { setSourceFeatureEnabled } from '../sourceFlag'
 
 let status: LX.Sync.Status = {
   status: false,
@@ -250,6 +251,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     client!.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
+    setSourceFeatureEnabled(false)
     client!.moduleReadys = {
       list: false,
       dislike: false,
@@ -264,6 +266,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     if (client) client.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
+    setSourceFeatureEnabled(false)
     const err = new Error('closed')
     try {
       for (const handler of closeEvents) void handler(err)

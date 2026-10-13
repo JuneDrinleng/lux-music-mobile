@@ -699,6 +699,19 @@ test('saved playback urls expire by source unless the file is local or the audio
   }), 'refresh')
 })
 
+test('lux server urls are reused only before the server expiresAt', () => {
+  const record = musicUrlCache.parseMusicUrlRecord(musicUrlCache.serializeMusicUrlRecord('https://music.example/a.mp3', 1_000, 5_000))
+  assert.equal(record.expiresAt, 5_000)
+  assert.equal(musicUrlCache.serializeMusicUrlRecord('https://music.example/a.mp3', 1_000).expiresAt, undefined)
+  const decide = (input) => musicUrlCache.decideMusicUrlReuse({ source: 'wy', isRefresh: false, audioCached: false, serverResolved: true, ...input })
+  assert.equal(decide({ record, now: 4_999 }), 'use')
+  assert.equal(decide({ record, now: 5_000 }), 'refresh')
+  assert.equal(decide({ record, now: 5_000, audioCached: true }), 'refresh')
+  assert.equal(decide({ record, now: 2_000, isRefresh: true }), 'refresh')
+  assert.equal(decide({ record: { url: 'https://music.example/a.mp3', savedAt: 4_000 }, now: 4_001 }), 'refresh')
+  assert.equal(decide({ record: { url: 'file:///song.mp3', savedAt: 0 }, now: 10 }), 'use')
+})
+
 test('listen list drops the earliest songs and leaves a short list alone', () => {
   const songs = Array.from({ length: 53 }, (_, index) => ({ id: String(index) }))
   assert.equal(listenListLimit.LISTEN_LIST_LIMIT, 50)

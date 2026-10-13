@@ -37,7 +37,7 @@ import { getBoardsList, getListDetail } from '@/core/leaderboard'
 import leaderboardState, { type BoardItem } from '@/store/leaderboard/state'
 import { handlePlay as handleLbPlayAction } from '@/screens/Home/Views/Leaderboard/listAction'
 import { pickMusicCover } from '@/utils/musicCover'
-import { getPicUrl } from '@/core/music/online'
+import { getOnlineSongPicUrl } from '@/core/music'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
 import { formatMinutes } from '@/utils/formatMinutes'
 import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@/utils/homeBootGate'
@@ -231,7 +231,7 @@ const prewarmVisibleCovers = (source: LX.OnlineSource, songs: LX.Music.MusicInfo
 
   void InteractionManager.runAfterInteractions(() => {
     if (source === 'kg') {
-      void Promise.all(visibleSongs.map(async song => getPicUrl({
+      void Promise.all(visibleSongs.map(async song => getOnlineSongPicUrl({
         musicInfo: song,
         isRefresh: false,
         allowToggleSource: false,
