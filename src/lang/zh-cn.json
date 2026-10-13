@@ -868,6 +868,7 @@
   "setting_sync_logout_keep_credentials": "保存连接信息并退出",
   "setting_sync_logout_clear_credentials": "清除连接信息并退出",
   "sync_login_lx_saved_hint": "若此主机已保存 LX 连接密钥，可留空连接码直接连接。",
+  "sync_login_lux_saved_hint": "此主机已保存 Lux 登录会话，密码可留空直接连接。",
   "setting_fill_sync_address": "新增同步地址",
   "setting_manage_records": "管理记录",
   "setting_search_and_play": "搜索与播放",

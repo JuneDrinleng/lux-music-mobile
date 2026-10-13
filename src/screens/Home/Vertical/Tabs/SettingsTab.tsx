@@ -34,7 +34,8 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearSyncConflictMode } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
+import { loadSyncLoginFormSnapshot } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
@@ -529,8 +530,12 @@ export default () => {
   }, [])
   useEffect(() => {
     if (activeOptionDetail !== 'sync') return
-    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
+    void reloadSyncHostFromStorage().then(host => { setSyncHostLocal(host ?? '') })
     void getSyncHostHistory().then(history => { setSyncHostHistoryLocal([...history]) })
+    void loadSyncLoginFormSnapshot().then(snapshot => {
+      if (snapshot.host) setSyncHostLocal(snapshot.host)
+      if (snapshot.luxUsername) setLuxUsername(snapshot.luxUsername)
+    })
   }, [activeOptionDetail])
 
   useEffect(() => {
