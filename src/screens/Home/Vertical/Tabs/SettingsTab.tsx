@@ -598,12 +598,13 @@ export default () => {
     setSyncMessage('')
     setAuthCodeModalVisible(false)
   }, [])
-  const handleSetCode = useCallback(() => {
-    void rememberSyncLoginForm({
+  const handleSetCode = useCallback(async() => {
+    await rememberSyncLoginForm({
       host: syncHost,
       mode: 'lx',
       lxAuthCode: authCode,
-    }).then(() => connectServer(syncHost, authCode))
+    })
+    void connectServer(syncHost, authCode)
     setAuthCodeModalVisible(false)
   }, [syncHost, authCode])
   const handleCloseAuthCodeModal = () => {

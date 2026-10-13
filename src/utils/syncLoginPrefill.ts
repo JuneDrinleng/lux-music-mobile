@@ -62,7 +62,8 @@ export const rememberSyncLoginForm = async(input: {
 
   if (input.mode == 'lux') {
     const prev = drafts.lux
-    let luxUsername = input.luxUsername?.trim() || prev?.luxUsername || ''
+    let luxUsername = input.luxUsername?.trim()
+    if (!luxUsername) luxUsername = prev?.luxUsername ?? ''
     if (!luxUsername) {
       const auth = await findLuxAuthForHost(host)
       luxUsername = auth?.user?.username?.trim() ?? ''
@@ -78,7 +79,7 @@ export const rememberSyncLoginForm = async(input: {
   }
 
   const prev = drafts.lx
-  const lxAuthCode = input.lxAuthCode?.trim() || prev?.lxAuthCode || ''
+  const lxAuthCode = input.lxAuthCode?.trim() ?? prev?.lxAuthCode ?? ''
   await setSyncLoginDrafts({
     ...drafts,
     lx: { host, lxAuthCode },

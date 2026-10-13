@@ -58,9 +58,11 @@ export default memo(() => {
   }, [applySnapshot])
 
   useEffect(() => {
-    void getSyncMode().then(activeMode => applySavedFormForMode(activeMode))
-    const handlePresented = () => {
-      void getSyncMode().then(activeMode => applySavedFormForMode(activeMode))
+    void (async() => {
+      await applySavedFormForMode(await getSyncMode())
+    })()
+    const handlePresented = async() => {
+      await applySavedFormForMode(await getSyncMode())
     }
     global.app_event.on('syncLoginPresented', handlePresented)
     return () => { global.app_event.off('syncLoginPresented', handlePresented) }
