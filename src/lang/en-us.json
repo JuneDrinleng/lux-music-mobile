@@ -868,6 +868,7 @@
   "setting_sync_logout_keep_credentials": "Keep connection info & sign out",
   "setting_sync_logout_clear_credentials": "Clear connection info & sign out",
   "sync_login_lx_saved_hint": "If this server already has a saved LX sync key, you can leave the connection code empty and connect.",
+  "sync_login_lux_saved_hint": "A Lux session is saved for this server. You can leave the password empty and connect.",
   "setting_fill_sync_address": "New Sync Address",
   "setting_manage_records": "Manage Records",
   "setting_search_and_play": "Search & Playback",

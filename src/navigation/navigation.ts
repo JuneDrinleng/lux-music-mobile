@@ -98,7 +98,7 @@ export async function pushLoginScreen() {
 export async function pushSyncLoginScreen() {
   const theme = themeState.theme
 
-  return Navigation.setRoot({
+  await Navigation.setRoot({
     root: {
       stack: {
         children: [{
@@ -128,6 +128,7 @@ export async function pushSyncLoginScreen() {
       },
     },
   })
+  global.app_event.syncLoginPresented()
 }
 
 export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'cheat-tip') {

@@ -353,6 +353,10 @@ export class AppEvent extends Event {
     this.emit('permissionPromptResult', requestId, action)
   }
 
+  syncLoginPresented() {
+    this.emit('syncLoginPresented')
+  }
+
   showAppDialog(payload: AppDialogPayload) {
     this.emit('showAppDialog', payload)
   }

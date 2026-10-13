@@ -21,7 +21,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, findLuxAuthForHost, getSyncHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, findLuxAuthForHost, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { loadSyncLoginFormSnapshot } from '@/utils/syncLoginPrefill'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
@@ -38,19 +39,23 @@ export default memo(() => {
   const [luxPassword, setLuxPassword] = useState('')
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [hasSavedLuxSession, setHasSavedLuxSession] = useState(false)
+  const [showLxSavedHint, setShowLxSavedHint] = useState(false)
 
-  useEffect(() => {
-    void getSyncMode().then(setMode)
-    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
+  const applySavedForm = useCallback(async() => {
+    const snapshot = await loadSyncLoginFormSnapshot()
+    setMode(snapshot.mode)
+    setSyncHostLocal(snapshot.host)
+    setLuxUsername(snapshot.luxUsername)
+    setHasSavedLuxSession(snapshot.hasSavedLuxSession)
+    setShowLxSavedHint(snapshot.hasSavedLxKey)
   }, [])
 
   useEffect(() => {
-    const host = syncHost.trim()
-    if (!host) return
-    void findLuxAuthForHost(host).then(auth => {
-      if (auth?.user?.username) setLuxUsername(auth.user.username)
-    })
-  }, [syncHost])
+    void applySavedForm()
+    global.app_event.on('syncLoginPresented', applySavedForm)
+    return () => { global.app_event.off('syncLoginPresented', applySavedForm) }
+  }, [applySavedForm])
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true)
@@ -191,6 +196,9 @@ export default memo(() => {
                   onChangeText={setLuxPassword}
                   secureTextEntry
                 />
+                {hasSavedLuxSession
+                  ? <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lux_saved_hint')}</Text>
+                  : null}
               </>
             : <>
                 <UnderlineInput
@@ -200,7 +208,9 @@ export default memo(() => {
                   onChangeText={setAuthCode}
                 />
                 <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_code_hint')}</Text>
-                <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_saved_hint')}</Text>
+                {showLxSavedHint
+                  ? <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_saved_hint')}</Text>
+                  : null}
               </>}
         </View>
 
