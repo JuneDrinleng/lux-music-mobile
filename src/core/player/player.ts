@@ -31,6 +31,7 @@ import { LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics, removeListMusics, setTempList } from '@/core/list'
 import { addDislikeInfo } from '@/core/dislikeList'
 import listState from '@/store/list/state'
+import { blockTogetherMemberControl, isTogetherMemberLocked } from '@/core/together/control'
 
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -350,6 +351,7 @@ const handlePlay = async() => {
  * @param id 歌曲id
  */
 export const playListById = async(listId: string, id: string) => {
+  if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
   const musicInfo = getList(listId).find(m => m.id == id)
@@ -366,6 +368,7 @@ export const playListById = async(listId: string, id: string) => {
  * @param index 播放的歌曲位置
  */
 export const playList = async(listId: string, index: number) => {
+  if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
   setPlayMusicInfo(listId, getList(listId)[index])
@@ -378,6 +381,7 @@ export const playList = async(listId: string, index: number) => {
  * 将某个歌单完整复制到独立播放队列，再从目标索引播放
  */
 export const playListAsQueue = async(sourceListId: string, index: number) => {
+  if (blockTogetherMemberControl()) return
   const sourceList = await getListMusics(sourceListId)
   if (!sourceList.length) return
   const sourceIndex = normalizeIndex(index, sourceList.length)
@@ -394,6 +398,7 @@ export const playListAsQueue = async(sourceListId: string, index: number) => {
  * 将单曲加入独立播放队列并立即播放，不改动任何歌单内容
  */
 export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
+  if (blockTogetherMemberControl()) return
   const queueList = await ensureQueueList()
   if (!queueList.length) {
     await setTempList(createPlayQueueMetaId(PLAY_QUEUE_SINGLE_SOURCE_ID), [musicInfo])
@@ -522,6 +527,7 @@ const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo) => {
  * @returns
  */
 export const playNext = async(isAutoToggle = false): Promise<void> => {
+  if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   if (playerState.tempPlayList.length) { // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = playerState.tempPlayList[0]
     removeTempPlayList(0)
@@ -621,6 +627,7 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
  * 上一曲
  */
 export const playPrev = async(isAutoToggle = false): Promise<void> => {
+  if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   const playMusicInfo = playerState.playMusicInfo
   if (playMusicInfo.musicInfo == null) return handleToggleStop()
   const playInfo = playerState.playInfo

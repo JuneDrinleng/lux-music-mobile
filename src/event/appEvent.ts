@@ -253,6 +253,14 @@ export class AppEvent extends Event {
     this.emit('closeListeningStats')
   }
 
+  openListenTogether() {
+    this.emit('openListenTogether')
+  }
+
+  closeListenTogether() {
+    this.emit('closeListenTogether')
+  }
+
   syncModeUpdated(mode: 'lx' | 'lux') {
     this.emit('syncModeUpdated', mode)
   }

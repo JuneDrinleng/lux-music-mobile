@@ -9,6 +9,7 @@ import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { onScreenStateChange } from '@/utils/nativeModules/utils'
 import { AppState } from 'react-native'
+import { blockTogetherMemberControl } from '@/core/together/control'
 
 const delaySavePlayInfo = throttleBackgroundTimer(() => {
   void savePlayInfo({
@@ -71,6 +72,7 @@ export default () => {
   }
 
   const setProgress = (time: number, maxTime?: number) => {
+    if (blockTogetherMemberControl()) return
     if (!playerState.musicInfo.id) return
     // console.log('setProgress', time, maxTime)
     setNowPlayTime(time)

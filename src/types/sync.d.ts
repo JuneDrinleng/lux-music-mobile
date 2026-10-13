@@ -86,6 +86,8 @@ declare global {
         dislike?: false | DislikeConfig
         /** Lux only. Omitted for LX connection-code sync and for servers that do not advertise the feature. */
         playHistory?: true
+        /** Lux only. Listen-together rooms; omitted for LX connection-code sync. */
+        together?: true
       }
       type SupportedFeatures = Partial<{ [k in keyof EnabledFeatures]: number }>
     }

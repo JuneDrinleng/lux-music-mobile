@@ -35,7 +35,8 @@ const Main = () => {
   const [playlistDetailVisible, setPlaylistDetailVisible] = useState(false)
   const [localSongsVisible, setLocalSongsVisible] = useState(false)
   const [listeningStatsVisible, setListeningStatsVisible] = useState(false)
-  const detailCovering = playlistDetailVisible || localSongsVisible || listeningStatsVisible
+  const [listenTogetherVisible, setListenTogetherVisible] = useState(false)
+  const detailCovering = playlistDetailVisible || localSongsVisible || listeningStatsVisible || listenTogetherVisible
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -49,6 +50,7 @@ const Main = () => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       if (localSongsVisible) global.app_event.closeLocalSongs()
       if (listeningStatsVisible) global.app_event.closeListeningStats()
+      if (listenTogetherVisible) global.app_event.closeListenTogether()
       const index = viewMap[id] ?? 0
       if (activeIndexRef.current === index) return
       activeIndexRef.current = index
@@ -60,13 +62,14 @@ const Main = () => {
     return () => {
       global.state_event.off('navActiveIdUpdated', handleNavUpdate)
     }
-  }, [listeningStatsVisible, localSongsVisible, playlistDetailVisible])
+  }, [listenTogetherVisible, listeningStatsVisible, localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       if (localSongsVisible) global.app_event.closeLocalSongs()
       if (listeningStatsVisible) global.app_event.closeListeningStats()
+      if (listenTogetherVisible) global.app_event.closeListenTogether()
       searchRequestTokenRef.current += 1
       setSearchPageRequest({
         token: searchRequestTokenRef.current,
@@ -84,7 +87,7 @@ const Main = () => {
       global.app_event.off('openVerticalSearchPage', handleOpenSearchPage)
       global.app_event.off('closeVerticalSearchPage', handleCloseSearchPage)
     }
-  }, [listeningStatsVisible, localSongsVisible, playlistDetailVisible])
+  }, [listenTogetherVisible, listeningStatsVisible, localSongsVisible, playlistDetailVisible])
 
   useEffect(() => {
     const handleOpen = () => {
@@ -104,14 +107,24 @@ const Main = () => {
       setListeningStatsVisible(true)
       setPlaylistDetailVisible(false)
       setLocalSongsVisible(false)
+      setListenTogetherVisible(false)
     }
     const handleCloseListeningStats = () => { setListeningStatsVisible(false) }
+    const handleOpenListenTogether = () => {
+      setListenTogetherVisible(true)
+      setPlaylistDetailVisible(false)
+      setLocalSongsVisible(false)
+      setListeningStatsVisible(false)
+    }
+    const handleCloseListenTogether = () => { setListenTogetherVisible(false) }
     global.app_event.on('openPlaylistDetail', handleOpen)
     global.app_event.on('closePlaylistDetail', handleClose)
     global.app_event.on('openLocalSongs', handleOpenLocalSongs)
     global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
     global.app_event.on('openListeningStats', handleOpenListeningStats)
     global.app_event.on('closeListeningStats', handleCloseListeningStats)
+    global.app_event.on('openListenTogether', handleOpenListenTogether)
+    global.app_event.on('closeListenTogether', handleCloseListenTogether)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpen)
       global.app_event.off('closePlaylistDetail', handleClose)
@@ -119,6 +132,8 @@ const Main = () => {
       global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
       global.app_event.off('openListeningStats', handleOpenListeningStats)
       global.app_event.off('closeListeningStats', handleCloseListeningStats)
+      global.app_event.off('openListenTogether', handleOpenListenTogether)
+      global.app_event.off('closeListenTogether', handleCloseListenTogether)
     }
   }, [])
 

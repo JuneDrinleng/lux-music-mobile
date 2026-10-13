@@ -9,6 +9,7 @@ import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
 import { exitApp } from '@/core/common'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
+import { blockTogetherMemberControl } from '@/core/together/control'
 import { scheduleImageCacheTrim } from '@/utils/imageCache'
 
 let isInitialized = false
@@ -82,6 +83,7 @@ const registerPlaybackService = async() => {
   })
 
   TrackPlayer.addEventListener(TPEvent.RemoteSeek, async({ position }) => {
+    if (blockTogetherMemberControl()) return
     global.app_event.setProgress(position as number)
   })
 
