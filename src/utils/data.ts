@@ -623,9 +623,32 @@ export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth |
   if (active?.user?.username && storedHost && normalizeSyncHostUrl(storedHost) == normalized) return active
   return null
 }
-export const getSyncLoginDraft = async() => getData<LX.Sync.LoginDraft | null>(syncLoginDraftPrefix)
-export const setSyncLoginDraft = async(draft: LX.Sync.LoginDraft) => {
-  await AsyncStorage.setItem(syncLoginDraftPrefix, JSON.stringify(draft))
+const normalizeSyncLoginDrafts = (raw: unknown): LX.Sync.LoginDrafts | null => {
+  if (!raw || typeof raw != 'object') return null
+  if ('mode' in raw && 'host' in raw) {
+    const legacy = raw as LX.Sync.LoginDraft
+    if (legacy.mode == 'lux') {
+      return {
+        lux: {
+          host: legacy.host,
+          luxUsername: legacy.luxUsername ?? '',
+          luxPassword: legacy.luxPassword ?? '',
+        },
+      }
+    }
+    return {
+      lx: {
+        host: legacy.host,
+        lxAuthCode: legacy.lxAuthCode ?? '',
+      },
+    }
+  }
+  return raw as LX.Sync.LoginDrafts
+}
+
+export const getSyncLoginDrafts = async() => normalizeSyncLoginDrafts(await getData(syncLoginDraftPrefix))
+export const setSyncLoginDrafts = async(drafts: LX.Sync.LoginDrafts) => {
+  await AsyncStorage.setItem(syncLoginDraftPrefix, JSON.stringify(drafts))
 }
 export const clearSyncLoginDraft = async() => removeData(syncLoginDraftPrefix)
 

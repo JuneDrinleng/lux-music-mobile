@@ -3,7 +3,24 @@ declare global {
     namespace Sync {
       type Mode = 'lx' | 'lux'
 
-      /** Last sync login form values for the current host (AsyncStorage, app-private). */
+      /** Per-mode sync login form values (AsyncStorage, app-private). */
+      interface LuxLoginProfile {
+        host: string
+        luxUsername: string
+        luxPassword: string
+      }
+
+      interface LxLoginProfile {
+        host: string
+        lxAuthCode: string
+      }
+
+      interface LoginDrafts {
+        lux?: LuxLoginProfile
+        lx?: LxLoginProfile
+      }
+
+      /** @deprecated Migrated to LoginDrafts on read. */
       interface LoginDraft {
         host: string
         mode: Mode

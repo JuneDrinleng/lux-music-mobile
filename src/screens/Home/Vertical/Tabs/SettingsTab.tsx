@@ -532,13 +532,13 @@ export default () => {
     if (activeOptionDetail !== 'sync') return
     void reloadSyncHostFromStorage().then(host => { setSyncHostLocal(host ?? '') })
     void getSyncHostHistory().then(history => { setSyncHostHistoryLocal([...history]) })
-    void loadSyncLoginFormSnapshot().then(snapshot => {
+    void loadSyncLoginFormSnapshot(syncMode).then(snapshot => {
       if (snapshot.host) setSyncHostLocal(snapshot.host)
       if (snapshot.luxUsername) setLuxUsername(snapshot.luxUsername)
       if (snapshot.luxPassword) setLuxPassword(snapshot.luxPassword)
       if (snapshot.lxAuthCode) setAuthCode(snapshot.lxAuthCode)
     })
-  }, [activeOptionDetail])
+  }, [activeOptionDetail, syncMode])
 
   useEffect(() => {
     const host = syncHost.trim()
