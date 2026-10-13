@@ -21,8 +21,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, findLuxAuthForHost, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
-import { loadSyncLoginFormSnapshot } from '@/utils/syncLoginPrefill'
+import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, clearSyncLoginDraft, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
@@ -42,20 +42,31 @@ export default memo(() => {
   const [hasSavedLuxSession, setHasSavedLuxSession] = useState(false)
   const [showLxSavedHint, setShowLxSavedHint] = useState(false)
 
-  const applySavedForm = useCallback(async() => {
-    const snapshot = await loadSyncLoginFormSnapshot()
-    setMode(snapshot.mode)
+  const applySnapshot = useCallback((snapshot: Awaited<ReturnType<typeof loadSyncLoginFormSnapshot>>) => {
     setSyncHostLocal(snapshot.host)
     setLuxUsername(snapshot.luxUsername)
+    setLuxPassword(snapshot.luxPassword)
+    setAuthCode(snapshot.lxAuthCode)
     setHasSavedLuxSession(snapshot.hasSavedLuxSession)
     setShowLxSavedHint(snapshot.hasSavedLxKey)
   }, [])
 
+  const applySavedFormForMode = useCallback(async(activeMode: LX.Sync.Mode) => {
+    const snapshot = await loadSyncLoginFormSnapshot(activeMode)
+    setMode(activeMode)
+    applySnapshot(snapshot)
+  }, [applySnapshot])
+
   useEffect(() => {
-    void applySavedForm()
-    global.app_event.on('syncLoginPresented', applySavedForm)
-    return () => { global.app_event.off('syncLoginPresented', applySavedForm) }
-  }, [applySavedForm])
+    void (async() => {
+      await applySavedFormForMode(await getSyncMode())
+    })()
+    const handlePresented = async() => {
+      await applySavedFormForMode(await getSyncMode())
+    }
+    global.app_event.on('syncLoginPresented', handlePresented)
+    return () => { global.app_event.off('syncLoginPresented', handlePresented) }
+  }, [applySavedFormForMode])
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true)
@@ -71,9 +82,9 @@ export default memo(() => {
 
   const handleSelectMode = useCallback((nextMode: LX.Sync.Mode) => {
     if (submitting) return
-    setMode(nextMode)
     setMessage('')
-  }, [submitting])
+    void applySavedFormForMode(nextMode)
+  }, [applySavedFormForMode, submitting])
 
   const handleSubmit = useCallback(async() => {
     if (submitting) return
@@ -111,6 +122,13 @@ export default memo(() => {
         await connectLuxServer(host, username, password)
         await syncLuxProfileOnLogin(host).catch(() => null)
       } else await connectServer(host, code || undefined)
+      await rememberSyncLoginForm({
+        host,
+        mode,
+        luxUsername: username,
+        luxPassword,
+        lxAuthCode: code,
+      })
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
@@ -127,6 +145,7 @@ export default memo(() => {
       await setSyncHost('')
       await clearLuxAuth()
       await clearSyncAuthKey()
+      await clearSyncLoginDraft()
       await saveUserName(t('sync_login_local_user_name'))
       global.app_event.userNameUpdated(t('sync_login_local_user_name'))
       updateSetting({ 'sync.enable': false })

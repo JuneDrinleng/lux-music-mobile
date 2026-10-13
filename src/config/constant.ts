@@ -67,6 +67,7 @@ export const storageDataPrefix = {
   luxAuth: '@lux_auth',
   luxAuthServers: '@lux_auth_servers',
   syncLoginCompleted: '@sync_login_completed',
+  syncLoginDraft: '@sync_login_draft',
   syncConflictMode: '@sync_conflict_mode',
 
   openStoragePath: '@open_storage_path',
