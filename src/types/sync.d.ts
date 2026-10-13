@@ -3,6 +3,15 @@ declare global {
     namespace Sync {
       type Mode = 'lx' | 'lux'
 
+      /** Last sync login form values for the current host (AsyncStorage, app-private). */
+      interface LoginDraft {
+        host: string
+        mode: Mode
+        luxUsername: string
+        luxPassword: string
+        lxAuthCode: string
+      }
+
       interface LuxAuth {
         token: string
         serverId?: string

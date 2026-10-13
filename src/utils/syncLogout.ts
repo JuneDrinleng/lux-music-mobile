@@ -6,6 +6,7 @@ import {
   clearLuxAuth,
   clearSyncAuthKey,
   clearSyncConflictMode,
+  clearSyncLoginDraft,
   setSyncHost,
   setSyncLoginCompleted,
 } from '@/utils/data'
@@ -19,6 +20,7 @@ export const applySyncAccountLogout = async(clearSavedCredentials: boolean) => {
       clearLuxAuth(),
       clearSyncAuthKey(),
       clearSyncConflictMode(),
+      clearSyncLoginDraft(),
       setSyncHost(''),
     ])
   }

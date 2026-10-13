@@ -3,16 +3,20 @@ import {
   findLuxAuthForHost,
   getLuxAuth,
   getPreferredSyncHost,
+  getSyncLoginDraft,
   getSyncMode,
   hasSavedLxSyncKeys,
   listLuxAuthSessions,
   reloadSyncHostFromStorage,
+  setSyncLoginDraft,
 } from '@/utils/data'
 
 export interface SyncLoginFormSnapshot {
   mode: LX.Sync.Mode
   host: string
   luxUsername: string
+  luxPassword: string
+  lxAuthCode: string
   hasSavedLuxSession: boolean
   hasSavedLxKey: boolean
 }
@@ -26,6 +30,12 @@ export const syncHostCompareKey = (host: string) => {
   } catch {
     return trimmed.replace(/\/+$/, '').toLowerCase()
   }
+}
+
+const hostsMatch = (left: string, right: string) => {
+  const leftKey = syncHostCompareKey(left)
+  const rightKey = syncHostCompareKey(right)
+  return Boolean(leftKey && rightKey && leftKey == rightKey)
 }
 
 const resolveLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth | null> => {
@@ -50,12 +60,50 @@ const resolveLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth | nul
   return null
 }
 
+export const rememberSyncLoginForm = async(input: {
+  host: string
+  mode: LX.Sync.Mode
+  luxUsername?: string
+  luxPassword?: string
+  lxAuthCode?: string
+}) => {
+  const host = input.host.trim()
+  if (!host) return
+
+  const prev = await getSyncLoginDraft()
+  const sameHost = prev ? hostsMatch(prev.host, host) : false
+  let luxUsername = input.luxUsername?.trim()
+    || (sameHost ? prev?.luxUsername : '')
+    || ''
+  if (!luxUsername) {
+    const auth = await findLuxAuthForHost(host)
+    luxUsername = auth?.user?.username?.trim() ?? ''
+  }
+  const luxPassword = input.luxPassword?.length
+    ? input.luxPassword
+    : (sameHost ? prev?.luxPassword : '')
+    || ''
+  const lxAuthCode = input.lxAuthCode?.trim()
+    || (sameHost ? prev?.lxAuthCode : '')
+    || ''
+
+  await setSyncLoginDraft({
+    host,
+    mode: input.mode,
+    luxUsername,
+    luxPassword,
+    lxAuthCode,
+  })
+}
+
 export const loadSyncLoginFormSnapshot = async(): Promise<SyncLoginFormSnapshot> => {
   await reloadSyncHostFromStorage()
-  const mode = await getSyncMode()
+  const draft = await getSyncLoginDraft()
+  let mode = await getSyncMode()
   let host = await getPreferredSyncHost()
 
   const activeLux = await getLuxAuth()
+  if (!host && draft?.host) host = draft.host
   if (!host && activeLux?.serverUrl) host = activeLux.serverUrl
   if (!host) {
     const sessions = await listLuxAuthSessions()
@@ -63,16 +111,33 @@ export const loadSyncLoginFormSnapshot = async(): Promise<SyncLoginFormSnapshot>
     if (withUrl?.serverUrl) host = withUrl.serverUrl
   }
 
+  if (draft?.host && (!host || hostsMatch(draft.host, host))) {
+    host = draft.host
+    mode = draft.mode
+  }
+
   const luxAuth = host ? await resolveLuxAuthForHost(host) : activeLux
-  const luxUsername = luxAuth?.user?.username?.trim() ?? activeLux?.user?.username?.trim() ?? ''
-  const hasSavedLuxSession = Boolean(luxAuth?.token ?? activeLux?.token)
+  let luxUsername = luxAuth?.user?.username?.trim() ?? activeLux?.user?.username?.trim() ?? ''
+  let luxPassword = ''
+  let lxAuthCode = ''
+
+  if (draft && host && hostsMatch(draft.host, host)) {
+    luxUsername = draft.luxUsername || luxUsername
+    luxPassword = draft.luxPassword
+    lxAuthCode = draft.lxAuthCode
+    mode = draft.mode
+  }
+
+  const hasSavedLuxSession = Boolean(luxAuth?.token ?? activeLux?.token ?? luxPassword)
   const hasSavedLxKey = host ? await hasSavedLxSyncKeys() : false
 
   return {
     mode,
     host,
     luxUsername,
+    luxPassword,
+    lxAuthCode,
     hasSavedLuxSession,
-    hasSavedLxKey,
+    hasSavedLxKey: hasSavedLxKey || Boolean(lxAuthCode),
   }
 }

@@ -21,8 +21,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, findLuxAuthForHost, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
-import { loadSyncLoginFormSnapshot } from '@/utils/syncLoginPrefill'
+import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, clearSyncLoginDraft, findLuxAuthForHost, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
@@ -47,6 +47,8 @@ export default memo(() => {
     setMode(snapshot.mode)
     setSyncHostLocal(snapshot.host)
     setLuxUsername(snapshot.luxUsername)
+    setLuxPassword(snapshot.luxPassword)
+    setAuthCode(snapshot.lxAuthCode)
     setHasSavedLuxSession(snapshot.hasSavedLuxSession)
     setShowLxSavedHint(snapshot.hasSavedLxKey)
   }, [])
@@ -111,6 +113,13 @@ export default memo(() => {
         await connectLuxServer(host, username, password)
         await syncLuxProfileOnLogin(host).catch(() => null)
       } else await connectServer(host, code || undefined)
+      await rememberSyncLoginForm({
+        host,
+        mode,
+        luxUsername: username,
+        luxPassword,
+        lxAuthCode: code,
+      })
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
@@ -127,6 +136,7 @@ export default memo(() => {
       await setSyncHost('')
       await clearLuxAuth()
       await clearSyncAuthKey()
+      await clearSyncLoginDraft()
       await saveUserName(t('sync_login_local_user_name'))
       global.app_event.userNameUpdated(t('sync_login_local_user_name'))
       updateSetting({ 'sync.enable': false })

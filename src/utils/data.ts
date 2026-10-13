@@ -34,6 +34,7 @@ const syncHostHistoryPrefix = storageDataPrefix.syncHostHistory
 const syncModePrefix = storageDataPrefix.syncMode
 const luxAuthPrefix = storageDataPrefix.luxAuth
 const syncLoginCompletedPrefix = storageDataPrefix.syncLoginCompleted
+const syncLoginDraftPrefix = storageDataPrefix.syncLoginDraft
 const syncConflictModePrefix = storageDataPrefix.syncConflictMode
 const listPrefix = storageDataPrefix.list
 const dislikeListPrefix = storageDataPrefix.dislikeList
@@ -622,6 +623,12 @@ export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth |
   if (active?.user?.username && storedHost && normalizeSyncHostUrl(storedHost) == normalized) return active
   return null
 }
+export const getSyncLoginDraft = async() => getData<LX.Sync.LoginDraft | null>(syncLoginDraftPrefix)
+export const setSyncLoginDraft = async(draft: LX.Sync.LoginDraft) => {
+  await AsyncStorage.setItem(syncLoginDraftPrefix, JSON.stringify(draft))
+}
+export const clearSyncLoginDraft = async() => removeData(syncLoginDraftPrefix)
+
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {
   await saveData(syncLoginCompletedPrefix, completed)

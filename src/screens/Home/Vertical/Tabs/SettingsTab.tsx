@@ -35,7 +35,7 @@ import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
-import { loadSyncLoginFormSnapshot } from '@/utils/syncLoginPrefill'
+import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
@@ -535,6 +535,8 @@ export default () => {
     void loadSyncLoginFormSnapshot().then(snapshot => {
       if (snapshot.host) setSyncHostLocal(snapshot.host)
       if (snapshot.luxUsername) setLuxUsername(snapshot.luxUsername)
+      if (snapshot.luxPassword) setLuxPassword(snapshot.luxPassword)
+      if (snapshot.lxAuthCode) setAuthCode(snapshot.lxAuthCode)
     })
   }, [activeOptionDetail])
 
@@ -597,8 +599,11 @@ export default () => {
     setAuthCodeModalVisible(false)
   }, [])
   const handleSetCode = useCallback(() => {
-    void connectServer(syncHost, authCode)
-    setAuthCode('')
+    void rememberSyncLoginForm({
+      host: syncHost,
+      mode: 'lx',
+      lxAuthCode: authCode,
+    }).then(() => connectServer(syncHost, authCode))
     setAuthCodeModalVisible(false)
   }, [syncHost, authCode])
   const handleCloseAuthCodeModal = () => {
@@ -617,7 +622,13 @@ export default () => {
         return
       }
       updateSetting({ 'sync.enable': true })
-      void connectLuxServer(syncHost, username, luxPassword || undefined).then(() => {
+      void connectLuxServer(syncHost, username, luxPassword || undefined).then(async() => {
+        await rememberSyncLoginForm({
+          host: syncHost,
+          mode: 'lux',
+          luxUsername: username,
+          luxPassword,
+        })
         void syncLuxProfileOnLogin(syncHost).catch(() => null)
         setLuxLoginModalVisible(false)
         setLuxPassword('')
@@ -799,6 +810,15 @@ export default () => {
     if (choice == 'cancel') return
 
     const clearSavedCredentials = choice == 'clear'
+    if (!clearSavedCredentials) {
+      await rememberSyncLoginForm({
+        host: syncHost,
+        mode: syncMode,
+        luxUsername,
+        luxPassword,
+        lxAuthCode: authCode,
+      })
+    }
     await applySyncAccountLogout(clearSavedCredentials)
     if (clearSavedCredentials) {
       setSyncHostLocal('')
@@ -807,7 +827,7 @@ export default () => {
     setLuxPassword('')
     setAuthCode('')
     await pushSyncLoginScreen()
-  }, [t])
+  }, [authCode, luxPassword, luxUsername, syncHost, syncMode, t])
   const handleClearSyncConflictMode = useCallback(async() => {
     await clearSyncConflictMode()
     toast(t('setting_sync_clear_conflict_mode_success'))
