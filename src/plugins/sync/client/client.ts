@@ -12,6 +12,7 @@ import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
+import { setTogetherFeatureEnabled } from '../togetherFlag'
 import { setSourceFeatureEnabled } from '../sourceFlag'
 
 let status: LX.Sync.Status = {
@@ -249,6 +250,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     // global.lx.syncKeyInfo = keyInfo
     client!.isReady = false
     setPlayHistoryFeatureEnabled(false)
+    setTogetherFeatureEnabled(false)
     setSourceFeatureEnabled(false)
     client!.moduleReadys = {
       list: false,
@@ -263,6 +265,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   client.addEventListener('close', ({ code }) => {
     if (client) client.isReady = false
     setPlayHistoryFeatureEnabled(false)
+    setTogetherFeatureEnabled(false)
     setSourceFeatureEnabled(false)
     const err = new Error('closed')
     try {

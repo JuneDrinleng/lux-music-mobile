@@ -13,6 +13,7 @@ import { createStyle } from '@/utils/tools'
 
 import { Hairline } from './Hairline'
 import { IconButton } from './IconButton'
+import { StatusChip } from './Chip'
 
 /**
  * Magazine bottom dock shell (§4.16): paper + progress track (no top ink hairline).
@@ -214,6 +215,7 @@ export const Dock = memo(({
 export const DockPlayerSlot = memo(({
   title,
   subtitle,
+  badgeLabel,
   playing,
   onPlayPress,
   onQueuePress,
@@ -222,6 +224,8 @@ export const DockPlayerSlot = memo(({
 }: {
   title: string
   subtitle?: string
+  /** Shown above the title when in a listen-together room (e.g. 一起听中). */
+  badgeLabel?: string
   playing?: boolean
   onPlayPress?: () => void
   onQueuePress?: () => void
@@ -240,6 +244,9 @@ export const DockPlayerSlot = memo(({
     <TouchableOpacity style={styles.player} activeOpacity={0.85} onPress={onOpen}>
       {cover ?? <View style={styles.cover} />}
       <View style={styles.text}>
+        {badgeLabel
+          ? <StatusChip label={badgeLabel} small />
+          : null}
         <Text size={15} color={r.ink} style={styles.title} numberOfLines={1}>{title}</Text>
         {subtitle
           ? <Text size={12} color={r.muted} numberOfLines={1}>{subtitle}</Text>

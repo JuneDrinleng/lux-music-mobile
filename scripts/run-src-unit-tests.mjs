@@ -51,6 +51,7 @@ const files = [
   'src/utils/playHistory/wire.ts',
   'src/plugins/sync/deviceIdentity.ts',
   'src/plugins/sync/client/credentials.ts',
+  'src/core/together/math.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -137,6 +138,7 @@ const formatMinutesMod = require(join(outDir, 'src/utils/formatMinutes.js'))
 const magSegmentedLayout = require(join(outDir, 'src/components/magazine/magSegmentedLayout.js'))
 const replayPalette = require(join(outDir, 'src/components/stats/replayPalette.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
+const togetherMath = require(join(outDir, 'src/core/together/math.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
@@ -1248,6 +1250,22 @@ test('play history counting, rolling range, merge, and backup', () => {
   assert.equal(overflow.length, 2)
   assert.equal(overflow[0].length, 500)
   assert.equal(overflow[1].length, 1)
+})
+
+test('together math: clock offset, drift, and version gaps', () => {
+  const sample = togetherMath.makeClockSample(1000, 1100, 1150)
+  assert.equal(sample.rtt, 100)
+  assert.equal(sample.offset, 100)
+  assert.equal(togetherMath.pickClockOffset([{ rtt: 200, offset: 1 }, sample]), 100)
+  assert.equal(togetherMath.classifyPushVersion(5, 5), 'stale')
+  assert.equal(togetherMath.classifyPushVersion(5, 6), 'apply')
+  assert.equal(togetherMath.classifyPushVersion(5, 7), 'gap')
+  const expected = togetherMath.expectedPositionMs({ positionMs: 1000, isPlaying: true, updatedAt: 2000, durationMs: 60000 }, 5000)
+  assert.equal(expected, 4000)
+  assert.equal(togetherMath.shouldCorrectDrift(6000, 4000, 0, 10_000), true)
+  assert.equal(togetherMath.shouldCorrectDrift(4200, 4000, 0, 10_000), false)
+  assert.equal(togetherMath.isValidInviteCode('123456'), true)
+  assert.equal(togetherMath.isValidInviteCode('012345'), false)
 })
 
 test('local song covers parse tags first and filenames as 歌手 - 歌名', () => {

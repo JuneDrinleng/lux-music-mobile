@@ -12,6 +12,8 @@ import StatusBar from '@/components/common/StatusBar'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
 import LocalSongsDetail from '@/components/playlist/LocalSongsDetail'
 import ListeningStatsPage from '@/components/stats/ListeningStatsPage'
+import ListenTogetherPage from '@/screens/Home/Vertical/ListenTogether/ListenTogetherPage'
+import { useTogetherActive } from '@/store/together/hook'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { useComponentIds, useNavActiveId } from '@/store/common/hook'
@@ -75,6 +77,8 @@ export default () => {
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
   const [localSongsOpen, setLocalSongsOpen] = useState(false)
   const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
+  const [listenTogetherOpen, setListenTogetherOpen] = useState(false)
+  const togetherActive = useTogetherActive()
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
 
@@ -88,6 +92,7 @@ export default () => {
     const handleOpenPlaylistDetail = (payload: PlaylistDetailPayload) => {
       setLocalSongsOpen(false)
       setListeningStatsOpen(false)
+      setListenTogetherOpen(false)
       setPlaylistDetailRequest(payload)
     }
     const handleClosePlaylistDetail = () => {
@@ -96,6 +101,7 @@ export default () => {
     const handleOpenLocalSongs = () => {
       setPlaylistDetailRequest(null)
       setListeningStatsOpen(false)
+      setListenTogetherOpen(false)
       setLocalSongsOpen(true)
     }
     const handleCloseLocalSongs = () => {
@@ -104,10 +110,20 @@ export default () => {
     const handleOpenListeningStats = () => {
       setPlaylistDetailRequest(null)
       setLocalSongsOpen(false)
+      setListenTogetherOpen(false)
       setListeningStatsOpen(true)
     }
     const handleCloseListeningStats = () => {
       setListeningStatsOpen(false)
+    }
+    const handleOpenListenTogether = () => {
+      setPlaylistDetailRequest(null)
+      setLocalSongsOpen(false)
+      setListeningStatsOpen(false)
+      setListenTogetherOpen(true)
+    }
+    const handleCloseListenTogether = () => {
+      setListenTogetherOpen(false)
     }
     global.app_event.on('openPlaylistDetail', handleOpenPlaylistDetail)
     global.app_event.on('closePlaylistDetail', handleClosePlaylistDetail)
@@ -115,6 +131,8 @@ export default () => {
     global.app_event.on('closeLocalSongs', handleCloseLocalSongs)
     global.app_event.on('openListeningStats', handleOpenListeningStats)
     global.app_event.on('closeListeningStats', handleCloseListeningStats)
+    global.app_event.on('openListenTogether', handleOpenListenTogether)
+    global.app_event.on('closeListenTogether', handleCloseListenTogether)
     return () => {
       global.app_event.off('openPlaylistDetail', handleOpenPlaylistDetail)
       global.app_event.off('closePlaylistDetail', handleClosePlaylistDetail)
@@ -122,6 +140,8 @@ export default () => {
       global.app_event.off('closeLocalSongs', handleCloseLocalSongs)
       global.app_event.off('openListeningStats', handleOpenListeningStats)
       global.app_event.off('closeListeningStats', handleCloseListeningStats)
+      global.app_event.off('openListenTogether', handleOpenListenTogether)
+      global.app_event.off('closeListenTogether', handleCloseListenTogether)
     }
   }, [])
 
@@ -138,6 +158,11 @@ export default () => {
   const handleCloseListeningStats = useCallback(() => {
     setListeningStatsOpen(false)
     global.app_event.closeListeningStats()
+  }, [])
+
+  const handleCloseListenTogether = useCallback(() => {
+    setListenTogetherOpen(false)
+    global.app_event.closeListenTogether()
   }, [])
 
   const navItems = useMemo<readonly DockNavItem[]>(() => [
@@ -202,6 +227,14 @@ export default () => {
             />
           </View>
         : null}
+      {listenTogetherOpen
+        ? <View pointerEvents="box-none" style={styles.playlistDetailLayer}>
+            <ListenTogetherPage
+              onClose={handleCloseListenTogether}
+              bottomPadding={bottomLayerHeight}
+            />
+          </View>
+        : null}
       {hideDock
         ? null
         : (
@@ -218,6 +251,7 @@ export default () => {
               onNavPress={handleNavPress}
               player={
                 <DockPlayerSlot
+                  badgeLabel={togetherActive ? t('together_badge') : undefined}
                   title={musicInfo.name || t('player_bar_not_playing')}
                   subtitle={subtitle || t('player_bar_choose_song')}
                   playing={isPlay}

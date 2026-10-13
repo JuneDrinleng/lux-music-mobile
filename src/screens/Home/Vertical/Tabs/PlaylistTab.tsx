@@ -40,7 +40,7 @@ import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import { formatMinutes } from '@/utils/formatMinutes'
-import { confirmDialog, createStyle, toast } from '@/utils/tools'
+import { confirmDialog, createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
@@ -51,7 +51,8 @@ import { getListDetailAll } from '@/core/songlist'
 import { addHistoryWord, clearHistoryList, getSearchHistory, removeHistoryWord } from '@/core/search/search'
 import settingState from '@/store/setting/state'
 import { useSettingValue } from '@/store/setting/hook'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getSyncMode, getUserAvatar, getUserName, getUserSignature } from '@/utils/data'
+import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { setNavActiveId, updateSetting } from '@/core/common'
 import { type Source as OnlineSearchSource } from '@/store/search/music/state'
 import { useIsPlay } from '@/store/player/hook'
@@ -1660,7 +1661,23 @@ export default () => {
       key: 'together',
       icon: 'account-multiple-outline',
       label: t('me_quick_listen_together'),
-      onPress: () => { toast(t('toast_in_development')) },
+      onPress: () => {
+        global.app_event.closePlaylistDetail()
+        global.app_event.closeLocalSongs()
+        void getSyncMode().then(async(mode) => {
+          if (mode != 'lux') {
+            const go = await confirmDialog({
+              title: t('me_quick_listen_together'),
+              message: t('together_need_lux'),
+              cancelButtonText: t('cancel'),
+              confirmButtonText: t('together_go_sync_login'),
+            })
+            if (go) await pushSyncLoginScreen()
+            return
+          }
+          global.app_event.openListenTogether()
+        })
+      },
     },
   ].filter(Boolean) as Array<{ key: string, icon: string, label: string, onPress: () => void }>
 

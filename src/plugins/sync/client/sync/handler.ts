@@ -5,6 +5,7 @@
 import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
+import { setTogetherFeatureEnabled } from '../../togetherFlag'
 import { setSourceFeatureEnabled } from '../../sourceFlag'
 import { featureVersion } from '../modules'
 
@@ -22,6 +23,8 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     // Old servers omit playHistory. LX connection-code sync must not enable it, so records stay on this device.
     const enablePlayHistory = lux && featureVersion.playHistory == supportedFeatures.playHistory
     setPlayHistoryFeatureEnabled(enablePlayHistory)
+    const enableTogether = lux && featureVersion.together == supportedFeatures.together
+    setTogetherFeatureEnabled(enableTogether)
     const enableSource = lux && featureVersion.source == supportedFeatures.source
     setSourceFeatureEnabled(enableSource)
     switch (serverType) {
@@ -33,6 +36,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
           features.dislike = { skipSnapshot: false }
         }
         if (enablePlayHistory) features.playHistory = true
+        if (enableTogether) features.together = true
         if (enableSource) features.source = true
         return features
       case 'desktop-app':
@@ -44,6 +48,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
           features.dislike = { skipSnapshot: false }
         }
         if (enablePlayHistory) features.playHistory = true
+        if (enableTogether) features.together = true
         if (enableSource) features.source = true
         return features
     }

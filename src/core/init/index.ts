@@ -9,6 +9,7 @@ import initPlayer from './player'
 import initPlayHistory from './playHistory'
 import dataInit from './dataInit'
 import initSync from './sync'
+import { initTogether } from '@/core/together'
 import initCommonState from './common'
 import { initDeeplink } from './deeplink'
 import { setApiSource } from '@/core/apiSource'
@@ -123,6 +124,7 @@ export default async() => {
   initVersionLifecycle()
   bootLog('Version lifecycle inited.')
 
+  initTogether()
   void initSync(setting)
   bootLog('Sync inited.')
 
