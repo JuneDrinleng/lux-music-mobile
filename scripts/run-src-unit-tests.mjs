@@ -53,6 +53,7 @@ const files = [
   'src/plugins/sync/client/credentials.ts',
   'src/core/together/math.ts',
   'src/plugins/sync/client/moduleReadys.ts',
+  'src/utils/syncLoginSavedSecretField.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -151,6 +152,7 @@ const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
 const deviceIdentity = require(join(outDir, 'src/plugins/sync/deviceIdentity.js'))
 const syncCredentials = require(join(outDir, 'src/plugins/sync/client/credentials.js'))
+const syncLoginSavedSecretField = require(join(outDir, 'src/utils/syncLoginSavedSecretField.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -1698,6 +1700,34 @@ test('Lux credential migration reuses only the selected account and reconciles u
       previousClientId: undefined,
     })
   }
+})
+
+test('sync login saved-secret mask is display-only and strips cleanly on edit', () => {
+  const mask = syncLoginSavedSecretField.SYNC_LOGIN_SAVED_SECRET_MASK
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('', true, true),
+    mask,
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('', true, false),
+    '',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('abc', true, true),
+    'abc',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue(mask, mask),
+    '',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue(`${mask}9`, mask),
+    '9',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue('fresh-code', mask),
+    'fresh-code',
+  )
 })
 
 test('LX credential migration distinguishes automatic reconnects from explicit account selection', () => {

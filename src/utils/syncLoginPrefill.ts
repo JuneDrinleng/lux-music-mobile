@@ -18,6 +18,12 @@ export interface SyncLoginFormSnapshot {
   hasSavedLxKey: boolean
 }
 
+export {
+  SYNC_LOGIN_SAVED_SECRET_MASK,
+  syncLoginSavedSecretDisplayValue,
+  syncLoginSavedSecretInputValue,
+} from '@/utils/syncLoginSavedSecretField'
+
 export const syncHostCompareKey = (host: string) => {
   const trimmed = host.trim()
   if (!trimmed) return ''

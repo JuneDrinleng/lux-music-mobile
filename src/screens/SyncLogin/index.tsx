@@ -22,7 +22,12 @@ import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, clearSyncLoginDraft, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
-import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
+import {
+  loadSyncLoginFormSnapshot,
+  rememberSyncLoginForm,
+  syncLoginSavedSecretDisplayValue,
+  syncLoginSavedSecretInputValue,
+} from '@/utils/syncLoginPrefill'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
@@ -41,6 +46,7 @@ export default memo(() => {
   const [submitting, setSubmitting] = useState(false)
   const [hasSavedLuxSession, setHasSavedLuxSession] = useState(false)
   const [showLxSavedHint, setShowLxSavedHint] = useState(false)
+  const [lxSavedSecretMaskVisible, setLxSavedSecretMaskVisible] = useState(true)
 
   const applySnapshot = useCallback((snapshot: Awaited<ReturnType<typeof loadSyncLoginFormSnapshot>>) => {
     setSyncHostLocal(snapshot.host)
@@ -49,6 +55,7 @@ export default memo(() => {
     setAuthCode(snapshot.lxAuthCode)
     setHasSavedLuxSession(snapshot.hasSavedLuxSession)
     setShowLxSavedHint(snapshot.hasSavedLxKey)
+    setLxSavedSecretMaskVisible(true)
   }, [])
 
   const applySavedFormForMode = useCallback(async(activeMode: LX.Sync.Mode) => {
@@ -158,6 +165,14 @@ export default memo(() => {
   }, [enterHome, submitting, t])
 
   const isLuxMode = mode == 'lux'
+  const lxAuthCodeDisplay = syncLoginSavedSecretDisplayValue(
+    authCode,
+    showLxSavedHint,
+    lxSavedSecretMaskVisible,
+  )
+  const handleLxAuthCodeChange = useCallback((nextValue: string) => {
+    setAuthCode(syncLoginSavedSecretInputValue(nextValue, lxAuthCodeDisplay))
+  }, [lxAuthCodeDisplay])
 
   return (
     <View style={[styles.container, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
@@ -223,8 +238,11 @@ export default memo(() => {
                 <UnderlineInput
                   label={t('setting_sync_code_label')}
                   placeholder={t('setting_sync_code_input_tip')}
-                  value={authCode}
-                  onChangeText={setAuthCode}
+                  value={lxAuthCodeDisplay}
+                  onChangeText={handleLxAuthCodeChange}
+                  onFocus={() => { setLxSavedSecretMaskVisible(false) }}
+                  onBlur={() => { setLxSavedSecretMaskVisible(true) }}
+                  secureTextEntry
                 />
                 <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_code_hint')}</Text>
                 {showLxSavedHint
