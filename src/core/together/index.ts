@@ -8,6 +8,7 @@ import {
   setTogetherPushListener,
   type TogetherPush,
 } from '@/plugins/sync/client/modules/together/api'
+import { isTogetherRpcNotReadyError, isTogetherSyncReady } from '@/plugins/sync/client/togetherReady'
 import { isTogetherFeatureEnabled } from '@/plugins/sync/togetherFlag'
 import togetherActions from '@/store/together/action'
 import togetherState from '@/store/together/state'
@@ -44,9 +45,13 @@ const errorMessage = (code: LX.Sync.LuxErrorCode | null, message = ''): string =
 }
 
 const thrownMessage = (error: unknown): string => {
-  if (error instanceof TogetherUnavailableError) return getReadySyncSocket() ? t('together_unsupported') : t('together_offline')
+  if (error instanceof TogetherUnavailableError) {
+    if (!getReadySyncSocket()) return t('together_offline')
+    if (!isTogetherFeatureEnabled() || !isTogetherSyncReady()) return t('together_not_ready')
+    return t('together_unsupported')
+  }
   const message = error instanceof Error ? error.message : String(error ?? '')
-  if (/together is not enabled/i.test(message)) return t('together_unsupported')
+  if (/together is not enabled/i.test(message) || isTogetherRpcNotReadyError(message)) return t('together_not_ready')
   return t('together_error_generic', { message })
 }
 
@@ -194,6 +199,10 @@ const handleSocketReady = () => {
     if (togetherState.room) clearRoom(t('together_room_closed'))
     return
   }
+  if (!isTogetherSyncReady()) {
+    togetherActions.setConnection('offline')
+    return
+  }
   togetherActions.setConnection('online')
   socket.onClose(() => {
     togetherActions.setConnection('offline')
@@ -208,6 +217,7 @@ const ensureOnline = async(): Promise<string | null> => {
   if (await getSyncMode().catch(() => 'lx') != 'lux') return t('together_need_lux')
   if (!getReadySyncSocket()) return t('together_offline')
   if (!isTogetherFeatureEnabled()) return t('together_unsupported')
+  if (!isTogetherSyncReady()) return t('together_not_ready')
   return null
 }
 

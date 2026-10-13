@@ -19,9 +19,9 @@ export const registerEvent = (socket: LX.Sync.Socket) => {
   // })
   unregisterEvent()
   unregisterLocalListAction = registerDislikeActionEvent((action) => {
-    if (!socket.moduleReadys?.dislike) return
+    if (!socket?.moduleReadys?.dislike) return
     void socket.remoteQueueDislike.onDislikeSyncAction(action).catch(err => {
-      socket.moduleReadys.dislike = false
+      if (socket.moduleReadys) socket.moduleReadys.dislike = false
       handleSyncActionFailed(err as Error)
       socket.close(SYNC_CLOSE_CODE.failed)
     })

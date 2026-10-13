@@ -428,6 +428,8 @@
   "together_role_member": "Member",
   "together_offline": "Sync is disconnected. Connect to your Lux server in Settings first.",
   "together_unsupported": "This server does not support listen together. Update the server.",
+  "together_not_ready": "Listen together requires a connected Lux sync session and server support. Wait or reconnect sync, then try again.",
+  "together_not_ready": "Listen together requires a connected Lux sync session and server support. Wait or reconnect sync, then try again.",
   "together_member_locked": "Playback is controlled by the host during listen together",
   "together_code_invalid": "Enter a 6-digit invite code",
   "together_error_room_not_found": "Room not found or invalid code",

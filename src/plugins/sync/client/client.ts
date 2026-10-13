@@ -11,9 +11,10 @@ import { setSyncStatus } from '@/core/sync'
 import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
-import { setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
-import { setTogetherFeatureEnabled } from '../togetherFlag'
-import { setSourceFeatureEnabled } from '../sourceFlag'
+import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
+import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
+import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
+import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 
 let status: LX.Sync.Status = {
   status: false,
@@ -179,6 +180,9 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       ...callObj,
       finished() {
         client!.isReady = true
+        if (isTogetherFeatureEnabled()) setSyncModuleReady(client, 'together', true)
+        if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(client, 'playHistory', true)
+        if (isSourceFeatureEnabled()) setSyncModuleReady(client, 'source', true)
         sendSyncStatus({
           status: true,
           message: '',
@@ -199,7 +203,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       })
     },
     onCallBeforeParams(rawArgs) {
-      return [client, ...rawArgs]
+      const args = Array.isArray(rawArgs) ? rawArgs : []
+      return [client, ...args]
     },
     onError(error, path, groupName) {
       const name = groupName ?? ''
@@ -252,10 +257,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
     setSourceFeatureEnabled(false)
-    client!.moduleReadys = {
-      list: false,
-      dislike: false,
-    }
+    client!.moduleReadys = createInitialModuleReadys()
     disconnected = false
     sendSyncStatus({
       status: false,

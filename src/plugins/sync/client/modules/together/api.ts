@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getReadySyncSocket } from '../../client'
+import { isTogetherSyncReady } from '../../togetherReady'
 import { isTogetherFeatureEnabled } from '../../../togetherFlag'
 
 export { setTogetherPushListener, type TogetherPush } from './pushBus'
@@ -14,7 +15,9 @@ export class TogetherUnavailableError extends Error {}
 /** Throws TogetherUnavailableError when the socket is not ready or the server did not enable together. */
 export const callTogether = async<K extends keyof Actions>(method: K, ...args: Payload<K>): Promise<Result<K>> => {
   const socket = getReadySyncSocket()
-  if (!socket || !isTogetherFeatureEnabled()) throw new TogetherUnavailableError('together is not enabled')
+  if (!socket || !isTogetherFeatureEnabled() || !isTogetherSyncReady()) {
+    throw new TogetherUnavailableError('together is not enabled')
+  }
   const remote = socket.remote as unknown as Actions
   return (remote[method] as (...params: Payload<K>) => Promise<Result<K>>)(...args)
 }
