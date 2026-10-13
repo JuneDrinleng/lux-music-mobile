@@ -428,6 +428,8 @@
   "together_role_member": "成員",
   "together_offline": "同步未連接，請先在設定中連接 Lux 伺服器。",
   "together_unsupported": "目前伺服器不支援一起聽，請更新伺服端。",
+  "together_not_ready": "需要已連線的 Lux 同步且伺服端支援一起聽，請稍候或重新連線同步後再試。",
+  "together_not_ready": "需要已連線的 Lux 同步且伺服端支援一起聽，請稍候或重新連線同步後再試。",
   "together_member_locked": "一起聽中，播放由房主控制",
   "together_code_invalid": "請輸入 6 位數字邀請碼",
   "together_error_room_not_found": "房間不存在或邀請碼錯誤",

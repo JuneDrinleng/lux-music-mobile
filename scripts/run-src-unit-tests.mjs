@@ -52,6 +52,7 @@ const files = [
   'src/plugins/sync/deviceIdentity.ts',
   'src/plugins/sync/client/credentials.ts',
   'src/core/together/math.ts',
+  'src/plugins/sync/client/moduleReadys.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -139,6 +140,7 @@ const magSegmentedLayout = require(join(outDir, 'src/components/magazine/magSegm
 const replayPalette = require(join(outDir, 'src/components/stats/replayPalette.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
 const togetherMath = require(join(outDir, 'src/core/together/math.js'))
+const syncModuleReadys = require(join(outDir, 'src/plugins/sync/client/moduleReadys.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
@@ -2255,6 +2257,22 @@ test('replay P2 palette mixes paper/accentSoft/accent and keeps text contrast', 
   assert.deepEqual(bgs, expected)
   assert.equal(replayPalette.buildSeamStops('#f6f1ea', '#f5eade').length, 9)
   assert.equal(replayPalette.seamEase(0.5), 0.5)
+})
+
+test('sync moduleReadys guards undefined socket and together RPC errors', () => {
+  const initial = syncModuleReadys.createInitialModuleReadys()
+  assert.equal(initial.together, false)
+  assert.equal(syncModuleReadys.isSyncModuleReady(undefined, 'together'), false)
+  assert.equal(syncModuleReadys.isSyncModuleReady({ moduleReadys: { ...initial, together: true } }, 'together'), true)
+  syncModuleReadys.setSyncModuleReady(undefined, 'together', true)
+  const socket = { moduleReadys: syncModuleReadys.createInitialModuleReadys() }
+  syncModuleReadys.setSyncModuleReady(socket, 'together', true)
+  assert.equal(socket.moduleReadys.together, true)
+  assert.equal(
+    syncModuleReadys.isTogetherRpcNotReadyError('Cannot read properties of undefined (reading \'moduleReadys\')'),
+    true,
+  )
+  assert.equal(syncModuleReadys.isTogetherRpcNotReadyError('together is not enabled'), true)
 })
 
 test('migrated screens reject new color literals', () => {

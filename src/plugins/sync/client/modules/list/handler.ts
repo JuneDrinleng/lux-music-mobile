@@ -14,7 +14,7 @@ const logInfo = (eventName: string, success = false) => {
 // }
 const handler: LX.Sync.ClientSyncHandlerListActions<LX.Sync.Socket> = {
   async onListSyncAction(socket, action) {
-    if (!socket.moduleReadys?.list) return
+    if (!socket?.moduleReadys?.list) return
     await handleRemoteListAction(action)
   },
 
@@ -43,6 +43,7 @@ const handler: LX.Sync.ClientSyncHandlerListActions<LX.Sync.Socket> = {
 
   async list_sync_finished(socket) {
     logInfo('list:sync:finished')
+    if (!socket?.moduleReadys) return
     socket.moduleReadys.list = true
     registerEvent(socket)
     socket.onClose(() => {
