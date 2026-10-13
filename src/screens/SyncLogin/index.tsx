@@ -21,7 +21,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, getSyncHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, findLuxAuthForHost, getSyncHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
@@ -43,6 +43,14 @@ export default memo(() => {
     void getSyncMode().then(setMode)
     void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
   }, [])
+
+  useEffect(() => {
+    const host = syncHost.trim()
+    if (!host) return
+    void findLuxAuthForHost(host).then(auth => {
+      if (auth?.user?.username) setLuxUsername(auth.user.username)
+    })
+  }, [syncHost])
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true)
@@ -78,13 +86,12 @@ export default memo(() => {
     }
 
     if (mode == 'lux') {
-      if (!username || !luxPassword) {
+      const savedLux = await findLuxAuthForHost(host)
+      const canUseSavedLux = Boolean(savedLux?.token)
+      if (!username || (!luxPassword && !canUseSavedLux)) {
         setMessage(t('setting_sync_lux_login_missing_tip'))
         return
       }
-    } else if (!code) {
-      setMessage(t('sync_login_lx_missing_code_tip'))
-      return
     }
 
     setSubmitting(true)
@@ -95,9 +102,10 @@ export default memo(() => {
       await addSyncHostHistory(host)
       updateSetting({ 'sync.enable': true })
       if (mode == 'lux') {
-        await connectLuxServer(host, username, luxPassword)
+        const password = luxPassword || undefined
+        await connectLuxServer(host, username, password)
         await syncLuxProfileOnLogin(host).catch(() => null)
-      } else await connectServer(host, code)
+      } else await connectServer(host, code || undefined)
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
@@ -192,6 +200,7 @@ export default memo(() => {
                   onChangeText={setAuthCode}
                 />
                 <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_code_hint')}</Text>
+                <Text size={12} color={r.muted} style={styles.lxHint}>{t('sync_login_lx_saved_hint')}</Text>
               </>}
         </View>
 
