@@ -904,10 +904,6 @@ export default () => {
       handleCloseProfileDetail()
       return true
     }
-    if (isAdminConsoleVisible) {
-      handleCloseAdminConsole()
-      return true
-    }
     return false
   })
 
@@ -1036,7 +1032,7 @@ export default () => {
                 ? (
                   <SettingRow
                     icon="shield-account-outline"
-                    iconBg={r.iconWrap.green}
+                    iconBg={r.iconWrap.purple}
                     title={t('admin_console_entry_title')}
                     subtitle={t('admin_console_entry_subtitle')}
                     onPress={handleOpenAdminConsole}

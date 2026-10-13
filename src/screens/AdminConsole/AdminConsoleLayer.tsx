@@ -29,6 +29,7 @@ import { useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { magType } from '@/theme/magazineType'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { confirmDialog, toast } from '@/utils/tools'
 import { AdminMetricGrid } from './AdminMetricGrid'
 import { useAdminConsoleStyles } from './useAdminConsoleStyles'
@@ -69,8 +70,10 @@ export const AdminConsoleLayer = ({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const slideAnim = useRef(new Animated.Value(0)).current
-  const [route, setRoute] = useState<AdminRoute>({ name: 'loading' })
-  const [history, setHistory] = useState<AdminRoute[]>([])
+  const [routeStack, setRouteStack] = useState<AdminRoute[]>([{ name: 'loading' }])
+  const routeStackRef = useRef(routeStack)
+  routeStackRef.current = routeStack
+  const route = routeStack[routeStack.length - 1] ?? { name: 'loading' as const }
   const [token, setToken] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [adminStatus, setAdminStatus] = useState<AdminStatusResponse | null>(null)
@@ -114,8 +117,7 @@ export const AdminConsoleLayer = ({
   }, [visible, slideAnim])
 
   const resetState = useCallback(() => {
-    setRoute({ name: 'loading' })
-    setHistory([])
+    setRouteStack([{ name: 'loading' }])
     setToken('')
     setAdminStatus(null)
     setServerName(undefined)
@@ -130,16 +132,16 @@ export const AdminConsoleLayer = ({
 
   const runGate = useCallback(async() => {
     if (!syncHost) {
-      setRoute({ name: 'denied' })
+      setRouteStack([{ name: 'denied' }])
       return
     }
     const access = await ensureAdminAccess(syncHost)
     if (!access.ok) {
-      setRoute({ name: 'denied' })
+      setRouteStack([{ name: 'denied' }])
       return
     }
     setToken(access.token)
-    setRoute({ name: 'dashboard' })
+    setRouteStack([{ name: 'dashboard' }])
   }, [syncHost])
 
   useEffect(() => {
@@ -151,19 +153,35 @@ export const AdminConsoleLayer = ({
   }, [visible, runGate, resetState])
 
   const navigate = useCallback((next: AdminRoute) => {
-    setHistory(prev => [...prev, route])
-    setRoute(next)
-  }, [route])
+    setRouteStack(stack => [...stack, next])
+  }, [])
 
   const handleBack = useCallback(() => {
-    if (history.length > 0) {
-      const prev = history[history.length - 1]
-      setHistory(h => h.slice(0, -1))
-      setRoute(prev)
+    if (resetPasswordUser) {
+      setResetPasswordUser(null)
+      setResetPasswordDraft('')
+      return
+    }
+    if (createUserOpen) {
+      setCreateUserOpen(false)
+      return
+    }
+    if (createInviteOpen) {
+      setCreateInviteOpen(false)
+      return
+    }
+    if (routeStackRef.current.length > 1) {
+      setRouteStack(stack => stack.slice(0, -1))
       return
     }
     onClose()
-  }, [history, onClose])
+  }, [createInviteOpen, createUserOpen, onClose, resetPasswordUser])
+
+  useBackHandler(useCallback(() => {
+    if (!visible) return false
+    handleBack()
+    return true
+  }, [handleBack, visible]))
 
   const loadDashboard = useCallback(async() => {
     if (!token || !syncHost) return
@@ -199,7 +217,7 @@ export const AdminConsoleLayer = ({
 
   const handleApiError = useCallback((err: unknown) => {
     if (err instanceof LuxAdminRequestError && err.status === 403) {
-      setRoute({ name: 'denied' })
+      setRouteStack([{ name: 'denied' }])
       return
     }
     toast(typeof (err as Error)?.message === 'string' ? (err as Error).message : t('admin_console_request_failed'))
