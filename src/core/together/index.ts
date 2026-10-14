@@ -238,7 +238,7 @@ const handleSocketReady = () => {
   void refreshRoom()
 }
 
-export const getTogetherReadinessForUi = () => getTogetherGateSnapshot()
+export const getTogetherReadinessForUi = async() => getTogetherGateSnapshot()
 
 const ensureOnline = async(): Promise<string | null> => {
   if (await getSyncMode().catch(() => 'lx') != 'lux') return t('together_need_lux')
