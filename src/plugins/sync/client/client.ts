@@ -176,13 +176,22 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
   let disconnected = true
 
+  const markTogetherModuleReady = () => {
+    if (isTogetherFeatureEnabled()) setSyncModuleReady(session, 'together', true)
+  }
+
   const message2read = createMsg2call<LX.Sync.ServerSyncActions>({
     funcsObj: {
       ...callObj,
+      async together_sync_finished() {
+        if (client !== session) return
+        markTogetherModuleReady()
+        if (session.isReady) setTimeout(notifySyncReady, 0)
+      },
       finished() {
         if (client !== session) return
         session.isReady = true
-        if (isTogetherFeatureEnabled()) setSyncModuleReady(session, 'together', true)
+        markTogetherModuleReady()
         if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(session, 'playHistory', true)
         if (isSourceFeatureEnabled()) setSyncModuleReady(session, 'source', true)
         sendSyncStatus({

@@ -4,7 +4,6 @@ import { getReadySyncSocket } from './client'
 import { isSyncModuleReady } from './moduleReadys'
 import { isTogetherFeatureEnabled } from '../togetherFlag'
 
-export { getTogetherGateSnapshot, type TogetherGateSnapshot } from './togetherGate'
 export { isTogetherRpcNotReadyError } from './moduleReadys'
 
 /** True when Lux sync finished handshake and negotiated listen-together for this socket. */

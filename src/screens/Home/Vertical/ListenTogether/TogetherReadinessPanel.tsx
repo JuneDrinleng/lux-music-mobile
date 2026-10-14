@@ -8,8 +8,8 @@ import { TextButton } from '@/components/magazine'
 import { buildTogetherDiagnosticText } from '@/core/together/debugTelemetry'
 import { isTogetherDebugPanelBuild } from '@/core/together/debugPanelPreference'
 import { getTogetherReadinessForUi } from '@/core/together'
+import { type TogetherGateSnapshot } from '@/core/together/togetherGate'
 import { useI18n } from '@/lang'
-import { type TogetherGateSnapshot } from '@/plugins/sync/client/togetherReady'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle, toast, clipboardWriteText } from '@/utils/tools'
@@ -37,15 +37,15 @@ const gateLabel = (
   key: keyof TogetherGateSnapshot,
   value: TogetherGateSnapshot[keyof TogetherGateSnapshot],
 ): string => {
-  const on = value === true
-  const off = value === false
+  const on = value === true || value === 'lux'
+  const off = value === false || value === 'error'
   const mark = on ? '✓' : off ? '✗' : '?'
   switch (key) {
-    case 'luxMode': return `${mark} ${t('together_readiness_gate_lux')}`
-    case 'syncSocketReady': return `${mark} ${t('together_readiness_gate_socket')}`
-    case 'featureEnabled': return `${mark} ${t('together_readiness_gate_feature')}`
-    case 'moduleReady': return `${mark} ${t('together_readiness_gate_module')}`
-    case 'rpcReady': return `${mark} ${t('together_readiness_gate_rpc')}`
+    case 'mode': return `${mark} ${t('together_readiness_gate_lux')} (${String(value)})`
+    case 'syncReady': return `${mark} ${t('together_readiness_gate_socket')}`
+    case 'feature': return `${mark} ${t('together_readiness_gate_feature')}`
+    case 'moduleTogether': return `${mark} ${t('together_readiness_gate_module')}`
+    case 'blocked': return `${mark} block=${String(value)}`
     default: return `${mark} ${String(value)}`
   }
 }
@@ -73,29 +73,19 @@ const TogetherReadinessPanel = ({ uiConnection }: TogetherReadinessPanelProps) =
 
   const handleCopy = useCallback(async() => {
     const text = await buildTogetherDiagnosticText()
-    const gateLines = gate
-      ? [
-          '',
-          'gate:',
-          `luxMode=${gate.luxMode}`,
-          `syncSocketReady=${gate.syncSocketReady}`,
-          `featureEnabled=${gate.featureEnabled}`,
-          `moduleReady=${gate.moduleReady}`,
-          `rpcReady=${gate.rpcReady}`,
-          `uiConnection=${uiConnection}`,
-        ].join('\n')
-      : ''
-    clipboardWriteText(`${text}${gateLines}`)
+    clipboardWriteText(text)
     toast(t('together_debug_copied'))
-  }, [gate, t, uiConnection])
+  }, [t])
 
   if (!isTogetherDebugPanelBuild()) return null
+
+  const displayKeys: Array<keyof TogetherGateSnapshot> = ['mode', 'syncReady', 'feature', 'moduleTogether', 'blocked']
 
   return (
     <View style={styles.box}>
       <Text size={13} color={r.display} style={styles.title}>{t('together_readiness_title')}</Text>
       {gate
-        ? (Object.keys(gate) as Array<keyof TogetherGateSnapshot>).map((key) => (
+        ? displayKeys.map((key) => (
             <View key={key} style={styles.row}>
               <Text size={12} color={r.muted}>{gateLabel(t, key, gate[key])}</Text>
             </View>
