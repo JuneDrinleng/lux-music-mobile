@@ -12,10 +12,11 @@ import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
-import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
+import { setTogetherFeatureEnabled } from '../togetherFlag'
 import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 import { addSyncReadyListener, notifySyncReady, removeSyncReadyListener } from './syncReady'
+import { isTogetherFeatureEnabled } from '../togetherFlag'
 
 export { notifySyncReady } from './syncReady'
 
@@ -174,13 +175,22 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
   let disconnected = true
 
+  const markTogetherModuleReady = () => {
+    if (isTogetherFeatureEnabled()) setSyncModuleReady(session, 'together', true)
+  }
+
   const message2read = createMsg2call<LX.Sync.ServerSyncActions>({
     funcsObj: {
       ...callObj,
+      async together_sync_finished() {
+        if (client !== session) return
+        markTogetherModuleReady()
+        if (session.isReady) setTimeout(notifySyncReady, 0)
+      },
       finished() {
         if (client !== session) return
         session.isReady = true
-        if (isTogetherFeatureEnabled()) setSyncModuleReady(session, 'together', true)
+        markTogetherModuleReady()
         if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(session, 'playHistory', true)
         if (isSourceFeatureEnabled()) setSyncModuleReady(session, 'source', true)
         sendSyncStatus({

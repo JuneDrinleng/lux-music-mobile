@@ -7,6 +7,7 @@ import { findLuxAuthForHost, getSyncHost, getUserName } from '@/utils/data'
 
 import { getClockDebugSnapshot, getServerNow } from './clock'
 import { getTogetherDebugPanelEnabled } from './debugPanelPreference'
+import { formatTogetherGateHint, snapshotTogetherGate } from './togetherGate'
 import { expectedPositionMs, isSameSong } from './math'
 
 export interface TogetherDebugEvent {
@@ -158,6 +159,7 @@ export const computeTogetherDebugLiveMetrics = async(): Promise<TogetherDebugLiv
 
 export const buildTogetherDiagnosticText = async(): Promise<string> => {
   const metrics = await computeTogetherDebugLiveMetrics()
+  const gate = await snapshotTogetherGate()
   const room = togetherState.room
   const host = (await getSyncHost()).trim()
   const auth = host ? await findLuxAuthForHost(host) : null
@@ -167,6 +169,7 @@ export const buildTogetherDiagnosticText = async(): Promise<string> => {
     `server=${host || '(none)'}`,
     `account=${account}`,
     `connection=${togetherState.connection}`,
+    formatTogetherGateHint(gate),
     `roomId=${metrics.roomId ?? '(none)'}`,
     `role=${metrics.role ?? '(none)'}`,
     `invite=${room?.code ?? '(none)'}`,
