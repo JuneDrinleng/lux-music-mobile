@@ -5,6 +5,8 @@ import playerState from '@/store/player/state'
 import togetherState from '@/store/together/state'
 import { findLuxAuthForHost, getSyncHost, getUserName } from '@/utils/data'
 
+import { getTogetherGateSnapshot } from '@/plugins/sync/client/togetherReady'
+
 import { getClockDebugSnapshot, getServerNow } from './clock'
 import { getTogetherDebugPanelEnabled } from './debugPanelPreference'
 import { expectedPositionMs, isSameSong } from './math'
@@ -158,6 +160,7 @@ export const computeTogetherDebugLiveMetrics = async(): Promise<TogetherDebugLiv
 
 export const buildTogetherDiagnosticText = async(): Promise<string> => {
   const metrics = await computeTogetherDebugLiveMetrics()
+  const gate = await getTogetherGateSnapshot()
   const room = togetherState.room
   const host = (await getSyncHost()).trim()
   const auth = host ? await findLuxAuthForHost(host) : null
@@ -167,6 +170,11 @@ export const buildTogetherDiagnosticText = async(): Promise<string> => {
     `server=${host || '(none)'}`,
     `account=${account}`,
     `connection=${togetherState.connection}`,
+    `gate.luxMode=${gate.luxMode}`,
+    `gate.syncSocketReady=${gate.syncSocketReady}`,
+    `gate.featureEnabled=${gate.featureEnabled}`,
+    `gate.moduleReady=${gate.moduleReady}`,
+    `gate.rpcReady=${gate.rpcReady}`,
     `roomId=${metrics.roomId ?? '(none)'}`,
     `role=${metrics.role ?? '(none)'}`,
     `invite=${room?.code ?? '(none)'}`,

@@ -1,7 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getData, setData } from '@/plugins/storage'
-import { isDevBuild } from '@/utils/releaseChannel'
+import settingState from '@/store/setting/state'
+import { isDevBuild, resolveChannel } from '@/utils/releaseChannel'
 
 const STORAGE_KEY = 'lux.togetherDebugPanel'
 
@@ -9,7 +10,12 @@ let enabled = false
 let loaded = false
 const listeners = new Set<(value: boolean) => void>()
 
-export const isTogetherDebugPanelBuild = (): boolean => isDevBuild(process.versions.app)
+export const isTogetherDebugPanelBuild = (): boolean => {
+  const appVersion = process.versions.app
+  if (isDevBuild(appVersion)) return true
+  const channelSetting = settingState.setting['common.releaseChannel']
+  return resolveChannel(channelSetting, appVersion) == 'dev'
+}
 
 export const loadTogetherDebugPanelPreference = async(): Promise<boolean> => {
   if (!isTogetherDebugPanelBuild()) {

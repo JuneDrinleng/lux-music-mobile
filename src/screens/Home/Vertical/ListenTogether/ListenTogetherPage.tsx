@@ -26,6 +26,7 @@ import { useI18n } from '@/lang'
 import { useShowTogetherDebugPanel } from '@/core/together/useTogetherDebugPanel'
 import { useTogether } from '@/store/together/hook'
 import TogetherDebugPanel from '@/screens/Home/Vertical/ListenTogether/TogetherDebugPanel'
+import TogetherReadinessPanel from '@/screens/Home/Vertical/ListenTogether/TogetherReadinessPanel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { H1_AFTER_TOP, PAGE_GUTTER, SECTION_TO_LIST, TOP_BAR_MARGIN_TOP, magType } from '@/theme/magazineType'
@@ -199,6 +200,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
           : (
             <>
               <Text size={14} color={r.muted} style={[styles.hint, { marginTop: 12 }]}>{t('together_intro')}</Text>
+              <TogetherReadinessPanel uiConnection={together.connection} />
               <View style={styles.actions}>
                 <PrimaryButton
                   label={t('together_create_room')}

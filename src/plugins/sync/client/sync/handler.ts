@@ -5,7 +5,7 @@
 import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
-import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../../togetherFlag'
+import { setTogetherFeatureEnabled } from '../../togetherFlag'
 import { setSourceFeatureEnabled } from '../../sourceFlag'
 import { notifySyncReady } from '../syncReady'
 import { setSyncModuleReady } from '../moduleReadys'
@@ -14,9 +14,9 @@ import { featureVersion } from '../modules'
 
 const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'> = {
   async together_sync_finished(socket) {
-    if (!isTogetherFeatureEnabled()) return
+    // Server only calls this after togetherModule.sync; do not gate on the client flag
+    // (stale reconnect close can clear flags before this callback arrives).
     setSyncModuleReady(socket, 'together', true)
-    // Handshake may already have called finished(); refresh together listeners.
     if (socket.isReady) setTimeout(notifySyncReady, 0)
   },
   async getEnabledFeatures(socket, serverType, supportedFeatures) {

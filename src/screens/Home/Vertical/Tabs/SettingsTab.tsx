@@ -19,7 +19,7 @@ import {
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { clipboardWriteText, confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
@@ -51,6 +51,7 @@ import {
   setTogetherDebugPanelEnabled,
   subscribeTogetherDebugPanel,
 } from '@/core/together/debugPanelPreference'
+import { buildTogetherDiagnosticText } from '@/core/together/debugTelemetry'
 import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
@@ -442,6 +443,10 @@ export default () => {
     t('setting_import_data_desc'),
     t('admin_console_entry_title'),
     t('admin_console_entry_subtitle'),
+    t('together_debug_panel_toggle'),
+    t('together_debug_panel_toggle_desc'),
+    t('together_readiness_copy_settings'),
+    t('setting_debug_section'),
   )
   const showTogetherDebugSettingsSection = showTogetherDebugSection && matchesSettingsSearch(
     t('setting_debug_section'),
@@ -545,6 +550,12 @@ export default () => {
   const handleToggleTogetherDebugPanel = useCallback(() => {
     void setTogetherDebugPanelEnabled(!togetherDebugPanelEnabled)
   }, [togetherDebugPanelEnabled])
+  const handleCopyTogetherDiagnostics = useCallback(() => {
+    void buildTogetherDiagnosticText().then((text) => {
+      clipboardWriteText(text)
+      toast(t('together_debug_copied'))
+    })
+  }, [t])
   useEffect(() => {
     if (activeOptionDetail !== 'sync') return
     void reloadSyncHostFromStorage().then(host => { setSyncHostLocal(host ?? '') })
@@ -1073,6 +1084,27 @@ export default () => {
                     subtitle={t('admin_console_entry_subtitle')}
                     onPress={handleOpenAdminConsole}
                   />
+                  )
+                : null}
+              {showTogetherDebugSection
+                ? (
+                  <>
+                    <SettingRow
+                      icon="speedometer"
+                      iconBg={r.iconWrap.purple}
+                      title={t('together_debug_panel_toggle')}
+                      subtitle={t('together_debug_panel_toggle_desc')}
+                      value={togetherDebugPanelEnabled ? t('together_debug_on') : t('together_debug_off')}
+                      onPress={handleToggleTogetherDebugPanel}
+                    />
+                    <SettingRow
+                      icon="clipboard-text-outline"
+                      iconBg={r.iconWrap.purple}
+                      title={t('together_readiness_copy_settings')}
+                      subtitle={t('setting_debug_section_meta')}
+                      onPress={handleCopyTogetherDiagnostics}
+                    />
+                  </>
                   )
                 : null}
               <SettingRow icon="source-branch-remove" iconBg={r.iconWrap.purple} title={t('setting_sync_clear_conflict_mode')} subtitle={t('setting_sync_clear_conflict_mode_desc')} onPress={() => { void handleClearSyncConflictMode() }} />

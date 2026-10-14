@@ -169,6 +169,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     keyInfo,
     urlInfo,
   }
+  session.isReady = false
+  session.moduleReadys = createInitialModuleReadys()
   heartbeatTools.connect(session)
 
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
