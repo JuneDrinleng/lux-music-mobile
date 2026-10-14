@@ -43,6 +43,25 @@ const recordSample = (sample: ClockSample) => {
 
 export const getServerNow = (): number => Date.now() + clockOffsetMs
 
+export const getClockOffsetMs = (): number => clockOffsetMs
+
+export const getClockDebugSnapshot = (): { offsetMs: number, rttMs: number | null, sampleCount: number } => {
+  const offset = pickClockOffset(samples)
+  let rttMs: number | null = null
+  if (samples.length) {
+    let best = samples[0]
+    for (const sample of samples) {
+      if (sample.rtt < best.rtt) best = sample
+    }
+    rttMs = Math.round(best.rtt)
+  }
+  return {
+    offsetMs: Math.round(offset ?? clockOffsetMs),
+    rttMs,
+    sampleCount: samples.length,
+  }
+}
+
 /** Ping 5 times 200ms apart and take the lowest-RTT offset, then keep pinging every 60s. */
 export const startClockSync = async(): Promise<void> => {
   const token = ++burstToken

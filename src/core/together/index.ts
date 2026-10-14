@@ -17,6 +17,8 @@ import { log } from '@/utils/log'
 import { toast } from '@/utils/tools'
 
 import { startClockSync, stopClockSync } from './clock'
+import { loadTogetherDebugPanelPreference, subscribeTogetherDebugPanel } from './debugPanelPreference'
+import { recordTogetherRoomStatePush, resetTogetherDebugPushSong, syncTogetherDebugTelemetry } from './debugTelemetry'
 import { startHostReporting, stopHostReporting } from './host'
 import { classifyPushVersion, isValidInviteCode, normalizeInviteCode } from './math'
 import { applyPlayback, applyQueue, startMemberSync, stopMemberSync } from './member'
@@ -107,6 +109,7 @@ const clearRoom = (message?: string) => {
   stopClockSync()
   lastVersion = 0
   togetherActions.setRoom(null)
+  resetTogetherDebugPushSong()
   if (hadRoom && message) toast(message, 'long')
 }
 
@@ -152,6 +155,7 @@ const handlePush = (event: TogetherPush) => {
   switch (event.type) {
     case 'roomState': {
       const { push } = event
+      recordTogetherRoomStatePush(push)
       togetherActions.patchRoom({
         version: push.version,
         playbackVersion: push.playbackVersion,
@@ -295,6 +299,8 @@ export const transferTogetherHost = async(memberId: string): Promise<TogetherAct
 export const initTogether = () => {
   if (started) return
   started = true
+  void loadTogetherDebugPanelPreference().then(syncTogetherDebugTelemetry)
+  subscribeTogetherDebugPanel(syncTogetherDebugTelemetry)
   setTogetherPushListener(handlePush)
   onSyncSocketReady(handleSocketReady)
   global.app_event.on('syncModeUpdated', (mode: LX.Sync.Mode) => {

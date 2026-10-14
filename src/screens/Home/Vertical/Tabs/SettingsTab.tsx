@@ -45,6 +45,12 @@ import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 import { checkUpdate } from '@/core/version'
 import versionState from '@/store/version/state'
+import {
+  getTogetherDebugPanelEnabled,
+  isTogetherDebugPanelBuild,
+  setTogetherDebugPanelEnabled,
+  subscribeTogetherDebugPanel,
+} from '@/core/together/debugPanelPreference'
 import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
 import { pushSyncLoginScreen } from '@/navigation/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
@@ -110,6 +116,8 @@ export default () => {
   const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
+  const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
+  const showTogetherDebugSection = isTogetherDebugPanelBuild()
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
@@ -435,6 +443,11 @@ export default () => {
     t('admin_console_entry_title'),
     t('admin_console_entry_subtitle'),
   )
+  const showTogetherDebugSettingsSection = showTogetherDebugSection && matchesSettingsSearch(
+    t('setting_debug_section'),
+    t('together_debug_panel_toggle'),
+    t('together_debug_panel_toggle_desc'),
+  )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
     'GitHub Releases',
@@ -528,6 +541,10 @@ export default () => {
   const handleCloseAdminConsole = useCallback(() => {
     setAdminConsoleVisible(false)
   }, [])
+  useEffect(() => subscribeTogetherDebugPanel(setTogetherDebugPanelEnabledState), [])
+  const handleToggleTogetherDebugPanel = useCallback(() => {
+    void setTogetherDebugPanelEnabled(!togetherDebugPanelEnabled)
+  }, [togetherDebugPanelEnabled])
   useEffect(() => {
     if (activeOptionDetail !== 'sync') return
     void reloadSyncHostFromStorage().then(host => { setSyncHostLocal(host ?? '') })
@@ -1062,6 +1079,23 @@ export default () => {
               <SettingRow icon="broom" iconBg={r.iconWrap.purple} title={t('setting_cache_management')} subtitle={resourceCacheSizeLabel} onPress={handleOpenResourceCacheDetail} />
               <SettingRow icon="database-export-outline" iconBg={r.iconWrap.purple} title={t('setting_export_data')} subtitle={t('setting_export_data_desc')} onPress={handleExportData} />
               <SettingRow icon="database-import-outline" iconBg={r.iconWrap.purple} title={t('setting_import_data')} subtitle={t('setting_import_data_desc')} onPress={handleImportData} last />
+            </View>
+            )
+          : null}
+
+        {showTogetherDebugSettingsSection
+          ? (
+            <View style={styles.sectionBlock}>
+              <SectionHeader title={t('setting_debug_section')} meta={t('setting_debug_section_meta')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
+              <SettingRow
+                icon="speedometer"
+                iconBg={r.iconWrap.amber}
+                title={t('together_debug_panel_toggle')}
+                subtitle={t('together_debug_panel_toggle_desc')}
+                value={togetherDebugPanelEnabled ? t('together_debug_on') : t('together_debug_off')}
+                onPress={handleToggleTogetherDebugPanel}
+                last
+              />
             </View>
             )
           : null}
