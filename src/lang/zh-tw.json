@@ -847,6 +847,7 @@
   "admin_console_user_delete_warning": "此操作不可恢復：將永久刪除 {name} 及其登入工作階段、已授權裝置、同步資料、LX 連線碼、其建立的邀請碼，並移出一起聽房間。",
   "admin_console_user_delete_confirm_placeholder": "輸入使用者名稱 {name} 以確認",
   "admin_console_user_deleted": "使用者已刪除",
+  "admin_console_config_user_hint": "此使用者由伺服器 config.js 或環境變數（LX_USER_*）定義，無法在此停用、重設密碼或刪除；請修改伺服器設定並重新啟動。",
   "admin_console_create_invite": "新建邀請碼",
   "admin_console_invite_max_uses_placeholder": "最大使用次數",
   "admin_console_invite_max_uses_invalid": "請輸入有效的使用次數",
