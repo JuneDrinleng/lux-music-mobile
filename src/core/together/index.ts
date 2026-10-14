@@ -18,6 +18,11 @@ import { toast } from '@/utils/tools'
 
 import { startClockSync, stopClockSync } from './clock'
 import { loadTogetherDebugPanelPreference, subscribeTogetherDebugPanel } from './debugPanelPreference'
+import {
+  formatTogetherGateHint,
+  shouldAppendTogetherGateHint,
+  snapshotTogetherGate,
+} from './togetherGate'
 import { recordTogetherRoomStatePush, resetTogetherDebugPushSong, syncTogetherDebugTelemetry } from './debugTelemetry'
 import { startHostReporting, stopHostReporting } from './host'
 import { classifyPushVersion, isValidInviteCode, normalizeInviteCode } from './math'
@@ -195,9 +200,12 @@ const handlePush = (event: TogetherPush) => {
   if (decision == 'gap') void refreshRoom()
 }
 
-const handleSocketReady = () => {
+export const syncTogetherConnectionFromSocket = () => {
   const socket = getReadySyncSocket()
-  if (!socket) return
+  if (!socket) {
+    togetherActions.setConnection('offline')
+    return
+  }
   if (!isTogetherFeatureEnabled()) {
     togetherActions.setConnection('unsupported')
     if (togetherState.room) clearRoom(t('together_room_closed'))
@@ -208,6 +216,12 @@ const handleSocketReady = () => {
     return
   }
   togetherActions.setConnection('online')
+}
+
+const handleSocketReady = () => {
+  syncTogetherConnectionFromSocket()
+  const socket = getReadySyncSocket()
+  if (!socket || togetherState.connection != 'online') return
   socket.onClose(() => {
     togetherActions.setConnection('offline')
     stopHostReporting()
@@ -217,13 +231,23 @@ const handleSocketReady = () => {
   void refreshRoom()
 }
 
+const appendGateHint = async(message: string): Promise<string> => {
+  if (!shouldAppendTogetherGateHint()) return message
+  const snap = await snapshotTogetherGate()
+  return `${message}\n${formatTogetherGateHint(snap)}`
+}
+
 const ensureOnline = async(): Promise<string | null> => {
-  if (await getSyncMode().catch(() => 'lx') != 'lux') return t('together_need_lux')
-  if (!getReadySyncSocket()) return t('together_offline')
-  if (!isTogetherFeatureEnabled()) return t('together_unsupported')
-  if (!isTogetherSyncReady()) return t('together_not_ready')
+  syncTogetherConnectionFromSocket()
+  const mode = await getSyncMode().catch(() => 'lx' as LX.Sync.Mode)
+  if (mode != 'lux') return appendGateHint(t('together_need_lux'))
+  if (!getReadySyncSocket()) return appendGateHint(t('together_offline'))
+  if (!isTogetherFeatureEnabled()) return appendGateHint(t('together_unsupported'))
+  if (!isTogetherSyncReady()) return appendGateHint(t('together_not_ready'))
   return null
 }
+
+export const getTogetherGateSnapshot = async() => snapshotTogetherGate()
 
 const withPending = async(fn: () => Promise<TogetherActionResult>): Promise<TogetherActionResult> => {
   if (togetherState.pending) return { ok: false, message: '' }
@@ -304,6 +328,7 @@ export const initTogether = () => {
   setTogetherPushListener(handlePush)
   onSyncSocketReady(handleSocketReady)
   global.app_event.on('syncModeUpdated', (mode: LX.Sync.Mode) => {
+    syncTogetherConnectionFromSocket()
     if (mode != 'lux') clearRoom()
   })
 }

@@ -23,7 +23,9 @@ import {
   leaveTogetherRoom,
 } from '@/core/together'
 import { useI18n } from '@/lang'
+import { formatTogetherGateHint } from '@/core/together/togetherGate'
 import { useShowTogetherDebugPanel } from '@/core/together/useTogetherDebugPanel'
+import { useTogetherGateSnapshot } from '@/core/together/useTogetherGateSnapshot'
 import { useTogether } from '@/store/together/hook'
 import TogetherDebugPanel from '@/screens/Home/Vertical/ListenTogether/TogetherDebugPanel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -79,6 +81,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const together = useTogether()
   const showDebugPanel = useShowTogetherDebugPanel()
+  const gateSnap = useTogetherGateSnapshot(showDebugPanel)
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState<string | undefined>()
 
@@ -146,6 +149,13 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
           : null}
         {together.connection == 'unsupported'
           ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_unsupported')}</Text>
+          : null}
+        {showDebugPanel && gateSnap
+          ? (
+            <Text size={11} color={r.quiet} style={[styles.hint, { fontVariant: ['tabular-nums'] }]} selectable>
+              {formatTogetherGateHint(gateSnap)}
+            </Text>
+            )
           : null}
 
         {room
@@ -231,7 +241,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
             </>
             )}
       </ScrollView>
-      <TogetherDebugPanel visible={showDebugPanel && room != null} />
+      <TogetherDebugPanel visible={showDebugPanel} gateSnap={gateSnap} />
     </Animated.View>
   )
 }

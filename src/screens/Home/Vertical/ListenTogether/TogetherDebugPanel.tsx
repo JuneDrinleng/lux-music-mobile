@@ -13,6 +13,7 @@ import {
   subscribeTogetherDebugTelemetry,
   type TogetherDebugLiveMetrics,
 } from '@/core/together/debugTelemetry'
+import { formatTogetherGateHint, type TogetherGateSnapshot } from '@/core/together/togetherGate'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -81,9 +82,10 @@ const formatMs = (value: number | null) => (value == null ? '—' : `${value}`)
 
 export interface TogetherDebugPanelProps {
   visible: boolean
+  gateSnap?: TogetherGateSnapshot | null
 }
 
-const TogetherDebugPanel = ({ visible }: TogetherDebugPanelProps) => {
+const TogetherDebugPanel = ({ visible, gateSnap }: TogetherDebugPanelProps) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -138,6 +140,16 @@ const TogetherDebugPanel = ({ visible }: TogetherDebugPanelProps) => {
           ? null
           : (
             <>
+              {gateSnap
+                ? (
+                  <MetricRow
+                    label={t('together_debug_gate')}
+                    value={formatTogetherGateHint(gateSnap)}
+                    r={r}
+                    styles={styles}
+                  />
+                  )
+                : null}
               <MetricRow label={t('together_debug_host_pos')} value={`${formatMs(metrics?.hostPositionMs ?? null)} ms`} r={r} styles={styles} />
               <MetricRow label={t('together_debug_my_pos')} value={`${formatMs(metrics?.myPositionMs ?? null)} ms`} r={r} styles={styles} />
               <MetricRow label={t('together_debug_drift')} value={`${formatMs(metrics?.driftMs ?? null)} ms`} r={r} styles={styles} />

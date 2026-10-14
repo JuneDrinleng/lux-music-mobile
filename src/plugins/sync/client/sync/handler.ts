@@ -33,6 +33,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     setPlayHistoryFeatureEnabled(enablePlayHistory)
     const enableTogether = lux && featureVersion.together == supportedFeatures.together
     setTogetherFeatureEnabled(enableTogether)
+    if (enableTogether) setSyncModuleReady(socket, 'together', true)
     const enableSource = lux && featureVersion.source == supportedFeatures.source
     setSourceFeatureEnabled(enableSource)
     switch (serverType) {
