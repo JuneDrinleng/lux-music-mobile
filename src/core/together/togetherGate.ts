@@ -4,8 +4,6 @@ import { getReadySyncSocket } from '@/plugins/sync/client/client'
 import { isTogetherFeatureEnabled } from '@/plugins/sync/togetherFlag'
 import { getSyncMode } from '@/utils/data'
 
-import { isTogetherDebugPanelBuild } from './debugPanelPreference'
-
 export interface TogetherGateSnapshot {
   mode: LX.Sync.Mode | 'error'
   syncReady: boolean
@@ -42,4 +40,5 @@ export const formatTogetherGateHint = (snap: TogetherGateSnapshot): string => (
   `gate mode=${snap.mode} sync=${snap.syncReady ? 1 : 0} feat=${snap.feature ? 1 : 0} mod=${snap.moduleTogether ? 1 : 0} block=${snap.blocked}`
 )
 
-export const shouldAppendTogetherGateHint = (): boolean => isTogetherDebugPanelBuild()
+/** Always append gate hints on create/join failure until together gate regressions are cleared in the field. */
+export const shouldAppendTogetherGateHint = (): boolean => true
