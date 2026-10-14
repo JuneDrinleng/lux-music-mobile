@@ -21,7 +21,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, clearLuxAuth, clearSyncAuthKey, clearSyncLoginDraft, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { addSyncHostHistory, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { clearSavedSyncLoginCredentialsForMode } from '@/utils/syncLoginCredentialPersistence'
 import {
   loadSyncLoginFormSnapshot,
   rememberSyncLoginForm,
@@ -143,6 +144,25 @@ export default memo(() => {
     }
   }, [authCode, enterHome, luxPassword, luxUsername, mode, submitting, syncHost, t])
 
+  const handleClearSavedLogin = useCallback(async() => {
+    if (submitting) return
+    setSubmitting(true)
+    setMessage('')
+    try {
+      await clearSavedSyncLoginCredentialsForMode(mode)
+      await applySavedFormForMode(mode)
+    } catch (err: any) {
+      setMessage(String(err?.message ?? err))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [applySavedFormForMode, mode, submitting])
+
+  const isLuxMode = mode == 'lux'
+  const hasSavedLoginForMode = isLuxMode
+    ? Boolean(hasSavedLuxSession || luxUsername.trim() || luxPassword)
+    : Boolean(showLxSavedHint || authCode.trim())
+
   const handleUseWithoutSync = useCallback(async() => {
     if (submitting) return
     setSubmitting(true)
@@ -150,9 +170,6 @@ export default memo(() => {
     try {
       await setSyncMode('lx')
       await setSyncHost('')
-      await clearLuxAuth()
-      await clearSyncAuthKey()
-      await clearSyncLoginDraft()
       await saveUserName(t('sync_login_local_user_name'))
       global.app_event.userNameUpdated(t('sync_login_local_user_name'))
       updateSetting({ 'sync.enable': false })
@@ -164,7 +181,6 @@ export default memo(() => {
     }
   }, [enterHome, submitting, t])
 
-  const isLuxMode = mode == 'lux'
   const lxAuthCodeDisplay = syncLoginSavedSecretDisplayValue(
     authCode,
     showLxSavedHint,
@@ -267,6 +283,16 @@ export default memo(() => {
             disabled={submitting}
           />
         </View>
+        {hasSavedLoginForMode
+          ? <View style={styles.clearSavedWrap}>
+              <TextButton
+                label={t('sync_login_clear_saved')}
+                onPress={() => { void handleClearSavedLogin() }}
+                muted
+                disabled={submitting}
+              />
+            </View>
+          : null}
 
         <View style={styles.note}>
           <MdiIcon name="information-outline" size={16} color={r.quiet} />
@@ -329,6 +355,10 @@ const useStyles = sharedLuxStyles(() => createStyle({
   },
   skipWrap: {
     marginTop: 14,
+    alignItems: 'center',
+  },
+  clearSavedWrap: {
+    marginTop: 8,
     alignItems: 'center',
   },
   note: {

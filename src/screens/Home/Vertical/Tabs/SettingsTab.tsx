@@ -19,7 +19,7 @@ import {
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { createStyle, openUrl, syncLogoutCredentialDialog, tipDialog, toast } from '@/utils/tools'
+import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
@@ -799,32 +799,25 @@ export default () => {
     })
   }
   const handleLogoutSyncAccount = useCallback(async() => {
-    const choice = await syncLogoutCredentialDialog({
+    const confirmed = await confirmDialog({
       title: t('setting_sync_logout_title'),
       message: t('setting_sync_logout_message'),
       cancelButtonText: t('cancel'),
-      keepButtonText: t('setting_sync_logout_keep_credentials'),
-      clearButtonText: t('setting_sync_logout_clear_credentials'),
+      confirmButtonText: t('setting_sync_logout_confirm'),
       eyebrow: t('mag_dialog_eyebrow_account_logout'),
       eyebrowDanger: true,
+      confirmDanger: true,
     })
-    if (choice == 'cancel') return
+    if (!confirmed) return
 
-    const clearSavedCredentials = choice == 'clear'
-    if (!clearSavedCredentials) {
-      await rememberSyncLoginForm({
-        host: syncHost,
-        mode: syncMode,
-        luxUsername,
-        luxPassword,
-        lxAuthCode: authCode,
-      })
-    }
-    await applySyncAccountLogout(clearSavedCredentials)
-    if (clearSavedCredentials) {
-      setSyncHostLocal('')
-      setLuxUsername('')
-    }
+    await rememberSyncLoginForm({
+      host: syncHost,
+      mode: syncMode,
+      luxUsername,
+      luxPassword,
+      lxAuthCode: authCode,
+    })
+    await applySyncAccountLogout()
     setLuxPassword('')
     setAuthCode('')
     await pushSyncLoginScreen()
