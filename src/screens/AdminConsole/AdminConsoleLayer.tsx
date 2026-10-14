@@ -95,6 +95,8 @@ export const AdminConsoleLayer = ({
   const [inviteRole, setInviteRole] = useState<'admin' | 'user'>('user')
   const [resetPasswordUser, setResetPasswordUser] = useState<AdminUserView | null>(null)
   const [resetPasswordDraft, setResetPasswordDraft] = useState('')
+  const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserView | null>(null)
+  const [deleteUserConfirm, setDeleteUserConfirm] = useState('')
 
   const translateX = useMemo(() => slideAnim.interpolate({
     inputRange: [0, 1],
@@ -157,6 +159,11 @@ export const AdminConsoleLayer = ({
   }, [])
 
   const handleBack = useCallback(() => {
+    if (deleteUserTarget) {
+      setDeleteUserTarget(null)
+      setDeleteUserConfirm('')
+      return
+    }
     if (resetPasswordUser) {
       setResetPasswordUser(null)
       setResetPasswordDraft('')
@@ -175,7 +182,7 @@ export const AdminConsoleLayer = ({
       return
     }
     onClose()
-  }, [createInviteOpen, createUserOpen, onClose, resetPasswordUser])
+  }, [createInviteOpen, createUserOpen, deleteUserTarget, onClose, resetPasswordUser])
 
   useBackHandler(useCallback(() => {
     if (!visible) return false
@@ -292,6 +299,19 @@ export const AdminConsoleLayer = ({
     : luxSourceStatus === 'no_source'
       ? t('source_status_no_source')
       : t('source_lux_server_unavailable')
+
+  const handleConfirmDeleteUser = async() => {
+    if (!deleteUserTarget || deleteUserConfirm.trim() !== deleteUserTarget.username) return
+    try {
+      await adminApi.deleteUser(syncHost, token, deleteUserTarget.id)
+      setDeleteUserTarget(null)
+      setDeleteUserConfirm('')
+      await loadUsers()
+      toast(t('admin_console_user_deleted'))
+    } catch (err) {
+      handleApiError(err)
+    }
+  }
 
   const handleToggleUserStatus = async(user: AdminUserView) => {
     const next = user.status === 'active' ? 'disabled' : 'active'
@@ -454,6 +474,15 @@ export const AdminConsoleLayer = ({
               <View style={styles.inlineActions}>
                 <TextButton label={user.status === 'active' ? t('admin_console_disable_user') : t('admin_console_enable_user')} onPress={() => { void handleToggleUserStatus(user) }} />
                 <TextButton label={t('admin_console_reset_password')} onPress={() => { setResetPasswordUser(user); setResetPasswordDraft('') }} />
+                {user.source === 'managed'
+                  ? (
+                    <TextButton
+                      label={t('admin_console_delete_user')}
+                      danger
+                      onPress={() => { setDeleteUserTarget(user); setDeleteUserConfirm('') }}
+                    />
+                    )
+                  : null}
               </View>
             </View>
             {index < filteredUsers.length - 1 ? <Hairline /> : null}
@@ -655,6 +684,28 @@ export const AdminConsoleLayer = ({
           secureTextEntry
         />
         <PrimaryButton label={t('agree')} onPress={() => { void handleConfirmResetPassword() }} />
+      </MagDialog>
+
+      <MagDialog
+        visible={deleteUserTarget != null}
+        eyebrowDanger
+        title={t('admin_console_user_delete_title')}
+        message={deleteUserTarget ? t('admin_console_user_delete_warning', { name: deleteUserTarget.username }) : undefined}
+        cancelLabel={t('cancel')}
+        confirmLabel={t('admin_console_delete_user')}
+        confirmDanger
+        confirmDisabled={!deleteUserTarget || deleteUserConfirm.trim() !== deleteUserTarget.username}
+        onClose={() => { setDeleteUserTarget(null); setDeleteUserConfirm('') }}
+        onCancel={() => { setDeleteUserTarget(null); setDeleteUserConfirm('') }}
+        onConfirm={() => { void handleConfirmDeleteUser() }}
+      >
+        <UnderlineInput
+          value={deleteUserConfirm}
+          onChangeText={setDeleteUserConfirm}
+          placeholder={deleteUserTarget ? t('admin_console_user_delete_confirm_placeholder', { name: deleteUserTarget.username }) : undefined}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
       </MagDialog>
     </>
   )
