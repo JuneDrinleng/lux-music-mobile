@@ -15,6 +15,9 @@ import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../pl
 import { setTogetherFeatureEnabled } from '../togetherFlag'
 import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
+import { addSyncReadyListener, notifySyncReady, removeSyncReadyListener } from './syncReady'
+
+export { notifySyncReady } from './syncReady'
 
 let status: LX.Sync.Status = {
   status: false,
@@ -148,29 +151,25 @@ const heartbeatTools = {
 
 
 let client: LX.Sync.Socket | null
-const readyListeners = new Set<() => void>()
 
 export const onSyncSocketReady = (listener: () => void): (() => void) => {
-  readyListeners.add(listener)
+  addSyncReadyListener(listener)
   if (client?.isReady) listener()
-  return () => { readyListeners.delete(listener) }
+  return () => { removeSyncReadyListener(listener) }
 }
 
 export const getReadySyncSocket = (): LX.Sync.Socket | null => {
   return client?.isReady ? client : null
 }
-
-const notifySyncReady = () => {
-  for (const listener of readyListeners) listener()
-}
 // let listSyncPromise: Promise<void>
 export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
-  client = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))}`) as LX.Sync.Socket
-  client.data = {
+  const session = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))}`) as LX.Sync.Socket
+  client = session
+  session.data = {
     keyInfo,
     urlInfo,
   }
-  heartbeatTools.connect(client)
+  heartbeatTools.connect(session)
 
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
   let disconnected = true
@@ -179,9 +178,10 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     funcsObj: {
       ...callObj,
       finished() {
-        client!.isReady = true
-        if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(client, 'playHistory', true)
-        if (isSourceFeatureEnabled()) setSyncModuleReady(client, 'source', true)
+        if (client !== session) return
+        session.isReady = true
+        if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(session, 'playHistory', true)
+        if (isSourceFeatureEnabled()) setSyncModuleReady(session, 'source', true)
         sendSyncStatus({
           status: true,
           message: '',
@@ -195,15 +195,15 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     sendMessage(data) {
       if (disconnected) throw new Error('disconnected')
       void encryptMsg(keyInfo, JSON.stringify(data)).then((data) => {
-        client?.send(data)
+        session.send(data)
       }).catch((err) => {
         log.error('encrypt msg error: ', err)
-        client?.close(SYNC_CLOSE_CODE.failed)
+        session.close(SYNC_CLOSE_CODE.failed)
       })
     },
     onCallBeforeParams(rawArgs) {
       const args = Array.isArray(rawArgs) ? rawArgs : []
-      return [client, ...args]
+      return [session, ...args]
     },
     onError(error, path, groupName) {
       const name = groupName ?? ''
@@ -217,11 +217,12 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     },
   })
 
-  client.remote = message2read.remote
-  client.remoteQueueList = message2read.createQueueRemote('list')
-  client.remoteQueueDislike = message2read.createQueueRemote('dislike')
+  session.remote = message2read.remote
+  session.remoteQueueList = message2read.createQueueRemote('list')
+  session.remoteQueueDislike = message2read.createQueueRemote('dislike')
 
-  client.addEventListener('message', ({ data }) => {
+  session.addEventListener('message', ({ data }) => {
+    if (client !== session) return
     if (data == 'ping') return
     if (typeof data === 'string') {
       void decryptMsg(keyInfo, data).then((data) => {
@@ -230,17 +231,17 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
           syncData = JSON.parse(data)
         } catch (err) {
           log.error('parse msg error: ', err)
-          client?.close(SYNC_CLOSE_CODE.failed)
+          session.close(SYNC_CLOSE_CODE.failed)
           return
         }
         message2read.message(syncData)
       }).catch((error) => {
         log.error('decrypt msg error: ', error)
-        client?.close(SYNC_CLOSE_CODE.failed)
+        session.close(SYNC_CLOSE_CODE.failed)
       })
     }
   })
-  client.onClose = function(handler: typeof closeEvents[number]) {
+  session.onClose = function(handler: typeof closeEvents[number]) {
     closeEvents.push(handler)
     return () => {
       closeEvents.splice(closeEvents.indexOf(handler), 1)
@@ -248,23 +249,23 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   }
 
   const initMessage = 'Wait syncing...'
-  client.addEventListener('open', () => {
+  session.addEventListener('open', () => {
+    if (client !== session) return
     log.info('connect')
-    // const store = getStore()
-    // global.lx.syncKeyInfo = keyInfo
-    client!.isReady = false
+    session.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
     setSourceFeatureEnabled(false)
-    client!.moduleReadys = createInitialModuleReadys()
+    session.moduleReadys = createInitialModuleReadys()
     disconnected = false
     sendSyncStatus({
       status: false,
       message: initMessage,
     })
   })
-  client.addEventListener('close', ({ code }) => {
-    if (client) client.isReady = false
+  session.addEventListener('close', ({ code }) => {
+    if (client !== session) return
+    session.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
     setSourceFeatureEnabled(false)
@@ -295,7 +296,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
         break
     }
   })
-  client.addEventListener('error', ({ message }) => {
+  session.addEventListener('error', ({ message }) => {
+    if (client !== session) return
     sendSyncStatus({
       status: false,
       message,
