@@ -247,7 +247,7 @@ const ensureOnline = async(): Promise<string | null> => {
   return null
 }
 
-export const getTogetherGateSnapshot = () => snapshotTogetherGate()
+export const getTogetherGateSnapshot = async() => snapshotTogetherGate()
 
 const withPending = async(fn: () => Promise<TogetherActionResult>): Promise<TogetherActionResult> => {
   if (togetherState.pending) return { ok: false, message: '' }

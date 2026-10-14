@@ -12,11 +12,10 @@ import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
-import { setTogetherFeatureEnabled } from '../togetherFlag'
+import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
 import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 import { addSyncReadyListener, notifySyncReady, removeSyncReadyListener } from './syncReady'
-import { isTogetherFeatureEnabled } from '../togetherFlag'
 
 export { notifySyncReady } from './syncReady'
 

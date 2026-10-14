@@ -1,13 +1,12 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getReadySyncSocket } from '@/plugins/sync/client/client'
-import { isTogetherSyncReady } from '@/plugins/sync/client/togetherReady'
 import { isTogetherFeatureEnabled } from '@/plugins/sync/togetherFlag'
 import { getSyncMode } from '@/utils/data'
 
 import { isTogetherDebugPanelBuild } from './debugPanelPreference'
 
-export type TogetherGateSnapshot = {
+export interface TogetherGateSnapshot {
   mode: LX.Sync.Mode | 'error'
   syncReady: boolean
   feature: boolean
