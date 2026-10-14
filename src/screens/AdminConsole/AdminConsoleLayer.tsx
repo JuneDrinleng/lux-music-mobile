@@ -471,19 +471,23 @@ export const AdminConsoleLayer = ({
                   </Text>
                 </View>
               </View>
-              <View style={styles.inlineActions}>
-                <TextButton label={user.status === 'active' ? t('admin_console_disable_user') : t('admin_console_enable_user')} onPress={() => { void handleToggleUserStatus(user) }} />
-                <TextButton label={t('admin_console_reset_password')} onPress={() => { setResetPasswordUser(user); setResetPasswordDraft('') }} />
-                {user.source === 'managed'
-                  ? (
+              {user.source === 'managed'
+                ? (
+                  <View style={styles.inlineActions}>
+                    <TextButton label={user.status === 'active' ? t('admin_console_disable_user') : t('admin_console_enable_user')} onPress={() => { void handleToggleUserStatus(user) }} />
+                    <TextButton label={t('admin_console_reset_password')} onPress={() => { setResetPasswordUser(user); setResetPasswordDraft('') }} />
                     <TextButton
                       label={t('admin_console_delete_user')}
                       danger
                       onPress={() => { setDeleteUserTarget(user); setDeleteUserConfirm('') }}
                     />
-                    )
-                  : null}
-              </View>
+                  </View>
+                  )
+                : (
+                  <Text size={magType.meta.size} color={r.muted} style={{ marginTop: 6, lineHeight: 20 }}>
+                    {t('admin_console_config_user_hint')}
+                  </Text>
+                  )}
             </View>
             {index < filteredUsers.length - 1 ? <Hairline /> : null}
           </View>

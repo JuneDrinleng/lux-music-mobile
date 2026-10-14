@@ -847,6 +847,7 @@
   "admin_console_user_delete_warning": "This cannot be undone. {name} and their login sessions, authorized devices, sync data, LX connection code, invites they created, and together-listen membership will be permanently removed.",
   "admin_console_user_delete_confirm_placeholder": "Type username {name} to confirm",
   "admin_console_user_deleted": "User deleted",
+  "admin_console_config_user_hint": "This user comes from server config.js or environment variables (LX_USER_*). It cannot be disabled, reset, or deleted here—change the server config and restart.",
   "admin_console_create_invite": "Create invite",
   "admin_console_invite_max_uses_placeholder": "Max uses",
   "admin_console_invite_max_uses_invalid": "Enter a valid max uses value",
