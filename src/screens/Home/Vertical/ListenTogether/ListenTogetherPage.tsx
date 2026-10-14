@@ -23,7 +23,9 @@ import {
   leaveTogetherRoom,
 } from '@/core/together'
 import { useI18n } from '@/lang'
+import { useShowTogetherDebugPanel } from '@/core/together/useTogetherDebugPanel'
 import { useTogether } from '@/store/together/hook'
+import TogetherDebugPanel from '@/screens/Home/Vertical/ListenTogether/TogetherDebugPanel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { H1_AFTER_TOP, PAGE_GUTTER, SECTION_TO_LIST, TOP_BAR_MARGIN_TOP, magType } from '@/theme/magazineType'
@@ -76,6 +78,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
   const { width } = useWindowDimensions()
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const together = useTogether()
+  const showDebugPanel = useShowTogetherDebugPanel()
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState<string | undefined>()
 
@@ -228,6 +231,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
             </>
             )}
       </ScrollView>
+      <TogetherDebugPanel visible={showDebugPanel && room != null} />
     </Animated.View>
   )
 }
