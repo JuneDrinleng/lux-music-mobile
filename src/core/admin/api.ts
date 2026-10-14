@@ -146,6 +146,8 @@ export const adminApi = {
     luxAdminRequest<{ user: AdminPublicUser }>(host, token, '/api/admin/users', { body }),
   updateUser: async(host: string, token: string, id: string, body: Record<string, unknown>) =>
     luxAdminRequest<{ user: AdminPublicUser }>(host, token, `/api/admin/users/${id}`, { method: 'PATCH', body }),
+  deleteUser: async(host: string, token: string, id: string) =>
+    luxAdminRequest<{ ok: boolean }>(host, token, `/api/admin/users/${id}`, { method: 'DELETE' }),
   resetPassword: async(host: string, token: string, id: string, password: string) =>
     luxAdminRequest<{ user: AdminPublicUser }>(host, token, `/api/admin/users/${id}/password/reset`, { body: { password } }),
   userDevices: async(host: string, token: string, id: string) =>
