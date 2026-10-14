@@ -5,12 +5,17 @@
 import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
-import { setTogetherFeatureEnabled } from '../../togetherFlag'
+import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../../togetherFlag'
 import { setSourceFeatureEnabled } from '../../sourceFlag'
+import { setSyncModuleReady } from '../moduleReadys'
 import { featureVersion } from '../modules'
 
 
 const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'> = {
+  async together_sync_finished(socket) {
+    if (!isTogetherFeatureEnabled()) return
+    setSyncModuleReady(socket, 'together', true)
+  },
   async getEnabledFeatures(socket, serverType, supportedFeatures) {
   // const userSpace = getUserSpace(socket.userInfo.name)
     const features: LX.Sync.EnabledFeatures = {}

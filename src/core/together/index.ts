@@ -31,7 +31,7 @@ const t = (key: string, params?: Record<string, string | number>) => global.i18n
 
 const errorMessage = (code: LX.Sync.LuxErrorCode | null, message = ''): string => {
   switch (code) {
-    case 'NOT_LUX_ACCOUNT': return t('together_need_lux')
+    case 'NOT_LUX_ACCOUNT': return t('together_need_managed_account')
     case 'ROOM_NOT_FOUND': return t('together_error_room_not_found')
     case 'ROOM_FULL': return t('together_error_room_full')
     case 'ROOM_LIMIT': return t('together_error_room_limit')

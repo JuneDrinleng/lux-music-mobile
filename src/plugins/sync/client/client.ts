@@ -12,7 +12,7 @@ import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
-import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
+import { setTogetherFeatureEnabled } from '../togetherFlag'
 import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 
@@ -180,7 +180,6 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       ...callObj,
       finished() {
         client!.isReady = true
-        if (isTogetherFeatureEnabled()) setSyncModuleReady(client, 'together', true)
         if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(client, 'playHistory', true)
         if (isSourceFeatureEnabled()) setSyncModuleReady(client, 'source', true)
         sendSyncStatus({
