@@ -405,6 +405,7 @@
   "me_quick_listen_together": "一起听",
   "together_title": "一起听",
   "together_need_lux": "需要连接 Lux 同步服务器",
+  "together_need_managed_account": "一起听需要 Lux 托管账号登录；连接码/LX 旧用户请改用 Lux 账号登录后再试。",
   "together_go_sync_login": "去连接",
   "together_room_closed": "房间已结束",
   "together_host_local_music": "房主正在播放本地歌曲",

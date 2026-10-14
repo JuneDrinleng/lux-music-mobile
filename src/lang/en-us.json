@@ -405,6 +405,7 @@
   "me_quick_listen_together": "Together",
   "together_title": "Listen together",
   "together_need_lux": "Connect to a Lux sync server to use this feature",
+  "together_need_managed_account": "Listen together requires a Lux managed account. LX connection-code users must sign in with Lux instead.",
   "together_go_sync_login": "Connect",
   "together_room_closed": "The room has ended",
   "together_host_local_music": "The host is playing a local track",
