@@ -169,6 +169,8 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     keyInfo,
     urlInfo,
   }
+  session.isReady = false
+  session.moduleReadys = createInitialModuleReadys()
   heartbeatTools.connect(session)
 
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
@@ -183,6 +185,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       ...callObj,
       async together_sync_finished() {
         if (client !== session) return
+        setTogetherFeatureEnabled(true)
         markTogetherModuleReady()
         if (session.isReady) setTimeout(notifySyncReady, 0)
       },

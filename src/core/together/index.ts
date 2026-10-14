@@ -8,7 +8,7 @@ import {
   setTogetherPushListener,
   type TogetherPush,
 } from '@/plugins/sync/client/modules/together/api'
-import { isTogetherRpcNotReadyError, isTogetherSyncReady } from '@/plugins/sync/client/togetherReady'
+import { isTogetherRpcNotReadyError, isTogetherSyncReady, reconcileTogetherModuleReady } from '@/plugins/sync/client/togetherReady'
 import { isTogetherFeatureEnabled } from '@/plugins/sync/togetherFlag'
 import togetherActions from '@/store/together/action'
 import togetherState from '@/store/together/state'
@@ -22,6 +22,7 @@ import {
   formatTogetherGateHint,
   shouldAppendTogetherGateHint,
   snapshotTogetherGate,
+  type TogetherGateSnapshot,
 } from './togetherGate'
 import { recordTogetherRoomStatePush, resetTogetherDebugPushSong, syncTogetherDebugTelemetry } from './debugTelemetry'
 import { startHostReporting, stopHostReporting } from './host'
@@ -51,14 +52,17 @@ const errorMessage = (code: LX.Sync.LuxErrorCode | null, message = ''): string =
   }
 }
 
-const thrownMessage = (error: unknown): string => {
+const thrownMessage = async(error: unknown): Promise<string> => {
   if (error instanceof TogetherUnavailableError) {
-    if (!getReadySyncSocket()) return t('together_offline')
-    if (!isTogetherFeatureEnabled() || !isTogetherSyncReady()) return t('together_not_ready')
-    return t('together_unsupported')
+    reconcileTogetherModuleReady()
+    if (!getReadySyncSocket()) return appendGateHint(t('together_offline'))
+    if (!isTogetherFeatureEnabled()) return appendGateHint(t('together_unsupported'))
+    if (!isTogetherSyncReady()) return appendGateHint(t('together_not_ready'))
+    return appendGateHint(t('together_unsupported'))
   }
   const message = error instanceof Error ? error.message : String(error ?? '')
-  if (/together is not enabled/i.test(message) || isTogetherRpcNotReadyError(message)) return t('together_not_ready')
+  if (/together is not enabled/i.test(message)) return appendGateHint(t('together_unsupported'))
+  if (isTogetherRpcNotReadyError(message)) return appendGateHint(t('together_not_ready'))
   return t('together_error_generic', { message })
 }
 
@@ -201,6 +205,7 @@ const handlePush = (event: TogetherPush) => {
 }
 
 export const syncTogetherConnectionFromSocket = () => {
+  reconcileTogetherModuleReady()
   const socket = getReadySyncSocket()
   if (!socket) {
     togetherActions.setConnection('offline')
@@ -218,11 +223,14 @@ export const syncTogetherConnectionFromSocket = () => {
   togetherActions.setConnection('online')
 }
 
+let socketCloseUnsub: (() => void) | null = null
+
 const handleSocketReady = () => {
   syncTogetherConnectionFromSocket()
   const socket = getReadySyncSocket()
   if (!socket || togetherState.connection != 'online') return
-  socket.onClose(() => {
+  socketCloseUnsub?.()
+  socketCloseUnsub = socket.onClose(() => {
     togetherActions.setConnection('offline')
     stopHostReporting()
     stopMemberSync()
@@ -234,11 +242,12 @@ const handleSocketReady = () => {
 const appendGateHint = async(message: string): Promise<string> => {
   if (!shouldAppendTogetherGateHint()) return message
   const snap = await snapshotTogetherGate()
-  return `${message}\n${formatTogetherGateHint(snap)}`
+  return `${message} ${formatTogetherGateHint(snap)}`
 }
 
 const ensureOnline = async(): Promise<string | null> => {
   syncTogetherConnectionFromSocket()
+  reconcileTogetherModuleReady()
   const mode = await getSyncMode().catch(() => 'lx' as LX.Sync.Mode)
   if (mode != 'lux') return appendGateHint(t('together_need_lux'))
   if (!getReadySyncSocket()) return appendGateHint(t('together_offline'))
@@ -247,7 +256,9 @@ const ensureOnline = async(): Promise<string | null> => {
   return null
 }
 
-export const getTogetherGateSnapshot = async() => snapshotTogetherGate()
+export const getTogetherGateSnapshot = async(): Promise<TogetherGateSnapshot> => snapshotTogetherGate()
+
+export const getTogetherReadinessForUi = getTogetherGateSnapshot
 
 const withPending = async(fn: () => Promise<TogetherActionResult>): Promise<TogetherActionResult> => {
   if (togetherState.pending) return { ok: false, message: '' }
@@ -255,7 +266,7 @@ const withPending = async(fn: () => Promise<TogetherActionResult>): Promise<Toge
   try {
     return await fn()
   } catch (error) {
-    return { ok: false, message: thrownMessage(error) }
+    return { ok: false, message: await thrownMessage(error) }
   } finally {
     togetherActions.setPending(false)
   }
@@ -327,8 +338,11 @@ export const initTogether = () => {
   subscribeTogetherDebugPanel(syncTogetherDebugTelemetry)
   setTogetherPushListener(handlePush)
   onSyncSocketReady(handleSocketReady)
+  global.state_event.on('syncStatusUpdated', (status) => {
+    if (!status.status) syncTogetherConnectionFromSocket()
+  })
   global.app_event.on('syncModeUpdated', (mode: LX.Sync.Mode) => {
-    syncTogetherConnectionFromSocket()
     if (mode != 'lux') clearRoom()
+    syncTogetherConnectionFromSocket()
   })
 }
