@@ -18,6 +18,7 @@ import {
   setSourceInfo,
   toPlayableUrl,
 } from '@/plugins/sync/client/modules/source'
+import { toOldMusicInfo } from '@/utils'
 import { readReusableMusicUrl } from './reuseMusicUrl'
 import { persistCoverToUserLists } from './online'
 import { buildLyricInfo, getCachedLyricInfo, getOtherSource, getPlayQuality } from './utils'
@@ -62,16 +63,22 @@ const getLuxSourceSocket = (): LX.Sync.Socket | null => isSourceFeatureEnabled()
 
 const failedError = (result: FailedResult) => {
   if (result.message) log.warn(`lux source ${result.code}: ${result.message}`)
-  return new Error(global.i18n.t(result.code == 'NO_SOURCE' || result.code == 'ACTION_UNSUPPORTED'
+  const message = global.i18n.t(result.code == 'NO_SOURCE' || result.code == 'ACTION_UNSUPPORTED'
     ? 'source_lux_no_source'
-    : 'source_lux_resolve_failed'))
+    : 'source_lux_resolve_failed')
+  toast(message)
+  return new Error(message)
 }
 
+/** Server-side LX scripts (e.g. 野花) expect 1.x fields (`songmid`, `hash`, …) on the wire object. */
 const toWire = (musicInfo: LX.Music.MusicInfoOnline): LX.Music.MusicInfoOnline => {
-  if (musicInfo.meta.toggleMusicInfo === undefined) return musicInfo
-  const wire = structuredClone(musicInfo)
-  delete wire.meta.toggleMusicInfo
-  return wire
+  const base = musicInfo.meta.toggleMusicInfo === undefined ? musicInfo : structuredClone(musicInfo)
+  if (base.meta.toggleMusicInfo !== undefined) delete base.meta.toggleMusicInfo
+  const legacy = toOldMusicInfo(base)
+  legacy.songmid = String(base.meta.songId ?? base.id)
+  if (base.source == 'tx' && !legacy.strMediaMid) legacy.strMediaMid = String(base.meta.strMediaMid ?? base.id)
+  if (base.source == 'kg' && !legacy.hash && 'hash' in base.meta) legacy.hash = base.meta.hash
+  return { ...base, ...legacy, meta: base.meta } as LX.Music.MusicInfoOnline
 }
 
 /** The server cannot search, so a failed first call is retried once with the App's other-source search results. */
@@ -118,7 +125,11 @@ export const getLuxMusicUrl = async({ musicInfo, quality, isRefresh, allowToggle
   }))
   if (!result.ok) throw failedError(result)
   const data = result.data
-  if (typeof data?.url != 'string' || !data.url) throw new Error(global.i18n.t('source_lux_resolve_failed'))
+  if (typeof data?.url != 'string' || !data.url) {
+    const message = global.i18n.t('source_lux_resolve_failed')
+    toast(message)
+    throw new Error(message)
+  }
   const url = toPlayableUrl(socket, data)
   if (data.toggled) onToggleSource(data.musicInfo)
   void saveMusicUrl(musicInfo, targetQuality, url, data.expiresAt)
