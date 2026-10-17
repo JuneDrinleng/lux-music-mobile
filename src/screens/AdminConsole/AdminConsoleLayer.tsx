@@ -73,6 +73,7 @@ export const AdminConsoleLayer = ({
   routeStackRef.current = routeStack
   const route = routeStack[routeStack.length - 1] ?? { name: 'loading' as const }
   const [token, setToken] = useState('')
+  const [loginExpired, setLoginExpired] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [adminStatus, setAdminStatus] = useState<AdminStatusResponse | null>(null)
   const [serverName, setServerName] = useState<string | undefined>()
@@ -118,6 +119,7 @@ export const AdminConsoleLayer = ({
   const resetState = useCallback(() => {
     setRouteStack([{ name: 'loading' }])
     setToken('')
+    setLoginExpired(false)
     setAdminStatus(null)
     setServerName(undefined)
     setUsers([])
@@ -135,6 +137,7 @@ export const AdminConsoleLayer = ({
     }
     const access = await ensureAdminAccess(syncHost)
     if (!access.ok) {
+      setLoginExpired(access.reason == 'no_auth')
       setRouteStack([{ name: 'denied' }])
       return
     }
@@ -219,7 +222,9 @@ export const AdminConsoleLayer = ({
   }, [syncHost, token])
 
   const handleApiError = useCallback((err: unknown) => {
-    if (err instanceof LuxAdminRequestError && err.status === 403) {
+    if (err instanceof LuxAdminRequestError && (err.status === 401 || err.status === 403)) {
+      setLoginExpired(err.status === 401)
+      setToken('')
       setRouteStack([{ name: 'denied' }])
       return
     }
@@ -395,8 +400,8 @@ export const AdminConsoleLayer = ({
 
   const renderDenied = () => (
     <View style={styles.denyBody}>
-      <Text size={magType.section.size} color={r.ink}>{t('admin_console_denied_title')}</Text>
-      <Text size={magType.body.size} color={r.muted}>{t('admin_console_denied_subtitle')}</Text>
+      <Text size={magType.section.size} color={r.ink}>{t(loginExpired ? 'sync_lux_session_expired_title' : 'admin_console_denied_title')}</Text>
+      <Text size={magType.body.size} color={r.muted}>{t(loginExpired ? 'sync_lux_session_expired_body' : 'admin_console_denied_subtitle')}</Text>
       {syncHost
         ? <Text size={magType.meta.size} color={r.quiet} style={styles.denyHost} numberOfLines={2}>{syncHost}</Text>
         : null}

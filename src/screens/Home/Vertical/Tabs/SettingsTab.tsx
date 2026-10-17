@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
@@ -37,6 +38,8 @@ import settingState from '@/store/setting/state'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
+import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
+import { luxSessionExpiredMessage, profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
@@ -221,15 +224,17 @@ export default () => {
     if (!isSyncEnabled) return t('sync_status_disabled')
     if (syncStatus.status) return t('setting_sync_status_enabled')
     switch (syncStatus.message) {
+      case SYNC_CODE.luxSessionExpired:
+        return t('sync_lux_session_expired_title')
       case SYNC_CODE.missingAuthCode:
       case SYNC_CODE.authFailed:
-        return t('setting_sync_code_fail')
+        return t(syncMode == 'lux' ? 'sync_lux_session_expired_title' : 'setting_sync_code_fail')
       case SYNC_CODE.msgBlockedIp:
         return t('setting_sync_code_blocked_ip')
       default:
         return syncStatus.message || t('sync_status_disabled')
     }
-  }, [isSyncEnabled, syncStatus, t])
+  }, [isSyncEnabled, syncStatus, syncMode, t])
   const aboutStatusText = versionInfo.waitStable
     ? t('version_wait_stable', {
       current: versionInfo.version,
@@ -568,6 +573,11 @@ export default () => {
   }, [syncHost])
 
   useEffect(() => {
+    if (syncStatus.message == SYNC_CODE.luxSessionExpired || (syncMode == 'lux' && (syncStatus.message == SYNC_CODE.authFailed || syncStatus.message == SYNC_CODE.missingAuthCode))) {
+      setAuthCodeModalVisible(false)
+      toast(luxSessionExpiredMessage(), 'long')
+      return
+    }
     switch (syncStatus.message) {
       case SYNC_CODE.authFailed:
         toast(t('setting_sync_code_fail'))
@@ -580,7 +590,7 @@ export default () => {
       default:
         break
     }
-  }, [syncStatus.message, t])
+  }, [syncStatus.message, syncMode, t])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
@@ -636,7 +646,7 @@ export default () => {
   const handleLuxLogin = useCallback(() => {
     const username = luxUsername.trim()
     void findLuxAuthForHost(syncHost).then(savedLux => {
-      const canUseSavedLux = Boolean(savedLux?.token)
+      const canUseSavedLux = canReuseLuxSession(savedLux, username)
       if (!syncHost || !username || (!luxPassword && !canUseSavedLux)) {
         toast(t('setting_sync_lux_login_missing_tip'), 'long')
         return
@@ -649,11 +659,11 @@ export default () => {
           luxUsername: username,
           luxPassword,
         })
-        void syncLuxProfileOnLogin(syncHost).catch(() => null)
+        void syncLuxProfileOnLogin(syncHost).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
         setLuxLoginModalVisible(false)
         setLuxPassword('')
       }).catch((err: any) => {
-        toast(String(err?.message ?? err), 'long')
+        toast(err?.message == SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : String(err?.message ?? err), 'long')
       })
     })
   }, [syncHost, luxUsername, luxPassword, t])
@@ -701,7 +711,7 @@ export default () => {
     }).then(image => {
       void saveUserAvatar(image.path).then(savedPath => {
         global.app_event.userAvatarUpdated(savedPath)
-        void getUserAvatarDataUrl().then(async avatar => pushLuxProfileToServer({ avatar })).catch(() => null)
+        void getUserAvatarDataUrl().then(async avatar => pushLuxProfileToServer({ avatar })).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       })
     }).catch((err: any) => {
       if (err?.code !== 'E_PICKER_CANCELLED') toast(String(err?.message ?? err), 'long')
@@ -724,7 +734,7 @@ export default () => {
     void saveUserName(newName).then(() => {
       setNickname(newName)
       global.app_event.userNameUpdated(newName)
-      void pushLuxProfileToServer({ displayName: newName }).catch(() => null)
+      void pushLuxProfileToServer({ displayName: newName }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       setNameModalVisible(false)
     })
   }
@@ -743,7 +753,7 @@ export default () => {
       setSignature(saveValue)
       setSignatureDraft(saveValue || defaultSignature)
       global.app_event.userSignatureUpdated(saveValue)
-      void pushLuxProfileToServer({ signature: saveValue }).catch(() => null)
+      void pushLuxProfileToServer({ signature: saveValue }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       setSignatureModalVisible(false)
     })
   }
@@ -813,7 +823,7 @@ export default () => {
     void saveUserGender(nextGender).then(() => {
       setGender(nextGender)
       global.app_event.userGenderUpdated(nextGender)
-      void pushLuxProfileToServer({ gender: nextGender }).catch(() => null)
+      void pushLuxProfileToServer({ gender: nextGender }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       setActiveOptionDetail(null)
     })
   }

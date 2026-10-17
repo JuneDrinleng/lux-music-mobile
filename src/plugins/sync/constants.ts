@@ -30,6 +30,7 @@ export const SYNC_CODE = {
 
   authFailed: 'Auth failed',
   missingAuthCode: 'Missing auth code',
+  luxSessionExpired: 'Lux session expired',
   getServiceIdFailed: 'Get service id failed',
   connectServiceFailed: 'Connect service failed',
   connecting: 'Connecting...',

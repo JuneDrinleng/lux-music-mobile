@@ -205,7 +205,7 @@ const coreHarness = () => {
     './roomRevision': load('src/core/together/roomRevision.ts'),
     './clock': { startClockSync: noop, stopClockSync: noop },
     './debugPanelPreference': { loadTogetherDebugPanelPreference: async() => false, subscribeTogetherDebugPanel: noop },
-    './togetherGate': { shouldAppendTogetherGateHint: () => false },
+    './togetherGate': { snapshotTogetherGate: async() => ({}), formatTogetherGateHint: () => 'gate test' },
     './debugTelemetry': { syncTogetherDebugTelemetry: noop, resetTogetherDebugPushSong: noop, recordTogetherRoomStatePush: noop },
     './host': host,
     './member': member,
@@ -297,4 +297,15 @@ test('pending getRoom from old session is ignored after reconnect', async() => {
   pending.resolve({ ok: true, data: room(90) })
   await refresh
   assert.equal(h.state.room.version, 5)
+})
+
+test('blocked together actions return clean messages without diagnostic suffixes', async() => {
+  const h = coreHarness()
+  await h.client.disconnect()
+  for (const run of [() => h.core.createTogetherRoom(), () => h.core.joinTogetherRoom('123456')]) {
+    const result = await run()
+    assert.equal(result.ok, false)
+    assert.equal(result.message, 'together_offline')
+    assert.doesNotMatch(result.message, /gate|session=|mode=/)
+  }
 })

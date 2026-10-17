@@ -75,16 +75,16 @@ const heartbeatTools = {
 
     // sendSyncStatus({
     //   status: false,
-    //   message: `Waiting ${waitTime / 1000}s reconnnect...`,
+    //   message: `Waiting ${waitTime / 1000}s reconnect...`,
     // })
 
     this.delayRetryTimeout = setTimeout(() => {
       this.delayRetryTimeout = null
       if (client !== socket || getSession()?.id != sessionId) return
-      console.log(dateFormat(new Date()), 'reconnnect...')
+      console.log(dateFormat(new Date()), 'reconnect...')
       sendSyncStatus({
         status: false,
-        message: `Try reconnnect... (${this.failedNum})`,
+        message: `Try reconnect... (${this.failedNum})`,
       })
       connect(socket.data.urlInfo, socket.data.keyInfo)
     }, waitTime)

@@ -65,6 +65,7 @@ const connectLuxServer = async(host: string, username?: string, password?: strin
   const id = connectId
   return handleLuxConnect(host, username, password).catch(async err => {
     if (id != connectId) return
+    if (err.message == SYNC_CODE.authFailed || err.message == SYNC_CODE.missingAuthCode) err = new Error(SYNC_CODE.luxSessionExpired)
     sendSyncStatus({
       status: false,
       message: err.message,
