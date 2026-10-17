@@ -95,7 +95,7 @@ export async function pushLoginScreen() {
   })
 }
 
-export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string }) {
+export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string, initialUsername?: string }) {
   const theme = themeState.theme
 
   await Navigation.setRoot({

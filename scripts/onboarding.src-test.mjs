@@ -252,6 +252,7 @@ test('legacy login adapter prefills checked URL and completes only after success
     '@/components/magazine': Object.fromEntries(['PrimaryButton', 'TextButton', 'TextTabs', 'UnderlineInput'].map(name => [name, name])),
     '@/plugins/sync/constants': { SYNC_CODE: {} },
     '@/plugins/sync/client/credentials': { canReuseLuxSession: () => false },
+    '@/plugins/sync/client/sessionExpired': { showSessionExpiredDialog: async() => {} },
     '@/plugins/sync/client/userErrors': { luxSessionExpiredMessage: noOp, profileSyncErrorMessage: noOp },
     '@/plugins/sync': {
       connectLuxServer: async(...args) => { events.push(['auth', ...args]); if (authFails) throw new Error('bad password') },

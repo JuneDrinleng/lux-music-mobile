@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -39,7 +40,7 @@ import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvat
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
-import { luxSessionExpiredMessage, profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
+import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
@@ -575,7 +576,7 @@ export default () => {
   useEffect(() => {
     if (syncStatus.message == SYNC_CODE.luxSessionExpired || (syncMode == 'lux' && (syncStatus.message == SYNC_CODE.authFailed || syncStatus.message == SYNC_CODE.missingAuthCode))) {
       setAuthCodeModalVisible(false)
-      toast(luxSessionExpiredMessage(), 'long')
+      void showSessionExpiredDialog(syncHost)
       return
     }
     switch (syncStatus.message) {
@@ -590,7 +591,7 @@ export default () => {
       default:
         break
     }
-  }, [syncStatus.message, syncMode, t])
+  }, [syncStatus.message, syncMode, syncHost, t])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
@@ -663,7 +664,8 @@ export default () => {
         setLuxLoginModalVisible(false)
         setLuxPassword('')
       }).catch((err: any) => {
-        toast(err?.message == SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : String(err?.message ?? err), 'long')
+        if (err?.message == SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(syncHost)
+        else toast(String(err?.message ?? err), 'long')
       })
     })
   }, [syncHost, luxUsername, luxPassword, t])

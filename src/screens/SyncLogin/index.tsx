@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { resolveSyncLoginEntry, syncLoginExitTarget } from '@/utils/syncLoginRouting'
 import SyncLoginLocalAction from './LocalAction'
 import AuthFlow from '../Login/AuthFlow'
@@ -20,7 +21,7 @@ import {
 import { MdiIcon } from '@/components/common/MdiIcon'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
-import { luxSessionExpiredMessage, profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
+import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { updateSetting } from '@/core/common'
 import { completeOnboarding } from '@/utils/onboarding'
@@ -153,7 +154,8 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
-      setMessage(err?.message == SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : String(err?.message ?? err))
+      if (err?.message == SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(host)
+      else setMessage(String(err?.message ?? err))
     }
   }, [authCode, enterHome, luxPassword, luxUsername, mode, submitting, syncHost, t])
 
@@ -384,7 +386,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 
-export default function SyncLogin({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) {
+export default function SyncLogin({ onboarding = false, initialHost = '', initialUsername }: { onboarding?: boolean, initialHost?: string, initialUsername?: string }) {
   const t = useI18n()
   const [host, setHost] = useState(initialHost)
   const [legacy, setLegacy] = useState(false)
@@ -397,14 +399,14 @@ export default function SyncLogin({ onboarding = false, initialHost = '' }: { on
       const [mode, savedHost] = await Promise.all([getSyncMode(), getPreferredSyncHost()])
       if (!active) return
       const entry = resolveSyncLoginEntry(onboarding, mode, initialHost, savedHost)
-      setLegacy(entry.legacy)
+      setLegacy(initialUsername ? false : entry.legacy)
       setHost(entry.host)
       setReady(true)
     }
     void load()
     global.app_event.on('syncLoginPresented', load)
     return () => { active = false; global.app_event.off('syncLoginPresented', load) }
-  }, [initialHost, onboarding])
+  }, [initialHost, initialUsername, onboarding])
   const exit = () => {
     if (localBusy) return
     if (syncLoginExitTarget(onboarding) === 'onboarding') void navigations.pushLoginScreen()
@@ -420,5 +422,5 @@ export default function SyncLogin({ onboarding = false, initialHost = '' }: { on
       </> : null}
     </ServerStep>
   }
-  return <AuthFlow key={host} host={host} onboarding={onboarding} onBack={() => { setHost('') }} />
+  return <AuthFlow key={host} initialUsername={initialUsername} host={host} onboarding={onboarding} onBack={() => { setHost('') }} />
 }

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useEffect, useRef, useState } from 'react'
 import { BackHandler, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
@@ -21,7 +22,7 @@ import { helpMessage, loginErrors, registerErrors, AUTH_CONTRACT, type RegisterF
 import { parseServerInfo, type ServerInfo } from '@/utils/serverCheck'
 import { luxAuthApi, requestJson } from '@/plugins/sync/client/auth'
 import { connectLuxServer, syncLuxProfileOnLogin } from '@/plugins/sync'
-import { profileSyncErrorMessage, luxSessionExpiredMessage } from '@/plugins/sync/client/userErrors'
+import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { updateSetting } from '@/core/common'
 import { findLuxAuthForHost, addSyncHostHistory, setSyncHost, setSyncMode, setSyncLoginCompleted } from '@/utils/data'
 import { completeOnboarding } from '@/utils/onboarding'
@@ -30,7 +31,7 @@ import { navigations } from '@/navigation'
 type Page = 'login' | 'register' | 'forgot'
 const emptyForm: RegisterForm = { invite: '', username: '', displayName: '', password: '', confirm: '' }
 
-export default function AuthFlow({ host, onboarding, onBack }: { host: string, onboarding: boolean, onBack: () => void }) {
+export default function AuthFlow({ host, onboarding, onBack, initialUsername }: { host: string, onboarding: boolean, onBack: () => void, initialUsername?: string }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -57,13 +58,13 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
       const [snapshot, session] = await Promise.all([loadSyncLoginFormSnapshot('lux'), findLuxAuthForHost(host)])
       if (!active) return
       const sameHost = syncHostCompareKey(snapshot.host) === syncHostCompareKey(host)
-      setForm(previous => ({ ...previous, username: sameHost ? snapshot.luxUsername : session?.user.username ?? '', password: sameHost ? snapshot.luxPassword : '' }))
+      setForm(previous => ({ ...previous, username: initialUsername ?? (sameHost ? snapshot.luxUsername : session?.user.username ?? ''), password: sameHost ? snapshot.luxPassword : '' }))
       setSavedSession(session)
       setHasSavedLogin(Boolean(session ?? (sameHost && (snapshot.luxUsername || snapshot.luxPassword))))
     }
     void load().catch(() => {}).finally(() => { if (active) setPrefillReady(true) })
     return () => { active = false }
-  }, [host])
+  }, [host, initialUsername])
   const back = () => {
     if (busy) return
     setMessage('')
@@ -128,7 +129,8 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {
-      setMessage(error instanceof Error && error.message === SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : error instanceof Error ? error.message : String(error))
+      if (error instanceof Error && error.message === SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(host)
+      else setMessage(error instanceof Error ? error.message : String(error))
     } finally {
       submitting.current = false
       setBusy(false)

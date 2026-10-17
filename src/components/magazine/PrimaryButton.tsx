@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo } from 'react'
-import { TouchableOpacity, type ViewStyle } from 'react-native'
+import { TouchableOpacity, type ViewStyle, type TextStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
@@ -43,6 +43,8 @@ export const PrimaryButton = memo(({
   icon,
   style,
   compact = false,
+  labelSize,
+  labelStyle,
 }: {
   label: string
   onPress?: () => void
@@ -51,6 +53,8 @@ export const PrimaryButton = memo(({
   icon?: string
   style?: ViewStyle
   compact?: boolean
+  labelSize?: number
+  labelStyle?: TextStyle
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
@@ -66,7 +70,7 @@ export const PrimaryButton = memo(({
       accessibilityState={{ disabled }}
     >
       {icon ? <MdiIcon name={icon} size={20} color={r.onInk} /> : null}
-      <Text size={compact ? 16 : magType.button.size} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null]}>{label}</Text>
+      <Text size={labelSize ?? (compact ? 16 : magType.button.size)} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null, labelStyle]}>{label}</Text>
     </TouchableOpacity>
   )
 })

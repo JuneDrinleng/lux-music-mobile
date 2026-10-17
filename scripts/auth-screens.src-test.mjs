@@ -170,6 +170,7 @@ const renderScreen = (client, host, connect) => {
     '@/lang': { useI18n: () => translate },
     '@/utils/luxAuthApi': api,
     '@/utils/serverCheck': load('src/utils/serverCheck.ts'),
+    '@/plugins/sync/client/sessionExpired': { showSessionExpiredDialog: async() => {} },
     '@/plugins/sync/client/auth': { luxAuthApi: client, requestJson: client.request },
     '@/plugins/sync': { connectLuxServer: connect, syncLuxProfileOnLogin: async() => {} },
     '@/plugins/sync/client/userErrors': { profileSyncErrorMessage: () => '' },
