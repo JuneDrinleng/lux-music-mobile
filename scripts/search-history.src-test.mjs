@@ -205,6 +205,8 @@ test('storage cache keeps a clear made during disk loading, including the deferr
     './musicUrlCache': {},
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
+    './secureCredentials': {},
+    './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
   }
   const storage = evaluateModule(join(root, 'src/utils/data.ts'), (specifier) => {

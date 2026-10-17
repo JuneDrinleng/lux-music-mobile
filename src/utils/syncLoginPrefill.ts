@@ -12,7 +12,6 @@ export interface SyncLoginFormSnapshot {
   mode: LX.Sync.Mode
   host: string
   luxUsername: string
-  luxPassword: string
   lxAuthCode: string
   hasSavedLuxSession: boolean
   hasSavedLxKey: boolean
@@ -58,7 +57,6 @@ export const rememberSyncLoginForm = async(input: {
   host: string
   mode: LX.Sync.Mode
   luxUsername?: string
-  luxPassword?: string
   lxAuthCode?: string
 }) => {
   const host = input.host.trim()
@@ -74,12 +72,9 @@ export const rememberSyncLoginForm = async(input: {
       const auth = await findLuxAuthForHost(host)
       luxUsername = auth?.user?.username?.trim() ?? ''
     }
-    const luxPassword = input.luxPassword?.length
-      ? input.luxPassword
-      : (prev?.luxPassword ?? '')
     await setSyncLoginDrafts({
       ...drafts,
-      lux: { host, luxUsername, luxPassword },
+      lux: { host, luxUsername },
     })
     return
   }
@@ -99,7 +94,6 @@ export const loadSyncLoginFormSnapshot = async(mode: LX.Sync.Mode): Promise<Sync
     const profile = drafts.lux
     let host = profile?.host?.trim() ?? ''
     let luxUsername = profile?.luxUsername?.trim() ?? ''
-    let luxPassword = profile?.luxPassword ?? ''
 
     if (!host) {
       const activeLux = await getLuxAuth()
@@ -112,13 +106,12 @@ export const loadSyncLoginFormSnapshot = async(mode: LX.Sync.Mode): Promise<Sync
     }
 
     const luxAuth = host ? await resolveLuxAuthForHost(host) : await getLuxAuth()
-    const hasSavedLuxSession = Boolean(luxAuth?.token ?? luxPassword)
+    const hasSavedLuxSession = Boolean(luxAuth?.token)
 
     return {
       mode: 'lux',
       host,
       luxUsername,
-      luxPassword,
       lxAuthCode: '',
       hasSavedLuxSession,
       hasSavedLxKey: false,
@@ -134,7 +127,6 @@ export const loadSyncLoginFormSnapshot = async(mode: LX.Sync.Mode): Promise<Sync
     mode: 'lx',
     host,
     luxUsername: '',
-    luxPassword: '',
     lxAuthCode,
     hasSavedLuxSession: false,
     hasSavedLxKey: hasSavedLxKey || Boolean(lxAuthCode),

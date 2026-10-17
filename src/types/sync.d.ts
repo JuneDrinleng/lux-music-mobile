@@ -7,7 +7,6 @@ declare global {
       interface LuxLoginProfile {
         host: string
         luxUsername: string
-        luxPassword: string
       }
 
       interface LxLoginProfile {

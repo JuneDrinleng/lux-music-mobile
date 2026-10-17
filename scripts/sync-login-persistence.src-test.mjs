@@ -69,9 +69,9 @@ test('clearSavedSyncLoginCredentialsForMode is the only path that wipes stored s
   assert.deepEqual(events, ['clearDrafts', 'clearSyncAuthKey'])
 })
 
-test('skip sync and account logout do not clear saved login credentials', () => {
+test('skip sync preserves credentials; account logout clears its Lux session', () => {
   const syncLogout = readFileSync(join(root, 'src/utils/syncLogout.ts'), 'utf8')
-  assert.doesNotMatch(syncLogout, /clearLuxAuth|clearSyncAuthKey|clearSyncLoginDraft/)
+  assert.match(syncLogout, /clearLuxAuthForServer\(session\)/)
 
   const syncLogin = readFileSync(join(root, 'src/screens/SyncLogin/index.tsx'), 'utf8')
   const skipStart = syncLogin.indexOf('const handleUseWithoutSync')

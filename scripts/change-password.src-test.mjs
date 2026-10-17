@@ -43,6 +43,7 @@ const harness = (send = async() => response) => {
       const result = await send(url, options)
       return { code: result.status ?? 200, text: JSON.stringify(result.body ?? result) }
     },
+    getRefreshToken: async() => saved?.refreshToken ?? null,
     find: data.findLuxAuthForHost,
     rotate: data.rotateLuxAuth,
     clear: async() => false,

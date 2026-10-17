@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Script } from 'node:vm'
 import test from 'node:test'
 import ts from 'typescript'
+import { fakeSecure, migration } from './secure-credentials-test-support.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const evaluate = (file, deps) => {
@@ -71,7 +72,7 @@ const make = (seed = {}) => {
   const adapter = evaluate('src/plugins/storage.ts', {
     '@react-native-async-storage/async-storage': storage, '@/utils/log': { log }, '@/utils/dataSpace': new Proxy({}, { get: (_, key) => current[key] }),
   })
-  return { disk, space, adapter, storage, load, fs, avatar, files, messages, failCopy: value => { failCopy = value }, fail: n => { writes = 0; failAt = n } }
+  return { secure: fakeSecure(), disk, space, adapter, storage, load, fs, avatar, files, messages, failCopy: value => { failCopy = value }, fail: n => { writes = 0; failAt = n } }
 }
 const legacy = {
   '@user_avatar': '"https://example.com/avatar.png"',
@@ -219,6 +220,8 @@ test('history caches and pending writes follow their original space; cursors res
   const history = evaluate('src/utils/playHistory/store.ts', {
     '@/utils/dataSpace': env.space,
     '@/config/constant': { storageDataPrefix: keys },
+    './secureCredentials': env.secure,
+    './secureCredentialMigration': migration,
     '@/plugins/storage': env.adapter,
     './merge': evaluate('src/utils/playHistory/merge.ts', {}),
   })
@@ -249,6 +252,8 @@ test('production data helpers isolate profile, default/love/custom lists and met
   await env.space.migrateDataSpaces('local')
   const constants = evaluate('src/config/constant.ts', {})
   const data = evaluate('src/utils/data.ts', {
+    './secureCredentials': env.secure,
+    './secureCredentialMigration': migration,
     '@/plugins/storage': env.adapter,
     '@/config/constant': constants,
     './dataSpace': env.space,
@@ -370,6 +375,8 @@ test('interrupted avatar copy is rebuilt through temp + rename, with size checke
 })
 
 const loadData = env => evaluate('src/utils/data.ts', {
+  './secureCredentials': env.secure,
+  './secureCredentialMigration': migration,
   '@/plugins/storage': env.adapter,
   '@/config/constant': evaluate('src/config/constant.ts', {}),
   './dataSpace': env.space,
@@ -572,9 +579,11 @@ test('refresh rotation persists both auth records, serializes servers, preserves
     data.rotateLuxAuth(a, { token: 'a1', refreshToken: 'ra1' }),
     data.rotateLuxAuth(b, { token: 'b1', refreshToken: 'rb1' }),
   ])
-  assert.equal(JSON.parse(env.disk.get('@lux_auth')).refreshToken, 'ra1')
-  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).a.refreshToken, 'ra1')
-  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).b.refreshToken, 'rb1')
+  assert.equal(JSON.parse(env.disk.get('@lux_auth')).refreshToken, undefined)
+  assert.equal(await env.secure.getRefreshToken('a'), 'ra1')
+  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).a.refreshToken, undefined)
+  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).b.refreshToken, undefined)
+  assert.equal(await env.secure.getRefreshToken('b'), 'rb1')
   assert.equal(env.space.getActiveSpace(), activeSpace)
   assert.equal(await data.clearLuxAuthForServer(b), false, 'stale refresh failure must not delete rotated tokens')
   assert.equal(await data.clearLuxAuthForServer(nextB), true)
@@ -597,7 +606,8 @@ test('login activates its data space; stale rotation cannot overwrite a switched
   assert.equal(env.space.getActiveSpace(), 'lux:s:bob')
   assert.equal(await data.rotateLuxAuth(alice, { token: 'stale', refreshToken: 'stale' }), null)
   assert.equal(await data.clearLuxAuthForServer(alice), false)
-  assert.equal((await data.getLuxAuth('s')).refreshToken, 'rb')
+  assert.equal((await data.getLuxAuth('s')).refreshToken, undefined)
+  assert.equal(await env.secure.getRefreshToken('s'), 'rb')
 })
 
 
@@ -639,6 +649,7 @@ test('password replacement persists one new session for its server without passw
   const data = loadData(env)
   const errorModule = evaluate('src/plugins/sync/client/userErrors.ts', {})
   const { createPasswordService } = evaluate('src/utils/changePassword.ts', { '@/plugins/sync/client/userErrors': errorModule })
+  await data.migrateStoredLuxCredentials()
   const batches = []
   const multiSet = env.storage.multiSet
   env.storage.multiSet = async pairs => { batches.push(pairs); await multiSet(pairs) }
@@ -653,8 +664,92 @@ test('password replacement persists one new session for its server without passw
   const active = JSON.parse(env.disk.get('@lux_auth'))
   const servers = JSON.parse(env.disk.get('@lux_auth_servers'))
   assert.deepEqual(active, servers.a)
-  assert.equal(active.token, 'new'); assert.equal(active.refreshToken, 'new-refresh')
+  assert.equal(active.token, 'new'); assert.equal(active.refreshToken, undefined)
+  assert.equal(await env.secure.getRefreshToken('a'), 'new-refresh')
   assert.equal(active.sessionId, 'new-session'); assert.equal(active.user.displayName, 'Alice')
   assert.equal(active.serverUrl, 'https://a'); assert.deepEqual(servers.b, bob)
   for (const secret of ['old-secret', 'new-secret', 'response-secret']) assert.equal(JSON.stringify([...env.disk]).includes(secret), false)
+})
+
+test('secure refresh reads reject stale accounts; server switches preserve each refresh token; logout clears only its server', async() => {
+  const env = make()
+  const data = loadData(env)
+  const a = { serverId: 'a', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+  const b = { serverId: 'b', token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
+  await data.setLuxAuth(a)
+  await data.setLuxAuth(b)
+  const savedA = await data.getLuxAuth('a')
+  await data.setLuxAuth(savedA)
+  assert.equal(await data.getLuxRefreshToken(savedA), 'ra')
+  assert.equal(await env.secure.getRefreshToken('b'), 'rb')
+  const replacement = { ...a, token: 'new-account', refreshToken: 'new-refresh', user: b.user }
+  await data.setLuxAuth(replacement)
+  assert.equal(await data.getLuxRefreshToken(savedA), null)
+  assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('a')), 'new-refresh')
+  const logout = evaluate('src/utils/syncLogout.ts', {
+    '@/core/common': { updateSetting() {} },
+    '@/core/player/player': {},
+    '@/plugins/sync': { disconnectServer: async() => {} },
+    '@/store/player/state': { isPlay: false },
+    '@/utils/data': data,
+  })
+  await logout.applySyncAccountLogout()
+  assert.equal(await env.secure.getRefreshToken('a'), null)
+  assert.equal(await env.secure.getRefreshToken('b'), 'rb')
+  await data.clearLuxAuth()
+  assert.equal(await env.secure.getRefreshToken('b'), null)
+})
+
+test('legacy session binding transfers its verified refresh token into the server namespace', async() => {
+  const legacy = { serverUrl: 'https://nas', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+  const env = make({ '@lux_auth': JSON.stringify(legacy) })
+  const data = loadData(env)
+  const auth = await data.getLuxAuth('nas')
+  assert.equal(auth.refreshToken, undefined)
+  await data.setLuxAuth({ ...auth, serverId: 'nas' })
+  assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('nas')), 'ra')
+  assert.equal(await env.secure.getRefreshToken('https://nas'), null)
+})
+
+test('failed rotation discards the secure token and never persists its plaintext replacement', async() => {
+  const env = make()
+  const data = loadData(env)
+  const auth = { serverId: 'a', token: 'old', refreshToken: 'old-refresh', user: { id: 'alice', username: 'alice' } }
+  await data.setLuxAuth(auth)
+  env.secure.fail(true)
+  assert.equal(await data.rotateLuxAuth(await data.getLuxAuth('a'), { token: 'new', refreshToken: 'replacement' }), null)
+  assert.equal(JSON.stringify([...env.disk]).includes('replacement'), false)
+  env.secure.fail(false)
+  assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('a')), null)
+})
+
+test('401 refresh reads the actual secure backend and persists rotation without a plaintext session token', async() => {
+  const env = make()
+  const data = loadData(env)
+  await data.setLuxAuth({ serverId: 'nas', serverUrl: 'https://nas', token: 'old', refreshToken: 'keychain-refresh', user: { id: 'alice', username: 'alice' } })
+  const saved = await data.getLuxAuth('nas')
+  assert.equal(saved.refreshToken, undefined)
+  const errors = evaluate('src/plugins/sync/client/userErrors.ts', {})
+  const { createLuxAuthClient } = evaluate('src/utils/luxAuthApi.ts', { '@/plugins/sync/client/userErrors': errors })
+  let refreshes = 0
+  const client = createLuxAuthClient({
+    send: async(url, options) => {
+      if (url.endsWith('/refresh')) {
+        refreshes++
+        assert.deepEqual(JSON.parse(options.body), { refreshToken: 'keychain-refresh' })
+        return { code: 200, text: JSON.stringify({ accessToken: 'new', refreshToken: 'rotated-refresh' }) }
+      }
+      return { code: options.headers.Authorization === 'Bearer new' ? 200 : 401, text: '{}' }
+    },
+    find: data.findLuxAuthForHost,
+    getRefreshToken: data.getLuxRefreshToken,
+    rotate: data.rotateLuxAuth,
+    clear: data.clearLuxAuthForServer,
+    expired() { assert.fail('valid secure refresh must not expire') },
+  })
+  await client.request('https://nas/api/me', undefined, saved.token)
+  assert.equal(refreshes, 1)
+  assert.equal(await env.secure.getRefreshToken('nas'), 'rotated-refresh')
+  assert.equal((await data.getLuxAuth('nas')).token, 'new')
+  assert.equal(JSON.stringify([...env.disk]).includes('rotated-refresh'), false)
 })

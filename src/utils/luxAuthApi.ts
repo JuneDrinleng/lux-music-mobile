@@ -37,6 +37,7 @@ export const helpMessage = (username: string, host: string, translate: (key: 'au
 export const createLuxAuthClient = (deps: {
   send: (url: string, options: { method: string, body?: string, headers: Record<string, string> }) => Promise<{ code: number, text: string }>
   find: (host: string) => Promise<LX.Sync.LuxAuth | null>
+  getRefreshToken: (previous: LX.Sync.LuxAuth) => Promise<string | null>
   rotate: (previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string }) => Promise<LX.Sync.LuxAuth | null>
   clear: (previous: LX.Sync.LuxAuth) => Promise<boolean>
   expired: (host: string, previous: LX.Sync.LuxAuth) => void
@@ -55,17 +56,18 @@ export const createLuxAuthClient = (deps: {
     return value as T
   }
   const renew = async(host: string, previous: LX.Sync.LuxAuth) => {
-    const key = JSON.stringify([previous.serverId ?? host, previous.user.id, previous.refreshToken])
+    const key = JSON.stringify([previous.serverId ?? host, previous.user.id, previous.token])
     let flight = flights.get(key)
     if (!flight) {
       flight = (async() => {
         try {
-          if (!previous.refreshToken) throw new LuxRequestError('Session expired', 401)
-          const value = await raw<Record<string, unknown>>(`${host}/api/auth/refresh`, { [AUTH_CONTRACT.refreshField]: previous.refreshToken })
+          const refreshToken = await deps.getRefreshToken(previous)
+          if (!refreshToken) throw new LuxRequestError('Session expired', 401)
+          const value = await raw<Record<string, unknown>>(`${host}/api/auth/refresh`, { [AUTH_CONTRACT.refreshField]: refreshToken })
           const token = value[AUTH_CONTRACT.accessTokenField]
-          const refreshToken = value[AUTH_CONTRACT.refreshField]
-          if (typeof token !== 'string' || !token || typeof refreshToken !== 'string' || !refreshToken) throw new LuxRequestError('Invalid refresh response', 401)
-          const next = await deps.rotate(previous, { token, refreshToken })
+          const nextRefreshToken = value[AUTH_CONTRACT.refreshField]
+          if (typeof token !== 'string' || !token || typeof nextRefreshToken !== 'string' || !nextRefreshToken) throw new LuxRequestError('Invalid refresh response', 401)
+          const next = await deps.rotate(previous, { token, refreshToken: nextRefreshToken })
           if (!next) throw new LuxRequestError('Session changed', 401)
           retired.set(previous.token, { host, userId: previous.user.id })
           return next

@@ -88,6 +88,8 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     './musicUrlCache': {},
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
+    './secureCredentials': {},
+    './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
     '@/utils/simplify-chinese-main': {},
     he: {},
