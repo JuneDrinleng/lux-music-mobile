@@ -1,5 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import AuthFlow from '../Login/AuthFlow'
+import ServerStep from '../Login/ServerStep'
+import { getPreferredSyncHost, addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { BackHandler, ScrollView, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
@@ -26,7 +29,6 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { clearSavedSyncLoginCredentialsForMode } from '@/utils/syncLoginCredentialPersistence'
 import {
   loadSyncLoginFormSnapshot,
@@ -37,7 +39,7 @@ import {
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
-export default memo(({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) => {
+export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -375,3 +377,22 @@ const useStyles = sharedLuxStyles(() => createStyle({
     lineHeight: 18,
   },
 }))
+
+
+export default function SyncLogin({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) {
+  const [host, setHost] = useState(initialHost)
+  const [legacy, setLegacy] = useState(false)
+  const [ready, setReady] = useState(Boolean(initialHost) || onboarding)
+  useEffect(() => {
+    if (initialHost || onboarding) return
+    void Promise.all([getSyncMode(), getPreferredSyncHost()]).then(([mode, savedHost]) => {
+      setLegacy(mode === 'lx')
+      setHost(savedHost)
+      setReady(true)
+    })
+  }, [initialHost, onboarding])
+  if (!ready) return null
+  if (legacy) return <LegacySyncLogin />
+  if (!host) return <ServerStep onBack={() => { void navigations.pushLoginScreen() }} onReady={setHost} />
+  return <AuthFlow key={host} host={host} onboarding={onboarding} onBack={() => { setHost('') }} />
+}

@@ -1,4 +1,6 @@
-import { parseUrl, request } from '@/plugins/sync/client/utils'
+import { requestJson } from '@/plugins/sync/client/auth'
+import { LuxRequestError } from '@/plugins/sync/client/userErrors'
+import { parseUrl } from '@/plugins/sync/client/utils'
 import { getLuxAuth, setLuxAuth } from '@/utils/data'
 
 export type AdminRole = 'admin' | 'user'
@@ -90,28 +92,12 @@ export const luxAdminRequest = async<T>(
   const urlInfo = parseUrl(host)
   const url = `${urlInfo.httpProtocol}//${urlInfo.hostPath}${path}`
   const method = options.body != null ? (options.method ?? 'POST') : (options.method ?? 'GET')
-  const { text, code } = await request(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: options.body == null ? undefined : JSON.stringify(options.body),
-  })
-  let data: { message?: unknown, code?: string } | null = null
   try {
-    data = text ? JSON.parse(text) as { message?: unknown, code?: string } : null
-  } catch {
-    data = null
+    return await requestJson<T>(url, options.body, token, method)
+  } catch (error) {
+    if (error instanceof LuxRequestError) throw new LuxAdminRequestError(error.message, error.status, error.code)
+    throw error
   }
-  if (code < 200 || code >= 300) {
-    throw new LuxAdminRequestError(
-      typeof data?.message === 'string' ? data.message : `HTTP ${code}`,
-      code,
-      data?.code,
-    )
-  }
-  return data as T
 }
 
 export type AdminAccessResult =
@@ -124,8 +110,11 @@ export const ensureAdminAccess = async(host: string): Promise<AdminAccessResult>
 
   try {
     const { user } = await luxAdminRequest<{ user: AdminPublicUser }>(host, auth.token, '/api/auth/me')
-    const mergedUser = { ...auth.user, ...user }
-    const nextAuth: LX.Sync.LuxAuth = { ...auth, user: mergedUser }
+    // The request may have renewed the session. Never write its old token back.
+    const latest = await getLuxAuth()
+    if (!latest || latest.user.id !== auth.user.id || latest.serverId !== auth.serverId) return { ok: false, reason: 'no_auth' }
+    const mergedUser = { ...latest.user, ...user }
+    const nextAuth: LX.Sync.LuxAuth = { ...latest, user: mergedUser }
     await setLuxAuth(nextAuth)
     if (mergedUser.status !== 'active') return { ok: false, reason: 'inactive' }
     if (mergedUser.role !== 'admin') return { ok: false, reason: 'denied' }

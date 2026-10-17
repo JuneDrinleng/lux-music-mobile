@@ -514,6 +514,7 @@ const luxSessions = createCredentialStore<LX.Sync.LuxAuth>({
   remove: async() => removeData(storageDataPrefix.luxAuthServers),
 })
 export const getLuxAuth = async(serverId?: string) => {
+  await luxAuthWrite
   if (serverId) {
     const session = await luxSessions.get(serverId)
     if (session) return session
@@ -523,16 +524,50 @@ export const getLuxAuth = async(serverId?: string) => {
   if (serverId && active?.serverId && active.serverId != serverId) return null
   return active
 }
+// Serialize all auth mutations, including rotation across different servers.
+let luxAuthWrite: Promise<unknown> = Promise.resolve()
+const withLuxAuthWrite = async <T>(work: () => Promise<T>): Promise<T> => {
+  const next = luxAuthWrite.then(work)
+  luxAuthWrite = next.catch(() => {})
+  return next
+}
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
-  if (auth.serverId) await luxSessions.set(auth.serverId, auth)
-  await AsyncStorage.setItem(luxAuthPrefix, JSON.stringify(auth))
+  await withLuxAuthWrite(async() => {
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    if (auth.serverId) sessions[auth.serverId] = auth
+    await AsyncStorage.multiSet([[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)], [luxAuthPrefix, JSON.stringify(auth)]])
+  })
   if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username)
 }
-export const clearLuxAuth = async() => {
-  await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
-}
+export const rotateLuxAuth = async(previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string }) => withLuxAuthWrite(async() => {
+  const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  const current = previous.serverId ? sessions[previous.serverId] ?? active : active
+  if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return null
+  const next = { ...current, ...tokens }
+  if (next.serverId) sessions[next.serverId] = next
+  const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
+  if (active?.token === previous.token && active.user.id === previous.user.id && active.serverId === previous.serverId) writes.push([luxAuthPrefix, JSON.stringify(next)])
+  await AsyncStorage.multiSet(writes)
+  return next
+})
+export const clearLuxAuthForServer = async(previous: LX.Sync.LuxAuth) => withLuxAuthWrite(async() => {
+  const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  const current = previous.serverId ? sessions[previous.serverId] ?? active : active
+  if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return false
+  if (previous.serverId) delete sessions[previous.serverId]
+  const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
+  if (active?.token === previous.token && active.serverId === previous.serverId) writes.push([luxAuthPrefix, 'null'])
+  await AsyncStorage.multiSet(writes)
+  return true
+})
+export const clearLuxAuth = async() => withLuxAuthWrite(async() => {
+  await AsyncStorage.multiRemove([luxAuthPrefix, storageDataPrefix.luxAuthServers])
+})
 
 export const listLuxAuthSessions = async(): Promise<LX.Sync.LuxAuth[]> => {
+  await luxAuthWrite
   const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
   return sessions ? Object.values(sessions) : []
 }
@@ -560,6 +595,7 @@ export const hasSavedLxSyncKeys = async() => {
 const normalizeSyncHostUrl = (host: string) => host.trim().replace(/\/+$/, '')
 
 export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth | null> => {
+  await luxAuthWrite
   const normalized = normalizeSyncHostUrl(host)
   if (!normalized) return null
   const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)

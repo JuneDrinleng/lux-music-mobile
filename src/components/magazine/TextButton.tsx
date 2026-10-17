@@ -10,6 +10,7 @@ import { magType } from '@/theme/magazineType'
 
 export const TextButton = memo(({
   label,
+  compact = false,
   onPress,
   disabled = false,
   muted = false,
@@ -17,6 +18,7 @@ export const TextButton = memo(({
   underline = true,
 }: {
   label: string
+  compact?: boolean
   onPress?: () => void
   disabled?: boolean
   muted?: boolean
@@ -28,15 +30,16 @@ export const TextButton = memo(({
   const color = danger ? r.danger : muted ? r.muted : disabled ? r.faint : r.ink
   return (
     <TouchableOpacity
+      hitSlop={compact ? { top: 13, bottom: 13, left: 0, right: 0 } : undefined}
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={{ opacity: disabled ? 0.55 : 1, minHeight: 44, justifyContent: 'center' }}
+      style={{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }}
     >
       <Text
-        size={magType.textButton.size}
+        size={compact ? 14 : magType.textButton.size}
         color={color}
         style={{
           fontWeight: '700',

@@ -33,8 +33,9 @@ const authHarness = (session, response = { code: 200, text: '{}' }, savedKey = n
       },
     },
     './userErrors': errors,
+    '@/utils/luxAuthApi': load('src/utils/luxAuthApi.ts', { '@/plugins/sync/client/userErrors': errors }),
     '../data': { getSyncAuthKey: async() => savedKey, setSyncAuthKey: async() => {} },
-    '@/utils/data': { getLuxAuth: async() => session, setLuxAuth: async() => {} },
+    '@/utils/data': { getLuxAuth: async() => session, findLuxAuthForHost: async() => null, setLuxAuth: async() => {} },
     '../log': { default: { error() {} } },
     '../utils': {},
     '@/utils/nativeModules/utils': { getDeviceName: async() => 'phone' },
@@ -107,6 +108,8 @@ test('admin access distinguishes expired login from permission with old and new 
   for (const coded of [false, true]) {
     for (const [status, code, reason] of [[401, 'UNAUTHENTICATED', 'no_auth'], [403, 'FORBIDDEN', 'denied'], [429, 'RATE_LIMITED', null]]) {
       const api = load('src/core/admin/api.ts', {
+        '@/plugins/sync/client/auth': { requestJson: async() => { throw new errors.LuxRequestError(coded ? 'server message' : `HTTP ${status}`, status, coded ? code : undefined) } },
+        '@/plugins/sync/client/userErrors': errors,
         '@/plugins/sync/client/utils': { parseUrl: () => urlInfo, request: async() => ({ code: status, text: coded ? JSON.stringify({ code, message: 'server message' }) : '' }) },
         '@/utils/data': { getLuxAuth: async() => ({ ...session, user: { ...session.user, role: 'admin', status: 'active' } }), setLuxAuth: async() => {} },
       })

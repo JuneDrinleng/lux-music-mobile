@@ -30,6 +30,7 @@ declare global {
       }
 
       interface LuxAuth {
+        refreshToken?: string
         token: string
         serverId?: string
         serverUrl?: string
