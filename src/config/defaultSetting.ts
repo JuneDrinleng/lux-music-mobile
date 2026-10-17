@@ -29,6 +29,7 @@ const defaultSetting: LX.AppSetting = {
   'player.imageCacheCount': '400',
   'player.timeoutExit': '',
   'player.timeoutExitPlayed': true,
+  'player.timeoutExitFade': true,
   'player.isAutoCleanPlayedList': false,
   'player.isHandleAudioFocus': true,
   'player.isEnableAudioOffload': true,
