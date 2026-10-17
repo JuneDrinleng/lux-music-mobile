@@ -1002,7 +1002,7 @@
   "sync__mode_merge_btn_local_remote": "\"Local List\" Merge \"Remote List\"",
   "sync__mode_merge_btn_remote_local": "\"Remote List\" Merge \"Local List\"",
   "sync__mode_select_subtitle": "Choose how data should be handled during the first sync",
-  "sync__mode_remember_tip": "This choice will be remembered and reused automatically until you change it in Settings.",
+  "sync__mode_remember_tip": "This choice will be remembered and reused automatically until you use \"Clear remembered sync conflict strategy\" in Settings.",
   "sync__mode_remember_merge_only_tip": "Merge strategies can be remembered and reused; overwrite always requires confirmation. Clear remembered merge strategies in Settings.",
   "setting_sync_clear_conflict_mode": "Clear remembered sync conflict strategy",
   "setting_sync_clear_conflict_mode_desc": "You will be asked again on the next sync conflict",

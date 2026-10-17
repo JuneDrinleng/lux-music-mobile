@@ -1002,7 +1002,7 @@
   "sync__mode_merge_btn_local_remote": "「本機清單」合併「遠端清單」",
   "sync__mode_merge_btn_remote_local": "「遠端清單」合併「本機清單」",
   "sync__mode_select_subtitle": "請選擇首次同步時的資料處理方式",
-  "sync__mode_remember_tip": "此選擇會被記住並自動使用，直到你在設定中變更。",
+  "sync__mode_remember_tip": "此選擇會被記住並自動使用，直到你在設定中點「清除已記住的同步衝突策略」。",
   "sync__mode_remember_merge_only_tip": "合併類策略可被記住並自動複用；覆蓋類每次都需確認，以防誤覆蓋。可在設定中清除已記住的合併策略。",
   "setting_sync_clear_conflict_mode": "清除已記住的同步衝突策略",
   "setting_sync_clear_conflict_mode_desc": "下次同步衝突時將重新詢問",

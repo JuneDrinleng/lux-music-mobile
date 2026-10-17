@@ -1001,7 +1001,7 @@
   "sync__mode_merge_btn_local_remote": "「本机列表」合并「远程列表」",
   "sync__mode_merge_btn_remote_local": "「远程列表」合并「本机列表」",
   "sync__mode_select_subtitle": "请选择首次同步时的数据处理方式",
-  "sync__mode_remember_tip": "此选择会被记住并自动使用，直到你在设置中更改。",
+  "sync__mode_remember_tip": "此选择会被记住并自动使用，直到你在设置中点「清除已记住的同步冲突策略」。",
   "sync__mode_remember_merge_only_tip": "合并类策略可被记住并自动复用；覆盖类每次都需确认，以防误覆盖。可在设置中清除已记住的合并策略。",
   "setting_sync_clear_conflict_mode": "清除已记住的同步冲突策略",
   "setting_sync_clear_conflict_mode_desc": "下次同步冲突时将重新询问",
