@@ -2,9 +2,9 @@
 
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
-import { luxSpaceId, setActiveSpace, namespacedKey } from './dataSpace'
+import { luxSpaceId, setActiveSpace, storageKey, getActiveSpace, avatarDirectory, type SpaceId } from './dataSpace'
 import { throttle } from './common'
-import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
+import { existsFile, extname, mkdir, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
 import { parseMusicUrlRecord, serializeMusicUrlRecord } from './musicUrlCache'
 import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
@@ -47,8 +47,7 @@ const userGenderPrefix = storageDataPrefix.userGender
 const openStoragePathPrefix = storageDataPrefix.openStoragePath
 const selectedManagedFolderPrefix = storageDataPrefix.selectedManagedFolder
 
-const userAvatarFileDir = `${privateStorageDirectoryPath}/user`
-const userAvatarFilePrefix = `${userAvatarFileDir}/avatar`
+const userAvatarFilePrefix = (space: SpaceId) => `${avatarDirectory(space)}/avatar`
 const userAvatarLocalExts = ['jpg', 'jpeg', 'png', 'webp', 'bmp'] as const
 const localFileProtocolRxp = /^file:\/\//
 
@@ -57,29 +56,30 @@ export const DEFAULT_USER_NAME = 'Alex Rivera'
 
 const normalizeLocalFilePath = (path: string) => path.replace(localFileProtocolRxp, '')
 const isLocalFilePath = (path: string) => path.startsWith('/') || localFileProtocolRxp.test(path)
-const isPersistedUserAvatarPath = (path: string) => path.startsWith(userAvatarFilePrefix + '.')
-const getPersistedUserAvatarPath = (path: string) => {
+const isPersistedUserAvatarPath = (path: string, space: SpaceId) => path.startsWith(userAvatarFilePrefix(space) + '.')
+const getPersistedUserAvatarPath = (path: string, space: SpaceId) => {
   const targetExt = extname(path).toLowerCase()
-  return `${userAvatarFilePrefix}.${userAvatarLocalExts.includes(targetExt as typeof userAvatarLocalExts[number]) ? targetExt : 'png'}`
+  return `${userAvatarFilePrefix(space)}.${userAvatarLocalExts.includes(targetExt as typeof userAvatarLocalExts[number]) ? targetExt : 'png'}`
 }
-const ensureUserAvatarDir = async() => {
+const ensureUserAvatarDir = async(space: SpaceId) => {
+  const userAvatarFileDir = avatarDirectory(space)
   if (await existsFile(userAvatarFileDir)) return
   await mkdir(userAvatarFileDir)
 }
-const clearPersistedUserAvatarFiles = async(excludePath?: string) => {
+const clearPersistedUserAvatarFiles = async(space: SpaceId, excludePath?: string) => {
   await Promise.all(userAvatarLocalExts.map(async(ext) => {
-    const path = `${userAvatarFilePrefix}.${ext}`
+    const path = `${userAvatarFilePrefix(space)}.${ext}`
     if (path == excludePath || !await existsFile(path)) return
     await unlink(path).catch(() => {})
   }))
 }
-const persistUserAvatarPath = async(path: string) => {
+const persistUserAvatarPath = async(path: string, space: SpaceId) => {
   const sourcePath = normalizeLocalFilePath(path)
-  const targetPath = getPersistedUserAvatarPath(sourcePath)
-  await ensureUserAvatarDir()
+  const targetPath = getPersistedUserAvatarPath(sourcePath, space)
+  await ensureUserAvatarDir(space)
   const avatarData = String(await readFile(sourcePath, 'base64'))
   await writeFile(targetPath, avatarData, 'base64')
-  await clearPersistedUserAvatarFiles(targetPath)
+  await clearPersistedUserAvatarFiles(space, targetPath)
   return targetPath
 }
 const getUserAvatarDataUrlMime = (path: string) => {
@@ -103,20 +103,20 @@ const parseUserAvatarDataUrl = (dataUrl: string) => {
   const ext = mime == 'image/jpeg' ? 'jpg' : mime.replace('image/', '')
   return { ext, data: result[2] }
 }
-const resolveUserAvatar = async(path: string | null) => {
+const resolveUserAvatar = async(path: string | null, space: SpaceId, key: string) => {
   if (!path) return null
   if (!isLocalFilePath(path)) return path
 
   const sourcePath = normalizeLocalFilePath(path)
   if (!await existsFile(sourcePath)) {
-    await removeData(userAvatarPrefix)
+    await removeData(key)
     return null
   }
-  if (isPersistedUserAvatarPath(sourcePath)) return sourcePath
+  if (isPersistedUserAvatarPath(sourcePath, space)) return sourcePath
 
   try {
-    const persistedPath = await persistUserAvatarPath(sourcePath)
-    await saveData(userAvatarPrefix, persistedPath)
+    const persistedPath = await persistUserAvatarPath(sourcePath, space)
+    await saveData(key, persistedPath)
     return persistedPath
   } catch (error: any) {
     log.warn('persist user avatar failed:', error?.message ?? error)
@@ -162,7 +162,7 @@ export const saveUserTheme = async(themes: LX.Theme[]) => {
 // Capture the physical key before awaiting storage; account switches cannot redirect a write.
 const metadataWrites = new Map<string, Promise<void>>()
 const updateListMetadata = async<T>(baseKey: string, fallback: T, update: (value: T) => T) => {
-  const key = namespacedKey(baseKey)
+  const key = storageKey(baseKey)
   const run = (metadataWrites.get(key) ?? Promise.resolve()).then(async() => {
     const value = await getData<T>(key) ?? fallback
     await saveData(key, update(value))
@@ -757,35 +757,35 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
   await saveData(userApiPrefix, userApis)
 }
 
-let userAvatar: string | null = ''
+// Capture the space and physical key before any filesystem/storage awaits.
 export const getUserAvatar = async() => {
-  if (userAvatar !== '') return userAvatar
-  // eslint-disable-next-line require-atomic-updates
-  userAvatar = await resolveUserAvatar(await getData<string>(userAvatarPrefix) ?? null)
-  return userAvatar
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
+  return resolveUserAvatar(await getData<string>(key) ?? null, space, key)
 }
 export const saveUserAvatar = async(path: string | null) => {
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
   if (path) {
-    userAvatar = isLocalFilePath(path) ? await persistUserAvatarPath(path) : path
-    await saveData(userAvatarPrefix, userAvatar)
-    return userAvatar
-  } else {
-    userAvatar = null
-    await clearPersistedUserAvatarFiles()
-    await removeData(userAvatarPrefix)
-    return userAvatar
+    const avatar = isLocalFilePath(path) ? await persistUserAvatarPath(path, space) : path
+    await saveData(key, avatar)
+    return avatar
   }
+  await clearPersistedUserAvatarFiles(space)
+  await removeData(key)
+  return null
 }
 export const saveUserAvatarDataUrl = async(dataUrl: string | null) => {
   if (!dataUrl) return saveUserAvatar(null)
   const avatar = parseUserAvatarDataUrl(dataUrl)
   if (!avatar) return saveUserAvatar(dataUrl)
-  await ensureUserAvatarDir()
-  const targetPath = `${userAvatarFilePrefix}.${avatar.ext}`
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
+  await ensureUserAvatarDir(space)
+  const targetPath = `${userAvatarFilePrefix(space)}.${avatar.ext}`
   await writeFile(targetPath, avatar.data, 'base64')
-  await clearPersistedUserAvatarFiles(targetPath)
-  userAvatar = targetPath
-  await saveData(userAvatarPrefix, targetPath)
+  await clearPersistedUserAvatarFiles(space, targetPath)
+  await saveData(key, targetPath)
   return targetPath
 }
 export const getUserAvatarDataUrl = async() => {

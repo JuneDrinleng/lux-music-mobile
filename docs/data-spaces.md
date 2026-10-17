@@ -1,10 +1,10 @@
 # PR 5.2: local data spaces (storage only)
 
-`getActiveSpace()` returns `local` or `lux:<serverId>:<userId>`. Components of Lux IDs are URI encoded to prevent delimiter collisions. `setActiveSpace()` persists the active ID and serializes switches. `listSpaces()` returns ID, kind, optional account username, and lastActiveAt. Successful Lux credential persistence selects that account before list/profile sync. Logout retains the active ID and data; saved credentials alone are not proof of login. Startup uses the existing `syncLoginCompleted` flag plus Lux mode and authenticated server/user IDs. Otherwise it restores the saved space after the initial migration. A logged-in legacy Lux session without serverId stops startup before migration rather than guessing an account identity.
+`getActiveSpace()` returns `local` or `lux:<serverId>:<userId>`. Components of Lux IDs are URI encoded to prevent delimiter collisions. `setActiveSpace()` persists the active ID and serializes switches. `listSpaces()` returns ID, kind, optional account username, and lastActiveAt. Successful Lux credential persistence selects that account before list/profile sync. Logout retains the active ID and data; saved credentials alone are not proof of login. Startup uses the existing `syncLoginCompleted` flag plus Lux mode and authenticated server/user IDs. Otherwise it restores the saved space after the initial migration. For a logged-in Lux session missing serverId, startup looks for a session with the same user.id in `@lux_auth_servers`. If the identity remains unknown, it warns and uses `local`. Initialization errors are logged and never reject startup.
 
-All `plugins/storage` single/batch reads, writes and removals resolve affected base keys to `<baseKey>@<spaceId>` at entry. Explicit physical keys stay pinned across awaits. Enumeration presents current-space base keys and globals, excluding retained legacy roots and other spaces. Playlist caches reload on switches, history flushes the pending snapshot to its original physical key before loading the new space, cursors reset, and listening sessions restart. Profile scalar caches were removed; list metadata updates are serialized per physical key instead of retaining global caches and delayed writes.
+Only after the migration marker is successfully written and verified do `plugins/storage` single/batch reads, writes and removals resolve affected base keys to `<baseKey>@<spaceId>` at entry. Explicit physical keys stay pinned across awaits. Until that marker is available, reads, writes and enumeration continue using legacy keys; space switches log a warning and do nothing. After completion, enumeration presents current-space base keys and globals, excluding retained legacy roots and other spaces. Playlist caches reload on switches, history flushes the pending snapshot to its original physical key before loading the new space, cursors reset, and listening sessions restart. Profile scalar caches were removed; list metadata updates are serialized per physical key instead of retaining global caches and delayed writes.
 
-Migration runs before settings/player/list initialization. It reads affected legacy roots plus every referenced shard, writes a timestamped raw backup in verified 250,000-character chunks, then publishes and reads back `dataSpaceBackup@v1`. Only after this succeeds does it copy destinations. Fragmented values get independent destination shards, verified before publishing their root. Existing destination roots are preserved, and referenced shards must exist. It writes and verifies `dataSpaceMigration=v1:<target>` last. Restart reuses the completed backup and its original target; incomplete backup chunks can be rewritten because no destination copy has started. Legacy roots/shards are never removed. A backup, shard, write, or verification error aborts startup rather than proceeding with an empty store. Logs include begin, verified backup/resume, each copied/skipped root, and completion.
+Migration runs before settings/player/list initialization. It reads affected legacy roots plus every referenced shard, writes a timestamped raw backup in verified 250,000-character chunks, then publishes and reads back `dataSpaceBackup@v1`. Only after this succeeds does it copy destinations. Fragmented values get independent destination shards, verified before publishing their root. Existing destination roots are preserved, and referenced shards must exist. It writes and verifies `dataSpaceMigration=v1:<target>` last. Restart reuses the completed backup and its original target; incomplete backup chunks can be rewritten because no destination copy has started. Legacy roots/shards are never removed. A backup, shard, file-copy, write, or verification error leaves storage in legacy mode and startup continues. A failed attempt removes its newly created backup chunks/manifest, destination roots/shards and marker, including writes that persisted before rejecting. Pre-existing keys are retained. A completed backup from an earlier attempt is retained for resumption; unpublished backup chunks can be rewritten. Migration retries on next startup. Logs include begin, verified backup/resume, each copied/skipped root, and completion.
 
 ## Storage inventory
 
@@ -19,7 +19,7 @@ Migration runs before settings/player/list initialization. It reads affected leg
 | `@user_name`, `@user_signature`, `@user_gender` | Per space |
 | `@sync_conflict_mode` | Per space |
 | `@___PART_A___<physical-key><index>` | Follows the owning root; migrated shards are independent |
-| Retained legacy roots, `@___PART___…` / old array shards | Unmodified migration source, no runtime fallback |
+| Retained legacy roots, `@___PART___…` / old array shards | Retained migration source; runtime storage until migration completes |
 | `@setting_v1`, `@font_size`, `@theme`, `lux.theme.id` | Global settings/theme |
 | `@view_prev_state`, `@search_history_list`, `@search_setting`, `@songist_setting`, `@leaderboard_setting` | Global application preferences/history |
 | `@stats_chart_mode`, `@stats_page_style` | Global appearance preferences |
@@ -33,14 +33,22 @@ Migration runs before settings/player/list initialization. It reads affected leg
 | `@audio_cache_index`, `@local_song_library` | Global device audio cache/imported filesystem catalog |
 | `@play_history_avatars`, `lx_playlist_cover_urls`, `lx_cover_failure_registry`, `lx_local_song_cover_cache` | Global artwork/lookup caches |
 | `lux.togetherDebugPanel` | Global debug preference |
-| `@user_avatar` and private `user/avatar.{jpg,jpeg,png,webp,bmp}` | Global — NEEDS_DECISION below |
+| `@user_avatar`, private `user/<encoded-spaceId>/avatar.{jpg,jpeg,png,webp,bmp}` | Per space; legacy shared key/file retained |
 | Obsolete `@setting`, `@listposition__`, `@listsort__` | Existing pre-v1 migration inputs, still global |
 | `dataSpaceActive`, `dataSpaceSpaces`, `dataSpaceMigration` | Global space registry/control |
 | `dataSpaceBackup@v1`, `dataSpaceBackup@v1:chunk:<index>` | Global immutable completed migration backup |
 
-## NEEDS_DECISION: avatar files
+## Avatar ownership (June decision)
 
-`src/utils/data.ts` stores `@user_avatar` as a path/URL and copies local images to one shared `privateStorageDirectoryPath/user/avatar.<ext>`. Both local selection and profile sync can overwrite that file and delete all other supported extensions. Namespacing only the key would let one account destroy another account's avatar; a safe change needs a separate file migration/backup policy and a decision on how legacy shared avatar bytes are owned. Per the task's explicit fallback, this PR leaves BOTH the avatar key and avatar file operations global. Name, gender, signature are isolated. Shared avatars remain a known isolation exception until that decision.
+Avatars belong to each space, consistent with 14D profile editing. The namespaced `@user_avatar` points to a URL or a file under `${privateStorageDirectoryPath}/user/${encodeURIComponent(spaceId)}/avatar.<ext>`. The entire space ID is encoded for the directory, including already escaped Lux identity components.
+
+Migration assigns the legacy shared avatar to the same target as the remaining data (logged-in Lux account when known, otherwise `local`). If its supported `user/avatar.*` file exists, migration copies its bytes to a temporary file in the target directory, checks existence and size against the source, renames it to the destination, and checks existence and size again before publishing the namespaced key. It never moves or deletes the legacy shared file. URLs and absent files retain their stored value. An existing destination key is kept without touching its file. Without a published key, every retry rebuilds the temporary file and replaces any unpublished destination; partial files are never trusted.
+
+Avatar helpers have no shared scalar cache. Local selection, profile sync, reads that persist an external local image, and deletion capture their physical storage key and space before asynchronous work. They write and clean up only that captured space's supported avatar files; the shared legacy file and other spaces' files remain intact.
+
+## Android storage capacity
+
+The installed AsyncStorage is **2.2.0**. Its `android/build.gradle` uses `AsyncStorageConfig.databaseSizeMB`; `android/config.gradle` reads `AsyncStorage_db_size_in_MB`, defaulting to 6 MB. NextStorage is disabled. `android/gradle.properties` now sets `AsyncStorage_db_size_in_MB=64` to accommodate the retained source, raw backup, and copied data. Quota/write failures still roll back newly created storage artifacts and keep legacy routing; increasing the cap does not guarantee free disk capacity.
 
 ## List sync snapshots/cursors audit
 

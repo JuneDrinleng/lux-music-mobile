@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { log } from '@/utils/log'
-import { storageKey, getActiveSpace, isPerSpaceKey } from '@/utils/dataSpace'
+import { storageKey, getActiveSpace, isPerSpaceKey, isDataSpaceReady } from '@/utils/dataSpace'
 
 const partKeyPrefix = '@___PART___'
 const partKeyArrPrefix = '@___PART_A___'
@@ -121,6 +121,7 @@ export const removeData = async(key: string) => {
 }
 
 export const getAllKeys = async() => {
+  const ready = isDataSpaceReady()
   const suffix = `@${getActiveSpace()}`
   let keys
   try {
@@ -132,6 +133,10 @@ export const getAllKeys = async() => {
   }
 
   return keys.flatMap(key => {
+    if (!ready) {
+      const match = /^(.*)@(?:local|lux:[^:]+:[^:]+)$/.exec(key)
+      return match && isPerSpaceKey(match[1]) ? [] : [key]
+    }
     if (key.endsWith(suffix) && isPerSpaceKey(key.slice(0, -suffix.length))) return [key.slice(0, -suffix.length)]
     // Legacy roots and other accounts must not leak through list-key enumeration.
     const match = /^(.*)@(?:local|lux:[^:]+:[^:]+)$/.exec(key)

@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { getActiveSpace, namespacedKey, onDataSpaceChanged } from '@/utils/dataSpace'
+import { getActiveSpace, storageKey, onDataSpaceChanged } from '@/utils/dataSpace'
 import { storageDataPrefix } from '@/config/constant'
 import { getData, saveData } from '@/plugins/storage'
 
@@ -35,7 +35,7 @@ const notify = () => {
 
 const schedulePersist = () => {
   if (persistTimer) clearTimeout(persistTimer)
-  const key = namespacedKey(storageDataPrefix.playHistory)
+  const key = storageKey(storageDataPrefix.playHistory)
   const snapshot = records
   flushPending = async() => { await saveData(key, snapshot) }
   persistTimer = setTimeout(() => {
