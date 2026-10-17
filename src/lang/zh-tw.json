@@ -1245,5 +1245,20 @@
   "sync_expired_local_bold": "不會遺失",
   "sync_expired_local_after": "，重新登入後繼續同步。",
   "sync_expired_later": "稍後",
-  "sync_expired_login": "重新登入"
+  "sync_expired_login": "重新登入",
+  "password_title": "修改密碼",
+  "password_eyebrow": "帳號 • 安全",
+  "password_current": "目前密碼",
+  "password_new": "新密碼",
+  "password_revoke": "同時登出其他裝置",
+  "password_other_devices_count": "其他 {count} 台裝置需要重新登入",
+  "password_other_devices_unknown": "其他裝置需要重新登入",
+  "password_submit": "確認修改",
+  "password_success": "密碼已修改",
+  "password_current_invalid": "目前密碼不正確",
+  "password_rate_limited": "嘗試太頻繁，請稍後再試",
+  "password_invalid_request": "請檢查密碼資訊後重試",
+  "password_session_expired": "登入已過期，請重新登入",
+  "password_failed": "修改失敗，請稍後重試",
+  "password_session_required": "請重新登入後再修改，才能保留其他裝置的登入"
 }

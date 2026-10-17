@@ -6,6 +6,7 @@ import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
+import ChangePassword from '@/screens/Login/ChangePassword'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import ImagePicker from 'react-native-image-crop-picker'
@@ -142,6 +143,8 @@ export default () => {
   const [syncHostDraft, setSyncHostDraft] = useState('')
   const [authCode, setAuthCode] = useState('')
   const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
+  const [passwordSession, setPasswordSession] = useState<LX.Sync.LuxAuth | null>(null)
+  const [hasLuxAccount, setHasLuxAccount] = useState(false)
   const [syncMode, setSyncModeLocal] = useState<LX.Sync.Mode>('lx')
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
@@ -203,6 +206,19 @@ export default () => {
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
     return () => { global.app_event.off('syncModeUpdated', handleSyncModeUpdated) }
   }, [])
+  useEffect(() => {
+    let active = true
+    const refresh = () => {
+      void findLuxAuthForHost(syncHost).then(session => { if (active) setHasLuxAccount(syncMode === 'lux' && Boolean(session?.token && session.user?.id)) }).catch(() => { if (active) setHasLuxAccount(false) })
+    }
+    refresh()
+    global.app_event.on('focus', refresh)
+    return () => { active = false; global.app_event.off('focus', refresh) }
+  }, [syncHost, syncMode, syncStatus])
+  const openPassword = async() => {
+    const session = await findLuxAuthForHost(syncHost)
+    if (syncMode === 'lux' && session?.token && session.user?.id) setPasswordSession(session)
+  }
   const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
   const activeSearchSourceLabel = useMemo(() => {
@@ -1152,6 +1168,7 @@ export default () => {
           ? (
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
+              {syncMode === 'lux' && hasLuxAccount ? <SettingRow icon="lock-outline" iconBg={r.iconWrap.red} title={t('password_title')} onPress={() => { void openPassword().catch(() => { toast(t('password_failed')) }) }} /> : null}
               <SettingRow
                 icon="logout"
                 iconBg={r.iconWrap.red}
@@ -1175,6 +1192,7 @@ export default () => {
           : null}
 
       </ScrollView>
+      {passwordSession ? <ChangePassword host={syncHost.replace(/\/+$/, '')} session={passwordSession} onBack={() => { setPasswordSession(null) }} /> : null}
       <Animated.View
         pointerEvents={isProfileDetailVisible ? 'auto' : 'none'}
         style={[

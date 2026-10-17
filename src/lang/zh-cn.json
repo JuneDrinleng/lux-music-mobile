@@ -1245,5 +1245,20 @@
   "sync_expired_local_bold": "不会丢失",
   "sync_expired_local_after": "，重新登录后继续同步。",
   "sync_expired_later": "稍后",
-  "sync_expired_login": "重新登录"
+  "sync_expired_login": "重新登录",
+  "password_title": "修改密码",
+  "password_eyebrow": "账号 • 安全",
+  "password_current": "当前密码",
+  "password_new": "新密码",
+  "password_revoke": "同时退出其他设备",
+  "password_other_devices_count": "其他 {count} 台设备需要重新登录",
+  "password_other_devices_unknown": "其他设备需要重新登录",
+  "password_submit": "确认修改",
+  "password_success": "密码已修改",
+  "password_current_invalid": "当前密码不正确",
+  "password_rate_limited": "尝试太频繁，请稍后再试",
+  "password_invalid_request": "请检查密码信息后重试",
+  "password_session_expired": "登录已过期，请重新登录",
+  "password_failed": "修改失败，请稍后重试",
+  "password_session_required": "请重新登录后再修改，才能保留其他设备的登录"
 }

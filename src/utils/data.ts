@@ -539,7 +539,7 @@ export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
   })
   if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username)
 }
-export const rotateLuxAuth = async(previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string }) => withLuxAuthWrite(async() => {
+export const rotateLuxAuth = async(previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string } & Partial<Pick<LX.Sync.LuxAuth, 'sessionId' | 'accessTokenExpiresAt' | 'user'>>) => withLuxAuthWrite(async() => {
   const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
   const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
   const current = previous.serverId ? sessions[previous.serverId] ?? active : active

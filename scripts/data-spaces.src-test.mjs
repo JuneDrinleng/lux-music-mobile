@@ -630,3 +630,31 @@ test('session expiry and Later preserve playlists, playback history, other serve
   }
   assert.deepEqual(JSON.parse(env.disk.get('@lux_auth_servers')), { b })
 })
+
+test('password replacement persists one new session for its server without password data', async() => {
+  const alice = { serverId: 'a', serverUrl: 'https://a', token: 'old', refreshToken: 'old-refresh', user: { id: 'alice', username: 'alice' } }
+  const bob = { serverId: 'b', serverUrl: 'https://b', token: 'bob', user: { id: 'bob' } }
+  const env = make({ '@lux_auth': JSON.stringify(alice), '@lux_auth_servers': JSON.stringify({ a: alice, b: bob }) })
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const errorModule = evaluate('src/plugins/sync/client/userErrors.ts', {})
+  const { createPasswordService } = evaluate('src/utils/changePassword.ts', { '@/plugins/sync/client/userErrors': errorModule })
+  const batches = []
+  const multiSet = env.storage.multiSet
+  env.storage.multiSet = async pairs => { batches.push(pairs); await multiSet(pairs) }
+  const service = createPasswordService({
+    find: data.findLuxAuthForHost,
+    rotate: data.rotateLuxAuth,
+    request: async() => ({ ok: true, accessToken: 'new', token: 'legacy', refreshToken: 'new-refresh', sessionId: 'new-session', accessTokenExpiresAt: 'tomorrow', user: { ...alice.user, displayName: 'Alice' }, password: 'response-secret' }),
+  })
+  await service.change('https://a', alice, { oldPassword: 'old-secret', password: 'new-secret', confirm: 'new-secret' }, true)
+  assert.equal(batches.length, 1)
+  assert.deepEqual(batches[0].map(([key]) => key).sort(), ['@lux_auth', '@lux_auth_servers'])
+  const active = JSON.parse(env.disk.get('@lux_auth'))
+  const servers = JSON.parse(env.disk.get('@lux_auth_servers'))
+  assert.deepEqual(active, servers.a)
+  assert.equal(active.token, 'new'); assert.equal(active.refreshToken, 'new-refresh')
+  assert.equal(active.sessionId, 'new-session'); assert.equal(active.user.displayName, 'Alice')
+  assert.equal(active.serverUrl, 'https://a'); assert.deepEqual(servers.b, bob)
+  for (const secret of ['old-secret', 'new-secret', 'response-secret']) assert.equal(JSON.stringify([...env.disk]).includes(secret), false)
+})
