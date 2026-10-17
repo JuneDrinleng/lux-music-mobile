@@ -6,7 +6,6 @@ import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
 import { setTogetherFeatureEnabled } from '../../togetherFlag'
-import { setSourceFeatureEnabled } from '../../sourceFlag'
 import { notifySyncReady } from '../syncReady'
 import { setSyncModuleReady } from '../moduleReadys'
 import { featureVersion } from '../modules'
@@ -35,8 +34,6 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     const enableTogether = lux && featureVersion.together == supportedFeatures.together
     setTogetherFeatureEnabled(enableTogether)
     if (enableTogether) setSyncModuleReady(socket, 'together', true)
-    const enableSource = lux && featureVersion.source == supportedFeatures.source
-    setSourceFeatureEnabled(enableSource)
     switch (serverType) {
       case 'server':
         if (featureVersion.list == supportedFeatures.list) {
@@ -47,7 +44,6 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
         }
         if (enablePlayHistory) features.playHistory = true
         if (enableTogether) features.together = true
-        if (enableSource) features.source = true
         return features
       case 'desktop-app':
       default:
@@ -59,7 +55,6 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
         }
         if (enablePlayHistory) features.playHistory = true
         if (enableTogether) features.together = true
-        if (enableSource) features.source = true
         return features
     }
   },

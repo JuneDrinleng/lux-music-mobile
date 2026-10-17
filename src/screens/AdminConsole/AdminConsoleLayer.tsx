@@ -24,7 +24,6 @@ import {
   type AdminStatusResponse,
   type AdminUserView,
 } from '@/core/admin/api'
-import { getLuxSourceStatus, type LuxSourceStatus } from '@/core/music/lux'
 import { useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -42,7 +41,6 @@ type AdminRouteName =
   | 'invites'
   | 'devices'
   | 'service'
-  | 'sources'
 
 interface AdminRoute {
   name: AdminRouteName
@@ -83,7 +81,6 @@ export const AdminConsoleLayer = ({
   const [invites, setInvites] = useState<AdminInvite[]>([])
   const [devices, setDevices] = useState<Awaited<ReturnType<typeof adminApi.meDevices>>['devices']>([])
   const [playlists, setPlaylists] = useState<Awaited<ReturnType<typeof adminApi.mePlaylists>>['playlists'] | null>(null)
-  const [luxSourceStatus, setLuxSourceStatus] = useState<LuxSourceStatus>(getLuxSourceStatus)
   const [revealedInviteCode, setRevealedInviteCode] = useState<string | null>(null)
   const [createUserOpen, setCreateUserOpen] = useState(false)
   const [newUsername, setNewUsername] = useState('')
@@ -128,7 +125,6 @@ export const AdminConsoleLayer = ({
     setInvites([])
     setDevices([])
     setPlaylists(null)
-    setLuxSourceStatus(getLuxSourceStatus())
     setRevealedInviteCode(null)
   }, [])
 
@@ -237,7 +233,6 @@ export const AdminConsoleLayer = ({
     if (route.name === 'invites') void loadInvites().catch(handleApiError)
     if (route.name === 'devices') void loadDevices().catch(handleApiError)
     if (route.name === 'service') void loadDashboard().catch(handleApiError)
-    if (route.name === 'sources') setLuxSourceStatus(getLuxSourceStatus())
   }, [route.name, visible, token, loadDashboard, loadUsers, loadInvites, loadDevices, handleApiError])
 
   const onRefresh = async() => {
@@ -268,8 +263,6 @@ export const AdminConsoleLayer = ({
         return t('admin_console_devices_title')
       case 'service':
         return t('admin_console_service_title')
-      case 'sources':
-        return t('admin_console_sources_title')
       default:
         return t('admin_console_title')
     }
@@ -293,12 +286,6 @@ export const AdminConsoleLayer = ({
   const serviceStatusLabel = adminStatus?.status.status
     ? t('admin_console_service_running')
     : t('admin_console_service_stopped')
-
-  const luxSourceLabel = luxSourceStatus === 'ready'
-    ? t('source_status_ready')
-    : luxSourceStatus === 'no_source'
-      ? t('source_status_no_source')
-      : t('source_lux_server_unavailable')
 
   const handleConfirmDeleteUser = async() => {
     if (!deleteUserTarget || deleteUserConfirm.trim() !== deleteUserTarget.username) return
@@ -434,8 +421,7 @@ export const AdminConsoleLayer = ({
       <SettingRow icon="account-group-outline" iconBg={r.iconWrap.purple} title={t('admin_console_users_title')} onPress={() => { navigate({ name: 'users' }) }} />
       <SettingRow icon="ticket-confirmation-outline" iconBg={r.iconWrap.purple} title={t('admin_console_invites_title')} onPress={() => { navigate({ name: 'invites' }) }} />
       <SettingRow icon="devices" iconBg={r.iconWrap.purple} title={t('admin_console_devices_title')} onPress={() => { navigate({ name: 'devices' }) }} />
-      <SettingRow icon="server-outline" iconBg={r.iconWrap.purple} title={t('admin_console_service_title')} onPress={() => { navigate({ name: 'service' }) }} />
-      <SettingRow icon="cloud-cog-outline" iconBg={r.iconWrap.purple} title={t('admin_console_sources_title')} onPress={() => { navigate({ name: 'sources' }) }} last />
+      <SettingRow icon="server-outline" iconBg={r.iconWrap.purple} title={t('admin_console_service_title')} onPress={() => { navigate({ name: 'service' }) }} last />
     </>
   )
 
@@ -594,14 +580,6 @@ export const AdminConsoleLayer = ({
     </View>
   )
 
-  const renderSources = () => (
-    <>
-      <Text size={magType.body.size} color={r.muted} style={styles.note}>{t('admin_console_sources_note')}</Text>
-      <SettingRow icon="cloud-check-outline" iconBg={r.iconWrap.green} title={t('source_resolved_by_server')} subtitle={luxSourceLabel} last />
-      <Text size={magType.footnote.size} color={r.quiet} style={styles.note}>{t('admin_console_sources_placeholder')}</Text>
-    </>
-  )
-
   const body = (() => {
     switch (route.name) {
       case 'loading':
@@ -622,8 +600,6 @@ export const AdminConsoleLayer = ({
         return renderDevices()
       case 'service':
         return renderService()
-      case 'sources':
-        return renderSources()
       default:
         return null
     }

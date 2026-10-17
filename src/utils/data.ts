@@ -76,7 +76,7 @@ const persistUserAvatarPath = async(path: string) => {
   const sourcePath = normalizeLocalFilePath(path)
   const targetPath = getPersistedUserAvatarPath(sourcePath)
   await ensureUserAvatarDir()
-  const avatarData = await readFile(sourcePath, 'base64')
+  const avatarData = String(await readFile(sourcePath, 'base64'))
   await writeFile(targetPath, avatarData, 'base64')
   await clearPersistedUserAvatarFiles(targetPath)
   return targetPath
@@ -437,8 +437,8 @@ export const getMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality
   const record = await readMusicUrlRecord(musicInfo, type)
   return record?.url ?? ''
 }
-export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string, expiresAt?: number) => {
-  await saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, serializeMusicUrlRecord(url, Date.now(), expiresAt))
+export const saveMusicUrl = async(musicInfo: LX.Music.MusicInfo, type: LX.Quality, url: string) => {
+  await saveData(`${storageDataPrefix.musicUrl}${musicInfo.id}_${type}`, serializeMusicUrlRecord(url, Date.now()))
 }
 export const clearMusicUrl = async(keys?: string[]) => {
   if (!keys) keys = (await getAllKeys()).filter(key => key.startsWith(storageDataPrefix.musicUrl))

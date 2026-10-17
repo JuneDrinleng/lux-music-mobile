@@ -95,10 +95,6 @@ export const useAdminConsoleStyles = sharedLuxStyles((colors) => createStyle({
     justifyContent: 'space-between',
     gap: 8,
   },
-  note: {
-    marginTop: 8,
-    marginBottom: 12,
-  },
   loadingWrap: {
     paddingVertical: 48,
     alignItems: 'center',
