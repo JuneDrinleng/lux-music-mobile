@@ -44,5 +44,5 @@ export const formatTogetherGateHint = (snap: TogetherGateSnapshot): string => (
   `gate session=${snap.sessionId ?? 'none'} state=${snap.sessionState ?? 'none'} mode=${snap.mode} sync=${snap.syncReady ? 1 : 0} feat=${snap.feature ? 1 : 0} mod=${snap.moduleTogether ? 1 : 0} block=${snap.blocked}`
 )
 
-/** Always append gate hints on create/join failure until together gate regressions are cleared in the field. */
-export const shouldAppendTogetherGateHint = (): boolean => true
+/** Gate diagnostics belong in logs, never in user-facing errors. */
+export const shouldAppendTogetherGateHint = (): boolean => false

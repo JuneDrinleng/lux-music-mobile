@@ -53,9 +53,9 @@ const SyncModeContent = () => {
       return
     }
     if (isList) {
-      global.app_event.selectSyncMode({ type: 'list', mode: selected })
+      global.app_event.selectSyncMode({ type: 'list', mode: selected, remember })
     } else {
-      global.app_event.selectSyncMode({ type: 'dislike', mode: selected })
+      global.app_event.selectSyncMode({ type: 'dislike', mode: selected, remember })
     }
   }
 

@@ -12,6 +12,9 @@ import {
   UnderlineInput,
 } from '@/components/magazine'
 import { MdiIcon } from '@/components/common/MdiIcon'
+import { SYNC_CODE } from '@/plugins/sync/constants'
+import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
+import { luxSessionExpiredMessage, profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { updateSetting } from '@/core/common'
 import { navigations } from '@/navigation'
@@ -19,7 +22,7 @@ import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
-import { createStyle } from '@/utils/tools'
+import { createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { addSyncHostHistory, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { clearSavedSyncLoginCredentialsForMode } from '@/utils/syncLoginCredentialPersistence'
@@ -111,7 +114,7 @@ export default memo(() => {
 
     if (mode == 'lux') {
       const savedLux = await findLuxAuthForHost(host)
-      const canUseSavedLux = Boolean(savedLux?.token)
+      const canUseSavedLux = canReuseLuxSession(savedLux, username)
       if (!username || (!luxPassword && !canUseSavedLux)) {
         setMessage(t('setting_sync_lux_login_missing_tip'))
         return
@@ -128,7 +131,7 @@ export default memo(() => {
       if (mode == 'lux') {
         const password = luxPassword || undefined
         await connectLuxServer(host, username, password)
-        await syncLuxProfileOnLogin(host).catch(() => null)
+        await syncLuxProfileOnLogin(host).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       } else await connectServer(host, code || undefined)
       await rememberSyncLoginForm({
         host,
@@ -140,7 +143,7 @@ export default memo(() => {
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
-      setMessage(String(err?.message ?? err))
+      setMessage(err?.message == SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : String(err?.message ?? err))
     }
   }, [authCode, enterHome, luxPassword, luxUsername, mode, submitting, syncHost, t])
 

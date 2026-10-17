@@ -22,7 +22,6 @@ import { startClockSync, stopClockSync } from './clock'
 import { loadTogetherDebugPanelPreference, subscribeTogetherDebugPanel } from './debugPanelPreference'
 import {
   formatTogetherGateHint,
-  shouldAppendTogetherGateHint,
   snapshotTogetherGate,
   type TogetherGateSnapshot,
 } from './togetherGate'
@@ -251,9 +250,9 @@ const handleSocketReady = () => {
 }
 
 const appendGateHint = async(message: string): Promise<string> => {
-  if (!shouldAppendTogetherGateHint()) return message
   const snap = await snapshotTogetherGate()
-  return `${message} ${formatTogetherGateHint(snap)}`
+  log.warn('[together]', message, formatTogetherGateHint(snap))
+  return message
 }
 
 const ensureOnline = async(): Promise<string | null> => {

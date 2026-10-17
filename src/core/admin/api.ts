@@ -75,7 +75,7 @@ export interface AdminInvite {
 export class LuxAdminRequestError extends Error {
   status: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, public code?: string) {
     super(message)
     this.status = status
   }
@@ -98,9 +98,9 @@ export const luxAdminRequest = async<T>(
     },
     body: options.body == null ? undefined : JSON.stringify(options.body),
   })
-  let data: { message?: unknown } | null = null
+  let data: { message?: unknown, code?: string } | null = null
   try {
-    data = text ? JSON.parse(text) as { message?: unknown } : null
+    data = text ? JSON.parse(text) as { message?: unknown, code?: string } : null
   } catch {
     data = null
   }
@@ -108,6 +108,7 @@ export const luxAdminRequest = async<T>(
     throw new LuxAdminRequestError(
       typeof data?.message === 'string' ? data.message : `HTTP ${code}`,
       code,
+      data?.code,
     )
   }
   return data as T

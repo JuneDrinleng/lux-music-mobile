@@ -899,7 +899,7 @@
   "setting_sync_logout_confirm": "Sign out",
   "sync_login_clear_saved": "Clear saved login info",
   "sync_login_lx_saved_hint": "If this server already has a saved LX sync key, you can leave the connection code empty and connect.",
-  "sync_login_lux_saved_hint": "A Lux session is saved for this server. You can leave the password empty and connect.",
+  "sync_login_lux_saved_hint": "A Lux session is saved for this server. Leave the password empty only to reconnect as the same username; a different username requires a password.",
   "setting_fill_sync_address": "New Sync Address",
   "setting_manage_records": "Manage Records",
   "setting_search_and_play": "Search & Playback",
@@ -1002,7 +1002,7 @@
   "sync__mode_merge_btn_local_remote": "\"Local List\" Merge \"Remote List\"",
   "sync__mode_merge_btn_remote_local": "\"Remote List\" Merge \"Local List\"",
   "sync__mode_select_subtitle": "Choose how data should be handled during the first sync",
-  "sync__mode_remember_tip": "This choice will be remembered and reused automatically until you sign out.",
+  "sync__mode_remember_tip": "This choice will be remembered and reused automatically until you change it in Settings.",
   "sync__mode_remember_merge_only_tip": "Merge strategies can be remembered and reused; overwrite always requires confirmation. Clear remembered merge strategies in Settings.",
   "setting_sync_clear_conflict_mode": "Clear remembered sync conflict strategy",
   "setting_sync_clear_conflict_mode_desc": "You will be asked again on the next sync conflict",
@@ -1166,5 +1166,9 @@
   "user_api_eyebrow": "EXPERIMENTAL",
   "user_api_manage_desc": "Import third-party source scripts. Up to 20 sources at once.",
   "user_api_remove": "Remove",
-  "permission_prompt_eyebrow": "PERMISSION · REQUIRED"
+  "permission_prompt_eyebrow": "PERMISSION · REQUIRED",
+  "sync_lux_session_expired_title": "Signed out. Please sign in again",
+  "sync_lux_session_expired_body": "Your password may have changed, or this device was removed.\nYour local data is safe.",
+  "sync_profile_avatar_too_large": "Avatar too large",
+  "sync_profile_failed": "Profile sync failed"
 }

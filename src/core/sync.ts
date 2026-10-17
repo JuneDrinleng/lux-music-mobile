@@ -46,11 +46,11 @@ export const selectSyncMode = async<T extends keyof LX.Sync.ModeTypes>(serverNam
       global.app_event.off('selectSyncMode', handleSelectMode)
     }
 
-    const handleSelectMode = async({ mode }: LX.Sync.ModeType) => {
+    const handleSelectMode = async({ mode, remember }: LX.Sync.ModeType) => {
       removeListeners()
       closeSyncModeModal()
       // Persist merge modes only — never remember overwrite_* to avoid silent data loss.
-      if (mode != 'cancel' && isMergeConflictMode(mode)) {
+      if (remember && mode != 'cancel' && isMergeConflictMode(mode)) {
         await setSyncConflictMode(mode as LX.Sync.List.SyncMode)
       }
       resolve(mode as LX.Sync.ModeTypes[T])

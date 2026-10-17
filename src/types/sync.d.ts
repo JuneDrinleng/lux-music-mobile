@@ -93,7 +93,7 @@ declare global {
         dislike: LX.Sync.Dislike.SyncMode
       }
 
-      type ModeType = { [K in keyof ModeTypes]: { type: K, mode: ModeTypes[K] } }[keyof ModeTypes]
+      type ModeType = { [K in keyof ModeTypes]: { type: K, mode: ModeTypes[K], remember?: boolean } }[keyof ModeTypes]
 
       interface UrlInfo {
         wsProtocol: string

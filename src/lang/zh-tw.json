@@ -899,7 +899,7 @@
   "setting_sync_logout_confirm": "退出帳號",
   "sync_login_clear_saved": "清除保存的登入資訊",
   "sync_login_lx_saved_hint": "若此主機已保存 LX 連線金鑰，可留空連線碼直接連線。",
-  "sync_login_lux_saved_hint": "此主機已保存 Lux 登入工作階段，密碼可留空直接連線。",
+  "sync_login_lux_saved_hint": "此伺服器已儲存 Lux 工作階段。僅使用相同使用者名稱重新連線時可留空密碼；更換使用者名稱必須輸入密碼。",
   "setting_fill_sync_address": "新增同步位址",
   "setting_manage_records": "管理記錄",
   "setting_search_and_play": "搜尋與播放",
@@ -1002,7 +1002,7 @@
   "sync__mode_merge_btn_local_remote": "「本機清單」合併「遠端清單」",
   "sync__mode_merge_btn_remote_local": "「遠端清單」合併「本機清單」",
   "sync__mode_select_subtitle": "請選擇首次同步時的資料處理方式",
-  "sync__mode_remember_tip": "本次選擇會被記住，之後自動使用；退出目前帳號後將再次詢問。",
+  "sync__mode_remember_tip": "此選擇會被記住並自動使用，直到你在設定中變更。",
   "sync__mode_remember_merge_only_tip": "合併類策略可被記住並自動複用；覆蓋類每次都需確認，以防誤覆蓋。可在設定中清除已記住的合併策略。",
   "setting_sync_clear_conflict_mode": "清除已記住的同步衝突策略",
   "setting_sync_clear_conflict_mode_desc": "下次同步衝突時將重新詢問",
@@ -1166,5 +1166,9 @@
   "user_api_eyebrow": "EXPERIMENTAL · 實驗性",
   "user_api_manage_desc": "匯入第三方音源腳本。最多同時存在 20 個源。",
   "user_api_remove": "移除",
-  "permission_prompt_eyebrow": "PERMISSION · 需要權限"
+  "permission_prompt_eyebrow": "PERMISSION · 需要權限",
+  "sync_lux_session_expired_title": "登入已失效，請重新登入",
+  "sync_lux_session_expired_body": "密碼可能已修改，或這台裝置已被移除。\n本機資料不會遺失。",
+  "sync_profile_avatar_too_large": "頭像過大",
+  "sync_profile_failed": "資料同步失敗"
 }

@@ -898,7 +898,7 @@
   "setting_sync_logout_confirm": "退出账号",
   "sync_login_clear_saved": "清除保存的登录信息",
   "sync_login_lx_saved_hint": "若此主机已保存 LX 连接密钥，可留空连接码直接连接。",
-  "sync_login_lux_saved_hint": "此主机已保存 Lux 登录会话，密码可留空直接连接。",
+  "sync_login_lux_saved_hint": "此服务器已保存 Lux 会话。仅使用相同用户名重新连接时可留空密码；更换用户名必须输入密码。",
   "setting_fill_sync_address": "新增同步地址",
   "setting_manage_records": "管理记录",
   "setting_search_and_play": "搜索与播放",
@@ -1001,7 +1001,7 @@
   "sync__mode_merge_btn_local_remote": "「本机列表」合并「远程列表」",
   "sync__mode_merge_btn_remote_local": "「远程列表」合并「本机列表」",
   "sync__mode_select_subtitle": "请选择首次同步时的数据处理方式",
-  "sync__mode_remember_tip": "本次选择会被记住，之后自动使用；退出当前账号后将再次询问。",
+  "sync__mode_remember_tip": "此选择会被记住并自动使用，直到你在设置中更改。",
   "sync__mode_remember_merge_only_tip": "合并类策略可被记住并自动复用；覆盖类每次都需确认，以防误覆盖。可在设置中清除已记住的合并策略。",
   "setting_sync_clear_conflict_mode": "清除已记住的同步冲突策略",
   "setting_sync_clear_conflict_mode_desc": "下次同步冲突时将重新询问",
@@ -1165,5 +1165,9 @@
   "user_api_eyebrow": "EXPERIMENTAL · 实验性",
   "user_api_manage_desc": "导入第三方音源脚本。最多同时存在 20 个源。",
   "user_api_remove": "移除",
-  "permission_prompt_eyebrow": "PERMISSION · 需要权限"
+  "permission_prompt_eyebrow": "PERMISSION · 需要权限",
+  "sync_lux_session_expired_title": "登录已失效，请重新登录",
+  "sync_lux_session_expired_body": "密码可能已修改，或这台设备已被移除。\n本机数据不会丢失。",
+  "sync_profile_avatar_too_large": "头像过大",
+  "sync_profile_failed": "资料同步失败"
 }

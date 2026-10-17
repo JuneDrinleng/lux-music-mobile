@@ -1,4 +1,5 @@
 import { request, generateRsaKey } from './utils'
+import { LuxRequestError } from './userErrors'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
 import { getLuxAuth, setLuxAuth } from '@/utils/data'
 import log from '../log'
@@ -7,7 +8,7 @@ import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
 import { SYNC_CODE } from '../constants'
 import { getSyncDeviceId } from '../deviceId'
-import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential } from './credentials'
+import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential, canReuseLuxSession } from './credentials'
 
 export const requestJson = async<T>(url: string, body?: unknown, token?: string): Promise<T> => {
   const { text, code } = await request(url, {
@@ -18,8 +19,9 @@ export const requestJson = async<T>(url: string, body?: unknown, token?: string)
     },
     body: body == null ? undefined : JSON.stringify(body),
   })
-  const data = text ? JSON.parse(text) as { message?: unknown } : null
-  if (code < 200 || code >= 300) throw new Error(typeof data?.message == 'string' ? data.message : 'Request failed')
+  let data: { message?: unknown, code?: string } | null = null
+  try { data = text ? JSON.parse(text) : null } catch {}
+  if (code < 200 || code >= 300) throw new LuxRequestError(typeof data?.message == 'string' ? data.message : `HTTP ${code}`, code, data?.code)
   return data as T
 }
 
@@ -133,17 +135,28 @@ const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string, clientId?: 
 }
 
 export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
+  username = username?.trim()
   console.log('lux connect: ', urlInfo.href, username)
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
 
   let authInfo = await getLuxAuth(serverId)
+  if (username != null && !password && !canReuseLuxSession(authInfo, username)) {
+    throw new Error(global.i18n.t('setting_sync_lux_login_missing_tip'))
+  }
   if (username && password) {
     authInfo = await requestJson<LX.Sync.LuxAuth>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
   }
-  if (!authInfo?.token) throw new Error(SYNC_CODE.missingAuthCode)
+  if (!authInfo?.token) throw new Error(SYNC_CODE.luxSessionExpired)
   const session = authInfo
+  // A reusable socket key does not prove that its bearer session is still valid.
+  if (!password) {
+    await requestJson(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/me`, undefined, session.token).catch((error: unknown) => {
+      if (error instanceof LuxRequestError && (error.status == 401 || (error.status == 403 && !error.code))) throw new Error(SYNC_CODE.luxSessionExpired)
+      throw error
+    })
+  }
   const accountKey = credentialStorageKey(serverId, 'lux', session.user.id)
   const legacy = await getSyncAuthKey(serverId)
   const { saved, previousClientId: legacyClientId } = selectLuxCredential(await getSyncAuthKey(accountKey), legacy, session.user.id)
@@ -157,6 +170,9 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
       luxUserId: session.user.id,
     }),
     save: async(info) => setSyncAuthKey(accountKey, info),
+  }).catch((error: unknown) => {
+    if (error instanceof LuxRequestError && error.status == 401) throw new Error(SYNC_CODE.luxSessionExpired)
+    throw error
   })
   await setSyncAuthKey(serverId, keyInfo)
   // Commit login state after obtaining the matching key, so a failed account
