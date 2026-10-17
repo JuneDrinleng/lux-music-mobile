@@ -1236,5 +1236,7 @@
   "auth_help_message": "我是 {username}，忘记了 {host} 的密码，麻烦帮我重置。",
   "auth_copy_help": "复制求助消息",
   "auth_copied": "已复制",
-  "auth_invite_valid_plain": "✓ 邀请码有效"
+  "auth_invite_valid_plain": "✓ 邀请码有效",
+  "sync_login_use_lx": "改用 LX 连接码",
+  "sync_login_host_history": "服务器历史"
 }

@@ -1236,5 +1236,7 @@
   "auth_help_message": "我是 {username}，忘記了 {host} 的密碼，麻煩幫我重設。",
   "auth_copy_help": "複製求助訊息",
   "auth_copied": "已複製",
-  "auth_invite_valid_plain": "✓ 邀請碼有效"
+  "auth_invite_valid_plain": "✓ 邀請碼有效",
+  "sync_login_use_lx": "改用 LX 連線碼",
+  "sync_login_host_history": "伺服器歷史"
 }

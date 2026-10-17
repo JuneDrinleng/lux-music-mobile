@@ -150,6 +150,12 @@ const renderScreen = (client, host, connect) => {
   const jsx = (type, props) => ({ type, props })
   const events = []
   const screen = load('src/screens/Login/AuthFlow.tsx', {
+    '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
+    '../SyncLogin/LocalAction': { default: 'LocalAction' },
+    '@/utils/syncLoginPrefill': { loadSyncLoginFormSnapshot: async() => ({ host: '', luxUsername: '', luxPassword: '' }), syncHostCompareKey: value => value, rememberSyncLoginForm: async() => {} },
+    '@/utils/syncLoginCredentialPersistence': { clearSavedSyncLoginCredentialsForMode: async() => {} },
+    '@/plugins/sync/client/credentials': { canReuseLuxSession: () => false },
+    '@/plugins/sync/constants': { SYNC_CODE: {} },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
@@ -168,7 +174,7 @@ const renderScreen = (client, host, connect) => {
     '@/plugins/sync': { connectLuxServer: connect, syncLuxProfileOnLogin: async() => {} },
     '@/plugins/sync/client/userErrors': { profileSyncErrorMessage: () => '' },
     '@/core/common': { updateSetting() {} },
-    '@/utils/data': Object.fromEntries(['addSyncHostHistory', 'setSyncHost', 'setSyncMode', 'setSyncLoginCompleted'].map(key => [key, async() => {}])),
+    '@/utils/data': { ...Object.fromEntries(['addSyncHostHistory', 'setSyncHost', 'setSyncMode', 'setSyncLoginCompleted'].map(key => [key, async() => {}])), findLuxAuthForHost: async() => null },
     '@/utils/onboarding': { completeOnboarding: async() => { events.push(['complete']) } },
     '@/navigation': { navigations: { pushHomeScreen: async() => { events.push(['home']) } } },
   }).default

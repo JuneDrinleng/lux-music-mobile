@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { BackHandler, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
+import LanguageSwitch from '@/components/common/LanguageSwitch'
+import SyncLoginLocalAction from '../SyncLogin/LocalAction'
+import { loadSyncLoginFormSnapshot, rememberSyncLoginForm, syncHostCompareKey } from '@/utils/syncLoginPrefill'
+import { clearSavedSyncLoginCredentialsForMode } from '@/utils/syncLoginCredentialPersistence'
+import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
+import { SYNC_CODE } from '@/plugins/sync/constants'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { BackButton, OptionRow, PrimaryButton, TextButton, UnderlineInput } from '@/components/magazine'
@@ -15,9 +21,9 @@ import { helpMessage, loginErrors, registerErrors, AUTH_CONTRACT, type RegisterF
 import { parseServerInfo, type ServerInfo } from '@/utils/serverCheck'
 import { luxAuthApi, requestJson } from '@/plugins/sync/client/auth'
 import { connectLuxServer, syncLuxProfileOnLogin } from '@/plugins/sync'
-import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
+import { profileSyncErrorMessage, luxSessionExpiredMessage } from '@/plugins/sync/client/userErrors'
 import { updateSetting } from '@/core/common'
-import { addSyncHostHistory, setSyncHost, setSyncMode, setSyncLoginCompleted } from '@/utils/data'
+import { findLuxAuthForHost, addSyncHostHistory, setSyncHost, setSyncMode, setSyncLoginCompleted } from '@/utils/data'
 import { completeOnboarding } from '@/utils/onboarding'
 import { navigations } from '@/navigation'
 
@@ -33,6 +39,9 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
   const bottom = useSystemGestureInsetBottom()
   const [page, setPage] = useState<Page>('login')
   const [form, setForm] = useState(emptyForm)
+  const [savedSession, setSavedSession] = useState<LX.Sync.LuxAuth | null>(null)
+  const [hasSavedLogin, setHasSavedLogin] = useState(false)
+  const [prefillReady, setPrefillReady] = useState(false)
   const [info, setInfo] = useState<ServerInfo | null>(null)
   const [admin, setAdmin] = useState<{ name: string, username?: string } | null>(null)
   const [adminOption, setAdminOption] = useState(true)
@@ -42,6 +51,19 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [invite, setInvite] = useState<{ code: string, valid?: boolean, inviter?: string | null, error?: string } | null>(null)
   const hostname = host.replace(/^https?:\/\//, '').split('/')[0]
+  useEffect(() => {
+    let active = true
+    const load = async() => {
+      const [snapshot, session] = await Promise.all([loadSyncLoginFormSnapshot('lux'), findLuxAuthForHost(host)])
+      if (!active) return
+      const sameHost = syncHostCompareKey(snapshot.host) === syncHostCompareKey(host)
+      setForm(previous => ({ ...previous, username: sameHost ? snapshot.luxUsername : session?.user.username ?? '', password: sameHost ? snapshot.luxPassword : '' }))
+      setSavedSession(session)
+      setHasSavedLogin(Boolean(session ?? (sameHost && (snapshot.luxUsername || snapshot.luxPassword))))
+    }
+    void load().catch(() => {}).finally(() => { if (active) setPrefillReady(true) })
+    return () => { active = false }
+  }, [host])
   const back = () => {
     if (busy) return
     setMessage('')
@@ -78,11 +100,12 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
     }, 500)
     return () => { active = false; clearTimeout(timer) }
   }, [form.invite, host, page, t])
-  const errors = page === 'register' ? registerErrors(form) : loginErrors(form.username, form.password)
+  const reuseSession = page === 'login' && canReuseLuxSession(savedSession, form.username)
+  const errors = page === 'register' ? registerErrors(form) : loginErrors(form.username, form.password || (reuseSession ? 'saved' : ''))
   const validInvite = invite?.code === form.invite.trim() && invite.valid === true
   const invalid = Object.values(errors).some(Boolean) || (page === 'register' && !validInvite)
   const submit = async() => {
-    if (submitting.current || invalid) return
+    if (submitting.current || !prefillReady || invalid) return
     submitting.current = true
     setBusy(true)
     setMessage('')
@@ -93,13 +116,35 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
       await addSyncHostHistory(host)
       updateSetting({ 'sync.enable': true })
       // connectLuxServer commits the session and activates its account data space.
-      await connectLuxServer(host, form.username.trim(), form.password)
+      // Recheck ownership at submit time; a different username cannot reuse this session.
+      const saved = await findLuxAuthForHost(host)
+      if (page === 'login' && !form.password && !canReuseLuxSession(saved, form.username)) throw new Error(t('setting_sync_lux_login_missing_tip'))
+      await connectLuxServer(host, form.username.trim(), form.password || undefined)
+      await rememberSyncLoginForm({ host, mode: 'lux', luxUsername: form.username.trim(), luxPassword: form.password })
       await syncLuxProfileOnLogin(host).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       if (onboarding) await completeOnboarding()
       await setSyncLoginCompleted(true)
       await navigations.pushHomeScreen()
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
+    } catch (error) {
+      setMessage(error instanceof Error && error.message === SYNC_CODE.luxSessionExpired ? luxSessionExpiredMessage() : error instanceof Error ? error.message : String(error))
+    } finally {
+      submitting.current = false
+      setBusy(false)
+    }
+  }
+  const clearSaved = async() => {
+    if (submitting.current) return
+    submitting.current = true
+    setBusy(true)
+    setMessage('')
+    try {
+      await clearSavedSyncLoginCredentialsForMode('lux')
+      setSavedSession(null)
+      setHasSavedLogin(false)
+      setForm(emptyForm)
+      setTouched({})
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -117,7 +162,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
         autoCapitalize="none"
         autoCorrect={false}
         secureTextEntry={secure}
-        editable={!busy}
+        editable={!busy && prefillReady}
         onChangeText={value => {
           setForm(previous => ({ ...previous, [key]: value }))
           if (key === 'invite') setInvite(null)
@@ -131,11 +176,11 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
     </View>
   }
   const help = helpMessage(form.username, hostname, t)
-  const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || invalid} onPress={() => { void submit() }} />
+  const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
   return <KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.top}><BackButton onPress={back} accessibilityLabel={t('back')} /></View>
+      <View style={styles.top}><BackButton onPress={back} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{page === 'forgot' ? t('auth_forgot_eyebrow') : hostname.toUpperCase()}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t(page === 'forgot' ? 'auth_recover' : page === 'register' ? 'auth_register' : 'auth_login')}</Text>
       {page === 'forgot' ? <>
@@ -153,6 +198,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
         {field('username', t('auth_username'), page === 'register' ? t('auth_username_hint') : undefined)}
         {page === 'register' ? field('displayName', t('auth_nickname'), t('auth_nickname_hint')) : null}
         {field('password', t('auth_password'), page === 'register' ? t('auth_password_hint') : undefined, true)}
+        {page === 'login' && reuseSession ? <Text size={12} color={r.muted} style={styles.hint}>{t('sync_login_lux_saved_hint')}</Text> : null}
         {page === 'register' ? field('confirm', t('auth_confirm'), undefined, true) : <>
           <View style={styles.links}>
             <TextButton compact label={t('auth_forgot_link')} disabled={busy} onPress={() => { setPage('forgot'); setMessage('') }} />
@@ -165,6 +211,10 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
           </View> : null}
         </>}
       </>}
+      {page === 'login' ? <>
+        {hasSavedLogin ? <View style={styles.field}><TextButton compact style={{ minHeight: 28 }} muted label={t('sync_login_clear_saved')} disabled={busy || !prefillReady} onPress={() => { void clearSaved() }} /></View> : null}
+        {!onboarding ? <SyncLoginLocalAction disabled={busy || !prefillReady} onBusyChange={setBusy} /> : null}
+      </> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
     </ScrollView>
     {page === 'register' || (page === 'forgot' && adminOption) ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
@@ -176,7 +226,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
 const useStyles = sharedLuxStyles(() => createStyle({
   page: { flex: 1 },
   content: { paddingHorizontal: 22, paddingBottom: 28 },
-  top: { marginTop: 10, height: 40 },
+  top: { marginTop: 10, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
   title: { lineHeight: 38, fontWeight: '800' },
   field: { marginTop: 16 },

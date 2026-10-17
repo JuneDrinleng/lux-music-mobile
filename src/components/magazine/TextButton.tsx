@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo } from 'react'
-import { TouchableOpacity } from 'react-native'
+import { TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -10,6 +10,7 @@ import { magType } from '@/theme/magazineType'
 
 export const TextButton = memo(({
   label,
+  style,
   compact = false,
   onPress,
   disabled = false,
@@ -18,6 +19,7 @@ export const TextButton = memo(({
   underline = true,
 }: {
   label: string
+  style?: StyleProp<ViewStyle>
   compact?: boolean
   onPress?: () => void
   disabled?: boolean
@@ -36,7 +38,7 @@ export const TextButton = memo(({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }}
+      style={[{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }, style]}
     >
       <Text
         size={compact ? 14 : magType.textButton.size}
