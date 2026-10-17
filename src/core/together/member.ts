@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import BackgroundTimer from 'react-native-background-timer'
+import { getSession, isCurrentSession } from '@/plugins/sync/client/session'
 
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics, setTempList } from '@/core/list'
@@ -62,7 +63,10 @@ const correctDrift = async(force = false) => {
   if (!active || !room?.playback.musicInfo || isLoading()) return
   if (!playerState.isPlay && !force) return
   if (!isSameSong(currentSong(), room.playback.musicInfo)) return
+  const token = applyToken
+  const sessionId = getSession()?.id
   const position = await getPosition().catch(() => playerState.progress.nowPlayTime)
+  if (!active || token != applyToken || !isCurrentSession(sessionId) || togetherState.room !== room) return
   const localMs = (Number.isFinite(position) ? position : playerState.progress.nowPlayTime) * 1000
   const expected = expectedPositionMs(room.playback, getServerNow())
   const now = Date.now()
@@ -85,12 +89,15 @@ const applyPlayState = (playback: LX.Sync.Together.Playback) => {
 
 const loadSong = async(room: LX.Sync.Together.RoomSnapshot, song: LX.Music.MusicInfoOnline) => {
   const token = ++applyToken
+  const sessionId = getSession()?.id
+  const valid = () => active && token == applyToken && isCurrentSession(sessionId) && togetherState.room?.roomId == room.roomId
   loadingSong = { id: song.id, source: song.source, at: Date.now() }
   const list = queueFor(room, song)
   const index = Math.max(0, list.findIndex(item => isSameSong(item, song)))
   try {
     await runAsTogetherApply(async() => {
       await setTempList(`${QUEUE_META_PREFIX}${room.roomId}_${Date.now()}`, [...list])
+      if (!valid()) return
       appliedQueueSignature = queueSignature(list, song.id)
       await playList(LIST_IDS.TEMP, index)
     })
@@ -117,12 +124,16 @@ const restoreRoomQueue = () => {
   const song = room?.playback.musicInfo
   if (!active || !room || !song) return
   // Callers may replace the temp list before the blocked play call; put the room queue back without reloading.
+  const token = applyToken
+  const sessionId = getSession()?.id
   BackgroundTimer.setTimeout(() => {
-    if (!active || togetherState.room?.roomId != room.roomId || isRoomQueueActive()) return
+    if (!active || token != applyToken || !isCurrentSession(sessionId) || togetherState.room?.roomId != room.roomId || isRoomQueueActive()) return
     const list = queueFor(room, song)
     void runAsTogetherApply(async() => {
       await setTempList(`${QUEUE_META_PREFIX}${room.roomId}_${Date.now()}`, [...list])
-    }).then(() => { appliedQueueSignature = queueSignature(list, song.id) })
+    }).then(() => {
+      if (active && token == applyToken && isCurrentSession(sessionId)) appliedQueueSignature = queueSignature(list, song.id)
+    })
   }, 0)
 }
 
@@ -130,6 +141,7 @@ export const applyPlayback = async(room: LX.Sync.Together.RoomSnapshot, forceRel
   if (!active) return
   const { musicInfo } = room.playback
   if (!musicInfo) {
+    applyToken += 1
     loadingSong = null
     setStatusText(global.i18n.t('together_host_local_music'))
     if (playerState.isPlay) void pause()
@@ -155,7 +167,11 @@ export const applyQueue = async(room: LX.Sync.Together.RoomSnapshot) => {
   const list = queueFor(room, song)
   const signature = queueSignature(list, song.id)
   if (signature == appliedQueueSignature) return
+  const token = applyToken
+  const sessionId = getSession()?.id
+  const valid = () => active && token == applyToken && isCurrentSession(sessionId) && togetherState.room === room
   const current = await getListMusics(LIST_IDS.TEMP)
+  if (!valid()) return
   if (queueSignature(current, song.id) == signature) {
     // eslint-disable-next-line require-atomic-updates
     appliedQueueSignature = signature
@@ -164,6 +180,7 @@ export const applyQueue = async(room: LX.Sync.Together.RoomSnapshot) => {
   await runAsTogetherApply(async() => {
     await setTempList(listState.tempListMeta.id, [...list])
   })
+  if (!valid()) return
   // eslint-disable-next-line require-atomic-updates
   appliedQueueSignature = signature
 }

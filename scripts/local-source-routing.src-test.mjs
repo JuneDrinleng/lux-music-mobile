@@ -139,24 +139,27 @@ test('a server offering source still completes feature negotiation for supported
   })
   for (const mode of ['lux', 'lx']) {
     const flags = {}
+    const session = loadModule('src/plugins/sync/client/session.ts', {})
     const handler = loadModule('src/plugins/sync/client/sync/handler.ts', {
       '@/utils/data': { getSyncMode: async() => mode },
       '../../playHistoryFlag': { setPlayHistoryFeatureEnabled: value => { flags.playHistory = value } },
-      '../../togetherFlag': { setTogetherFeatureEnabled: value => { flags.together = value } },
+      '../session': session,
       '../syncReady': { notifySyncReady: () => {} },
       '../moduleReadys': ready,
       '../modules': modules,
     }).default
     for (const serverType of ['server', 'desktop-app']) {
       const socket = { moduleReadys: ready.createInitialModuleReadys() }
+      session.createSession(socket)
       const features = await handler.getEnabledFeatures(socket, serverType, { list: 1, dislike: 1, playHistory: 1, together: 1, source: 1 })
       assert.deepEqual(features, {
         list: { skipSnapshot: false },
         dislike: { skipSnapshot: false },
         ...(mode == 'lux' ? { playHistory: true, together: true } : {}),
       }, `${mode}/${serverType}`)
-      assert.deepEqual(flags, { playHistory: mode == 'lux', together: mode == 'lux' })
-      assert.equal(socket.moduleReadys.together, mode == 'lux')
+      assert.deepEqual(flags, { playHistory: mode == 'lux' })
+      assert.equal(session.getSession().state, mode == 'lux' ? 'negotiated' : 'togetherUnsupported')
+      assert.equal(socket.moduleReadys.together, false)
     }
   }
 })

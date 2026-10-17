@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import { onSyncSocketReady } from '@/plugins/sync/client/client'
 
 import { snapshotTogetherGate, type TogetherGateSnapshot } from './togetherGate'
-import { syncTogetherConnectionFromSocket } from './index'
 
 const POLL_MS = 800
 
@@ -19,7 +18,6 @@ export const useTogetherGateSnapshot = (active: boolean): TogetherGateSnapshot |
     }
     let cancelled = false
     const refresh = async() => {
-      syncTogetherConnectionFromSocket()
       const next = await snapshotTogetherGate()
       if (!cancelled) setSnap(next)
     }
