@@ -11,6 +11,8 @@ import { listenLaunchEvent } from './navigation/regLaunchedEvent'
 import { tipDialog } from './utils/tools'
 import { getData } from '@/plugins/storage'
 import { storageDataPrefix } from '@/config/constant'
+import settingState from '@/store/setting/state'
+import { getOnboardingCompleted, shouldShowOnboarding } from '@/utils/onboarding'
 
 console.log('starting app...')
 listenLaunchEvent()
@@ -104,7 +106,7 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
 
     // 首次启动：展示登录页，合并勾选所有启动时弹窗
     const hasSeenCheatTip = await getData<boolean>(storageDataPrefix.cheatTip)
-    if (!hasSeenCheatTip) {
+    if (shouldShowOnboarding(await getOnboardingCompleted(), settingState.setting['common.isAgreePact'], hasSeenCheatTip === true)) {
       global.lx._onLoginConfirmed = handlePushedHomeScreen
       await navigations.pushLoginScreen().catch((err: any) => {
         void tipDialog({

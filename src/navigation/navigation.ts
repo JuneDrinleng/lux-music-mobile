@@ -95,7 +95,7 @@ export async function pushLoginScreen() {
   })
 }
 
-export async function pushSyncLoginScreen() {
+export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string }) {
   const theme = themeState.theme
 
   await Navigation.setRoot({
@@ -104,6 +104,7 @@ export async function pushSyncLoginScreen() {
         children: [{
           component: {
             name: SYNC_LOGIN_SCREEN,
+            passProps: props,
             options: {
               topBar: {
                 visible: false,

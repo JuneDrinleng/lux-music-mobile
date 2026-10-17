@@ -42,6 +42,7 @@ export const PrimaryButton = memo(({
   danger = false,
   icon,
   style,
+  compact = false,
 }: {
   label: string
   onPress?: () => void
@@ -49,13 +50,15 @@ export const PrimaryButton = memo(({
   danger?: boolean
   icon?: string
   style?: ViewStyle
+  compact?: boolean
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   return (
     <TouchableOpacity
-      style={[styles.btn, danger ? styles.danger : null, disabled ? styles.disabled : null, style]}
+      style={[styles.btn, danger ? styles.danger : null, disabled ? styles.disabled : null, compact ? { height: 28 } : null, style]}
+      hitSlop={compact ? { top: 8, bottom: 8, left: 0, right: 0 } : undefined}
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
@@ -63,7 +66,7 @@ export const PrimaryButton = memo(({
       accessibilityState={{ disabled }}
     >
       {icon ? <MdiIcon name={icon} size={20} color={r.onInk} /> : null}
-      <Text size={magType.button.size} color={r.onInk} style={styles.label}>{label}</Text>
+      <Text size={compact ? 16 : magType.button.size} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null]}>{label}</Text>
     </TouchableOpacity>
   )
 })

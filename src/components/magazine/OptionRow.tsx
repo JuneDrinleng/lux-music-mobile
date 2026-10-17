@@ -23,7 +23,6 @@ const useStyles = sharedLuxStyles((colors) => {
       gap: 12,
     },
     label: {
-      flex: 1,
       minWidth: 0,
       fontWeight: '600',
     },
@@ -45,11 +44,15 @@ export const OptionRow = memo(({
   selected,
   onPress,
   last = false,
+  description,
+  leading = false,
 }: {
   label: string
   selected: boolean
   onPress: () => void
   last?: boolean
+  description?: string
+  leading?: boolean
 }) => {
   const styles = useStyles()
   const { colors, mode } = useLuxTheme()
@@ -57,19 +60,23 @@ export const OptionRow = memo(({
   return (
     <View>
       <TouchableOpacity
-        style={styles.row}
+        style={[styles.row, leading ? { alignItems: 'flex-start', justifyContent: 'flex-start', paddingBottom: 0, borderBottomWidth: 1, borderBottomColor: r.hairline } : null]}
         activeOpacity={0.7}
         onPress={onPress}
         accessibilityRole="radio"
         accessibilityState={{ selected }}
       >
-        <Text
-          size={magType.rowTitle.size}
-          color={selected ? r.ink : r.option}
-          style={[styles.label, selected ? styles.labelOn : null]}
-          numberOfLines={1}
-        >{label}</Text>
-        {selected
+        {leading ? <View style={[styles.dot, { marginTop: 6, borderWidth: 1.5, borderColor: r.ink, backgroundColor: selected ? r.accent : 'transparent' }]} /> : null}
+        <View style={{ flex: 1 }}>
+          <Text
+            size={leading ? 15 : magType.rowTitle.size}
+            color={leading ? r.list : selected ? r.ink : r.option}
+            style={[styles.label, selected ? styles.labelOn : null, leading ? { fontWeight: '700' } : null]}
+            numberOfLines={1}
+          >{label}</Text>
+          {description ? <Text size={12} color={r.muted} style={{ marginTop: 2 }}>{description}</Text> : null}
+        </View>
+        {selected && !leading
           ? (
             <View style={[
               styles.dot,
@@ -78,7 +85,7 @@ export const OptionRow = memo(({
             )
           : null}
       </TouchableOpacity>
-      {last ? null : <Hairline />}
+      {last || leading ? null : <Hairline />}
     </View>
   )
 })

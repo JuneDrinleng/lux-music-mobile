@@ -15,8 +15,10 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
 import { luxSessionExpiredMessage, profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
-import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
+import { connectLuxServer, connectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { updateSetting } from '@/core/common'
+import { completeOnboarding } from '@/utils/onboarding'
+import { enterLocalSpace } from '@/utils/enterLocalSpace'
 import { navigations } from '@/navigation'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -24,7 +26,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
-import { addSyncHostHistory, findLuxAuthForHost, getSyncMode, saveUserName, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
+import { addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { clearSavedSyncLoginCredentialsForMode } from '@/utils/syncLoginCredentialPersistence'
 import {
   loadSyncLoginFormSnapshot,
@@ -35,7 +37,7 @@ import {
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
-export default memo(() => {
+export default memo(({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -53,14 +55,15 @@ export default memo(() => {
   const [lxSavedSecretMaskVisible, setLxSavedSecretMaskVisible] = useState(true)
 
   const applySnapshot = useCallback((snapshot: Awaited<ReturnType<typeof loadSyncLoginFormSnapshot>>) => {
-    setSyncHostLocal(snapshot.host)
-    setLuxUsername(snapshot.luxUsername)
-    setLuxPassword(snapshot.luxPassword)
+    const differentServer = Boolean(initialHost && initialHost !== snapshot.host)
+    setSyncHostLocal(initialHost || snapshot.host)
+    setLuxUsername(differentServer ? '' : snapshot.luxUsername)
+    setLuxPassword(differentServer ? '' : snapshot.luxPassword)
     setAuthCode(snapshot.lxAuthCode)
-    setHasSavedLuxSession(snapshot.hasSavedLuxSession)
+    setHasSavedLuxSession(!differentServer && snapshot.hasSavedLuxSession)
     setShowLxSavedHint(snapshot.hasSavedLxKey)
     setLxSavedSecretMaskVisible(true)
-  }, [])
+  }, [initialHost])
 
   const applySavedFormForMode = useCallback(async(activeMode: LX.Sync.Mode) => {
     const snapshot = await loadSyncLoginFormSnapshot(activeMode)
@@ -70,14 +73,14 @@ export default memo(() => {
 
   useEffect(() => {
     void (async() => {
-      await applySavedFormForMode(await getSyncMode())
+      await applySavedFormForMode(onboarding ? 'lux' : await getSyncMode())
     })()
     const handlePresented = async() => {
-      await applySavedFormForMode(await getSyncMode())
+      await applySavedFormForMode(onboarding ? 'lux' : await getSyncMode())
     }
     global.app_event.on('syncLoginPresented', handlePresented)
     return () => { global.app_event.off('syncLoginPresented', handlePresented) }
-  }, [applySavedFormForMode])
+  }, [applySavedFormForMode, onboarding])
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true)
@@ -85,11 +88,12 @@ export default memo(() => {
   }, [])
 
   const enterHome = useCallback(async() => {
+    if (onboarding) await completeOnboarding()
     await setSyncLoginCompleted(true)
     await navigations.pushHomeScreen()
     global.lx.isShowingLaunchScreen = false
     void global.lx._onLoginConfirmed?.()
-  }, [])
+  }, [onboarding])
 
   const handleSelectMode = useCallback((nextMode: LX.Sync.Mode) => {
     if (submitting) return
@@ -171,12 +175,8 @@ export default memo(() => {
     setSubmitting(true)
     setMessage('')
     try {
+      await enterLocalSpace(t('sync_login_local_user_name'))
       await setSyncMode('lx')
-      await setSyncHost('')
-      await saveUserName(t('sync_login_local_user_name'))
-      global.app_event.userNameUpdated(t('sync_login_local_user_name'))
-      updateSetting({ 'sync.enable': false })
-      await disconnectServer()
       await enterHome()
     } catch (err: any) {
       setSubmitting(false)
@@ -210,7 +210,7 @@ export default memo(() => {
         <Text size={magType.h2.size} color={r.display} style={styles.title}>{t('sync_login_title')}</Text>
         <Text size={15} color={r.muted} style={styles.subtitle}>{t('sync_login_subtitle')}</Text>
 
-        <TextTabs
+        {onboarding ? null : <TextTabs
           style={styles.tabs}
           value={mode}
           onChange={(id) => { handleSelectMode(id as LX.Sync.Mode) }}
@@ -218,7 +218,7 @@ export default memo(() => {
             { id: 'lux', label: t('sync_login_tab_lux') },
             { id: 'lx', label: t('sync_login_tab_lx') },
           ]}
-        />
+        />}
 
         <Text size={13} color={r.muted} style={styles.formLead}>
           {isLuxMode ? t('sync_login_lux_desc') : t('sync_login_lx_desc')}
