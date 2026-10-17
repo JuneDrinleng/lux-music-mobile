@@ -1235,5 +1235,6 @@
   "auth_copy_intro": "复制下面这段发给管理员",
   "auth_help_message": "我是 {username}，忘记了 {host} 的密码，麻烦帮我重置。",
   "auth_copy_help": "复制求助消息",
-  "auth_copied": "已复制"
+  "auth_copied": "已复制",
+  "auth_invite_valid_plain": "✓ 邀请码有效"
 }

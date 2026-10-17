@@ -48,7 +48,7 @@ test('concurrent 401s share one refresh, retry with rotated token, and late 401 
   const env = harness(async(url, options) => {
     if (url.endsWith('/refresh')) {
       refreshes++; assert.deepEqual(JSON.parse(options.body), { refreshToken: 'r0' })
-      await delay(10); return response(200, { token: 'new', refreshToken: 'r1' })
+      await delay(10); return response(200, { accessToken: 'new', refreshToken: 'r1' })
     }
     if (options.headers.Authorization === 'Bearer old') {
       if (++oldRequests === 3) await delay(35)
@@ -67,7 +67,7 @@ test('concurrent 401s share one refresh, retry with rotated token, and late 401 
 })
 
 test('refresh failure clears once and signals expiry; forbidden does not renew', async() => {
-  for (const failure of [response(401, { code: 'REVOKED', message: 'Revoked' }), response(200, { token: 'bad' }), new Error('offline')]) {
+  for (const failure of [response(401, { code: 'REVOKED', message: 'Revoked' }), response(200, { accessToken: 'bad' }), new Error('offline')]) {
     let refreshes = 0
     const env = harness(async url => {
       if (url.endsWith('/refresh')) { refreshes++; await delay(5); if (failure instanceof Error) throw failure; return failure }
@@ -88,7 +88,7 @@ test('retry once only, preserve verb and body; public login never refreshes', as
   const calls = []
   const env = harness(async(url, options) => {
     calls.push({ url, ...options })
-    return url.endsWith('/refresh') ? response(200, { token: 'new', refreshToken: 'r1' }) : response(401, { message: 'Expired' })
+    return url.endsWith('/refresh') ? response(200, { accessToken: 'new', refreshToken: 'r1' }) : response(401, { message: 'Expired' })
   })
   await assert.rejects(env.client.request('https://server/api/me', { a: 1 }, 'old', 'PATCH'), { status: 401 })
   assert.equal(calls.length, 3)
@@ -111,7 +111,7 @@ test('in-flight refresh cannot erase or replace a newly logged-in session', asyn
   const env = harness(async url => {
     if (url.endsWith('/refresh')) {
       env.replace({ ...session, token: 'other-account', user: { id: 'bob' } })
-      return response(200, { token: 'new', refreshToken: 'r1' })
+      return response(200, { accessToken: 'new', refreshToken: 'r1' })
     }
     return response(401, {})
   })
@@ -193,9 +193,9 @@ test('mock server: invite valid/invalid/used, username taken, mismatch, success 
     calls.push([path, body])
     let status = 200; let data = {}
     if (path === '/api/server-info') data = { name: 'Lux', version: '0.5.0', minClientVersion: null, registration: { enabled: true, inviteOnly: true } }
-    if (path === api.TODO_AUTH_CONTRACT.invitePath) {
-      if (body.code === 'valid') data = { inviter: { displayName: 'June', username: 'june' } }
-      else { status = 400; data = { code: body.code === 'used' ? 'INVITE_USED' : 'INVITE_INVALID', message: body.code === 'used' ? 'Invite used' : 'Invalid invite' } }
+    if (path === api.AUTH_CONTRACT.invitePath) {
+      if (body.inviteCode === 'valid') data = { valid: true, inviterName: 'June' }
+      else { status = 400; data = { code: body.inviteCode === 'used' ? 'INVITE_USED' : 'INVITE_NOT_FOUND', message: body.inviteCode === 'used' ? 'Invite used' : 'Invalid invite' } }
     }
     if (path === '/api/auth/register') {
       if (body.username === 'taken') { status = 409; data = { code: 'USERNAME_TAKEN', message: 'Username taken' } } else data = { token: 'registered', refreshToken: 'registered-refresh', user: { id: 'new', username: body.username } }
@@ -207,7 +207,7 @@ test('mock server: invite valid/invalid/used, username taken, mismatch, success 
   const previousLx = global.lx; global.lx = {}
   let screen
   try {
-    for (const [code, expected] of [['invalid', 'INVITE_INVALID'], ['used', 'INVITE_USED']]) await assert.rejects(env.client.invite(host, code), { code: expected })
+    for (const [code, expected] of [['invalid', 'INVITE_NOT_FOUND'], ['used', 'INVITE_USED']]) await assert.rejects(env.client.invite(host, code), { code: expected })
     assert.equal(await env.client.invite(host, 'valid'), 'June')
     const count = calls.length
     await assert.rejects(env.client.register(host, { ...validForm, confirm: 'mismatch' }))

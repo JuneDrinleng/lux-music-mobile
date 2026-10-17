@@ -2,16 +2,15 @@
 
 import { LuxRequestError } from '@/plugins/sync/client/userErrors'
 
-// TODO(server contract): these fields/routes are not documented in the mobile repo.
-// Verify against server dev before release; keep all protocol assumptions here.
-export const TODO_AUTH_CONTRACT = {
-  invitePath: '/api/auth/invite/validate',
+// Server contract (lux-music-server dev: src/server/api/auth.ts, /api/server-info).
+export const AUTH_CONTRACT = {
+  invitePath: '/api/auth/invite/check',
   inviteMethod: 'POST',
-  inviteField: 'code',
-  inviterField: 'inviter',
+  inviteField: 'inviteCode',
+  inviterField: 'inviterName',
   registerInviteField: 'inviteCode',
   refreshField: 'refreshToken',
-  accessTokenField: 'token',
+  accessTokenField: 'accessToken',
   adminContactField: 'adminContact',
 } as const
 
@@ -29,7 +28,6 @@ export const loginErrors = (username: string, password: string) => ({
 export const registerErrors = (form: RegisterForm) => ({
   ...loginErrors(form.username, form.password),
   invite: form.invite.trim() ? undefined : 'auth_required',
-  displayName: form.displayName.trim() ? undefined : 'auth_required',
   password: !form.password ? 'auth_required' : form.password.length < 8 ? 'auth_password_hint' : undefined,
   confirm: !form.confirm ? 'auth_required' : form.password !== form.confirm ? 'auth_password_mismatch' : undefined,
 } as const)
@@ -63,9 +61,9 @@ export const createLuxAuthClient = (deps: {
       flight = (async() => {
         try {
           if (!previous.refreshToken) throw new LuxRequestError('Session expired', 401)
-          const value = await raw<Record<string, unknown>>(`${host}/api/auth/refresh`, { [TODO_AUTH_CONTRACT.refreshField]: previous.refreshToken })
-          const token = value[TODO_AUTH_CONTRACT.accessTokenField]
-          const refreshToken = value[TODO_AUTH_CONTRACT.refreshField]
+          const value = await raw<Record<string, unknown>>(`${host}/api/auth/refresh`, { [AUTH_CONTRACT.refreshField]: previous.refreshToken })
+          const token = value[AUTH_CONTRACT.accessTokenField]
+          const refreshToken = value[AUTH_CONTRACT.refreshField]
           if (typeof token !== 'string' || !token || typeof refreshToken !== 'string' || !refreshToken) throw new LuxRequestError('Invalid refresh response', 401)
           const next = await deps.rotate(previous, { token, refreshToken })
           if (!next) throw new LuxRequestError('Session changed', 401)
@@ -83,7 +81,7 @@ export const createLuxAuthClient = (deps: {
   const request = async<T>(url: string, body?: unknown, token?: string, method?: string): Promise<T> => {
     // Preserve deployment subpaths; public auth endpoints never renew recursively.
     const host = url.split('/api/')[0]
-    const publicAuth = /\/api\/auth\/(login|refresh|register|invite\/validate)(?:$|\?)/.test(url)
+    const publicAuth = /\/api\/auth\/(login|refresh|register|invite\/check)(?:$|\?)/.test(url)
     const saved = token && !publicAuth ? await deps.find(host) : null
     const alias = token ? retired.get(token) : undefined
     const before = saved && (saved.token === token || (alias?.host === host && alias.userId === saved.user.id)) ? saved : null
@@ -103,15 +101,15 @@ export const createLuxAuthClient = (deps: {
   return {
     request,
     invite: async(host: string, code: string) => {
-      const value = await raw<Record<string, unknown>>(`${host}${TODO_AUTH_CONTRACT.invitePath}`, { [TODO_AUTH_CONTRACT.inviteField]: code.trim() }, undefined, TODO_AUTH_CONTRACT.inviteMethod)
-      const inviter = value[TODO_AUTH_CONTRACT.inviterField] as { displayName?: string, username?: string } | undefined
-      if (!inviter || !(inviter.displayName ?? inviter.username)) throw new Error('Invalid invite response')
-      return inviter.displayName ?? inviter.username!
+      const value = await raw<Record<string, unknown>>(`${host}${AUTH_CONTRACT.invitePath}`, { [AUTH_CONTRACT.inviteField]: code.trim() }, undefined, AUTH_CONTRACT.inviteMethod)
+      if (value.valid !== true) throw new Error('Invalid invite response')
+      const inviter = value[AUTH_CONTRACT.inviterField]
+      return typeof inviter === 'string' && inviter ? inviter : null
     },
     register: async(host: string, form: RegisterForm) => {
       if (Object.values(registerErrors(form)).some(Boolean)) throw new Error('Invalid registration form')
       return raw<LX.Sync.LuxAuth>(`${host}/api/auth/register`, {
-        [TODO_AUTH_CONTRACT.registerInviteField]: form.invite.trim(), username: form.username.trim(), displayName: form.displayName.trim(), password: form.password,
+        [AUTH_CONTRACT.registerInviteField]: form.invite.trim(), username: form.username.trim(), ...(form.displayName.trim() ? { displayName: form.displayName.trim() } : {}), password: form.password,
       })
     },
   }

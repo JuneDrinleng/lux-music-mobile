@@ -11,7 +11,7 @@ import { createStyle, clipboardWriteText, toast } from '@/utils/tools'
 import { useStatusbarHeight } from '@/store/common/hook'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { useI18n } from '@/lang'
-import { helpMessage, loginErrors, registerErrors, TODO_AUTH_CONTRACT, type RegisterForm } from '@/utils/luxAuthApi'
+import { helpMessage, loginErrors, registerErrors, AUTH_CONTRACT, type RegisterForm } from '@/utils/luxAuthApi'
 import { parseServerInfo, type ServerInfo } from '@/utils/serverCheck'
 import { luxAuthApi, requestJson } from '@/plugins/sync/client/auth'
 import { connectLuxServer, syncLuxProfileOnLogin } from '@/plugins/sync'
@@ -34,13 +34,13 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
   const [page, setPage] = useState<Page>('login')
   const [form, setForm] = useState(emptyForm)
   const [info, setInfo] = useState<ServerInfo | null>(null)
-  const [admin, setAdmin] = useState<{ username: string, displayName?: string } | null>(null)
+  const [admin, setAdmin] = useState<{ name: string, username?: string } | null>(null)
   const [adminOption, setAdminOption] = useState(true)
   const [busy, setBusy] = useState(false)
   const submitting = useRef(false)
   const [message, setMessage] = useState('')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [invite, setInvite] = useState<{ code: string, inviter?: string, error?: string } | null>(null)
+  const [invite, setInvite] = useState<{ code: string, valid?: boolean, inviter?: string | null, error?: string } | null>(null)
   const hostname = host.replace(/^https?:\/\//, '').split('/')[0]
   const back = () => {
     if (busy) return
@@ -59,8 +59,9 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
       const server = parseServerInfo(value)
       if (!active) return
       setInfo(server)
-      const contact = (value as Record<string, unknown>)[TODO_AUTH_CONTRACT.adminContactField] as { username?: unknown, displayName?: unknown } | undefined
-      if (typeof contact?.username === 'string') setAdmin({ username: contact.username, displayName: typeof contact.displayName === 'string' ? contact.displayName : undefined })
+      const contact = (value as Record<string, unknown>)[AUTH_CONTRACT.adminContactField] as { name?: unknown, username?: unknown } | null | undefined
+      // Optional field: hide the admin name line when the server omits it.
+      if (typeof contact?.name === 'string' && contact.name) setAdmin({ name: contact.name, username: typeof contact.username === 'string' && contact.username ? contact.username : undefined })
     }).catch(() => {})
     return () => { active = false }
   }, [host])
@@ -70,7 +71,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
     const code = form.invite.trim()
     const timer = setTimeout(() => {
       void luxAuthApi.invite(host, code).then(inviter => {
-        if (active) setInvite({ code, inviter })
+        if (active) setInvite({ code, valid: true, inviter })
       }).catch((error: unknown) => {
         if (active) setInvite({ code, error: error instanceof Error ? error.message : t('auth_invite_invalid') })
       })
@@ -78,7 +79,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
     return () => { active = false; clearTimeout(timer) }
   }, [form.invite, host, page, t])
   const errors = page === 'register' ? registerErrors(form) : loginErrors(form.username, form.password)
-  const validInvite = invite?.code === form.invite.trim() && Boolean(invite.inviter)
+  const validInvite = invite?.code === form.invite.trim() && invite.valid === true
   const invalid = Object.values(errors).some(Boolean) || (page === 'register' && !validInvite)
   const submit = async() => {
     if (submitting.current || invalid) return
@@ -126,7 +127,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
         style={[styles.input, { borderBottomColor: r.ink }]}
       />
       {hint ? <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text> : null}
-      {key === 'invite' && invite?.code === form.invite.trim() ? <Text size={12} color={invite.error ? r.danger : r.accentInk} style={[styles.hint, styles.bold]} accessibilityLiveRegion="polite">{invite.error ?? t('auth_invite_valid', { inviter: invite.inviter ?? '' })}</Text> : null}
+      {key === 'invite' && invite?.code === form.invite.trim() ? <Text size={12} color={invite.error ? r.danger : r.accentInk} style={[styles.hint, styles.bold]} accessibilityLiveRegion="polite">{invite.error ?? (invite.inviter ? t('auth_invite_valid', { inviter: invite.inviter }) : t('auth_invite_valid_plain'))}</Text> : null}
     </View>
   }
   const help = helpMessage(form.username, hostname, t)
@@ -143,7 +144,7 @@ export default function AuthFlow({ host, onboarding, onBack }: { host: string, o
         <OptionRow leading label={t('auth_device_option')} description={t('auth_device_guidance')} selected={!adminOption} onPress={() => { setAdminOption(false) }} />
         {adminOption ? <View style={[styles.card, { backgroundColor: r.paperRaised }]}>
           <Text size={11} color={r.eyebrow} style={styles.cardEyebrow}>{t('auth_admin')}</Text>
-          {admin ? <Text size={15} color={r.list} style={[styles.bold, styles.hint]}>{t('auth_admin_name', { name: admin.displayName ?? admin.username, username: admin.username })}</Text> : null}
+          {admin ? <Text size={15} color={r.list} style={[styles.bold, styles.hint]}>{admin.username ? t('auth_admin_name', { name: admin.name, username: admin.username }) : admin.name}</Text> : null}
           <Text size={12} color={r.muted} style={styles.hint}>{t('auth_copy_intro')}</Text>
           <View style={[styles.helpBox, { borderColor: r.ink }]}><Text size={13} color={r.ink}>{help}</Text></View>
         </View> : null}

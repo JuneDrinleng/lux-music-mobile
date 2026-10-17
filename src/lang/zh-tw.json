@@ -430,7 +430,6 @@
   "together_offline": "同步未連接，請先在設定中連接 Lux 伺服器。",
   "together_unsupported": "目前伺服器不支援一起聽，請更新伺服端。",
   "together_not_ready": "需要已連線的 Lux 同步且伺服端支援一起聽，請稍候或重新連線同步後再試。",
-  "together_not_ready": "需要已連線的 Lux 同步且伺服端支援一起聽，請稍候或重新連線同步後再試。",
   "together_readiness_title": "一起聽就緒狀態（開發版）",
   "together_readiness_loading": "正在讀取…",
   "together_readiness_refresh": "重新整理",
@@ -1236,5 +1235,6 @@
   "auth_copy_intro": "複製下面這段傳給管理員",
   "auth_help_message": "我是 {username}，忘記了 {host} 的密碼，麻煩幫我重設。",
   "auth_copy_help": "複製求助訊息",
-  "auth_copied": "已複製"
+  "auth_copied": "已複製",
+  "auth_invite_valid_plain": "✓ 邀請碼有效"
 }
