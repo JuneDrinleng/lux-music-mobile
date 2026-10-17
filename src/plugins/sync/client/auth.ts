@@ -143,7 +143,10 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
     throw new Error(global.i18n.t('setting_sync_lux_login_missing_tip'))
   }
   if (username && password) {
-    authInfo = await requestJson<LX.Sync.LuxAuth>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
+    const loggedIn = await requestJson<LX.Sync.LuxAuth & { accessToken?: string }>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
+    // Prefer the session-bound access token so per-session server actions (e.g. keeping other devices on password change) work.
+    const { accessToken, ...rest } = loggedIn
+    authInfo = { ...rest, token: accessToken ?? loggedIn.token }
   }
   if (!authInfo?.token) throw new Error(SYNC_CODE.luxSessionExpired)
   const session = authInfo
