@@ -1238,5 +1238,12 @@
   "auth_copied": "Copied",
   "auth_invite_valid_plain": "✓ Invite code is valid",
   "sync_login_use_lx": "Use an LX connection code",
-  "sync_login_host_history": "Server history"
+  "sync_login_host_history": "Server history",
+  "sync_expired_account": "ACCOUNT • {username}@{host}",
+  "sync_expired_reason": "Your password may have changed, or you signed this device out from another device.",
+  "sync_expired_local_before": "Your local playlists and listening history ",
+  "sync_expired_local_bold": "will not be lost",
+  "sync_expired_local_after": ". Log in again to continue syncing.",
+  "sync_expired_later": "Later",
+  "sync_expired_login": "Log in again"
 }

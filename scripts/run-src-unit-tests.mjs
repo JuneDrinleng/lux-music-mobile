@@ -17,6 +17,7 @@ import './together-session.src-test.mjs'
 import './user-system.src-test.mjs'
 import './onboarding.src-test.mjs'
 import './auth-screens.src-test.mjs'
+import './expired-dialog.src-test.mjs'
 import './sync-login-routing.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

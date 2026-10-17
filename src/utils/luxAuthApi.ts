@@ -39,7 +39,7 @@ export const createLuxAuthClient = (deps: {
   find: (host: string) => Promise<LX.Sync.LuxAuth | null>
   rotate: (previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string }) => Promise<LX.Sync.LuxAuth | null>
   clear: (previous: LX.Sync.LuxAuth) => Promise<boolean>
-  expired: (host: string) => void
+  expired: (host: string, previous: LX.Sync.LuxAuth) => void
 }) => {
   const retired = new Map<string, { host: string, userId: string }>()
   const flights = new Map<string, Promise<LX.Sync.LuxAuth>>()
@@ -70,7 +70,7 @@ export const createLuxAuthClient = (deps: {
           retired.set(previous.token, { host, userId: previous.user.id })
           return next
         } catch (error) {
-          if (await deps.clear(previous)) deps.expired(host)
+          if (await deps.clear(previous)) deps.expired(host, previous)
           throw error
         }
       })().finally(() => { flights.delete(key) })
@@ -93,7 +93,7 @@ export const createLuxAuthClient = (deps: {
       const next = latest.token !== before.token ? latest : await renew(host, before)
       // Exactly one retry; a second 401 is terminal for this session.
       try { return await raw<T>(url, body, next.token, method) } catch (retryError) {
-        if (retryError instanceof LuxRequestError && retryError.status === 401 && await deps.clear(next)) deps.expired(host)
+        if (retryError instanceof LuxRequestError && retryError.status === 401 && await deps.clear(next)) deps.expired(host, next)
         throw retryError
       }
     }

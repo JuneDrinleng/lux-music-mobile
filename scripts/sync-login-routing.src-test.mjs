@@ -90,6 +90,7 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
     '@/plugins/sync/client/userErrors': userErrors,
     '@/plugins/sync/constants': { SYNC_CODE: { luxSessionExpired: 'expired' } },
     '@/plugins/sync': { connectLuxServer: async(...args) => { events.push(['connect', ...args]); if (connectError) throw connectError }, syncLuxProfileOnLogin: async() => {} },
+    '@/plugins/sync/client/sessionExpired': { showSessionExpiredDialog: async host => { events.push(['expired-dialog', host]) } },
     '@/plugins/sync/client/auth': { requestJson: async() => ({}), luxAuthApi: {} },
     '@/utils/serverCheck': { parseServerInfo: () => ({ registration: { enabled: true } }), initialServerCheck: {}, createServerChecker: () => ({ dispose() {}, input(value) { events.push(['input', value]) } }) },
     '@/utils/luxAuthApi': api,
@@ -270,12 +271,30 @@ test('local transition blocks auth/back and LX switching until it finishes', asy
   assert.deepEqual(h.events, [['home']])
 })
 
-test('expired saved session uses the legacy friendly message and does not exit Home', async() => {
+test('expired saved session opens the dialog and does not exit Home', async() => {
   const h = harness('src/screens/Login/AuthFlow.tsx', { savedHost: 'https://server', session: { token: 'old', user: { username: 'alice' } }, connectError: new Error('expired') })
   const props = { host: 'https://server', onboarding: false, onBack() {} }
   h.render(props); await settle(); h.render(props)
   h.find('PrimaryButton', 'auth_login').onPress(); await settle()
-  const tree = h.render(props)
-  assert.ok(children(tree).some(node => node.props?.children === userErrors.luxSessionExpiredMessage()))
+  h.render(props)
+  assert.ok(h.events.some(event => event[0] === 'expired-dialog' && event[1] === 'https://server'))
   assert.equal(h.events.some(event => event[0] === 'home'), false)
+})
+
+
+test('expired Lux account reopens its host and username even if saved entry mode is LX', async() => {
+  const h = harness('src/screens/SyncLogin/index.tsx', { mode: 'lx' })
+  const props = { onboarding: false, initialHost: 'https://expired-server', initialUsername: 'june' }
+  h.render(props); await settle()
+  const tree = h.render(props)
+  assert.equal(tree.type, 'AuthFlow')
+  assert.equal(tree.props.host, props.initialHost)
+  assert.equal(tree.props.initialUsername, 'june')
+})
+
+test('relogin username takes precedence over an old login draft', async() => {
+  const h = harness('src/screens/Login/AuthFlow.tsx', { savedHost: 'https://server' })
+  const props = { host: 'https://server', onboarding: false, initialUsername: 'june', onBack() {} }
+  h.render(props); await settle(); h.render(props)
+  assert.equal(h.find('UnderlineInput').value, 'june')
 })

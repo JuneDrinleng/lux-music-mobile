@@ -1238,5 +1238,12 @@
   "auth_copied": "已复制",
   "auth_invite_valid_plain": "✓ 邀请码有效",
   "sync_login_use_lx": "改用 LX 连接码",
-  "sync_login_host_history": "服务器历史"
+  "sync_login_host_history": "服务器历史",
+  "sync_expired_account": "账号 • {username}@{host}",
+  "sync_expired_reason": "可能是密码已修改，或你在其他设备上退出了这台设备。",
+  "sync_expired_local_before": "本机歌单和播放记录",
+  "sync_expired_local_bold": "不会丢失",
+  "sync_expired_local_after": "，重新登录后继续同步。",
+  "sync_expired_later": "稍后",
+  "sync_expired_login": "重新登录"
 }

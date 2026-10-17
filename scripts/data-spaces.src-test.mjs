@@ -599,3 +599,34 @@ test('login activates its data space; stale rotation cannot overwrite a switched
   assert.equal(await data.clearLuxAuthForServer(alice), false)
   assert.equal((await data.getLuxAuth('s')).refreshToken, 'rb')
 })
+
+
+test('session expiry and Later preserve playlists, playback history, other server auth and active space', async() => {
+  const a = { serverId: 'a', serverUrl: 'https://a', token: 'old', user: { id: 'alice', username: 'alice' } }
+  const b = { serverId: 'b', token: 'other', user: { id: 'bob', username: 'bob' } }
+  const env = make({ ...legacy, '@lux_auth': JSON.stringify(a), '@lux_auth_servers': JSON.stringify({ a, b }) })
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const before = new Map(env.disk)
+  const active = env.space.getActiveSpace()
+  assert.equal(await data.clearLuxAuthForServer(a), true)
+  let later
+  let connected = true
+  const { createSessionExpiredDialog } = evaluate('src/utils/sessionExpiredDialog.ts', {})
+  const report = createSessionExpiredDialog({
+    isActive: () => true,
+    disconnect: async() => { connected = false },
+    show: async(_account, dismiss) => { later = dismiss },
+    hide: async() => {},
+    login: async() => { assert.fail('Later must not navigate') },
+  })
+  await report({ host: a.serverUrl, serverId: a.serverId, userId: a.user.id, username: a.user.username, token: a.token })
+  await later()
+  assert.equal(connected, false)
+  assert.equal(env.space.getActiveSpace(), active)
+  for (const [key, value] of before) {
+    if (key === '@lux_auth' || key === '@lux_auth_servers') continue
+    assert.equal(env.disk.get(key), value, key)
+  }
+  assert.deepEqual(JSON.parse(env.disk.get('@lux_auth_servers')), { b })
+})

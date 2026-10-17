@@ -1,5 +1,5 @@
 import { request, generateRsaKey } from './utils'
-import { LuxRequestError, luxSessionExpiredMessage } from './userErrors'
+import { LuxRequestError } from './userErrors'
 import { createLuxAuthClient } from '@/utils/luxAuthApi'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
 import { getLuxAuth, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer } from '@/utils/data'
@@ -16,11 +16,8 @@ export const luxAuthApi = createLuxAuthClient({
   find: findLuxAuthForHost,
   rotate: rotateLuxAuth,
   clear: clearLuxAuthForServer,
-  expired: (host) => {
-    void Promise.all([import('@/navigation'), import('@/utils/tools')]).then(async([{ navigations }, { toast }]) => {
-      toast(luxSessionExpiredMessage(), 'long')
-      return navigations.pushSyncLoginScreen({ onboarding: false, initialHost: host })
-    })
+  expired: (host, previous) => {
+    void import('./sessionExpired').then(async({ showSessionExpiredDialog }) => showSessionExpiredDialog(host, previous))
   },
 })
 export const requestJson = luxAuthApi.request
