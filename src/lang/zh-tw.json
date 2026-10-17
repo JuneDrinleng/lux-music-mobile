@@ -1044,6 +1044,8 @@
   "timeout_exit_btn_wait_cancel": "取消退出",
   "timeout_exit_btn_wait_tip": "計時已結束，正在等待退出...",
   "timeout_exit_input_tip": "輸入倒數計時分鐘數",
+  "sleep_timer": "睡眠定時",
+  "timeout_exit_fade": "最後 20 秒淡出（等待歌曲結束時依歌曲進度）",
   "timeout_exit_label_isPlayed": "等待歌曲播放完畢再停止播放",
   "timeout_exit_min": "分鐘",
   "timeout_exit_tip_cancel": "已取消定時停止播放",

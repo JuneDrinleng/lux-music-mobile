@@ -23,6 +23,7 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
+import SleepTimerBtn from './SleepTimerBtn'
 
 const TONEARM_OUT_ANGLE = '18deg'
 const TONEARM_IN_ANGLE = '-2deg'
@@ -449,6 +450,7 @@ export default ({ active }: { componentId: string, active: boolean }) => {
             <Text size={32} color={r.display} numberOfLines={2} style={styles.songTitle}>
               {musicInfo.name || '—'}
             </Text>
+            <SleepTimerBtn />
             <TouchableOpacity
               style={styles.iconBtn}
               activeOpacity={0.7}
