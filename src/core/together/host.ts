@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import BackgroundTimer from 'react-native-background-timer'
+import { getSession, isCurrentSession } from '@/plugins/sync/client/session'
 
 import { getList } from '@/core/player/playInfo'
 import { getPlayQuality } from '@/core/music/utils'
@@ -28,6 +29,7 @@ export interface HostCallbacks {
 }
 
 let active = false
+let generation = 0
 let callbacks: HostCallbacks | null = null
 let heartbeatId: number | null = null
 let stateTimer: number | null = null
@@ -98,13 +100,18 @@ const sendState = async() => {
   }
   const room = togetherState.room
   if (!room) return
+  const token = generation
+  const sessionId = getSession()?.id
+  const valid = () => active && token == generation && isCurrentSession(sessionId) && togetherState.room?.roomId == room.roomId
   stateInFlight = true
   stateDirty = false
   lastStateSentAt = Date.now()
   try {
     const body = await buildStateRequest()
+    if (!valid()) return
     let request: LX.Sync.Together.HostUpdateStateRequest = { ...body, roomId: room.roomId, baseVersion: togetherState.room?.playbackVersion ?? room.playbackVersion }
     let result = await callTogether('together:hostUpdateState', request)
+    if (!valid()) return
     if (!result.ok && result.code == 'VERSION_CONFLICT') {
       const detail = result.detail as LX.Sync.Together.RoomSnapshot | undefined
       if (detail && typeof detail.playbackVersion == 'number') {
@@ -112,7 +119,7 @@ const sendState = async() => {
         result = await callTogether('together:hostUpdateState', request)
       }
     }
-    if (!active) return
+    if (!valid()) return
     if (result.ok) {
       callbacks?.onAck(result.data, 'playback')
     } else if (result.code == 'NOT_HOST' || result.code == 'NOT_IN_ROOM') {
@@ -126,8 +133,8 @@ const sendState = async() => {
     log.warn('together hostUpdateState error:', error instanceof Error ? error.message : error)
   } finally {
     // eslint-disable-next-line require-atomic-updates
-    stateInFlight = false
-    if (active && stateDirty) scheduleState()
+    if (token == generation) stateInFlight = false
+    if (valid() && stateDirty) scheduleState()
   }
 }
 
@@ -152,11 +159,15 @@ const sendQueue = async(force = false) => {
   const { items, currentId } = buildQueueRequest()
   const signature = queueSignature(items, currentId)
   if (!force && signature == lastQueueSignature) return
+  const token = generation
+  const sessionId = getSession()?.id
+  const valid = () => active && token == generation && isCurrentSession(sessionId) && togetherState.room?.roomId == room.roomId
   queueInFlight = true
   queueDirty = false
   try {
     let request: LX.Sync.Together.HostUpdateQueueRequest = { roomId: room.roomId, baseVersion: togetherState.room?.queueVersion ?? room.queueVersion, items, currentId }
     let result = await callTogether('together:hostUpdateQueue', request)
+    if (!valid()) return
     if (!result.ok && result.code == 'VERSION_CONFLICT') {
       const detail = result.detail as LX.Sync.Together.RoomSnapshot | undefined
       if (detail && typeof detail.queueVersion == 'number') {
@@ -164,7 +175,7 @@ const sendQueue = async(force = false) => {
         result = await callTogether('together:hostUpdateQueue', request)
       }
     }
-    if (!active) return
+    if (!valid()) return
     if (result.ok) {
       // eslint-disable-next-line require-atomic-updates
       lastQueueSignature = signature
@@ -180,8 +191,8 @@ const sendQueue = async(force = false) => {
     log.warn('together hostUpdateQueue error:', error instanceof Error ? error.message : error)
   } finally {
     // eslint-disable-next-line require-atomic-updates
-    queueInFlight = false
-    if (active && queueDirty) scheduleQueue()
+    if (token == generation) queueInFlight = false
+    if (valid() && queueDirty) scheduleQueue()
   }
 }
 
@@ -240,6 +251,10 @@ export const startHostReporting = (cb: HostCallbacks) => {
 export const stopHostReporting = () => {
   if (!active) return
   active = false
+  generation += 1
+  stateInFlight = false
+  queueInFlight = false
+  callbacks = null
   global.app_event.off('play', handleImmediate)
   global.app_event.off('pause', handleImmediate)
   global.app_event.off('stop', handleImmediate)

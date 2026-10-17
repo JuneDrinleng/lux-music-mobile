@@ -12,7 +12,7 @@ import { dateFormat } from '@/utils/common'
 import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
-import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
+import { createSession, closeSession, finishTogether, finishSessionHandshake, isCurrentSession, onSessionClose, getSocketSession, getSession } from './session'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 import { addSyncReadyListener, notifySyncReady, removeSyncReadyListener } from './syncReady'
 
@@ -41,12 +41,12 @@ const heartbeatTools = {
   connectTimeout: null as NodeJS.Timeout | null,
   pingTimeout: null as NodeJS.Timeout | null,
   delayRetryTimeout: null as NodeJS.Timeout | null,
-  handleOpen() {
+  handleOpen(socket: LX.Sync.Socket, sessionId: number) {
     console.log('open')
     // this.failedNum = 0
-    this.heartbeat()
+    this.heartbeat(socket, sessionId)
   },
-  heartbeat() {
+  heartbeat(socket: LX.Sync.Socket, sessionId: number) {
     if (this.pingTimeout) clearTimeout(this.pingTimeout)
 
     // Use `WebSocket#terminate()`, which immediately destroys the connection,
@@ -54,10 +54,10 @@ const heartbeatTools = {
     // Delay should be equal to the interval at which your server
     // sends out pings plus a conservative assumption of the latency.
     this.pingTimeout = setTimeout(() => {
-      client?.close()
+      if (isCurrentSession(sessionId)) socket.close()
     }, 30000 + 1000)
   },
-  reConnnect() {
+  reConnnect(socket: LX.Sync.Socket, sessionId: number) {
     this.clearTimeout()
     // client = null
     if (!client) return
@@ -80,13 +80,13 @@ const heartbeatTools = {
 
     this.delayRetryTimeout = setTimeout(() => {
       this.delayRetryTimeout = null
-      if (!client) return
+      if (client !== socket || getSession()?.id != sessionId) return
       console.log(dateFormat(new Date()), 'reconnnect...')
       sendSyncStatus({
         status: false,
         message: `Try reconnnect... (${this.failedNum})`,
       })
-      connect(client.data.urlInfo, client.data.keyInfo)
+      connect(socket.data.urlInfo, socket.data.keyInfo)
     }, waitTime)
   },
   clearTimeout() {
@@ -103,9 +103,10 @@ const heartbeatTools = {
       this.pingTimeout = null
     }
   },
-  connect(socket: LX.Sync.Socket) {
+  connect(socket: LX.Sync.Socket, sessionId: number) {
     console.log('heartbeatTools connect')
     this.connectTimeout = setTimeout(() => {
+      if (!isCurrentSession(sessionId)) return
       this.connectTimeout = null
       if (client) {
         try {
@@ -124,26 +125,29 @@ const heartbeatTools = {
         status: false,
         message: 'Connect timeout, try reconnect...',
       })
-      this.reConnnect()
+      this.reConnnect(socket, sessionId)
     }, 2 * 60 * 1000)
     socket.addEventListener('open', () => {
+      if (!isCurrentSession(sessionId)) return
       if (this.connectTimeout) {
         clearTimeout(this.connectTimeout)
         this.connectTimeout = null
       }
-      this.handleOpen()
+      this.handleOpen(socket, sessionId)
     })
     socket.addEventListener('message', ({ data }) => {
-      if (data == 'ping') this.heartbeat()
+      if (!isCurrentSession(sessionId)) return
+      if (data == 'ping') this.heartbeat(socket, sessionId)
     })
     socket.addEventListener('close', (event) => {
+      if (!isCurrentSession(sessionId)) return
       // console.log(event.code)
       switch (event.code) {
         case SYNC_CLOSE_CODE.normal:
         case SYNC_CLOSE_CODE.failed:
           return
       }
-      this.reConnnect()
+      this.reConnnect(socket, sessionId)
     })
   },
 }
@@ -162,7 +166,12 @@ export const getReadySyncSocket = (): LX.Sync.Socket | null => {
 }
 // let listSyncPromise: Promise<void>
 export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
+  heartbeatTools.clearTimeout()
   const session = new WebSocket(`${urlInfo.wsProtocol}//${urlInfo.hostPath}/socket?i=${encodeURIComponent(keyInfo.clientId)}&t=${encodeURIComponent(aesEncrypt(SYNC_CODE.msgConnect, keyInfo.key))}`) as LX.Sync.Socket
+  const previousSocket = client
+  const connection = createSession(session)
+  previousSocket?.close(SYNC_CLOSE_CODE.normal)
+  const sessionId = connection.id
   client = session
   session.data = {
     keyInfo,
@@ -170,28 +179,26 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   }
   session.isReady = false
   session.moduleReadys = createInitialModuleReadys()
-  heartbeatTools.connect(session)
+  heartbeatTools.connect(session, sessionId)
 
   let closeEvents: Array<(err: Error) => (void | Promise<void>)> = []
   let disconnected = true
 
-  const markTogetherModuleReady = () => {
-    if (isTogetherFeatureEnabled()) setSyncModuleReady(session, 'together', true)
-  }
-
   const message2read = createMsg2call<LX.Sync.ServerSyncActions>({
     funcsObj: {
-      ...callObj,
+      ...Object.fromEntries(Object.entries(callObj).map(([name, handler]) => [name, (...args: unknown[]) => {
+        if (!isCurrentSession(sessionId)) return
+        return (handler as (...params: unknown[]) => unknown)(...args)
+      }])) as typeof callObj,
       async together_sync_finished() {
-        if (client !== session) return
-        setTogetherFeatureEnabled(true)
-        markTogetherModuleReady()
-        if (session.isReady) setTimeout(notifySyncReady, 0)
+        if (!isCurrentSession(sessionId)) return
+        finishTogether(sessionId)
+        if (session.isReady) setTimeout(() => { if (isCurrentSession(sessionId)) notifySyncReady() }, 0)
       },
       finished() {
-        if (client !== session) return
+        if (!isCurrentSession(sessionId)) return
         session.isReady = true
-        markTogetherModuleReady()
+        finishSessionHandshake(sessionId)
         if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(session, 'playHistory', true)
         sendSyncStatus({
           status: true,
@@ -199,15 +206,16 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
         })
         heartbeatTools.failedNum = 0
         // Return first so the server finishes the handshake, then pull and push.
-        setTimeout(notifySyncReady, 0)
+        setTimeout(() => { if (isCurrentSession(sessionId)) notifySyncReady() }, 0)
       },
     },
     timeout: 120 * 1000,
     sendMessage(data) {
-      if (disconnected) throw new Error('disconnected')
+      if (disconnected || !isCurrentSession(sessionId)) throw new Error('disconnected')
       void encryptMsg(keyInfo, JSON.stringify(data)).then((data) => {
-        session.send(data)
+        if (isCurrentSession(sessionId)) session.send(data)
       }).catch((err) => {
+        if (!isCurrentSession(sessionId)) return
         log.error('encrypt msg error: ', err)
         session.close(SYNC_CLOSE_CODE.failed)
       })
@@ -233,10 +241,11 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   session.remoteQueueDislike = message2read.createQueueRemote('dislike')
 
   session.addEventListener('message', ({ data }) => {
-    if (client !== session) return
+    if (!isCurrentSession(sessionId)) return
     if (data == 'ping') return
     if (typeof data === 'string') {
       void decryptMsg(keyInfo, data).then((data) => {
+        if (!isCurrentSession(sessionId)) return
         let syncData: LX.Sync.ServerSyncActions
         try {
           syncData = JSON.parse(data)
@@ -247,6 +256,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
         }
         message2read.message(syncData)
       }).catch((error) => {
+        if (!isCurrentSession(sessionId)) return
         log.error('decrypt msg error: ', error)
         session.close(SYNC_CLOSE_CODE.failed)
       })
@@ -255,17 +265,17 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   session.onClose = function(handler: typeof closeEvents[number]) {
     closeEvents.push(handler)
     return () => {
-      closeEvents.splice(closeEvents.indexOf(handler), 1)
+      const index = closeEvents.indexOf(handler)
+      if (index >= 0) closeEvents.splice(index, 1)
     }
   }
 
   const initMessage = 'Wait syncing...'
   session.addEventListener('open', () => {
-    if (client !== session) return
+    if (!isCurrentSession(sessionId)) return
     log.info('connect')
     session.isReady = false
     setPlayHistoryFeatureEnabled(false)
-    setTogetherFeatureEnabled(false)
     session.moduleReadys = createInitialModuleReadys()
     disconnected = false
     sendSyncStatus({
@@ -273,20 +283,20 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
       message: initMessage,
     })
   })
-  session.addEventListener('close', ({ code }) => {
-    if (client !== session) return
+  onSessionClose(sessionId, () => {
     session.isReady = false
     setPlayHistoryFeatureEnabled(false)
-    setTogetherFeatureEnabled(false)
+    disconnected = true
     const err = new Error('closed')
-    try {
-      for (const handler of closeEvents) void handler(err)
-    } catch (err: any) {
-      log.error(err?.message)
+    for (const handler of closeEvents) {
+      try { void Promise.resolve(handler(err)).catch(error => { log.error(error) }) } catch (error) { log.error(error) }
     }
     closeEvents = []
-    disconnected = true
     message2read.destroy()
+  })
+  session.addEventListener('close', ({ code }) => {
+    if (!isCurrentSession(sessionId)) return
+    closeSession(sessionId)
     switch (code) {
       case SYNC_CLOSE_CODE.normal:
       // case SYNC_CLOSE_CODE.failed:
@@ -306,7 +316,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     }
   })
   session.addEventListener('error', ({ message }) => {
-    if (client !== session) return
+    if (!isCurrentSession(sessionId)) return
     sendSyncStatus({
       status: false,
       message,
@@ -317,7 +327,10 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
 export const disconnect = async() => {
   if (!client) return
   log.info('disconnecting...')
-  client.close(SYNC_CLOSE_CODE.normal)
+  const socket = client
+  closeSession(getSocketSession(socket)!.id)
+  socket.close(SYNC_CLOSE_CODE.normal)
+  sendSyncStatus({ status: false, message: '' })
   client = null
   heartbeatTools.clearTimeout()
   heartbeatTools.failedNum = 0

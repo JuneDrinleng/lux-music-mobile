@@ -41,6 +41,8 @@ const gateLabel = (
   const off = value === false || value === 'error'
   const mark = on ? '✓' : off ? '✗' : '?'
   switch (key) {
+    case 'sessionId': return `${t('together_readiness_session_id')}: ${String(value)}`
+    case 'sessionState': return `${t('together_readiness_session_state')}: ${String(value)}`
     case 'mode': return `${mark} ${t('together_readiness_gate_lux')} (${String(value)})`
     case 'syncReady': return `${mark} ${t('together_readiness_gate_socket')}`
     case 'feature': return `${mark} ${t('together_readiness_gate_feature')}`
@@ -79,7 +81,7 @@ const TogetherReadinessPanel = ({ uiConnection }: TogetherReadinessPanelProps) =
 
   if (!isTogetherDebugPanelBuild()) return null
 
-  const displayKeys: Array<keyof TogetherGateSnapshot> = ['mode', 'syncReady', 'feature', 'moduleTogether', 'blocked']
+  const displayKeys: Array<keyof TogetherGateSnapshot> = ['sessionId', 'sessionState', 'mode', 'syncReady', 'feature', 'moduleTogether', 'blocked']
 
   return (
     <View style={styles.box}>

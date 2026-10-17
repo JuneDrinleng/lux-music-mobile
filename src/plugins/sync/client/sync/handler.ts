@@ -5,19 +5,17 @@
 import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
-import { setTogetherFeatureEnabled } from '../../togetherFlag'
+import { getSocketSession, isCurrentSession, negotiateTogether, finishTogether } from '../session'
 import { notifySyncReady } from '../syncReady'
-import { setSyncModuleReady } from '../moduleReadys'
 import { featureVersion } from '../modules'
 
 
 const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'> = {
   async together_sync_finished(socket) {
-    // Server only calls this after togetherModule.sync; do not gate on the client flag
-    // (stale reconnect close can clear flags before this callback arrives).
-    setTogetherFeatureEnabled(true)
-    setSyncModuleReady(socket, 'together', true)
-    if (socket.isReady) setTimeout(notifySyncReady, 0)
+    const id = getSocketSession(socket)?.id
+    if (!isCurrentSession(id)) return
+    finishTogether(id!)
+    if (socket.isReady) setTimeout(() => { if (isCurrentSession(id)) notifySyncReady() }, 0)
   },
   async getEnabledFeatures(socket, serverType, supportedFeatures) {
   // const userSpace = getUserSpace(socket.userInfo.name)
@@ -28,12 +26,13 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     } catch {
       lux = false
     }
+    const id = getSocketSession(socket)?.id
+    if (!isCurrentSession(id)) return features
     // Old servers omit playHistory. LX connection-code sync must not enable it, so records stay on this device.
     const enablePlayHistory = lux && featureVersion.playHistory == supportedFeatures.playHistory
     setPlayHistoryFeatureEnabled(enablePlayHistory)
     const enableTogether = lux && featureVersion.together == supportedFeatures.together
-    setTogetherFeatureEnabled(enableTogether)
-    if (enableTogether) setSyncModuleReady(socket, 'together', true)
+    negotiateTogether(id!, enableTogether)
     switch (serverType) {
       case 'server':
         if (featureVersion.list == supportedFeatures.list) {
