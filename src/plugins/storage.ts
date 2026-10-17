@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { log } from '@/utils/log'
+import { storageKey, getActiveSpace, isPerSpaceKey } from '@/utils/dataSpace'
 
 const partKeyPrefix = '@___PART___'
 const partKeyArrPrefix = '@___PART_A___'
@@ -44,6 +45,7 @@ const handleGetData = async<T>(partKeys: string): Promise<T> => {
 }
 
 export const saveData = async(key: string, value: any) => {
+  key = storageKey(key)
   const datas: Array<[string, string]> = []
   buildData(key, value, datas)
 
@@ -58,6 +60,7 @@ export const saveData = async(key: string, value: any) => {
 }
 
 export const getData = async<T = unknown>(key: string): Promise<T | null> => {
+  key = storageKey(key)
   let value: string | null
   try {
     value = await AsyncStorage.getItem(key)
@@ -73,6 +76,7 @@ export const getData = async<T = unknown>(key: string): Promise<T | null> => {
 }
 
 export const removeData = async(key: string) => {
+  key = storageKey(key)
   let value: string | null
   try {
     value = await AsyncStorage.getItem(key)
@@ -117,6 +121,7 @@ export const removeData = async(key: string) => {
 }
 
 export const getAllKeys = async() => {
+  const suffix = `@${getActiveSpace()}`
   let keys
   try {
     keys = await AsyncStorage.getAllKeys()
@@ -126,11 +131,19 @@ export const getAllKeys = async() => {
     throw e
   }
 
-  return keys
+  return keys.flatMap(key => {
+    if (key.endsWith(suffix) && isPerSpaceKey(key.slice(0, -suffix.length))) return [key.slice(0, -suffix.length)]
+    // Legacy roots and other accounts must not leak through list-key enumeration.
+    const match = /^(.*)@(?:local|lux:[^:]+:[^:]+)$/.exec(key)
+    if (isPerSpaceKey(key) || (match && isPerSpaceKey(match[1]))) return []
+    return [key]
+  })
 }
 
 
 export const getDataMultiple = async<T extends readonly string[]>(keys: T) => {
+  const baseKeys = keys
+  keys = keys.map(storageKey) as unknown as T
   type RawData = { [K in keyof T]: [T[K], string | null] }
   let datas: RawData
   try {
@@ -150,11 +163,12 @@ export const getDataMultiple = async<T extends readonly string[]>(keys: T) => {
     }
   }
   return Promise.all(promises).then(values => {
-    return datas.map(([key], index) => ([key, values[index]])) as { [K in keyof T]: [T[K], unknown] }
+    return datas.map((_, index) => ([baseKeys[index], values[index]])) as { [K in keyof T]: [T[K], unknown] }
   })
 }
 
 export const saveDataMultiple = async(datas: Array<[string, any]>) => {
+  datas = datas.map(([key, value]) => [storageKey(key), value])
   const allData: Array<[string, string]> = []
   for (const [key, value] of datas) {
     buildData(key, value, allData)
@@ -171,6 +185,7 @@ export const saveDataMultiple = async(datas: Array<[string, any]>) => {
 
 
 export const removeDataMultiple = async(keys: string[]) => {
+  keys = keys.map(storageKey)
   if (!keys.length) return
   const datas = await AsyncStorage.multiGet(keys)
   let allKeys = []

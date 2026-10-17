@@ -2,6 +2,7 @@
 
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
+import { luxSpaceId, setActiveSpace, namespacedKey } from './dataSpace'
 import { throttle } from './common'
 import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
@@ -126,18 +127,11 @@ const resolveUserAvatar = async(path: string | null) => {
 // const defaultListKey = listPrefix + 'default'
 // const loveListKey = listPrefix + 'love'
 
-let listPosition: LX.List.ListPositionInfo
-let listPrevSelectId: string
-let listUpdateInfo: LX.List.ListUpdateInfo
-
 let searchSetting: typeof DEFAULT_SETTING['search']
 let songListSetting: typeof DEFAULT_SETTING['songList']
 let leaderboardSetting: typeof DEFAULT_SETTING['leaderboard']
 let searchHistoryList: string[]
 
-const saveListPositionThrottle = throttle(() => {
-  void saveData(listScrollPositionKey, listPosition)
-}, 1000)
 const saveSearchSettingThrottle = throttle(() => {
   void saveData(searchSettingKey, searchSetting)
 }, 1000)
@@ -165,97 +159,53 @@ export const saveUserTheme = async(themes: LX.Theme[]) => {
 }
 
 
-const initPosition = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listPosition ??= await getData(listScrollPositionKey) ?? {}
+// Capture the physical key before awaiting storage; account switches cannot redirect a write.
+const metadataWrites = new Map<string, Promise<void>>()
+const updateListMetadata = async<T>(baseKey: string, fallback: T, update: (value: T) => T) => {
+  const key = namespacedKey(baseKey)
+  const run = (metadataWrites.get(key) ?? Promise.resolve()).then(async() => {
+    const value = await getData<T>(key) ?? fallback
+    await saveData(key, update(value))
+  })
+  metadataWrites.set(key, run.catch(() => {}))
+  await run
 }
 export const getListPosition = async(id: string): Promise<number> => {
-  await initPosition()
-  return listPosition[id] ?? 0
+  const positions = await getData<LX.List.ListPositionInfo>(listScrollPositionKey) ?? {}
+  return positions[id] ?? 0
 }
 export const saveListPosition = async(id: string, position?: number) => {
-  await initPosition()
-  listPosition[id] = position ?? 0
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => ({ ...value, [id]: position ?? 0 }))
 }
 export const removeListPosition = async(id: string) => {
-  await initPosition()
-  delete listPosition[id]
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => { delete value[id]; return value })
 }
 export const overwriteListPosition = async(ids: string[]) => {
-  await initPosition()
-  const removedIds = []
-  for (const id of Object.keys(listPosition)) {
-    if (ids.includes(id)) continue
-    removedIds.push(id)
-  }
-  for (const id of removedIds) delete listPosition[id]
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => Object.fromEntries(Object.entries(value).filter(([id]) => ids.includes(id))))
 }
-
-const saveListPrevSelectIdThrottle = throttle(() => {
-  void saveData(listPrevSelectIdKey, listPrevSelectId)
-}, 200)
 export const getListPrevSelectId = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listPrevSelectId ??= await getData(listPrevSelectIdKey) ?? LIST_IDS.DEFAULT
-  return listPrevSelectId || LIST_IDS.DEFAULT
+  const id = await getData<string>(listPrevSelectIdKey)
+  if (!id) return LIST_IDS.DEFAULT
+  return id
 }
-export const saveListPrevSelectId = (id: string) => {
-  listPrevSelectId = id
-  saveListPrevSelectIdThrottle()
-}
-
-const saveListUpdateInfoThrottle = throttle(() => {
-  void saveData(listUpdateInfoKey, listUpdateInfo)
-}, 1000)
-
-const initListUpdateInfo = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listUpdateInfo ??= await getData(listUpdateInfoKey) ?? {}
-}
-export const getListUpdateInfo = async() => {
-  await initListUpdateInfo()
-  return listUpdateInfo
-}
-export const saveListUpdateInfo = async(info: LX.List.ListUpdateInfo) => {
-  await initListUpdateInfo()
-  listUpdateInfo = info
-  saveListUpdateInfoThrottle()
-}
+export const saveListPrevSelectId = (id: string) => { void saveData(listPrevSelectIdKey, id) }
+export const getListUpdateInfo = async(): Promise<LX.List.ListUpdateInfo> => await getData(listUpdateInfoKey) ?? {}
+export const saveListUpdateInfo = async(info: LX.List.ListUpdateInfo) => { await saveData(listUpdateInfoKey, info) }
 export const setListAutoUpdate = async(id: string, enable: boolean) => {
-  await initListUpdateInfo()
-  const targetInfo = listUpdateInfo[id] ?? { updateTime: 0, isAutoUpdate: false }
-  targetInfo.isAutoUpdate = enable
-  listUpdateInfo[id] = targetInfo
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => ({
+    ...value, [id]: { ...(value[id] ?? { updateTime: 0 }), isAutoUpdate: enable },
+  }))
 }
 export const setListUpdateTime = async(id: string, time: number) => {
-  await initListUpdateInfo()
-  const targetInfo = listUpdateInfo[id] ?? { updateTime: 0, isAutoUpdate: false }
-  targetInfo.updateTime = time
-  listUpdateInfo[id] = targetInfo
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => ({
+    ...value, [id]: { ...(value[id] ?? { isAutoUpdate: false }), updateTime: time },
+  }))
 }
-// export const setListUpdateInfo = (id, { updateTime, isAutoUpdate }) => {
-//   listUpdateInfo[id] = { updateTime, isAutoUpdate }
-//   saveListUpdateInfo()
-// }
 export const removeListUpdateInfo = async(id: string) => {
-  await initListUpdateInfo()
-  delete listUpdateInfo[id]
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => { delete value[id]; return value })
 }
 export const overwriteListUpdateInfo = async(ids: string[]) => {
-  await initListUpdateInfo()
-  const removedIds = []
-  for (const id of Object.keys(listUpdateInfo)) {
-    if (ids.includes(id)) continue
-    removedIds.push(id)
-  }
-  for (const id of removedIds) delete listUpdateInfo[id]
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => Object.fromEntries(Object.entries(value).filter(([id]) => ids.includes(id))))
 }
 
 let ignoreVersionFailTipTime: number | null
@@ -576,6 +526,7 @@ export const getLuxAuth = async(serverId?: string) => {
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
   if (auth.serverId) await luxSessions.set(auth.serverId, auth)
   await AsyncStorage.setItem(luxAuthPrefix, JSON.stringify(auth))
+  if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username)
 }
 export const clearLuxAuth = async() => {
   await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
@@ -847,53 +798,35 @@ export const getUserAvatarDataUrl = async() => {
   return `data:${getUserAvatarDataUrlMime(sourcePath)};base64,${data}`
 }
 
-let userName: string | null = ''
 export const getUserName = async() => {
-  if (userName !== '') return userName
-  // eslint-disable-next-line require-atomic-updates
-  userName = await getData<string>(userNamePrefix) ?? null
-  return userName
+  return await getData<string>(userNamePrefix) ?? null
 }
 export const saveUserName = async(name: string | null) => {
   if (name?.trim()) {
-    userName = name
     await saveData(userNamePrefix, name)
   } else {
-    userName = null
     await removeData(userNamePrefix)
   }
 }
 
-let userSignature: string | null = ''
 export const getUserSignature = async() => {
-  if (userSignature !== '') return userSignature
-  // eslint-disable-next-line require-atomic-updates
-  userSignature = await getData<string>(userSignaturePrefix) ?? null
-  return userSignature
+  return await getData<string>(userSignaturePrefix) ?? null
 }
 export const saveUserSignature = async(signature: string | null) => {
   if (signature?.trim()) {
-    userSignature = signature
     await saveData(userSignaturePrefix, signature)
   } else {
-    userSignature = null
     await removeData(userSignaturePrefix)
   }
 }
 
-let userGender: 'male' | 'female' | 'unknown' | null | '' = ''
 export const getUserGender = async() => {
-  if (userGender !== '') return userGender ?? 'unknown'
-  // eslint-disable-next-line require-atomic-updates
-  userGender = await getData<'male' | 'female' | 'unknown'>(userGenderPrefix) ?? 'unknown'
-  return userGender
+  return await getData<'male' | 'female' | 'unknown'>(userGenderPrefix) ?? 'unknown'
 }
 export const saveUserGender = async(gender: 'male' | 'female' | 'unknown' | null) => {
   if (gender && ['male', 'female', 'unknown'].includes(gender)) {
-    userGender = gender
     await saveData(userGenderPrefix, gender)
   } else {
-    userGender = 'unknown'
     await saveData(userGenderPrefix, 'unknown')
   }
 }

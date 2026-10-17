@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { getActiveSpace, namespacedKey, onDataSpaceChanged } from '@/utils/dataSpace'
 import { storageDataPrefix } from '@/config/constant'
 import { getData, saveData } from '@/plugins/storage'
 
@@ -13,6 +14,7 @@ let records: PlayRecord[] = []
 let deviceId = ''
 let cursor: PlayHistoryCursor | null = null
 let loaded = false
+let flushPending: (() => Promise<void>) | null = null
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 
 const randomDeviceId = (): string => {
@@ -33,9 +35,13 @@ const notify = () => {
 
 const schedulePersist = () => {
   if (persistTimer) clearTimeout(persistTimer)
+  const key = namespacedKey(storageDataPrefix.playHistory)
+  const snapshot = records
+  flushPending = async() => { await saveData(key, snapshot) }
   persistTimer = setTimeout(() => {
     persistTimer = null
-    void saveData(storageDataPrefix.playHistory, records)
+    flushPending = null
+    void saveData(key, snapshot)
   }, 400)
 }
 
@@ -46,11 +52,14 @@ export const getPlayDeviceId = (): string => deviceId
 export const getPlayHistoryCursor = (): PlayHistoryCursor | null => cursor
 
 export const loadPlayHistoryStore = async(): Promise<void> => {
+  const space = getActiveSpace()
   const [storedRecords, storedDeviceId, storedCursor] = await Promise.all([
     getData<unknown>(storageDataPrefix.playHistory),
     getData<unknown>(storageDataPrefix.playHistoryDevice),
     getData<unknown>(storageDataPrefix.playHistoryCursor),
   ])
+  if (space != getActiveSpace()) return
+  cursor = null
   records = mergePlayRecords(Array.isArray(storedRecords) ? storedRecords.filter(isPlayRecord) : [])
   if (typeof storedDeviceId == 'string' && storedDeviceId.trim()) {
     deviceId = storedDeviceId
@@ -85,6 +94,7 @@ export const replacePlayRecords = async(next: readonly PlayRecord[]): Promise<vo
     clearTimeout(persistTimer)
     persistTimer = null
   }
+  flushPending = null
   await saveData(storageDataPrefix.playHistory, records)
   notify()
 }
@@ -93,3 +103,17 @@ export const savePlayHistoryCursor = async(next: PlayHistoryCursor): Promise<voi
   cursor = next
   await saveData(storageDataPrefix.playHistoryCursor, next)
 }
+
+onDataSpaceChanged(async() => {
+  const flush = flushPending
+  flushPending = null
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+  records = []
+  cursor = null
+  loaded = false
+  await flush?.()
+  await loadPlayHistoryStore()
+})

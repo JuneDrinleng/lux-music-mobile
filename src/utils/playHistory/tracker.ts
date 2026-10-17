@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { onDataSpaceChanged, onDataSpaceWillChange } from '@/utils/dataSpace'
 import playerState from '@/store/player/state'
 
 import { createListenSession, sampleListenSession, type ListenSession } from './session'
@@ -167,3 +168,15 @@ export const startPlayHistoryTracker = (syncQualified?: (record: PlayRecord, rea
   global.app_event.on('setProgress', handleSeek)
   if (playerState.isPlay) handlePlay()
 }
+
+// Do not carry a listening session from one account into another account's history.
+onDataSpaceWillChange(() => {
+  session = null
+  song = null
+  durationMs = null
+  syncedThisSession = false
+  clearTimer()
+})
+onDataSpaceChanged(() => {
+  if (started && playerState.isPlay) handlePlay()
+})

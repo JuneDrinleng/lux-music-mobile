@@ -1,5 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { initializeDataSpaces } from '@/utils/dataSpace'
 import { initSetting, showPactModal } from '@/core/common'
 import registerPlaybackService from '@/plugins/player/service'
 import initTheme from './theme'
@@ -79,6 +80,7 @@ let isInited = false
 export default async() => {
   if (isInited) return handlePushedHomeScreen
   bootLog('Initing...')
+  await initializeDataSpaces()
   commonActions.setFontSize(global.lx.fontSize)
   bootLog('Font size changed.')
   const setting = await initSetting()

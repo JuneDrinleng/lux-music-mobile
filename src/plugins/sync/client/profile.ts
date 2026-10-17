@@ -1,3 +1,4 @@
+import { getActiveSpace } from '@/utils/dataSpace'
 import { getSyncHost, getLuxAuth, getSyncMode, getUserAvatarDataUrl, getUserName, getUserSignature, getUserGender, saveUserAvatarDataUrl, saveUserName, saveUserSignature, saveUserGender } from '@/utils/data'
 import { parseUrl } from './utils'
 import { requestJson } from './auth'
@@ -23,12 +24,14 @@ const getToken = async(host?: string) => {
 export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
   const displayName = profile.displayName.trim()
   const signature = profile.signature.trim()
-  const avatar = await saveUserAvatarDataUrl(profile.avatar || null)
-  await Promise.all([
+  const space = getActiveSpace()
+  const [avatar] = await Promise.all([
+    saveUserAvatarDataUrl(profile.avatar || null),
     saveUserName(displayName || null),
     saveUserSignature(signature || null),
     saveUserGender(profile.gender || 'unknown'),
   ])
+  if (space != getActiveSpace()) return
   global.app_event.userNameUpdated(displayName)
   global.app_event.userSignatureUpdated(signature)
   global.app_event.userGenderUpdated(profile.gender || 'unknown')
@@ -36,17 +39,21 @@ export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
 }
 
 export const pullLuxProfileFromServer = async(host?: string) => {
+  const space = getActiveSpace()
   const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
+  if (space != getActiveSpace()) return null
   await applyLuxProfile(profile)
   return profile
 }
 
 export const syncLuxProfileOnLogin = async(host?: string) => {
+  const space = getActiveSpace()
   const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
+  if (space != getActiveSpace()) return null
   const hasRemoteProfile = !!(profile.displayName || profile.avatar || profile.signature || profile.gender != 'unknown')
   if (hasRemoteProfile) {
     await applyLuxProfile(profile)
@@ -58,10 +65,12 @@ export const syncLuxProfileOnLogin = async(host?: string) => {
     gender: await getUserGender(),
     signature: (await getUserSignature()) ?? '',
   }
+  if (space != getActiveSpace()) return null
   return requestJson<{ profile: LX.Sync.LuxProfile }>(url, localProfile, token).then(({ profile }) => profile)
 }
 
 export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
+  const space = getActiveSpace()
   if (await getSyncMode() != 'lux') return null
   const [url, token] = await Promise.all([getProfileUrl(), getToken()])
   if (!url || !token) return null
@@ -71,5 +80,6 @@ export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
     gender: await getUserGender(),
     signature: (await getUserSignature()) ?? '',
   }
+  if (space != getActiveSpace()) return null
   return requestJson<{ profile: LX.Sync.LuxProfile }>(url, profile, token)
 }
