@@ -22,7 +22,7 @@ export const migrateAvatar = async(raw: string, spaceId: SpaceId): Promise<strin
   const original = await stat(source)
   await writeFile(temporary, String(await readFile(source, 'base64')), 'base64')
   if (!await existsFile(temporary) || (await stat(temporary)).size != original.size) throw new Error('Avatar copy verification failed')
-  if (await rename(temporary, `avatar.${ext}`) === false) throw new Error('Avatar copy rename failed')
+  if (!(await rename(temporary, `avatar.${ext}`))) throw new Error('Avatar copy rename failed')
   if (!await existsFile(destination) || (await stat(destination)).size != original.size) throw new Error('Avatar destination verification failed')
   return JSON.stringify(destination)
 }
