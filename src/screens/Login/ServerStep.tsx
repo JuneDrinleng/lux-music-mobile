@@ -1,10 +1,12 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useEffect, useMemo, useState } from 'react'
-import { ScrollView, View } from 'react-native'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { BackHandler, ScrollView, View } from 'react-native'
+import LanguageSwitch from '@/components/common/LanguageSwitch'
+import { getSyncHostHistory } from '@/utils/data'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { BackButton, PrimaryButton, SecondaryButton, UnderlineInput } from '@/components/magazine'
+import { BackButton, PrimaryButton, SecondaryButton, TextButton, OptionRow, UnderlineInput } from '@/components/magazine'
 import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
@@ -13,7 +15,7 @@ import { useI18n } from '@/lang'
 import { navigations } from '@/navigation'
 import { createServerChecker, initialServerCheck, parseServerInfo } from '@/utils/serverCheck'
 
-export default function ServerStep({ onBack, onReady }: { onBack: () => void, onReady?: (host: string) => void }) {
+export default function ServerStep({ onBack, onReady, showHistory = false, disabled = false, children }: { onBack: () => void, onReady?: (host: string) => void, showHistory?: boolean, disabled?: boolean, children?: ReactNode }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -22,6 +24,18 @@ export default function ServerStep({ onBack, onReady }: { onBack: () => void, on
   const [address, setAddress] = useState('')
   const [state, setState] = useState(initialServerCheck)
   const [opening, setOpening] = useState(false)
+  const blocked = opening || disabled
+  const [history, setHistory] = useState<string[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  useEffect(() => {
+    let active = true
+    if (showHistory) void getSyncHostHistory().then(hosts => { if (active) setHistory([...hosts]) }).catch(() => {})
+    return () => { active = false }
+  }, [showHistory])
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!blocked) onBack(); return true })
+    return () => { subscription.remove() }
+  }, [onBack, blocked])
   const checker = useMemo(() => createServerChecker({
     clientVersion: process.versions.app,
     onChange: setState,
@@ -43,7 +57,7 @@ export default function ServerStep({ onBack, onReady }: { onBack: () => void, on
     <View style={[styles.page, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
       <StatusBar />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.top}><BackButton onPress={onBack} accessibilityLabel={t('back')} /></View>
+        <View style={styles.top}><BackButton onPress={() => { if (!blocked) onBack() }} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
         <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('onboard_connect')}</Text>
         <Text size={32} color={r.display} style={styles.title}>{t('onboard_server_title')}</Text>
         <View style={styles.field}>
@@ -59,6 +73,10 @@ export default function ServerStep({ onBack, onReady }: { onBack: () => void, on
             style={[styles.input, { borderBottomColor: r.ink }]}
           />
         </View>
+        {showHistory && history.length ? <View style={styles.history}>
+          <TextButton compact style={{ minHeight: 28 }} label={t('sync_login_host_history')} onPress={() => { setHistoryOpen(value => !value) }} />
+          {historyOpen ? history.map(host => <OptionRow key={host} label={host} selected={address === host} onPress={() => { setAddress(host); checker.input(host); setHistoryOpen(false) }} />) : null}
+        </View> : null}
         <View style={[styles.card, { backgroundColor: r.paperRaised }]} accessibilityLiveRegion="polite">
           <Text size={11} color={r.eyebrow} style={styles.cardLabel}>{t('onboard_results')}</Text>
           {row(t(pending ? 'onboard_checking' : state.error === 'timeout' ? 'onboard_timeout' : state.error === 'invalid' ? 'onboard_invalid' : state.reachable === false ? 'onboard_unreachable' : 'onboard_reachable'), state.reachable, state.latency == null ? undefined : t('onboard_latency', { ms: state.latency }))}
@@ -69,10 +87,11 @@ export default function ServerStep({ onBack, onReady }: { onBack: () => void, on
           </Text>
         </View>
         <Text size={12} color={r.muted} style={styles.hint}>{t('onboard_check_hint')}</Text>
+        {children}
       </ScrollView>
       <View style={[styles.footer, { borderTopColor: r.ink }]}>
-        <SecondaryButton compact label={t('onboard_recheck')} disabled={!address.trim() || opening} onPress={() => { void checker.check(address) }} />
-        <PrimaryButton compact style={styles.next} label={t('onboard_next_login')} disabled={state.status !== 'ok' || opening} onPress={() => {
+        <SecondaryButton compact label={t('onboard_recheck')} disabled={!address.trim() || blocked} onPress={() => { void checker.check(address) }} />
+        <PrimaryButton compact style={styles.next} label={t('onboard_next_login')} disabled={state.status !== 'ok' || blocked} onPress={() => {
           if (onReady) { onReady(state.url); return }
           setOpening(true)
           void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url }).catch(() => { setOpening(false) })
@@ -85,7 +104,8 @@ export default function ServerStep({ onBack, onReady }: { onBack: () => void, on
 const useStyles = sharedLuxStyles(() => createStyle({
   page: { flex: 1 },
   content: { paddingHorizontal: 22, paddingBottom: 28 },
-  top: { marginTop: 10, height: 40 },
+  top: { marginTop: 10, minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  history: { marginTop: 14 },
   eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
   title: { lineHeight: 38, fontWeight: '800' },
   field: { marginTop: 16 },

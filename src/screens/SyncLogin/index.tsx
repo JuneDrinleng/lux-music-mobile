@@ -1,5 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { resolveSyncLoginEntry, syncLoginExitTarget } from '@/utils/syncLoginRouting'
+import SyncLoginLocalAction from './LocalAction'
 import AuthFlow from '../Login/AuthFlow'
 import ServerStep from '../Login/ServerStep'
 import { getPreferredSyncHost, addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
@@ -9,6 +11,7 @@ import LanguageSwitch from '@/components/common/LanguageSwitch'
 import StatusBar from '@/components/common/StatusBar'
 import Text from '@/components/common/Text'
 import {
+  BackButton,
   PrimaryButton,
   TextButton,
   TextTabs,
@@ -39,13 +42,13 @@ import {
 
 const syncHostRxp = /^https?:\/\/\S+/i
 
-export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) => {
+export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', initialMode, onLux, onBack }: { onboarding?: boolean, initialHost?: string, initialMode?: LX.Sync.Mode, onLux?: () => void, onBack?: () => void }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
-  const [mode, setMode] = useState<LX.Sync.Mode>('lux')
+  const [mode, setMode] = useState<LX.Sync.Mode>(initialMode ?? 'lux')
   const [syncHost, setSyncHostLocal] = useState('')
   const [authCode, setAuthCode] = useState('')
   const [luxUsername, setLuxUsername] = useState('')
@@ -75,19 +78,19 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '' }: {
 
   useEffect(() => {
     void (async() => {
-      await applySavedFormForMode(onboarding ? 'lux' : await getSyncMode())
+      await applySavedFormForMode(onboarding ? 'lux' : initialMode ?? await getSyncMode())
     })()
     const handlePresented = async() => {
-      await applySavedFormForMode(onboarding ? 'lux' : await getSyncMode())
+      await applySavedFormForMode(onboarding ? 'lux' : initialMode ?? await getSyncMode())
     }
     global.app_event.on('syncLoginPresented', handlePresented)
     return () => { global.app_event.off('syncLoginPresented', handlePresented) }
-  }, [applySavedFormForMode, onboarding])
+  }, [applySavedFormForMode, initialMode, onboarding])
 
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true)
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!submitting) onBack?.(); return true })
     return () => { subscription.remove() }
-  }, [])
+  }, [onBack, submitting])
 
   const enterHome = useCallback(async() => {
     if (onboarding) await completeOnboarding()
@@ -99,9 +102,10 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '' }: {
 
   const handleSelectMode = useCallback((nextMode: LX.Sync.Mode) => {
     if (submitting) return
+    if (nextMode === 'lux' && onLux) { onLux(); return }
     setMessage('')
     void applySavedFormForMode(nextMode)
-  }, [applySavedFormForMode, submitting])
+  }, [applySavedFormForMode, onLux, submitting])
 
   const handleSubmit = useCallback(async() => {
     if (submitting) return
@@ -205,6 +209,7 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '' }: {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.topRow}>
+          {onBack ? <BackButton onPress={() => { if (!submitting) onBack() }} accessibilityLabel={t('back')} /> : null}
           <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow}>{t('sync_login_welcome_eyebrow')}</Text>
           <LanguageSwitch />
         </View>
@@ -380,19 +385,40 @@ const useStyles = sharedLuxStyles(() => createStyle({
 
 
 export default function SyncLogin({ onboarding = false, initialHost = '' }: { onboarding?: boolean, initialHost?: string }) {
+  const t = useI18n()
   const [host, setHost] = useState(initialHost)
   const [legacy, setLegacy] = useState(false)
-  const [ready, setReady] = useState(Boolean(initialHost) || onboarding)
+  const [localBusy, setLocalBusy] = useState(false)
+  const [ready, setReady] = useState(onboarding)
   useEffect(() => {
-    if (initialHost || onboarding) return
-    void Promise.all([getSyncMode(), getPreferredSyncHost()]).then(([mode, savedHost]) => {
-      setLegacy(mode === 'lx')
-      setHost(savedHost)
+    let active = true
+    if (onboarding) { setReady(true); return }
+    const load = async() => {
+      const [mode, savedHost] = await Promise.all([getSyncMode(), getPreferredSyncHost()])
+      if (!active) return
+      const entry = resolveSyncLoginEntry(onboarding, mode, initialHost, savedHost)
+      setLegacy(entry.legacy)
+      setHost(entry.host)
       setReady(true)
-    })
+    }
+    void load()
+    global.app_event.on('syncLoginPresented', load)
+    return () => { active = false; global.app_event.off('syncLoginPresented', load) }
   }, [initialHost, onboarding])
+  const exit = () => {
+    if (localBusy) return
+    if (syncLoginExitTarget(onboarding) === 'onboarding') void navigations.pushLoginScreen()
+    else void navigations.pushHomeScreen()
+  }
   if (!ready) return null
-  if (legacy) return <LegacySyncLogin />
-  if (!host) return <ServerStep onBack={() => { void navigations.pushLoginScreen() }} onReady={setHost} />
+  if (legacy && !onboarding) return <LegacySyncLogin initialHost={initialHost} initialMode="lx" onLux={() => { setLegacy(false); setHost('') }} onBack={exit} />
+  if (!host) {
+    return <ServerStep onBack={exit} onReady={setHost} showHistory={!onboarding} disabled={localBusy}>
+      {!onboarding ? <>
+        <TextButton compact style={{ minHeight: 28 }} label={t('sync_login_use_lx')} disabled={localBusy} onPress={() => { setLegacy(true) }} />
+        <SyncLoginLocalAction onBusyChange={setLocalBusy} />
+      </> : null}
+    </ServerStep>
+  }
   return <AuthFlow key={host} host={host} onboarding={onboarding} onBack={() => { setHost('') }} />
 }

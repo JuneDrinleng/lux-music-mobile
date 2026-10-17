@@ -1236,5 +1236,7 @@
   "auth_help_message": "I am {username}. I forgot my password for {host}. Please help me reset it.",
   "auth_copy_help": "Copy help message",
   "auth_copied": "Copied",
-  "auth_invite_valid_plain": "✓ Invite code is valid"
+  "auth_invite_valid_plain": "✓ Invite code is valid",
+  "sync_login_use_lx": "Use an LX connection code",
+  "sync_login_host_history": "Server history"
 }
