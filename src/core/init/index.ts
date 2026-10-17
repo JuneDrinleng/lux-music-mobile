@@ -19,7 +19,6 @@ import { checkUpdate, initVersionLifecycle } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
 import { getFailedEntries, clearCoverFailure, recordCoverFailure, isCoverFailureStale } from '@/utils/coverFailureRegistry'
 import { fetchAltCoverUrl } from '@/core/music/utils'
-import { initLuxSource } from '@/core/music/lux'
 import { getListMusics, updateListMusics } from '@/core/list'
 import listState from '@/store/list/state'
 import { primeImageCacheIndex, scheduleImageCacheTrim, setImageCacheLimits } from '@/utils/imageCache'
@@ -96,7 +95,6 @@ export default async() => {
 
   setApiSource(setting['common.apiSource'])
   bootLog('Api inited.')
-  initLuxSource()
 
   registerPlaybackService()
   bootLog('Playback Service Registered.')

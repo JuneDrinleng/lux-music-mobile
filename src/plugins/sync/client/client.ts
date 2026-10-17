@@ -13,7 +13,6 @@ import { createMsg2call } from 'message2call'
 import { SYNC_CLOSE_CODE, SYNC_CODE } from '../constants'
 import { isPlayHistoryFeatureEnabled, setPlayHistoryFeatureEnabled } from '../playHistoryFlag'
 import { isTogetherFeatureEnabled, setTogetherFeatureEnabled } from '../togetherFlag'
-import { isSourceFeatureEnabled, setSourceFeatureEnabled } from '../sourceFlag'
 import { createInitialModuleReadys, setSyncModuleReady } from './moduleReadys'
 import { addSyncReadyListener, notifySyncReady, removeSyncReadyListener } from './syncReady'
 
@@ -194,7 +193,6 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
         session.isReady = true
         markTogetherModuleReady()
         if (isPlayHistoryFeatureEnabled()) setSyncModuleReady(session, 'playHistory', true)
-        if (isSourceFeatureEnabled()) setSyncModuleReady(session, 'source', true)
         sendSyncStatus({
           status: true,
           message: '',
@@ -268,7 +266,6 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     session.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
-    setSourceFeatureEnabled(false)
     session.moduleReadys = createInitialModuleReadys()
     disconnected = false
     sendSyncStatus({
@@ -281,7 +278,6 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     session.isReady = false
     setPlayHistoryFeatureEnabled(false)
     setTogetherFeatureEnabled(false)
-    setSourceFeatureEnabled(false)
     const err = new Error('closed')
     try {
       for (const handler of closeEvents) void handler(err)

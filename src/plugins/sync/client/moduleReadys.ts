@@ -5,7 +5,6 @@ export interface SyncModuleReadyMap {
   dislike: boolean
   playHistory: boolean
   together: boolean
-  source: boolean
 }
 
 export type SyncModuleReadyName = keyof SyncModuleReadyMap
@@ -17,7 +16,6 @@ export const createInitialModuleReadys = (): SyncModuleReadyMap => ({
   dislike: false,
   playHistory: false,
   together: false,
-  source: false,
 })
 
 export const resetModuleReadys = (socket: SyncSocketLike | null | undefined) => {
