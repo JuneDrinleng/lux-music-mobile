@@ -1,11 +1,13 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { onDataSpaceChanged } from '@/utils/dataSpace'
+import { getUserLists as reloadUserLists } from '@/utils/listManage'
+import { getListPrevSelectId, saveListPrevSelectId } from '@/utils/data'
 import { LIST_IDS } from '@/config/constant'
 import listAction from '@/store/list/action'
 import listState from '@/store/list/state'
 import settingState from '@/store/setting/state'
 import { fixNewMusicInfoQuality } from '@/utils'
-import { saveListPrevSelectId } from '@/utils/data'
 
 /**
  * 覆盖全部列表数据
@@ -181,3 +183,8 @@ export const setFetchingListStatus = (id: string, status: boolean) => {
 
 export { getUserLists, getListMusics } from '@/utils/listManage'
 
+
+onDataSpaceChanged(async() => {
+  listAction.setUserLists(await reloadUserLists())
+  listAction.setActiveList(await getListPrevSelectId())
+})

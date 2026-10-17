@@ -1,3 +1,5 @@
+import { onDataSpaceChanged } from '@/utils/dataSpace'
+import { getDislikeInfo } from '@/utils/dislikeManage'
 import { action } from '@/store/dislikeList'
 
 
@@ -25,3 +27,5 @@ export const setDislikeInfo = (info: LX.Dislike.DislikeInfo) => {
 }
 
 export { getDislikeInfo } from '@/utils/dislikeManage'
+
+onDataSpaceChanged(async() => { setDislikeInfo(await getDislikeInfo()) })

@@ -186,6 +186,7 @@ test('storage cache keeps a clear made during disk loading, including the deferr
   const historyKey = 'test:search-history'
   let reads = 0
   const dependencies = {
+    './dataSpace': { namespacedKey: key => key, luxSpaceId: (server, user) => `lux:${server}:${user}`, setActiveSpace: async() => {} },
     '@/plugins/storage': {
       getData: async(key) => {
         assert.equal(key, historyKey)

@@ -1,3 +1,4 @@
+import { getActiveSpace } from '@/utils/dataSpace'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
 import { userLists } from '@/utils/listManage'
@@ -15,16 +16,19 @@ export const buildUserListInfoFull = ({ id, name, source, sourceListId, list, lo
 }
 
 export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => {
+  const space = getActiveSpace()
+  const lists = [...userLists]
   return Promise.all([
     getListMusics(LIST_IDS.DEFAULT),
     getListMusics(LIST_IDS.LOVE),
     // eslint-disable-next-line @typescript-eslint/promise-function-async
-    ...userLists.map(l => getListMusics(l.id)),
+    ...lists.map(l => getListMusics(l.id)),
   ]).then(([defaultList, loveList, ...userList]) => {
+    if (space != getActiveSpace()) throw new Error('Data space changed during list sync read')
     return {
       defaultList,
       loveList,
-      userList: userLists.map((l, i) => buildUserListInfoFull({ ...l, list: userList[i] })),
+      userList: lists.map((l, i) => buildUserListInfoFull({ ...l, list: userList[i] })),
     }
   })
 }

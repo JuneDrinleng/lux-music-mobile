@@ -67,6 +67,7 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
         return readFeed ? readFeed(requests) : latest
       },
     },
+    './dataSpace': { namespacedKey: key => key, luxSpaceId: (server, user) => `lux:${server}:${user}`, setActiveSpace: async() => {} },
     '@/plugins/storage': {
       getData: async(key) => {
         reads.push(key)
