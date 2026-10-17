@@ -217,7 +217,7 @@ test('local entry disconnects sync and activates local before writing its profil
 })
 
 // Render the production login with native view/hook adapters; drive actual field/button callbacks.
-test('onboarding login prefills checked URL, hides LX, and completes only after successful Lux auth', async() => {
+test('legacy login adapter prefills checked URL and completes only after successful Lux auth', async() => {
   const values = []
   let cursor = 0
   let mounted = false
@@ -238,6 +238,8 @@ test('onboarding login prefills checked URL, hides LX, and completes only after 
   const snapshot = { host: 'https://previous-server', luxUsername: 'previous-user', luxPassword: 'previous-secret', lxAuthCode: '', hasSavedLuxSession: true, hasSavedLxKey: false }
   let authFails = true
   const screen = load('src/screens/SyncLogin/index.tsx', {
+    '../Login/AuthFlow': { default: 'AuthFlow' },
+    '../Login/ServerStep': { default: 'ServerStep' },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { View: 'View', ScrollView: 'ScrollView', BackHandler: { addEventListener: () => ({ remove: noOp }) } },
@@ -279,7 +281,7 @@ test('onboarding login prefills checked URL, hides LX, and completes only after 
       syncLoginSavedSecretDisplayValue: value => value,
       syncLoginSavedSecretInputValue: value => value,
     },
-  }).default
+  }).LegacySyncLogin
   const oldEvent = global.app_event
   const oldLx = global.lx
   global.app_event = { on: noOp, off: noOp }

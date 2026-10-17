@@ -13,7 +13,7 @@ import { useI18n } from '@/lang'
 import { navigations } from '@/navigation'
 import { createServerChecker, initialServerCheck, parseServerInfo } from '@/utils/serverCheck'
 
-export default function ServerStep({ onBack }: { onBack: () => void }) {
+export default function ServerStep({ onBack, onReady }: { onBack: () => void, onReady?: (host: string) => void }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -73,6 +73,7 @@ export default function ServerStep({ onBack }: { onBack: () => void }) {
       <View style={[styles.footer, { borderTopColor: r.ink }]}>
         <SecondaryButton compact label={t('onboard_recheck')} disabled={!address.trim() || opening} onPress={() => { void checker.check(address) }} />
         <PrimaryButton compact style={styles.next} label={t('onboard_next_login')} disabled={state.status !== 'ok' || opening} onPress={() => {
+          if (onReady) { onReady(state.url); return }
           setOpening(true)
           void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url }).catch(() => { setOpening(false) })
         }} />

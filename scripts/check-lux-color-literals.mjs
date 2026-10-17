@@ -93,6 +93,7 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/screens/PlayDetail/Vertical/index.tsx',
   'src/screens/Login/index.tsx',
   'src/screens/Login/ServerStep.tsx',
+  'src/screens/Login/AuthFlow.tsx',
   'src/screens/SyncLogin/index.tsx',
   'src/screens/Comment/index.tsx',
   'src/screens/Comment/components/Header.tsx',

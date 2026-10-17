@@ -560,3 +560,42 @@ test('completed routing survives malformed credentials or quota failure persisti
   assert.equal(env.space.getActiveSpace(), 'lux:s:a')
   assert.equal(await env.adapter.getData('@user_name'), 'Alice')
 })
+
+test('refresh rotation persists both auth records, serializes servers, preserves active space, and expires only its server', async() => {
+  const a = { serverId: 'a', serverUrl: 'https://a', token: 'a0', refreshToken: 'ra0', user: { id: 'alice', username: 'alice' } }
+  const b = { serverId: 'b', serverUrl: 'https://b', token: 'b0', refreshToken: 'rb0', user: { id: 'bob', username: 'bob' } }
+  const env = make({ '@lux_auth': JSON.stringify(a), '@lux_auth_servers': JSON.stringify({ a, b }) })
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const activeSpace = env.space.getActiveSpace()
+  const [nextA, nextB] = await Promise.all([
+    data.rotateLuxAuth(a, { token: 'a1', refreshToken: 'ra1' }),
+    data.rotateLuxAuth(b, { token: 'b1', refreshToken: 'rb1' }),
+  ])
+  assert.equal(JSON.parse(env.disk.get('@lux_auth')).refreshToken, 'ra1')
+  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).a.refreshToken, 'ra1')
+  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).b.refreshToken, 'rb1')
+  assert.equal(env.space.getActiveSpace(), activeSpace)
+  assert.equal(await data.clearLuxAuthForServer(b), false, 'stale refresh failure must not delete rotated tokens')
+  assert.equal(await data.clearLuxAuthForServer(nextB), true)
+  assert.equal((await data.getLuxAuth()).token, 'a1')
+  assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).b, undefined)
+  assert.equal(await data.clearLuxAuthForServer(nextA), true)
+  assert.equal(await data.getLuxAuth(), null)
+  assert.equal(env.space.getActiveSpace(), activeSpace, 'expiry does not delete account data')
+})
+
+test('login activates its data space; stale rotation cannot overwrite a switched account', async() => {
+  const env = make()
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const alice = { serverId: 's', serverUrl: 'https://s', token: 'alice', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+  const bob = { ...alice, token: 'bob', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
+  await data.setLuxAuth(alice)
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
+  await data.setLuxAuth(bob)
+  assert.equal(env.space.getActiveSpace(), 'lux:s:bob')
+  assert.equal(await data.rotateLuxAuth(alice, { token: 'stale', refreshToken: 'stale' }), null)
+  assert.equal(await data.clearLuxAuthForServer(alice), false)
+  assert.equal((await data.getLuxAuth('s')).refreshToken, 'rb')
+})

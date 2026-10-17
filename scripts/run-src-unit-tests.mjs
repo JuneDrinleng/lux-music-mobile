@@ -16,6 +16,7 @@ import './local-source-routing.src-test.mjs'
 import './together-session.src-test.mjs'
 import './user-system.src-test.mjs'
 import './onboarding.src-test.mjs'
+import './auth-screens.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
