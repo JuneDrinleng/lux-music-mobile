@@ -64,7 +64,7 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
     const differentServer = Boolean(initialHost && initialHost !== snapshot.host)
     setSyncHostLocal(initialHost || snapshot.host)
     setLuxUsername(differentServer ? '' : snapshot.luxUsername)
-    setLuxPassword(differentServer ? '' : snapshot.luxPassword)
+    setLuxPassword('')
     setAuthCode(snapshot.lxAuthCode)
     setHasSavedLuxSession(!differentServer && snapshot.hasSavedLuxSession)
     setShowLxSavedHint(snapshot.hasSavedLxKey)
@@ -148,7 +148,6 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
         host,
         mode,
         luxUsername: username,
-        luxPassword,
         lxAuthCode: code,
       })
       await enterHome()

@@ -28,6 +28,7 @@ const harness = (send, seed = session) => {
   const expired = []
   const client = api.createLuxAuthClient({
     send,
+    getRefreshToken: async() => saved?.refreshToken ?? null,
     find: async() => saved,
     rotate: async(previous, tokens) => {
       if (previous.token !== saved?.token) return null

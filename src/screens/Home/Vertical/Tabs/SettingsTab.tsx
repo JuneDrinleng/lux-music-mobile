@@ -576,7 +576,7 @@ export default () => {
     void loadSyncLoginFormSnapshot(syncMode).then(snapshot => {
       if (snapshot.host) setSyncHostLocal(snapshot.host)
       if (snapshot.luxUsername) setLuxUsername(snapshot.luxUsername)
-      if (snapshot.luxPassword) setLuxPassword(snapshot.luxPassword)
+      setLuxPassword('')
       if (snapshot.lxAuthCode) setAuthCode(snapshot.lxAuthCode)
     })
   }, [activeOptionDetail, syncMode])
@@ -674,7 +674,6 @@ export default () => {
           host: syncHost,
           mode: 'lux',
           luxUsername: username,
-          luxPassword,
         })
         void syncLuxProfileOnLogin(syncHost).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
         setLuxLoginModalVisible(false)
@@ -861,14 +860,13 @@ export default () => {
       host: syncHost,
       mode: syncMode,
       luxUsername,
-      luxPassword,
       lxAuthCode: authCode,
     })
     await applySyncAccountLogout()
     setLuxPassword('')
     setAuthCode('')
     await pushSyncLoginScreen()
-  }, [authCode, luxPassword, luxUsername, syncHost, syncMode, t])
+  }, [authCode, luxUsername, syncHost, syncMode, t])
   const handleClearSyncConflictMode = useCallback(async() => {
     await clearSyncConflictMode()
     toast(t('setting_sync_clear_conflict_mode_success'))

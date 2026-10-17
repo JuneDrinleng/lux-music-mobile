@@ -58,9 +58,9 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername }: 
       const [snapshot, session] = await Promise.all([loadSyncLoginFormSnapshot('lux'), findLuxAuthForHost(host)])
       if (!active) return
       const sameHost = syncHostCompareKey(snapshot.host) === syncHostCompareKey(host)
-      setForm(previous => ({ ...previous, username: initialUsername ?? (sameHost ? snapshot.luxUsername : session?.user.username ?? ''), password: sameHost ? snapshot.luxPassword : '' }))
+      setForm(previous => ({ ...previous, username: initialUsername ?? (sameHost ? snapshot.luxUsername : session?.user.username ?? ''), password: '' }))
       setSavedSession(session)
-      setHasSavedLogin(Boolean(session ?? (sameHost && (snapshot.luxUsername || snapshot.luxPassword))))
+      setHasSavedLogin(Boolean(session ?? (sameHost && snapshot.luxUsername)))
     }
     void load().catch(() => {}).finally(() => { if (active) setPrefillReady(true) })
     return () => { active = false }
@@ -121,7 +121,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername }: 
       const saved = await findLuxAuthForHost(host)
       if (page === 'login' && !form.password && !canReuseLuxSession(saved, form.username)) throw new Error(t('setting_sync_lux_login_missing_tip'))
       await connectLuxServer(host, form.username.trim(), form.password || undefined)
-      await rememberSyncLoginForm({ host, mode: 'lux', luxUsername: form.username.trim(), luxPassword: form.password })
+      await rememberSyncLoginForm({ host, mode: 'lux', luxUsername: form.username.trim() })
       await syncLuxProfileOnLogin(host).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       if (onboarding) await completeOnboarding()
       await setSyncLoginCompleted(true)

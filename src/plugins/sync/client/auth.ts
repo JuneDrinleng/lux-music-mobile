@@ -2,7 +2,7 @@ import { request, generateRsaKey } from './utils'
 import { LuxRequestError } from './userErrors'
 import { createLuxAuthClient } from '@/utils/luxAuthApi'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
-import { getLuxAuth, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer } from '@/utils/data'
+import { getLuxAuth, getLuxRefreshToken, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer } from '@/utils/data'
 import log from '../log'
 import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
@@ -13,6 +13,7 @@ import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, Credentia
 
 export const luxAuthApi = createLuxAuthClient({
   send: request,
+  getRefreshToken: getLuxRefreshToken,
   find: findLuxAuthForHost,
   rotate: rotateLuxAuth,
   clear: clearLuxAuthForServer,
