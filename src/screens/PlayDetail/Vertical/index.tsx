@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AppState, View } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
-import Lyric from './Lyric'
+import Lyric, { type LyricType } from './Lyric'
 import Pic from './Pic'
 import { PlayerChrome, type PlayerPageId } from './PlayerChrome'
 import Comment from '@/screens/Comment'
@@ -36,6 +36,7 @@ export default memo(({
 
   const [pageIndex, setPageIndex] = useState(1)
   const [commentRefreshKey, setCommentRefreshKey] = useState(0)
+  const lyricRef = useRef<LyricType>(null)
   const showLyricRef = useRef(false)
   const pagerViewRef = useRef<PagerView>(null)
   const wasActiveRef = useRef(active)
@@ -110,7 +111,7 @@ export default memo(({
   }, [])
 
   return (
-    <View style={[styles.container, { backgroundColor: r.paper }]}>
+    <View style={[styles.container, { backgroundColor: r.paper }]} onTouchEnd={() => { lyricRef.current?.dismissSeek() }}>
       <PlayerChrome
         page={pageId}
         onPageChange={handlePageChange}
@@ -125,7 +126,7 @@ export default memo(({
           <Pic componentId={componentId} active={pageIndex === 1} />
         </View>
         <View collapsable={false} style={styles.page}>
-          <Lyric active={pageIndex === 2} />
+          <Lyric ref={lyricRef} active={active && pageIndex === 2} />
         </View>
       </PagerView>
     </View>

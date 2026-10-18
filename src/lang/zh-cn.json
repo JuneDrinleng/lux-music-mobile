@@ -368,6 +368,8 @@
   "player_now_playing_from": "NOW PLAYING · 来自「{name}」",
   "player_share": "分享",
   "player_lyric_empty": "暂无歌词",
+  "player_lyric_seek_play": "从 {time} 播放",
+  "player_lyric_seek_hint": "按住行即预览",
   "player_comment_hot": "热门",
   "player_comment_new": "最新",
   "player_comment_count_unit": "条评论",
