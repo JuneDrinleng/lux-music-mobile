@@ -16,6 +16,8 @@ declare namespace LX {
         deviceId: string
         startedAt: number
         endedAt: number
+        completed?: boolean
+        skipped?: boolean
         listenedMs: number
         song: Song
       }

@@ -517,8 +517,8 @@ export const getNextPlayMusicInfo = async(): Promise<LX.Player.PlayMusicInfo | n
   return nextPlayMusicInfo
 }
 
-const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo) => {
-  setPlayMusicInfo(playMusicInfo.listId, playMusicInfo.musicInfo, playMusicInfo.isTempPlay)
+const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo, isAutoToggle = false) => {
+  setPlayMusicInfo(playMusicInfo.listId, playMusicInfo.musicInfo, playMusicInfo.isTempPlay, isAutoToggle ? 'interrupted' : 'switch')
   await handlePlay()
 }
 /**
@@ -531,7 +531,7 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
   if (playerState.tempPlayList.length) { // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = playerState.tempPlayList[0]
     removeTempPlayList(0)
-    await handlePlayNext(playMusicInfo)
+    await handlePlayNext(playMusicInfo, isAutoToggle)
     return
   }
 
@@ -567,12 +567,12 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
     }
 
     if (index < playedList.length) {
-      await handlePlayNext(playedList[index])
+      await handlePlayNext(playedList[index], isAutoToggle)
       return
     }
   }
   if (randomNextMusicInfo.info) {
-    await handlePlayNext(randomNextMusicInfo.info)
+    await handlePlayNext(randomNextMusicInfo.info, isAutoToggle)
     return
   }
   // const isCheckFile = findNum > 2 // 针对下载列表，如果超过两次都碰到无效歌曲，则过滤整个列表内的无效歌曲
@@ -620,7 +620,7 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**
@@ -658,7 +658,7 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
     }
 
     if (index > -1) {
-      await handlePlayNext(playedList[index])
+      await handlePlayNext(playedList[index], isAutoToggle)
       return
     }
   }
@@ -708,7 +708,7 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**

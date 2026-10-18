@@ -2,17 +2,23 @@
 
 import { onDataSpaceChanged, onDataSpaceWillChange } from '@/utils/dataSpace'
 import playerState from '@/store/player/state'
+import BackgroundTimer from 'react-native-background-timer'
+import { getPosition } from '@/plugins/player'
 
 import { createListenSession, sampleListenSession, type ListenSession } from './session'
 import { getPlayDeviceId, upsertPlayRecord } from './store'
-import { intervalToMs, qualifiesAsPlay } from './threshold'
+import { intervalToMs, isCompletedPlay, qualifiesAsPlay } from './threshold'
 import { type PlayHistorySong, type PlayRecord } from './types'
 
 let session: ListenSession | null = null
 let song: PlayHistorySong | null = null
 let durationMs: number | null = null
 let syncedThisSession = false
-let timer: ReturnType<typeof setInterval> | null = null
+let timer: number | null = null
+let completedNaturally = false
+let skipped = false
+let generation = 0
+let lastStartedAt = 0
 let started = false
 let onQualified: ((record: PlayRecord, reason: 'progress' | 'final') => void) | null = null
 
@@ -39,7 +45,7 @@ const songFromMusic = (music: LX.Music.MusicInfo): PlayHistorySong => {
 
 const readDurationMs = (music: LX.Music.MusicInfo | null): number | null => {
   const fromPlayer = playerState.progress.maxPlayTime
-  if (fromPlayer > 1) return Math.round(fromPlayer * 1000)
+  if (Number.isFinite(fromPlayer) && fromPlayer > 0) return Math.round(fromPlayer * 1000)
   return intervalToMs(music?.interval)
 }
 
@@ -47,7 +53,7 @@ const positionMs = (): number => Math.max(0, Math.round((playerState.progress.no
 
 const clearTimer = () => {
   if (!timer) return
-  clearInterval(timer)
+  BackgroundTimer.clearInterval(timer)
   timer = null
 }
 
@@ -60,6 +66,8 @@ const buildRecord = (): PlayRecord | null => {
     startedAt: session.startedAt,
     endedAt: Date.now(),
     listenedMs: Math.round(session.listenedMs),
+    completed: completedNaturally || isCompletedPlay(session.listenedMs, durationMs),
+    skipped,
     song,
   }
 }
@@ -74,11 +82,11 @@ const publish = (reason: 'progress' | 'final') => {
   }
 }
 
-const sample = (playing: boolean) => {
+const sample = (playing: boolean, position = Math.max(positionMs(), session?.lastPositionMs ?? 0)) => {
   if (!session) return
   const music = readMusic()
   if (music) durationMs = readDurationMs(music)
-  session = sampleListenSession(session, Date.now(), positionMs(), playing)
+  session = sampleListenSession(session, Date.now(), position, playing)
   publish('progress')
 }
 
@@ -86,9 +94,12 @@ const captureTail = () => {
   if (session?.playing) sample(true)
 }
 
-const finishSession = () => {
+export const finishPlayHistorySession = (reason: 'switch' | 'end' | 'stop' | 'interrupted' = 'switch') => {
   captureTail()
+  completedNaturally = reason == 'end'
+  skipped = reason == 'switch' && !!session && !isCompletedPlay(session.listenedMs, durationMs)
   publish('final')
+  generation++
   session = null
   song = null
   durationMs = null
@@ -99,7 +110,7 @@ const finishSession = () => {
 const ensureSession = () => {
   const music = readMusic()
   if (!music) {
-    if (session) finishSession()
+    if (session) finishPlayHistorySession('stop')
     return
   }
   const nextSong = songFromMusic(music)
@@ -109,16 +120,27 @@ const ensureSession = () => {
     durationMs = readDurationMs(music)
     return
   }
-  if (session) finishSession()
+  if (session) finishPlayHistorySession()
   song = nextSong
   durationMs = readDurationMs(music)
-  session = createListenSession(Date.now())
+  completedNaturally = false
+  skipped = false
+  lastStartedAt = Math.max(Date.now(), lastStartedAt + 1)
+  session = createListenSession(lastStartedAt)
   syncedThisSession = false
 }
 
 const startTimer = () => {
   if (timer) return
-  timer = setInterval(() => { sample(true) }, 1000)
+  timer = BackgroundTimer.setInterval(() => {
+    // UI progress polling stops with the screen off. Read native audio progress instead.
+    const current = session
+    const version = generation
+    void getPosition().then(position => {
+      if (session !== current || generation != version || !session?.playing) return
+      sample(true, Math.max(0, Math.round(position * 1000)))
+    }).catch(() => {})
+  }, 1000)
 }
 
 const handlePlay = () => {
@@ -134,18 +156,20 @@ const handlePause = () => {
 }
 
 const handleStop = () => {
-  finishSession()
+  finishPlayHistorySession('stop')
 }
 
 const handleMusicToggled = () => {
-  finishSession()
+  // The normal switch boundary runs before progress is reset in setPlayMusicInfo.
   ensureSession()
   if (playerState.isPlay) handlePlay()
 }
 
-const handleSeek = () => {
+const handleSeek = (position: number) => {
   if (!session) return
-  sample(session.playing && !!playerState.isPlay)
+  generation++
+  // Explicit scrubs must be dropped even when the jump resembles normal playback.
+  session = { ...session, lastAt: Date.now(), lastPositionMs: Math.max(0, Math.round(position * 1000)) }
 }
 
 /** Id of the session still in progress. A bulk sync should not upload it until it ends. */
@@ -171,6 +195,7 @@ export const startPlayHistoryTracker = (syncQualified?: (record: PlayRecord, rea
 
 // Do not carry a listening session from one account into another account's history.
 onDataSpaceWillChange(() => {
+  generation++
   session = null
   song = null
   durationMs = null
