@@ -1,13 +1,14 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
+import { FlatList, Share, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
 import Text from '@/components/common/Text'
+import KaraokeLine from '@/components/lyric/KaraokeLine'
 import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { Hairline, PrimaryButton } from '@/components/magazine'
+import { Hairline, MagSegmented, PrimaryButton, SecondaryButton } from '@/components/magazine'
 import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import { updateSetting } from '@/core/common'
 import { blockTogetherMemberControl } from '@/core/together/control'
@@ -37,6 +38,8 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
   const playMusicInfo = usePlayMusicInfo()
   const togglePlayMethod = useSettingValue('player.togglePlayMethod')
   const isPlay = useIsPlay()
+  const showTranslation = useSettingValue('player.isShowLyricTranslation')
+  const showRoma = useSettingValue('player.isShowLyricRoma')
   const { line } = useLrcPlay(active)
   const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress(active)
   const lines = useLrcSet()
@@ -172,13 +175,12 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
           accessibilityState={{ selected }}
           accessibilityLabel={item.text || formatPlayTime2(item.time / 1000)}
         >
-          <Text
-            size={selected ? 18 : activeLine ? 28 : 18}
-            color={selected ? r.ink : activeLine ? r.display : past ? r.faint : r.muted}
-            style={selected ? styles.selectedLineText : activeLine ? styles.activeLineText : styles.lineText}
-          >
-            {item.text}
-          </Text>
+          {activeLine && !selected ? (
+            <KaraokeLine line={item} size={28} style={styles.activeLineText} active={active} />
+          ) : (
+            <Text size={18} color={selected ? r.ink : past ? r.faint : r.muted} style={selected ? styles.selectedLineText : styles.lineText}>{item.text}</Text>
+          )}
+          {item.extendedLyrics.map((text, extraIndex) => <Text key={extraIndex} size={activeLine ? 14 : 12} color={past ? r.faint : r.muted}>{text}</Text>)}
           {selected ? <Text size={12} color={r.muted}>{t('player_lyric_seek_hint')}</Text> : null}
         </TouchableOpacity>
         {selected ? (
@@ -195,7 +197,7 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
         ) : null}
       </View>
     )
-  }, [line, selectedIndex, confirmSeek, r.accent, r.display, r.faint, r.ink, r.muted, r.placeholder, styles, t])
+  }, [active, line, selectedIndex, confirmSeek, r.accent, r.faint, r.ink, r.muted, r.placeholder, styles, t])
 
   const listHeader = (
     <View>
@@ -218,6 +220,19 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
         </TouchableOpacity>
       </View>
       <Hairline style={styles.headRule} />
+      <View style={styles.extraControls}>
+        <Text size={12} color={r.muted} style={styles.extraLabel}>{t('player_lyric_extras')}</Text>
+        <MagSegmented compact style={styles.extraSegment} items={[
+          { id: 'none', label: t('player_lyric_none') },
+          { id: 'translation', label: t('player_lyric_translation') },
+          { id: 'roma', label: t('player_lyric_roma') },
+        ]} value={showTranslation ? 'translation' : showRoma ? 'roma' : 'none'} onChange={id => {
+          updateSetting({ 'player.isShowLyricTranslation': id === 'translation', 'player.isShowLyricRoma': id === 'roma' })
+        }} />
+        <SecondaryButton compact labelSize={13} style={styles.shareButton} label={t('player_lyric_share')} disabled={!lines.length} onPress={() => {
+          void Share.share({ message: [musicInfo.name, ...lines.map(item => [item.text, ...item.extendedLyrics].join('\n'))].join('\n') }).catch(() => {})
+        }} />
+      </View>
     </View>
   )
 
@@ -307,9 +322,13 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   headRule: {
     marginBottom: 18,
   },
+  extraControls: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 22, minHeight: 44 },
+  extraLabel: { fontWeight: '700' },
+  extraSegment: { borderRadius: 16 },
+  shareButton: { paddingHorizontal: 14, marginLeft: 'auto' },
   lineWrap: {
     position: 'relative',
-    paddingLeft: 14,
+    paddingLeft: 0,
     marginBottom: 16,
     minHeight: 36,
     justifyContent: 'center',
@@ -343,7 +362,7 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   lineAccent: {
     position: 'absolute',
-    left: 0,
+    left: -PAGE_GUTTER,
     top: 4,
     bottom: 4,
     width: 3,

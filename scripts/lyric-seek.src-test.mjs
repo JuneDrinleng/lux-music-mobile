@@ -43,6 +43,8 @@ const fixture = (locale = locales[0]) => {
     plays: 0,
     locked: false,
     scrolls: [],
+    shares: [],
+    settings: [],
   }
   const hooks = {
     forwardRef: component => props => component(props, ref),
@@ -73,16 +75,17 @@ const fixture = (locale = locales[0]) => {
   const deps = {
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': Object.fromEntries(['FlatList', 'TouchableOpacity', 'View'].map(name => [name, name])),
+    'react-native': { ...Object.fromEntries(['FlatList', 'TouchableOpacity', 'View'].map(name => [name, name])), Share: { share: async value => { env.shares.push(value) } } },
     '@/components/common/Text': { default: 'Text' },
+    '@/components/lyric/KaraokeLine': { default: 'KaraokeLine' },
     '@/components/common/Icon': { Icon: 'Icon' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Image': { default: 'Image' },
     '@/components/MusicAddModal': { default: 'MusicAddModal' },
-    '@/components/magazine': { Hairline: 'Hairline', PrimaryButton: 'PrimaryButton' },
+    '@/components/magazine': { Hairline: 'Hairline', PrimaryButton: 'PrimaryButton', SecondaryButton: 'SecondaryButton', MagSegmented: 'MagSegmented' },
     '@/config/constant': { LIST_IDS: { LOVE: 'love' }, MUSIC_TOGGLE_MODE: {}, MUSIC_TOGGLE_MODE_LIST: [] },
     '@/core/together/control': { blockTogetherMemberControl: () => env.locked },
-    '@/core/common': { updateSetting() {} },
+    '@/core/common': { updateSetting(value) { env.settings.push(value) } },
     '@/core/list': { getListMusics: async() => [] },
     '@/core/player/player': { play: () => { env.plays++ } },
     '@/lang': { useI18n: () => (key, args = {}) => locale[key].replace(/\{(\w+)\}/g, (_, name) => args[name]) },
@@ -142,7 +145,7 @@ test('6.2 preserves timed objects, extended fields and empty rows so highlightin
   assert.deepEqual(f.list().data[0].extendedLyrics, ['translation', 'romaji'])
   f.env.line = 2; f.render()
   assert.equal(f.env.scrolls.at(-1).index, 2)
-  assert.ok(walk(f.row(2)).some(node => node.type === 'Text' && node.props.size === 28 && node.props.children === 'Third'))
+  assert.ok(walk(f.row(2)).some(node => node.type === 'KaraokeLine' && node.props.size === 28 && node.props.line.text === 'Third'))
   f.tap(2)
   assert.deepEqual(f.env.seeks, [])
   assert.equal(f.env.plays, 0)
@@ -258,7 +261,10 @@ test('6.2 shared player chrome touches dismiss through the lyric ref; closed ove
   tree.props.onTouchEnd()
   assert.equal(dismissals, 1)
   assert.equal(lyric.props.active, true)
-  assert.equal(walk(component({ componentId: 'player', active: false })).find(node => node.type === 'Lyric').props.active, false)
+  const closedTree = walk(component({ componentId: 'player', active: false }))
+  assert.equal(closedTree.find(node => node.type === 'Lyric').props.active, false)
+  assert.equal(closedTree.find(node => node.type === 'Pic').props.active, false)
+  assert.equal(typeof walk(tree).find(node => node.type === 'Pic').props.onLyricPress, 'function')
 })
 
 
@@ -267,5 +273,22 @@ test('6.2 confirmation respects the existing together member playback control lo
   f.button().props.onPress(); f.render()
   assert.deepEqual(f.env.seeks, [])
   assert.equal(f.env.plays, 0)
+  assert.equal(f.button(), undefined)
+})
+
+
+test('6.3 full lyrics preserve extended rows, add compact extra-line controls and share all lines including blanks', () => {
+  const f = fixture()
+  const header = walk(f.list().ListHeaderComponent)
+  const segment = header.find(node => node.type === 'MagSegmented')
+  assert.equal(segment.props.compact, true)
+  segment.props.onChange('roma')
+  assert.deepEqual(f.env.settings.at(-1), { 'player.isShowLyricTranslation': false, 'player.isShowLyricRoma': true })
+  segment.props.onChange('none')
+  assert.deepEqual(f.env.settings.at(-1), { 'player.isShowLyricTranslation': false, 'player.isShowLyricRoma': false })
+  assert.ok(walk(f.row(0)).some(node => node.type === 'Text' && node.props.children === 'translation'))
+  assert.ok(walk(f.row(0)).some(node => node.type === 'Text' && node.props.children === 'romaji'))
+  header.find(node => node.type === 'SecondaryButton').props.onPress()
+  assert.ok(f.env.shares[0].message.includes('First\ntranslation\nromaji\n\nThird'))
   assert.equal(f.button(), undefined)
 })

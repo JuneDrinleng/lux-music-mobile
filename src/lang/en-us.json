@@ -1395,5 +1395,13 @@
   "sync_state_relogin": "Log in again",
   "sync_state_local": "Switch to local user",
   "sync_state_address_format": "Sync address and format",
-  "sync_state_settings_eyebrow": "SETTINGS"
+  "sync_state_settings_eyebrow": "SETTINGS",
+  "player_lyric_translation_pill": "TR",
+  "player_lyric_roma_pill": "RO",
+  "player_lyric_enter_hint": "Tap lyrics to open lyrics",
+  "player_lyric_extras": "Extra lines",
+  "player_lyric_none": "None",
+  "player_lyric_translation": "Translation",
+  "player_lyric_roma": "Romaji",
+  "player_lyric_share": "Share lyrics"
 }
