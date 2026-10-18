@@ -32,7 +32,7 @@ const fixture = async(wait = false) => {
   await volume.setVolume(0.8)
   const lx = { isPlayedStop: false }
   const player = { isPlay: true, playRate: 1 }
-  const setting = { 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
+  const setting = { 'player.timeoutExitApp': false, 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
   const native = {
     setSleepTimerGain: volume.setGain,
     restoreSleepTimerVolume: async() => { events.push('restore'); await volume.restore() },
@@ -49,7 +49,7 @@ const fixture = async(wait = false) => {
         setInterval: fn => { tick = fn; return 1 },
         clearInterval: () => { tick = undefined },
       }
-      case '@/core/common': return { exitApp: () => { events.push('exit') } }
+      case '@/core/common': return { exitApp: reason => { assert.equal(reason, 'Timeout Exit'); events.push('exit') } }
       case '@/store/player/state': return player
       case '@/store/setting/state': return { setting }
       case '@/plugins/player/utils': return native
@@ -259,7 +259,7 @@ const walk = node => {
   return [node, ...[node.props?.children].flat(Infinity).flatMap(walk)]
 }
 const uiFixture = () => {
-  const settings = { 'player.timeoutExit': '', 'player.timeoutExitPlayed': true, 'player.timeoutExitFade': true, 'player.timeoutExitFadeDuration': 30 }
+  const settings = { 'player.timeoutExitApp': false, 'player.timeoutExit': '', 'player.timeoutExitPlayed': true, 'player.timeoutExitFade': true, 'player.timeoutExitFadeDuration': 30 }
   const starts = []
   const info = { time: -1, isPlayedStop: false }
   let cancels = 0
@@ -325,6 +325,12 @@ test('7D chips start/restart, persist selected duration, retain custom input and
   const toggle = nodes.find(n => n.props?.accessibilityLabel === '播完当前这首再停')
   toggle.props.onChange(false)
   assert.equal(f.settings['player.timeoutExitPlayed'], false)
+  const exitToggle = nodes.find(n => n.props?.accessibilityLabel === '同时退出 App')
+  assert.equal(exitToggle.props.compact, true)
+  assert.equal(exitToggle.props.value, false)
+  exitToggle.props.onChange(true)
+  assert.equal(f.settings['player.timeoutExitApp'], true)
+  assert.equal(f.render().find(n => n.props?.accessibilityLabel === '同时退出 App').props.value, true)
   assert.equal(nodes.some(n => n.props?.children === '到点后同时关闭白噪音'), false)
   f.info.time = 1421
   nodes = f.render()
@@ -354,45 +360,48 @@ test('three languages contain every sleep timer label', () => {
   }
 })
 
-test('finish-current-song ignores playback state changes and pauses on the track boundary before advancing', async() => {
-  const f = await fixture(true)
-  const listeners = {}
-  const events = ['RemotePlay', 'RemotePause', 'RemoteNext', 'RemotePrevious', 'RemoteStop', 'PlaybackError', 'RemoteSeek', 'PlaybackState', 'PlaybackTrackChanged']
-  const states = ['None', 'Ready', 'Stopped', 'Paused', 'Playing', 'Buffering', 'Connecting']
-  let service
-  const lx = { isPlayedStop: false, playerStatus: {}, playerTrackId: 'song', gettingUrlId: null }
-  const deps = {
-    'react-native-track-player': {
-      __esModule: true,
-      default: { registerPlaybackService: factory => { service = factory() }, addEventListener: (name, callback) => { listeners[name] = callback } },
-      Event: Object.fromEntries(events.map(name => [name, name])),
-      State: Object.fromEntries(states.map(name => [name, name])),
-    },
-    './utils': { isTempId: () => false, isEmpty: () => false, isNotificationLikeSupported: false },
-    '@/core/common': { exitApp: () => { throw new Error('Sleep timer must pause without quitting') } },
-    '@/core/player/timeoutExit': { finishTimeoutExit: async() => { lx.isPlayedStop = false; await f.timer.finishTimeoutExit() } },
-    './playList': { getCurrentTrackId: async() => 'boundary' },
-    '@/core/player/player': { syncNotificationLikeState: async() => {}, playNext: () => { throw new Error('Must not advance') } },
-    '@/core/together/control': { blockTogetherMemberControl: () => false },
-    '@/utils/imageCache': { scheduleImageCacheTrim() {} },
-  }
-  const mod = load('src/plugins/player/service.ts', name => { assert.ok(name in deps, name); return deps[name] }, {
-    global: { lx, app_event: Object.fromEntries(['playerPause', 'pause', 'playerPlaying', 'play', 'playerWaiting', 'playerLoadstart'].map(name => [name, () => {}])) }, console: { log() {} },
+for (const exit of [false, true]) {
+  test(`finish-current-song ignores playback states and handles track boundary before advancing (exit=${exit})`, async() => {
+    const f = await fixture(true)
+    f.setting['player.timeoutExitApp'] = exit
+    const listeners = {}
+    const events = ['RemotePlay', 'RemotePause', 'RemoteNext', 'RemotePrevious', 'RemoteStop', 'PlaybackError', 'RemoteSeek', 'PlaybackState', 'PlaybackTrackChanged']
+    const states = ['None', 'Ready', 'Stopped', 'Paused', 'Playing', 'Buffering', 'Connecting']
+    let service
+    const lx = { isPlayedStop: false, playerStatus: {}, playerTrackId: 'song', gettingUrlId: null }
+    const deps = {
+      'react-native-track-player': {
+        __esModule: true,
+        default: { registerPlaybackService: factory => { service = factory() }, addEventListener: (name, callback) => { listeners[name] = callback } },
+        Event: Object.fromEntries(events.map(name => [name, name])),
+        State: Object.fromEntries(states.map(name => [name, name])),
+      },
+      './utils': { isTempId: () => false, isEmpty: () => false, isNotificationLikeSupported: false },
+      '@/core/common': { exitApp: () => { throw new Error('Sleep timer must pause without quitting') } },
+      '@/core/player/timeoutExit': { finishTimeoutExit: async() => { lx.isPlayedStop = false; await f.timer.finishTimeoutExit() } },
+      './playList': { getCurrentTrackId: async() => 'boundary' },
+      '@/core/player/player': { syncNotificationLikeState: async() => {}, playNext: () => { throw new Error('Must not advance') } },
+      '@/core/together/control': { blockTogetherMemberControl: () => false },
+      '@/utils/imageCache': { scheduleImageCacheTrim() {} },
+    }
+    const mod = load('src/plugins/player/service.ts', name => { assert.ok(name in deps, name); return deps[name] }, {
+      global: { lx, app_event: Object.fromEntries(['playerPause', 'pause', 'playerPlaying', 'play', 'playerWaiting', 'playerLoadstart'].map(name => [name, () => {}])) }, console: { log() {} },
+    })
+    mod.default()
+    await service()
+    f.timer.startTimeoutExit(60)
+    await f.expire()
+    lx.isPlayedStop = f.lx.isPlayedStop
+    assert.equal(lx.isPlayedStop, true)
+    for (const state of states) await listeners.PlaybackState({ state })
+    assert.deepEqual(f.events, [])
+    await listeners.PlaybackTrackChanged({ track: 'song' })
+    assert.deepEqual(f.events, [exit ? 'exit' : 'pause'])
+    assert.equal(lx.isPlayedStop, false)
+    assert.equal(f.lx.isPlayedStop, false)
+    assert.equal(f.output.at(-1), 0.8)
   })
-  mod.default()
-  await service()
-  f.timer.startTimeoutExit(60)
-  await f.expire()
-  lx.isPlayedStop = f.lx.isPlayedStop
-  assert.equal(lx.isPlayedStop, true)
-  for (const state of states) await listeners.PlaybackState({ state })
-  assert.deepEqual(f.events, [])
-  await listeners.PlaybackTrackChanged({ track: 'song' })
-  assert.deepEqual(f.events, ['pause'])
-  assert.equal(lx.isPlayedStop, false)
-  assert.equal(f.lx.isPlayedStop, false)
-  assert.equal(f.output.at(-1), 0.8)
-})
+}
 
 test('custom input cancel keeps the running timer; confirm validates and restarts with entered minutes', () => {
   const starts = []
@@ -401,6 +410,7 @@ test('custom input cancel keeps the running timer; confirm validates and restart
   let hidden = false
   let input = '22'
   let refIndex = 0
+  const settings = { 'player.timeoutExitApp': false }
   const deps = {
     react: {
       forwardRef: fn => fn,
@@ -410,18 +420,18 @@ test('custom input cancel keeps the running timer; confirm validates and restart
       useRef: () => (++refIndex % 2 === 1 ? { current: { setVisible: v => { hidden = !v } } } : { current: { getText: () => input } }),
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { View: 'View' },
+    'react-native': { View: 'View', TouchableOpacity: 'TouchableOpacity' },
     '@/components/common/ConfirmAlert': 'ConfirmAlert',
     '@/components/common/Text': 'Text',
     '@/components/common/Input': 'Input',
     '@/components/common/MdiIcon': {},
-    '@/theme/LuxTheme': {},
+    '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { ink: { strong: 'ink' } } }) },
     '@/utils/tools': { createStyle: x => x, toast() {} },
     '@/store/theme/hook': {},
     '@/lang': { useI18n: () => t },
     './common/CheckBox': 'CheckBox',
-    '@/store/setting/hook': {},
-    '@/core/common': { updateSetting: p => patches.push(p) },
+    '@/store/setting/hook': { useSettingValue: name => settings[name] },
+    '@/core/common': { updateSetting: p => { patches.push(p); Object.assign(settings, p) } },
     '@/store/setting/state': { setting: {} },
     '@/core/player/sleepTimerOptions': options,
     '@/core/player/timeoutExit': { cancelTimeoutExit: () => { stops++ }, stopTimeoutExit: () => { stops++ }, startTimeoutExit: seconds => starts.push(seconds), getTimeoutExitTime: () => 1320 },
@@ -439,4 +449,97 @@ test('custom input cancel keeps the running timer; confirm validates and restart
   assert.deepEqual(starts, [1320])
   assert.deepEqual(patches, [{ 'player.timeoutExit': '22' }])
   assert.equal(hidden, true)
+  const full = walk(modal({ timeInfo: { active: true } }, {}))
+  const settingNode = full.find(n => typeof n.type === 'function' && n.type.name === 'Setting')
+  const findExit = () => walk(settingNode.type()).find(n => n.type === 'TouchableOpacity' && n.props.accessibilityLabel === '同时退出 App')
+  assert.equal(findExit().props.accessibilityState.checked, false)
+  findExit().props.onPress()
+  assert.equal(findExit().props.accessibilityState.checked, true)
+  assert.deepEqual(patches.at(-1), { 'player.timeoutExitApp': true })
+})
+
+for (const exit of [false, true]) {
+  for (const wait of [false, true]) {
+    for (const fade of [false, true]) {
+      test(`timeout action: exit=${exit}, finish song=${wait}, fade=${fade}`, async() => {
+        const f = await fixture(wait)
+        Object.assign(f.setting, { 'player.timeoutExitApp': exit, 'player.timeoutExitFade': fade })
+        f.timer.startTimeoutExit(60)
+        await f.advance(55)
+        assert.equal(f.output.at(-1), fade && !wait ? 0.4 : 0.8)
+        f.song(195, 200)
+        await f.expire()
+        if (wait) {
+          assert.equal(f.lx.isPlayedStop, true)
+          assert.equal(f.events.includes('exit'), false)
+          assert.equal(f.events.includes('pause'), false)
+          assert.equal(f.output.at(-1), fade ? 0.4 : 0.8)
+          await f.timer.finishTimeoutExit()
+          await flush()
+        }
+        assert.equal(f.events.includes('exit'), exit)
+        assert.equal(f.events.includes('pause'), !exit)
+        assert.equal(f.output.at(-1), 0.8)
+        assert.equal(f.lx.isPlayedStop, false)
+        assert.equal(f.timer.getTimeoutExitTime(), -1)
+      })
+    }
+  }
+}
+
+test('legacy exit is immediate even when native restoration never completes or rejects', async() => {
+  for (const fail of [false, true]) {
+    const f = await fixture()
+    f.setting['player.timeoutExitApp'] = true
+    f.timer.startTimeoutExit(60)
+    await f.advance(55)
+    f.native.restoreSleepTimerVolume = () => fail ? Promise.reject(new Error('restore failure')) : new Promise(() => {})
+    await f.expire()
+    assert.deepEqual(f.events, ['exit'])
+  }
+})
+
+const migration = load('src/config/migrateSetting.ts', name => {
+  assert.equal(name, '@/utils')
+  return { compareVer: version => version === '1.0' ? -1 : 0 }
+})
+const defaults = load('src/config/defaultSetting.ts').default
+
+test('timer migration distinguishes legacy use, fresh installs and explicit choices; repeats preserve user OFF', () => {
+  for (const raw of [null, {}, { ...defaults }, { 'player.timeoutExit': '', 'player.timeoutExitPlayed': true }, { 'player.timeoutExit': 'invalid' }]) {
+    const result = migration.migrateSleepTimerExit(raw)
+    assert.equal(result['player.timeoutExitApp'], false)
+    assert.equal(result['player.timeoutExitAppMigrated'], true)
+    assert.deepEqual(migration.migrateSleepTimerExit(result), result)
+  }
+  for (const raw of [{ 'player.timeoutExit': '22' }, { 'player.timeoutExitPlayed': false }, migration.default({ version: '1.0', player: { timeoutExit: '45', timeoutExitPlayed: true } })]) {
+    const result = migration.migrateSleepTimerExit(raw)
+    assert.equal(raw['player.timeoutExitAppMigrated'], undefined)
+    assert.equal(result['player.timeoutExitApp'], true)
+    result['player.timeoutExitApp'] = false
+    assert.deepEqual(migration.migrateSleepTimerExit(result), result)
+  }
+  assert.equal(migration.migrateSleepTimerExit({ 'player.timeoutExit': '22', 'player.timeoutExitApp': false })['player.timeoutExitApp'], false)
+})
+
+test('settings initialization migrates raw storage and persists the marker across launches', async() => {
+  for (const used of [false, true]) {
+    let stored = used ? { version: '2.0', 'player.timeoutExit': '30' } : null
+    const deps = {
+      '@/config/constant': { storageDataPrefix: { setting: 'new' }, storageDataPrefixOld: { setting: 'old' } },
+      '@/config/defaultSetting': defaults,
+      '@/plugins/storage': { getData: async key => key === 'new' ? stored : null, saveData: async(key, value) => { stored = { ...value } } },
+      './migrateSetting': migration,
+      '@/store/setting/state': { setting: defaults },
+      './migrate': {},
+      '@/utils/tools': {},
+    }
+    const config = load('src/config/setting.ts', name => { assert.ok(name in deps, name); return deps[name] })
+    const first = await config.initSetting()
+    assert.equal(first.setting['player.timeoutExitApp'], used)
+    assert.equal(stored['player.timeoutExitAppMigrated'], true)
+    stored['player.timeoutExitApp'] = false
+    const second = await config.initSetting()
+    assert.equal(second.setting['player.timeoutExitApp'], false)
+  }
 })

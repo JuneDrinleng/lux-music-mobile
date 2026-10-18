@@ -29,6 +29,8 @@ const defaultSetting: LX.AppSetting = {
   'player.imageCacheCount': '400',
   'player.timeoutExit': '',
   'player.timeoutExitPlayed': true,
+  'player.timeoutExitApp': false,
+  'player.timeoutExitAppMigrated': true,
   'player.timeoutExitFade': true,
   'player.timeoutExitFadeDuration': 30,
   'player.isAutoCleanPlayedList': false,

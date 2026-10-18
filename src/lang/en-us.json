@@ -1047,6 +1047,8 @@
   "sleep_timer_title": "Stop playback on a timer",
   "sleep_timer_remaining": "remaining",
   "sleep_timer_after": "When time is up",
+  "sleep_timer_exit_app": "Also quit the app",
+  "sleep_timer_exit_app_hint": "Close the app when the timer ends (legacy behavior)",
   "sleep_timer_minutes": "{num} min",
   "sleep_timer_custom": "Custom",
   "sleep_timer_finish_song": "Finish the current song",

@@ -23,6 +23,7 @@ export default ({ visible, onClose, info }: {
   const r = magazineRoles(colors)
   const selected = sleepTimerMinutes(useSettingValue('player.timeoutExit'))
   const played = useSettingValue('player.timeoutExitPlayed')
+  const exitApp = useSettingValue('player.timeoutExitApp')
   const fade = useSettingValue('player.timeoutExitFade')
   const fadeSeconds = sleepTimerFadeSeconds(useSettingValue('player.timeoutExitFadeDuration'))
   const [stopNoise, setStopNoise] = useState(true)
@@ -71,7 +72,9 @@ export default ({ visible, onClose, info }: {
           {row(t('sleep_timer_fade', { num: fadeSeconds }), t('sleep_timer_fade_hint'),
             <Toggle compact value={fade} accessibilityLabel={t('sleep_timer_fade', { num: fadeSeconds })} onChange={value => { updateSetting({ 'player.timeoutExitFade': value }) }} />)}
           {row(t('sleep_timer_fade_duration'), t('sleep_timer_fade_options'),
-            <MagSegmented compact itemStyle={styles.segmentItem} style={styles.segment} items={SLEEP_TIMER_FADE_SECONDS.map(seconds => ({ id: String(seconds), label: `${seconds}s` }))} value={String(fadeSeconds)} onChange={value => { updateSetting({ 'player.timeoutExitFadeDuration': Number(value) }) }} renderItem={(item, on) => <Text size={13} color={on ? r.onInk : r.ink} style={styles.bold}>{item.label}</Text>} />, !SHOW_SLEEP_TIMER_NOISE)}
+            <MagSegmented compact itemStyle={styles.segmentItem} style={styles.segment} items={SLEEP_TIMER_FADE_SECONDS.map(seconds => ({ id: String(seconds), label: `${seconds}s` }))} value={String(fadeSeconds)} onChange={value => { updateSetting({ 'player.timeoutExitFadeDuration': Number(value) }) }} renderItem={(item, on) => <Text size={13} color={on ? r.onInk : r.ink} style={styles.bold}>{item.label}</Text>} />)}
+          {row(t('sleep_timer_exit_app'), t('sleep_timer_exit_app_hint'),
+            <Toggle compact value={exitApp} accessibilityLabel={t('sleep_timer_exit_app')} onChange={value => { updateSetting({ 'player.timeoutExitApp': value }) }} />, !SHOW_SLEEP_TIMER_NOISE)}
           {SHOW_SLEEP_TIMER_NOISE ? row(t('sleep_timer_stop_noise'), undefined,
             <Toggle compact value={stopNoise} accessibilityLabel={t('sleep_timer_stop_noise')} onChange={setStopNoise} />, true) : null}
         </ScrollView>

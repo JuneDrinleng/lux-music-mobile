@@ -87,6 +87,7 @@ const TimeInput = forwardRef<TimeInputType, {}>((props, ref) => {
 const Setting = () => {
   const t = useI18n()
   const timeoutExitPlayed = useSettingValue('player.timeoutExitPlayed')
+  const exitApp = useSettingValue('player.timeoutExitApp')
   const fade = useSettingValue('player.timeoutExitFade')
   const fadeSeconds = sleepTimerFadeSeconds(useSettingValue('player.timeoutExitFadeDuration'))
   const { colors } = useLuxTheme()
@@ -96,6 +97,18 @@ const Setting = () => {
 
   return (
     <View style={styles.checkbox}>
+      <TouchableOpacity
+        style={styles.fadeToggle}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.7}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: exitApp }}
+        accessibilityLabel={t('sleep_timer_exit_app')}
+        onPress={() => { updateSetting({ 'player.timeoutExitApp': !exitApp }) }}
+      >
+        <MdiIcon name={exitApp ? 'checkbox-marked-outline' : 'checkbox-blank-outline'} size={20} color={colors.ink.strong} />
+        <Text size={13} color={colors.ink.strong} style={styles.fadeLabel}>{t('sleep_timer_exit_app')}</Text>
+      </TouchableOpacity>
       <CheckBox check={timeoutExitPlayed} label={t('timeout_exit_label_isPlayed')} onChange={onCheckChange} />
       <TouchableOpacity
         style={styles.fadeToggle}
