@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import BackgroundTimer from 'react-native-background-timer'
-import { exitApp } from '@/core/common'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { getDuration, getPosition, restoreSleepTimerVolume, setPause, setSleepTimerGain } from '@/plugins/player/utils'
 import { fadeGain, songRemainingSeconds } from '@/plugins/player/volumeFade'
 
+import { sleepTimerFadeSeconds } from './sleepTimerOptions'
+
 type Hook = (time: number, isPlayedStop: boolean) => void
 
-const FADE_SECONDS = 20
 let generation = 0
 let ticking = false
 let faded = false
@@ -26,7 +26,7 @@ const timeoutTools = {
   time: -1,
   timeHooks: [] as Hook[],
   getTime() {
-    return this.time < 0 ? -1 : Math.max(this.time - Math.round((performance.now() - this.startTime) / 1000), 0)
+    return this.time < 0 ? -1 : Math.max(this.time - Math.floor((performance.now() - this.startTime) / 1000), 0)
   },
   callHooks() {
     const time = this.getTime()
@@ -52,7 +52,7 @@ const timeoutTools = {
         return
       }
       let remaining = Infinity
-      if (settingState.setting['player.timeoutExitFade']) {
+      if (settingState.setting['player.timeoutExitFade'] && playerState.isPlay) {
         if (global.lx.isPlayedStop) {
           // Only fade the song after the deadline; unknown/live durations skip fading.
           const [position, duration] = await Promise.all([getPosition(), getDuration()])
@@ -64,7 +64,7 @@ const timeoutTools = {
         }
       }
       if (current !== generation) return
-      const gain = fadeGain(remaining, FADE_SECONDS)
+      const gain = fadeGain(remaining, sleepTimerFadeSeconds(settingState.setting['player.timeoutExitFadeDuration']))
       if (gain < 1) {
         faded = true
         await setSleepTimerGain(gain)
@@ -108,9 +108,9 @@ const timeoutTools = {
 
 // Pause before restoring output to avoid a full-volume burst at the deadline/song end.
 export const finishTimeoutExit = async() => {
+  global.lx.isPlayedStop = false
   timeoutTools.clearTimeout()
   const current = generation
-  global.lx.isPlayedStop = false
   try {
     await setPause()
   } catch (err) {
@@ -118,7 +118,6 @@ export const finishTimeoutExit = async() => {
   }
   if (current !== generation) return
   await restoreVolume().catch(console.log)
-  if (current === generation) exitApp('Timeout Exit')
 }
 
 
@@ -136,7 +135,7 @@ export const getTimeoutExitTime = () => {
 }
 
 export const useTimeoutExitTimeInfo = () => {
-  const [info, setInfo] = useState({ time: 0, isPlayedStop: false })
+  const [info, setInfo] = useState({ time: timeoutTools.getTime(), isPlayedStop: global.lx.isPlayedStop })
   useEffect(() => {
     const hook: Hook = (time, isPlayedStop) => {
       setInfo({ time, isPlayedStop })

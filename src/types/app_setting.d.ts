@@ -170,6 +170,7 @@ declare global {
       'player.timeoutExitPlayed': boolean
       /** Fade output over the final 20 seconds of the sleep timer/song. */
       'player.timeoutExitFade': boolean
+      'player.timeoutExitFadeDuration': number
 
       /**
        * 点击相同列表内的歌曲切歌时是否清空已播放列表（随机模式下列表内所有歌曲会重新参与随机）

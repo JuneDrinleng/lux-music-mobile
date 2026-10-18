@@ -13,6 +13,7 @@ import CheckBox from './common/CheckBox'
 import { useSettingValue } from '@/store/setting/hook'
 import { updateSetting } from '@/core/common'
 import settingState from '@/store/setting/state'
+import { sleepTimerFadeSeconds } from '@/core/player/sleepTimerOptions'
 
 const MAX_MIN = 1440
 const rxp = /([1-9]\d*)/
@@ -87,6 +88,7 @@ const Setting = () => {
   const t = useI18n()
   const timeoutExitPlayed = useSettingValue('player.timeoutExitPlayed')
   const fade = useSettingValue('player.timeoutExitFade')
+  const fadeSeconds = sleepTimerFadeSeconds(useSettingValue('player.timeoutExitFadeDuration'))
   const { colors } = useLuxTheme()
   const onCheckChange = (check: boolean) => {
     updateSetting({ 'player.timeoutExitPlayed': check })
@@ -101,11 +103,11 @@ const Setting = () => {
         activeOpacity={0.7}
         accessibilityRole="switch"
         accessibilityState={{ checked: fade }}
-        accessibilityLabel={t('timeout_exit_fade')}
+        accessibilityLabel={t('sleep_timer_fade', { num: fadeSeconds })}
         onPress={() => { updateSetting({ 'player.timeoutExitFade': !fade }) }}
       >
         <MdiIcon name={fade ? 'checkbox-marked-outline' : 'checkbox-blank-outline'} size={20} color={colors.ink.strong} />
-        <Text size={13} color={colors.ink.strong} style={styles.fadeLabel}>{t('timeout_exit_fade')}</Text>
+        <Text size={13} color={colors.ink.strong} style={styles.fadeLabel}>{t('sleep_timer_fade', { num: fadeSeconds })}</Text>
       </TouchableOpacity>
     </View>
   )
@@ -148,9 +150,10 @@ export interface TimeoutExitEditModalType {
 }
 interface TimeoutExitEditModalProps {
   timeInfo: ReturnType<typeof useTimeInfo>
+  customOnly?: boolean
 }
 
-export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo }, ref) => {
+export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>(({ timeInfo, customOnly = false }, ref) => {
   const alertRef = useRef<ConfirmAlertType>(null)
   const timeInputRef = useRef<TimeInputType>(null)
   const [visible, setVisible] = useState(false)
@@ -178,6 +181,7 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
   }))
 
   const handleCancel = () => {
+    if (customOnly) return
     if (timeInfo.isPlayedStop) {
       cancelTimeoutExit()
       return
@@ -213,18 +217,19 @@ export default forwardRef<TimeoutExitEditModalType, TimeoutExitEditModalProps>((
     visible
       ? <ConfirmAlert
           ref={alertRef}
-          cancelText={timeInfo.cancelText}
-          confirmText={timeInfo.confirmText}
+          title={customOnly ? t('sleep_timer_custom') : undefined}
+          cancelText={customOnly ? t('cancel') : timeInfo.cancelText}
+          confirmText={customOnly ? t('confirm') : timeInfo.confirmText}
           onCancel={handleCancel}
           onConfirm={handleConfirm}
         >
           <View style={styles.alertContent}>
-            <Status />
+            {customOnly ? null : <Status />}
             <View style={styles.inputContent}>
               <TimeInput ref={timeInputRef} />
               <Text style={styles.inputLabel}>{t('timeout_exit_min')}</Text>
             </View>
-            <Setting />
+            {customOnly ? null : <Setting />}
           </View>
         </ConfirmAlert>
       : null

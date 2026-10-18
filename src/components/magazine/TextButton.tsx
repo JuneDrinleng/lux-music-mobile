@@ -12,6 +12,7 @@ export const TextButton = memo(({
   label,
   style,
   compact = false,
+  labelSize,
   onPress,
   disabled = false,
   muted = false,
@@ -21,6 +22,7 @@ export const TextButton = memo(({
   label: string
   style?: StyleProp<ViewStyle>
   compact?: boolean
+  labelSize?: number
   onPress?: () => void
   disabled?: boolean
   muted?: boolean
@@ -41,7 +43,7 @@ export const TextButton = memo(({
       style={[{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }, style]}
     >
       <Text
-        size={compact ? 14 : magType.textButton.size}
+        size={labelSize ?? (compact ? 14 : magType.textButton.size)}
         color={color}
         style={{
           fontWeight: '700',

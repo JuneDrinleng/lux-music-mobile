@@ -44,6 +44,7 @@ export const PrimaryButton = memo(({
   style,
   compact = false,
   labelSize,
+  selected = false,
   labelStyle,
   badge,
 }: {
@@ -55,6 +56,7 @@ export const PrimaryButton = memo(({
   style?: ViewStyle
   compact?: boolean
   labelSize?: number
+  selected?: boolean
   labelStyle?: TextStyle
   badge?: number
 }) => {
@@ -69,7 +71,7 @@ export const PrimaryButton = memo(({
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
     >
       {icon ? <MdiIcon name={icon} size={20} color={r.onInk} /> : null}
       <Text size={labelSize ?? (compact ? 16 : magType.button.size)} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null, labelStyle]}>{label}</Text>

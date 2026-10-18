@@ -118,7 +118,6 @@ const registerPlaybackService = async() => {
         // console.log('playback-state', info)
         break
     }
-    if (global.lx.isPlayedStop) return handleExitApp('Timeout Exit')
 
     // console.log('currentIsPlaying', currentIsPlaying, global.lx.playInfo.isPlaying)
     // void updateMetaData(global.lx.store_playMusicInfo.musicInfo, currentIsPlaying)
