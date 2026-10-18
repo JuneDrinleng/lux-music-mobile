@@ -24,6 +24,7 @@ import './expired-dialog.src-test.mjs'
 import './sync-login-routing.src-test.mjs'
 import './sync-status.src-test.mjs'
 import './sleep-timer.src-test.mjs'
+import './lyric-seek.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))

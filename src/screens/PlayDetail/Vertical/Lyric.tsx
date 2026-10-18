@@ -1,28 +1,34 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { FlatList, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
 import Text from '@/components/common/Text'
 import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { Hairline } from '@/components/magazine'
+import { Hairline, PrimaryButton } from '@/components/magazine'
 import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import { updateSetting } from '@/core/common'
+import { blockTogetherMemberControl } from '@/core/together/control'
 import { getListMusics } from '@/core/list'
-import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
+import { collectMusic, play, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useI18n } from '@/lang'
-import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
+import { type Line, useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
+import { formatPlayTime2 } from '@/utils/common'
 import { createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
 
-export default ({ active }: { active: boolean }) => {
+export interface LyricType {
+  dismissSeek: () => void
+}
+
+export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -33,16 +39,26 @@ export default ({ active }: { active: boolean }) => {
   const isPlay = useIsPlay()
   const { line } = useLrcPlay(active)
   const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress(active)
-  const lyricLines = useLrcSet()
-  const listRef = useRef<FlatList<string>>(null)
+  const lines = useLrcSet()
+  const listRef = useRef<FlatList<Line>>(null)
   const loveCheckId = useRef(0)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
   const [isLoved, setIsLoved] = useState(false)
 
-  const lines = useMemo(() => {
-    if (!lyricLines.length) return [] as string[]
-    return lyricLines.map(item => item.text).filter(Boolean)
-  }, [lyricLines])
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const dismissSeek = useCallback(() => { setSelectedIndex(null) }, [])
+  useImperativeHandle(ref, () => ({ dismissSeek }), [dismissSeek])
+
+  // A selection belongs to this lyric set, track and active playback line only.
+  useEffect(dismissSeek, [active, line, lines, musicInfo.id, dismissSeek])
+
+  const confirmSeek = useCallback((item: Line) => {
+    dismissSeek()
+    if (blockTogetherMemberControl()) return
+    // Parser timestamps are milliseconds; the shared player seek event uses seconds.
+    global.app_event.setProgress(item.time / 1000)
+    if (!isPlay) play()
+  }, [dismissSeek, isPlay])
 
   useEffect(() => {
     if (!active || line < 0 || line >= lines.length) return
@@ -137,22 +153,49 @@ export default ({ active }: { active: boolean }) => {
     }
   }, [togglePlayMethod])
 
-  const renderItem = useCallback(({ item, index }: ListRenderItemInfo<string>) => {
+  const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Line>) => {
     const activeLine = index === line
     const past = index < line
+    const selected = selectedIndex === index
     return (
-      <View style={styles.lineWrap}>
+      <View
+        style={[styles.lineWrap, selected ? [styles.selectedLine, { backgroundColor: r.placeholder }] : null]}
+        onTouchEnd={event => { event.stopPropagation() }}
+      >
         {activeLine ? <View style={[styles.lineAccent, { backgroundColor: r.accent }]} /> : null}
-        <Text
-          size={activeLine ? 28 : 18}
-          color={activeLine ? r.display : past ? r.faint : r.muted}
-          style={activeLine ? styles.activeLineText : styles.lineText}
+        <TouchableOpacity
+          style={styles.lineContent}
+          activeOpacity={0.7}
+          onPress={() => { setSelectedIndex(index) }}
+          onLongPress={() => { setSelectedIndex(index) }}
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          accessibilityLabel={item.text || formatPlayTime2(item.time / 1000)}
         >
-          {item}
-        </Text>
+          <Text
+            size={selected ? 18 : activeLine ? 28 : 18}
+            color={selected ? r.ink : activeLine ? r.display : past ? r.faint : r.muted}
+            style={selected ? styles.selectedLineText : activeLine ? styles.activeLineText : styles.lineText}
+          >
+            {item.text}
+          </Text>
+          {selected ? <Text size={12} color={r.muted}>{t('player_lyric_seek_hint')}</Text> : null}
+        </TouchableOpacity>
+        {selected ? (
+          <PrimaryButton
+            compact
+            icon="play"
+            iconSize={13}
+            labelSize={13}
+            labelStyle={styles.seekLabel}
+            style={styles.seekButton}
+            label={t('player_lyric_seek_play', { time: formatPlayTime2(item.time / 1000) })}
+            onPress={() => { confirmSeek(item) }}
+          />
+        ) : null}
       </View>
     )
-  }, [line, r.accent, r.display, r.faint, r.muted, styles])
+  }, [line, selectedIndex, confirmSeek, r.accent, r.display, r.faint, r.ink, r.muted, r.placeholder, styles, t])
 
   const listHeader = (
     <View>
@@ -179,12 +222,13 @@ export default ({ active }: { active: boolean }) => {
   )
 
   return (
-    <View style={[styles.container, { backgroundColor: r.paper }]}>
+    <View style={[styles.container, { backgroundColor: r.paper }]} onTouchEnd={dismissSeek}>
       <FlatList
         ref={listRef}
         data={lines}
         renderItem={renderItem}
-        keyExtractor={(item, index) => `${index}_${item}`}
+        keyExtractor={(item, index) => `${index}_${item.time}`}
+        extraData={selectedIndex}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={listHeader}
@@ -192,6 +236,9 @@ export default ({ active }: { active: boolean }) => {
           <Text size={15} color={r.faint} style={styles.empty}>{t('player_lyric_empty')}</Text>
         )}
         showsVerticalScrollIndicator={false}
+        onScroll={dismissSeek}
+        onScrollBeginDrag={dismissSeek}
+        scrollEventThrottle={16}
         onScrollToIndexFailed={() => {}}
       />
 
@@ -224,7 +271,7 @@ export default ({ active }: { active: boolean }) => {
       <MusicAddModal ref={musicAddModalRef} />
     </View>
   )
-}
+})
 
 const useLuxStyles = sharedLuxStyles(() => (createStyle({
   container: {
@@ -266,6 +313,33 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     marginBottom: 16,
     minHeight: 36,
     justifyContent: 'center',
+  },
+  lineContent: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  selectedLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: -PAGE_GUTTER,
+    paddingLeft: PAGE_GUTTER,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingVertical: 8,
+  },
+  selectedLineText: {
+    fontWeight: '700',
+  },
+  seekButton: {
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    flexShrink: 0,
+  },
+  seekLabel: {
+    fontWeight: '700',
   },
   lineAccent: {
     position: 'absolute',
