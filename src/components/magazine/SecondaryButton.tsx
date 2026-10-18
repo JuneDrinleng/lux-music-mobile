@@ -16,6 +16,7 @@ export const SecondaryButton = memo(({
   icon,
   style,
   compact = false,
+  danger = false,
 }: {
   label: string
   onPress?: () => void
@@ -23,6 +24,7 @@ export const SecondaryButton = memo(({
   icon?: string
   style?: ViewStyle
   compact?: boolean
+  danger?: boolean
 }) => {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -32,7 +34,7 @@ export const SecondaryButton = memo(({
         height: compact ? 28 : 44,
         borderRadius: 999,
         borderWidth: 1.5,
-        borderColor: r.ink,
+        borderColor: danger ? r.like : r.ink,
         backgroundColor: 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
@@ -48,8 +50,8 @@ export const SecondaryButton = memo(({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
     >
-      {icon ? <MdiIcon name={icon} size={20} color={r.ink} /> : null}
-      <Text size={compact ? 13 : magType.button.size} color={r.ink} style={{ fontWeight: '700' }}>{label}</Text>
+      {icon ? <MdiIcon name={icon} size={20} color={danger ? r.like : r.ink} /> : null}
+      <Text size={compact ? 13 : magType.button.size} color={danger ? r.like : r.ink} style={{ fontWeight: '700' }}>{label}</Text>
     </TouchableOpacity>
   )
 })

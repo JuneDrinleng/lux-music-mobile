@@ -39,7 +39,7 @@ type AdminRouteName =
   | 'dashboard'
   | 'users'
   | 'invites'
-  | 'devices'
+  | 'playlists'
   | 'service'
 
 interface AdminRoute {
@@ -80,7 +80,6 @@ export const AdminConsoleLayer = ({
   const [users, setUsers] = useState<AdminUserView[]>([])
   const [userQuery, setUserQuery] = useState('')
   const [invites, setInvites] = useState<AdminInvite[]>([])
-  const [devices, setDevices] = useState<Awaited<ReturnType<typeof adminApi.meDevices>>['devices']>([])
   const [playlists, setPlaylists] = useState<Awaited<ReturnType<typeof adminApi.mePlaylists>>['playlists'] | null>(null)
   const [revealedInviteCode, setRevealedInviteCode] = useState<string | null>(null)
   const [createUserOpen, setCreateUserOpen] = useState(false)
@@ -125,7 +124,6 @@ export const AdminConsoleLayer = ({
     setUsers([])
     setUserQuery('')
     setInvites([])
-    setDevices([])
     setPlaylists(null)
     setRevealedInviteCode(null)
   }, [])
@@ -211,13 +209,9 @@ export const AdminConsoleLayer = ({
     setInvites(res.invites)
   }, [syncHost, token])
 
-  const loadDevices = useCallback(async() => {
+  const loadPlaylists = useCallback(async() => {
     if (!token || !syncHost) return
-    const [dev, pl] = await Promise.all([
-      adminApi.meDevices(syncHost, token),
-      adminApi.mePlaylists(syncHost, token),
-    ])
-    setDevices(dev.devices)
+    const pl = await adminApi.mePlaylists(syncHost, token)
     setPlaylists(pl.playlists)
   }, [syncHost, token])
 
@@ -236,9 +230,9 @@ export const AdminConsoleLayer = ({
     if (route.name === 'dashboard') void loadDashboard().catch(handleApiError)
     if (route.name === 'users') void loadUsers().catch(handleApiError)
     if (route.name === 'invites') void loadInvites().catch(handleApiError)
-    if (route.name === 'devices') void loadDevices().catch(handleApiError)
+    if (route.name === 'playlists') void loadPlaylists().catch(handleApiError)
     if (route.name === 'service') void loadDashboard().catch(handleApiError)
-  }, [route.name, visible, token, loadDashboard, loadUsers, loadInvites, loadDevices, handleApiError])
+  }, [route.name, visible, token, loadDashboard, loadUsers, loadInvites, loadPlaylists, handleApiError])
 
   const onRefresh = async() => {
     setRefreshing(true)
@@ -246,7 +240,7 @@ export const AdminConsoleLayer = ({
       if (route.name === 'dashboard' || route.name === 'service') await loadDashboard()
       else if (route.name === 'users') await loadUsers()
       else if (route.name === 'invites') await loadInvites()
-      else if (route.name === 'devices') await loadDevices()
+      else if (route.name === 'playlists') await loadPlaylists()
     } catch (err) {
       handleApiError(err)
     } finally {
@@ -264,8 +258,8 @@ export const AdminConsoleLayer = ({
         return t('admin_console_users_title')
       case 'invites':
         return t('admin_console_invites_title')
-      case 'devices':
-        return t('admin_console_devices_title')
+      case 'playlists':
+        return t('admin_console_my_playlists')
       case 'service':
         return t('admin_console_service_title')
       default:
@@ -425,7 +419,7 @@ export const AdminConsoleLayer = ({
       <SectionHeader title={t('admin_console_shortcuts')} showRule ruleGap={12} headGap={18} />
       <SettingRow icon="account-group-outline" iconBg={r.iconWrap.purple} title={t('admin_console_users_title')} onPress={() => { navigate({ name: 'users' }) }} />
       <SettingRow icon="ticket-confirmation-outline" iconBg={r.iconWrap.purple} title={t('admin_console_invites_title')} onPress={() => { navigate({ name: 'invites' }) }} />
-      <SettingRow icon="devices" iconBg={r.iconWrap.purple} title={t('admin_console_devices_title')} onPress={() => { navigate({ name: 'devices' }) }} />
+      <SettingRow icon="folder-music-outline" iconBg={r.iconWrap.purple} title={t('admin_console_my_playlists')} onPress={() => { navigate({ name: 'playlists' }) }} />
       <SettingRow icon="server-outline" iconBg={r.iconWrap.purple} title={t('admin_console_service_title')} onPress={() => { navigate({ name: 'service' }) }} last />
     </>
   )
@@ -520,22 +514,8 @@ export const AdminConsoleLayer = ({
     </>
   )
 
-  const renderDevices = () => (
+  const renderPlaylists = () => (
     <>
-      <SectionHeader title={t('admin_console_my_devices')} showRule ruleGap={12} headGap={6} />
-      {devices.length === 0
-        ? <Text size={magType.meta.size} color={r.muted}>{t('admin_console_devices_empty')}</Text>
-        : devices.map((device, index) => (
-          <View key={device.clientId}>
-            <View style={styles.deviceRow}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text size={magType.rowTitle.size} color={r.ink} numberOfLines={1}>{device.deviceName ?? device.clientId}</Text>
-                <Text size={magType.meta.size} color={r.muted} numberOfLines={1}>{device.clientId}</Text>
-              </View>
-            </View>
-            {index < devices.length - 1 ? <Hairline /> : null}
-          </View>
-        ))}
       <SectionHeader title={t('admin_console_my_playlists')} showRule ruleGap={12} headGap={18} />
       {playlists
         ? (
@@ -601,8 +581,8 @@ export const AdminConsoleLayer = ({
         return renderUsers()
       case 'invites':
         return renderInvites()
-      case 'devices':
-        return renderDevices()
+      case 'playlists':
+        return renderPlaylists()
       case 'service':
         return renderService()
       default:

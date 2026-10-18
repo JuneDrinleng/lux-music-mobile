@@ -6,10 +6,9 @@ import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
-import ChangePassword from '@/screens/Login/ChangePassword'
+import AccountPage from '@/screens/Account/AccountPage'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
-import ImagePicker from 'react-native-image-crop-picker'
 import {
   DOCK_BASE_HEIGHT,
   EmptyState,
@@ -37,12 +36,12 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserName, getUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
 import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
-import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
+import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, updateSetting } from '@/core/common'
@@ -88,7 +87,6 @@ const languageOptions = [
   { locale: 'en_us', label: 'English' },
 ] as const
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
-const genderOptionValues = ['male', 'female', 'unknown'] as const
 
 export default () => {
   const styles = useLuxStyles()
@@ -118,7 +116,6 @@ export default () => {
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
   const backupModeRef = useRef<'export' | 'import'>('export')
-  const profileDetailAnim = useRef(new Animated.Value(0)).current
   const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
   const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
@@ -126,12 +123,7 @@ export default () => {
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
-  const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
-  const [signatureDraft, setSignatureDraft] = useState('')
-  const [gender, setGender] = useState<typeof genderOptionValues[number]>('unknown')
-  const [isNameModalVisible, setNameModalVisible] = useState(false)
-  const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const [isSettingsSearchOpen, setSettingsSearchOpen] = useState(false)
   const [isProfileDetailVisible, setProfileDetailVisible] = useState(false)
@@ -143,13 +135,11 @@ export default () => {
   const [syncHostDraft, setSyncHostDraft] = useState('')
   const [authCode, setAuthCode] = useState('')
   const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
-  const [passwordSession, setPasswordSession] = useState<LX.Sync.LuxAuth | null>(null)
-  const [hasLuxAccount, setHasLuxAccount] = useState(false)
   const [syncMode, setSyncModeLocal] = useState<LX.Sync.Mode>('lx')
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
   const statsPageStyleLabel = (id: StatsPageStyle) => (
     id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
@@ -194,11 +184,6 @@ export default () => {
     { value: 'wy', label: t('source_real_wy') },
     { value: 'mg', label: t('source_real_mg') },
   ] as const, [t])
-  const genderOptions = useMemo(() => [
-    { value: 'male', label: t('setting_profile_gender_male') },
-    { value: 'female', label: t('setting_profile_gender_female') },
-    { value: 'unknown', label: t('setting_profile_gender_unknown') },
-  ] as const, [t])
   useEffect(() => {
     void getSyncMode().then(setSyncModeLocal)
     void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
@@ -206,27 +191,11 @@ export default () => {
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
     return () => { global.app_event.off('syncModeUpdated', handleSyncModeUpdated) }
   }, [])
-  useEffect(() => {
-    let active = true
-    const refresh = () => {
-      void findLuxAuthForHost(syncHost).then(session => { if (active) setHasLuxAccount(syncMode === 'lux' && Boolean(session?.token && session.user?.id)) }).catch(() => { if (active) setHasLuxAccount(false) })
-    }
-    refresh()
-    global.app_event.on('focus', refresh)
-    return () => { active = false; global.app_event.off('focus', refresh) }
-  }, [syncHost, syncMode, syncStatus])
-  const openPassword = async() => {
-    const session = await findLuxAuthForHost(syncHost)
-    if (syncMode === 'lux' && session?.token && session.user?.id) setPasswordSession(session)
-  }
   const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
   const activeSearchSourceLabel = useMemo(() => {
     return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
   }, [searchDefaultSource, searchSourceOptions, t])
-  const activeGenderLabel = useMemo(() => {
-    return genderOptions.find(item => item.value === gender)?.label ?? t('setting_profile_gender_unknown')
-  }, [gender, genderOptions, t])
   const activeApiSourceLabel = useMemo(() => {
     const builtin = apiSourceInfo.find(api => api.id === activeApiSource)
     if (builtin) {
@@ -310,13 +279,11 @@ export default () => {
       if (isUnmounted) return
       const value = name ?? DEFAULT_USER_NAME
       setNickname(value)
-      setNicknameDraft(value)
     })
 
     const handleNameUpdate = (name: string) => {
       const value = name.trim() ? name : DEFAULT_USER_NAME
       setNickname(value)
-      setNicknameDraft(value)
     }
     global.app_event.on('userNameUpdated', handleNameUpdate)
 
@@ -331,13 +298,11 @@ export default () => {
       if (isUnmounted) return
       const signatureValue = value?.trim() ?? ''
       setSignature(signatureValue)
-      setSignatureDraft(signatureValue || defaultSignature)
     })
 
     const handleSignatureUpdate = (value: string) => {
       const signatureValue = value.trim()
       setSignature(signatureValue)
-      setSignatureDraft(signatureValue || defaultSignature)
     }
     global.app_event.on('userSignatureUpdated', handleSignatureUpdate)
 
@@ -346,23 +311,6 @@ export default () => {
       global.app_event.off('userSignatureUpdated', handleSignatureUpdate)
     }
   }, [defaultSignature])
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserGender().then((value) => {
-      if (isUnmounted) return
-      setGender(value ?? 'unknown')
-    })
-
-    const handleGenderUpdate = (value: typeof genderOptionValues[number]) => {
-      setGender(value)
-    }
-    global.app_event.on('userGenderUpdated', handleGenderUpdate)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userGenderUpdated', handleGenderUpdate)
-    }
-  }, [])
   useEffect(() => {
     const handleSettingsSearchStateUpdated = (payload: { keyword: string }) => {
       setSettingsSearchQuery(payload.keyword)
@@ -488,14 +436,6 @@ export default () => {
     showTogetherDebugSettingsSection ||
     showAboutSection ||
     showAccountSection
-  const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneWidth, profileDetailAnim])
-  const profileDetailOpacity = useMemo(() => profileDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  }), [profileDetailAnim])
   const optionDetailTranslateX = useMemo(() => optionDetailAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [detailSceneWidth, 0],
@@ -510,7 +450,6 @@ export default () => {
       case 'theme': return t('setting_lux_theme')
       case 'statsPageStyle': return t('setting_stats_page_style')
       case 'searchSource': return t('setting_search_source')
-      case 'gender': return t('setting_profile_gender')
       case 'player': return t('setting_custom_source_title')
       case 'sync': return t('setting_sync')
       case 'syncFormat': return t('setting_sync_format')
@@ -527,16 +466,7 @@ export default () => {
     return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
   }, [avatarUrl, avatarVersion])
 
-  useEffect(() => {
-    Animated.timing(profileDetailAnim, {
-      toValue: isProfileDetailVisible ? 1 : 0,
-      duration: isProfileDetailVisible ? 248 : 220,
-      easing: isProfileDetailVisible
-        ? Easing.bezier(0.22, 0.84, 0.22, 1)
-        : Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [isProfileDetailVisible, profileDetailAnim])
+
   useEffect(() => {
     Animated.timing(optionDetailAnim, {
       toValue: activeOptionDetail ? 1 : 0,
@@ -718,62 +648,6 @@ export default () => {
   const handleToggleSyncManage = () => {
     setIsManagingSyncHosts(prev => !prev)
   }
-  const handlePickAvatar = () => {
-    void ImagePicker.openPicker({
-      width: 400,
-      height: 400,
-      cropping: true,
-      cropperCircleOverlay: true,
-      mediaType: 'photo',
-    }).then(image => {
-      void saveUserAvatar(image.path).then(savedPath => {
-        global.app_event.userAvatarUpdated(savedPath)
-        void getUserAvatarDataUrl().then(async avatar => pushLuxProfileToServer({ avatar })).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
-      })
-    }).catch((err: any) => {
-      if (err?.code !== 'E_PICKER_CANCELLED') toast(String(err?.message ?? err), 'long')
-    })
-  }
-  const handleShowNameModal = () => {
-    setNicknameDraft(nickname)
-    setNameModalVisible(true)
-  }
-  const handleCloseNameModal = () => {
-    setNicknameDraft(nickname)
-    setNameModalVisible(false)
-  }
-  const handleSaveName = () => {
-    const draft = nicknameDraft.trim()
-    const current = nickname.trim()
-    let newName = DEFAULT_USER_NAME
-    if (current) newName = current
-    if (draft) newName = draft
-    void saveUserName(newName).then(() => {
-      setNickname(newName)
-      global.app_event.userNameUpdated(newName)
-      void pushLuxProfileToServer({ displayName: newName }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
-      setNameModalVisible(false)
-    })
-  }
-  const handleShowSignatureModal = () => {
-    setSignatureDraft(signature || defaultSignature)
-    setSignatureModalVisible(true)
-  }
-  const handleCloseSignatureModal = () => {
-    setSignatureDraft(signature || defaultSignature)
-    setSignatureModalVisible(false)
-  }
-  const handleSaveSignature = () => {
-    const newSignature = signatureDraft.trim().substring(0, 140)
-    const saveValue = newSignature && newSignature != defaultSignature ? newSignature : ''
-    void saveUserSignature(saveValue || null).then(() => {
-      setSignature(saveValue)
-      setSignatureDraft(saveValue || defaultSignature)
-      global.app_event.userSignatureUpdated(saveValue)
-      void pushLuxProfileToServer({ signature: saveValue }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
-      setSignatureModalVisible(false)
-    })
-  }
   const handleOpenLanguageDetail = () => {
     setActiveOptionDetail('language')
   }
@@ -785,9 +659,6 @@ export default () => {
   }
   const handleOpenSearchSourceDetail = () => {
     setActiveOptionDetail('searchSource')
-  }
-  const handleOpenGenderDetail = () => {
-    setActiveOptionDetail('gender')
   }
   const handleOpenPlayerDetail = () => {
     setActiveOptionDetail('player')
@@ -835,14 +706,6 @@ export default () => {
   const handleSelectSearchSource = (source: typeof searchSourceOptionValues[number]) => {
     updateSetting({ 'search.defaultSource': source })
     setActiveOptionDetail(null)
-  }
-  const handleSelectGender = (nextGender: typeof genderOptionValues[number]) => {
-    void saveUserGender(nextGender).then(() => {
-      setGender(nextGender)
-      global.app_event.userGenderUpdated(nextGender)
-      void pushLuxProfileToServer({ gender: nextGender }).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
-      setActiveOptionDetail(null)
-    })
   }
   const handleLogoutSyncAccount = useCallback(async() => {
     const confirmed = await confirmDialog({
@@ -940,26 +803,6 @@ export default () => {
   }
 
   useBackHandler(() => {
-    if (isNameModalVisible) {
-      handleCloseNameModal()
-      return true
-    }
-    if (isSignatureModalVisible) {
-      handleCloseSignatureModal()
-      return true
-    }
-    if (isSyncHostModalVisible) {
-      handleCloseSyncHostModal()
-      return true
-    }
-    if (isAuthCodeModalVisible) {
-      handleCloseAuthCodeModal()
-      return true
-    }
-    if (isLuxLoginModalVisible) {
-      handleCloseLuxLoginModal()
-      return true
-    }
     if (activeOptionDetail) {
       handleCloseOptionDetail()
       return true
@@ -1166,16 +1009,7 @@ export default () => {
           ? (
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              {syncMode === 'lux' && hasLuxAccount ? <SettingRow icon="lock-outline" iconBg={r.iconWrap.red} title={t('password_title')} onPress={() => { void openPassword().catch(() => { toast(t('password_failed')) }) }} /> : null}
-              <SettingRow
-                icon="logout"
-                iconBg={r.iconWrap.red}
-                title={t('setting_sync_logout_title')}
-                subtitle={t('setting_sync_logout_desc')}
-                onPress={handleLogoutSyncAccount}
-                danger
-                last
-              />
+              <SettingRow icon="account-outline" iconBg={r.iconWrap.red} title={t('setting_account')} subtitle={nickname} onPress={handleOpenProfileDetail} last />
             </View>
             )
           : null}
@@ -1190,43 +1024,7 @@ export default () => {
           : null}
 
       </ScrollView>
-      {passwordSession ? <ChangePassword host={syncHost.replace(/\/+$/, '')} session={passwordSession} onBack={() => { setPasswordSession(null) }} /> : null}
-      <Animated.View
-        pointerEvents={isProfileDetailVisible ? 'auto' : 'none'}
-        style={[
-          styles.profileDetailLayer,
-          {
-            opacity: profileDetailOpacity,
-            transform: [{ translateX: profileDetailTranslateX }],
-            elevation: isProfileDetailVisible ? APP_LAYER_INDEX.controls + 4 : 0,
-          },
-        ]}
-      >
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-        >
-          <MagTopBar onBack={handleCloseProfileDetail} />
-          <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{t('setting_profile')}</Text>
-
-          <View style={styles.profileDetailHero}>
-            <Image style={styles.profileDetailAvatar} url={avatarDisplayUrl} resizeMode="contain" />
-            <View style={styles.profileHeroText}>
-              <Text size={22} color={r.display} style={styles.profileDetailName} numberOfLines={1}>{nickname}</Text>
-              <Text size={magType.meta.size} color={r.muted} style={styles.profileDetailSignature} numberOfLines={2}>{signature || defaultSignature}</Text>
-            </View>
-          </View>
-
-          <SettingRow icon="image-outline" iconBg={r.accentSoft} title={t('setting_profile_avatar')} subtitle="JPEG / PNG" onPress={handlePickAvatar} />
-          <SettingRow icon="card-account-details-outline" iconBg={r.accentSoft} title={t('setting_profile_nickname')} subtitle={nickname} onPress={handleShowNameModal} />
-          <SettingRow icon="fountain-pen-tip" iconBg={r.accentSoft} title={t('setting_profile_signature')} subtitle={signature || defaultSignature} onPress={handleShowSignatureModal} />
-          <SettingRow icon="gender-male-female" iconBg={r.accentSoft} title={t('setting_profile_gender')} subtitle={activeGenderLabel} onPress={handleOpenGenderDetail} last />
-        </ScrollView>
-      </Animated.View>
+      {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} /> : null}
       <Animated.View
         pointerEvents={activeOptionDetail ? 'auto' : 'none'}
         style={[
@@ -1315,22 +1113,6 @@ export default () => {
                     selected={(searchDefaultSource ?? 'all') === option.value}
                     onPress={() => { handleSelectSearchSource(option.value) }}
                     last={index === searchSourceOptions.length - 1}
-                  />
-                ))}
-              </View>
-              )
-            : null}
-
-          {activeOptionDetail === 'gender'
-            ? (
-              <View style={styles.optionList}>
-                {genderOptions.map((option, index) => (
-                  <OptionRow
-                    key={option.value}
-                    label={option.label}
-                    selected={gender === option.value}
-                    onPress={() => { handleSelectGender(option.value) }}
-                    last={index === genderOptions.length - 1}
                   />
                 ))}
               </View>
@@ -1457,36 +1239,6 @@ export default () => {
 
         </ScrollView>
       </Animated.View>
-      <MagDialog
-        visible={isNameModalVisible}
-        onClose={handleCloseNameModal}
-        title={t('setting_profile_nickname_edit')}
-        cancelLabel={t('cancel')}
-        confirmLabel={t('metadata_edit_modal_confirm')}
-        onCancel={handleCloseNameModal}
-        onConfirm={handleSaveName}
-      >
-        <UnderlineInput
-          value={nicknameDraft}
-          onChangeText={setNicknameDraft}
-          placeholder={t('setting_profile_nickname_placeholder')}
-        />
-      </MagDialog>
-      <MagDialog
-        visible={isSignatureModalVisible}
-        onClose={handleCloseSignatureModal}
-        title={t('setting_profile_signature_edit')}
-        cancelLabel={t('cancel')}
-        confirmLabel={t('metadata_edit_modal_confirm')}
-        onCancel={handleCloseSignatureModal}
-        onConfirm={handleSaveSignature}
-      >
-        <UnderlineInput
-          value={signatureDraft}
-          onChangeText={setSignatureDraft}
-          placeholder={t('setting_profile_signature_placeholder')}
-        />
-      </MagDialog>
       <MagDialog
         visible={isSyncHostModalVisible}
         onClose={handleCloseSyncHostModal}
