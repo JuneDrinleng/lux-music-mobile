@@ -49,12 +49,11 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 /** 5A: the stats shell supplies history subscriptions, data-space isolation and Android back handling. */
-export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth, onOpenStats }: {
+export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth }: {
   model: ListeningStatsModel
   onClose: () => void
   bottomPadding: number
   initialMonth?: ReportMonth
-  onOpenStats?: () => void
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
@@ -143,7 +142,6 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth,
         <View style={[styles.rule, { backgroundColor: r.ink }]} />
         <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_discoveries')}</Text>
         <Text size={12} color={r.muted} style={styles.discoveries}>{discoveriesText}</Text>
-        {onOpenStats ? <View style={styles.empty}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View> : null}
       </ScrollView>
       {preview ? <ShareCardPage initialTab="monthly" onClose={() => { setPreview(false) }} monthlyFallback={share} sources={{
         monthly: { title: monthLabel, minutes: report.minutes, playCount: report.playCount, songCount: report.songCount, artistCount: report.artistCount, topSongs: report.topSongs.map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },

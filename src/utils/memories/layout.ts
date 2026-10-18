@@ -2,12 +2,12 @@
 
 import { type StatsPageStyle } from '../playHistory/statsPageStyle'
 
-/** Independent of the existing Magazine/Replay detail preference. */
+/** Independent of the existing Magazine/Replay statistics preference. */
 export type MemoriesLayout = 'monthly' | 'cards' | 'timeline'
 export const DEFAULT_MEMORIES_LAYOUT: MemoriesLayout = 'monthly'
 export const MEMORIES_LAYOUTS: readonly MemoriesLayout[] = ['monthly', 'cards', 'timeline']
 export const normalizeMemoriesLayout = (value: unknown): MemoriesLayout =>
   value === 'cards' || value === 'timeline' ? value : DEFAULT_MEMORIES_LAYOUT
 
-export const selectStatsLayout = (layout: unknown, pageStyle: StatsPageStyle, details = false) =>
-  details ? pageStyle : normalizeMemoriesLayout(layout)
+export const selectStatsLayout = (layout: unknown, pageStyle: StatsPageStyle, reportOpen = false) =>
+  reportOpen ? normalizeMemoriesLayout(layout) : pageStyle

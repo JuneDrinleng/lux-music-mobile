@@ -41,16 +41,16 @@ const record = (time, id, hours = 1) => ({
   song: { name: 'Lemon', singer: 'Artist', source: 'wy', songmid: 'lemon' },
 })
 
-test('5A is the default; selector switches all three layouts and retains Magazine/Replay details', () => {
+test('5A remains the setting default; stats entry uses Magazine/Replay and monthly entry selects all three layouts', () => {
   assert.equal(layout.DEFAULT_MEMORIES_LAYOUT, 'monthly')
   for (const invalid of [undefined, null, '', 'magazine', 'replay', {}, 6]) {
     assert.equal(layout.normalizeMemoriesLayout(invalid), 'monthly')
   }
   for (const value of ['monthly', 'cards', 'timeline']) {
-    assert.equal(layout.selectStatsLayout(value, 'magazine'), value)
-    assert.equal(layout.selectStatsLayout(value, 'replay'), value)
-    assert.equal(layout.selectStatsLayout(value, 'magazine', true), 'magazine')
-    assert.equal(layout.selectStatsLayout(value, 'replay', true), 'replay')
+    assert.equal(layout.selectStatsLayout(value, 'magazine'), 'magazine')
+    assert.equal(layout.selectStatsLayout(value, 'replay'), 'replay')
+    assert.equal(layout.selectStatsLayout(value, 'magazine', true), value)
+    assert.equal(layout.selectStatsLayout(value, 'replay', true), value)
   }
 })
 
@@ -153,4 +153,94 @@ test('5B This week is a Monday-based calendar period and keeps the existing roll
   assert.equal(stats.dayCount, 3)
   assert.equal(stats.chart.length, 3)
   assert.equal(buildRangeStats(history, 'days7', wednesday).songs[0].playCount, 2)
+})
+
+// Execute the real stats shell with lightweight hooks and leaf surfaces, as in the src UI tests.
+const statsFixture = (pageStyle, memoriesLayout) => {
+  const slots = []; let cursor = 0; let back; let closed = 0
+  const model = { pageStyle, memoriesLayout, setRange: value => { model.range = value } }
+  const jsx = (type, props) => ({ type, props })
+  const deps = {
+    react: {
+      useState: initial => {
+        const i = cursor++
+        if (!(i in slots)) slots[i] = initial
+        return [slots[i], value => { slots[i] = value }]
+      },
+      useEffect() {},
+      useCallback: fn => fn,
+    },
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': { Animated: { View: 'View' }, useWindowDimensions: () => ({ width: 375 }) },
+    '@/components/common/overlaySlideTransition': { useOverlaySlideTransition: () => ({ requestClose: fn => fn() }) },
+    '@/theme/LuxTheme': { sharedLuxStyles: () => () => ({}), useLuxTheme() {} },
+    '@/theme/magazineRoles': {},
+    '@/utils/tools': {},
+    '@/utils/hooks/useBackHandler': { useBackHandler: fn => { back = fn } },
+    '@/utils/memories/layout': layout,
+    './useListeningStatsModel': { useListeningStatsModel: () => model },
+    ...Object.fromEntries(['MemoriesStatsPage', 'MonthlyReportPage', 'ListeningStatsMagazine', 'ListeningStatsReplay'].map(name => [`./${name}`, { [name]: name }])),
+  }
+  const module = { exports: {} }
+  const file = join(root, 'src/components/stats/ListeningStatsPage.tsx')
+  const js = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText
+  new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    assert.ok(name in deps, name)
+    return deps[name]
+  }, module, module.exports)
+  return {
+    render: () => { cursor = 0; return module.exports.default({ onClose: () => { closed++ } }).props.children },
+    back: () => back(),
+    closed: () => closed,
+    model,
+  }
+}
+
+for (const style of ['magazine', 'replay']) {
+  for (const selected of ['monthly', 'cards', 'timeline']) {
+    test(`stats entry → ${style}; 月报 → selected ${selected}; report/back → original stats`, () => {
+      const f = statsFixture(style, selected)
+      const rootType = style === 'magazine' ? 'ListeningStatsMagazine' : 'ListeningStatsReplay'
+      const entry = f.render()
+      assert.equal(entry.type, rootType)
+      entry.props.onOpenMonthly()
+      let report = f.render()
+      assert.equal(report.type, selected === 'monthly' ? 'MonthlyReportPage' : 'MemoriesStatsPage')
+      if (selected !== 'monthly') {
+        assert.equal(report.props.timeline, selected === 'timeline')
+        // Both the generic monthly tab and dated card/timeline deep links bypass the layout selector.
+        report.props.onOpenMonthly()
+        assert.equal(f.render().type, 'MonthlyReportPage')
+        f.render().props.onClose()
+        f.render().props.onOpenMonthly()
+        report = f.render()
+        const month = { year: 2025, month: 9 }
+        report.props.onOpenMonthly(month)
+        assert.deepEqual(f.render().props.initialMonth, month)
+        assert.equal(f.render().type, 'MonthlyReportPage')
+      }
+      f.render().props.onClose()
+      assert.equal(f.render().type, rootType)
+      assert.equal(f.closed(), 0)
+      f.render().props.onOpenMonthly()
+      f.render()
+      f.back()
+      assert.equal(f.render().type, rootType)
+      f.render().props.onClose()
+      assert.equal(f.closed(), 1)
+    })
+  }
+}
+
+test('5C annual replay stays available and its monthly button uses the selected report surface', () => {
+  const f = statsFixture('magazine', 'timeline')
+  f.render().props.onOpenMonthly()
+  f.render().props.onOpenReplay()
+  assert.equal(f.render().type, 'ListeningStatsReplay')
+  assert.equal(f.model.range, 'year')
+  f.render().props.onOpenMonthly()
+  assert.equal(f.render().type, 'MemoriesStatsPage')
+  assert.equal(f.render().props.timeline, true)
+  f.back()
+  assert.equal(f.render().type, 'ListeningStatsMagazine')
 })
