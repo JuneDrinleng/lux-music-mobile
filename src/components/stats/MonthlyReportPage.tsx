@@ -12,7 +12,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { localDateReader } from '@/utils/memories/calendar'
-import { monthAt, monthIndex, monthlyBounds, monthlyReport, switchReportMonth } from '@/utils/memories/monthly'
+import { monthAt, monthIndex, monthlyBounds, monthlyReport, switchReportMonth, type ReportMonth } from '@/utils/memories/monthly'
 import { createStyle, toast } from '@/utils/tools'
 
 import { type ListeningStatsModel } from './useListeningStatsModel'
@@ -47,17 +47,19 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 /** 5A: the stats shell supplies history subscriptions, data-space isolation and Android back handling. */
-export const MonthlyReportPage = ({ model, onClose, bottomPadding }: {
+export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth, onOpenStats }: {
   model: ListeningStatsModel
   onClose: () => void
   bottomPadding: number
+  initialMonth?: ReportMonth
+  onOpenStats?: () => void
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const statusBarHeight = useStatusbarHeight()
   const { records, now, t } = model
-  const [selected, setSelected] = useState(() => monthIndex(localDateReader()(now)))
+  const [selected, setSelected] = useState(() => monthIndex(initialMonth ?? localDateReader()(now)))
   const bounds = useMemo(() => monthlyBounds(records, now), [records, now])
   // Clamp on history deletion/import and data-space switches as well as button presses.
   const index = Math.max(bounds.min, Math.min(bounds.max, selected))
@@ -137,6 +139,7 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding }: {
       <View style={[styles.rule, { backgroundColor: r.ink }]} />
       <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_discoveries')}</Text>
       <Text size={12} color={r.muted} style={styles.discoveries}>{discoveriesText}</Text>
+      {onOpenStats ? <View style={styles.empty}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View> : null}
     </ScrollView>
   )
 }

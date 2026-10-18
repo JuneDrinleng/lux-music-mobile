@@ -327,8 +327,8 @@ export const ListeningStatsMagazine = ({
   } = model
 
   const rangeTabs = useMemo(
-    () => RANGES.map(id => ({ id, label: t(rangeLabelKey[id]) })),
-    [t],
+    () => (range == 'week' ? ['week' as const, ...RANGES] : RANGES).map(id => ({ id, label: t(rangeLabelKey[id]) })),
+    [range, t],
   )
 
   const kickerText = t('stats_kicker', {
