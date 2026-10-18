@@ -298,7 +298,8 @@ const renderDataDialog = kind => {
   }
   const jsx = (type, props) => ({ type, props })
   const component = load('src/navigation/components/AccountDataDialog.tsx', {
-    react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx },
+    react: hooks,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
     '@/components/common/Text': { default: 'Text' },
     '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),

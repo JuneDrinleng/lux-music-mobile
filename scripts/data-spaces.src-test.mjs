@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,7 +52,9 @@ const make = (seed = {}) => {
       if (failCopy) throw Error('file copy crash')
     },
     stat: async path => ({ size: files.get(path).length }),
-    unlink: async path => { files.delete(path) },
+    unlink: async path => {
+      for (const file of files.keys()) if (file === path || file.startsWith(`${path}/`)) files.delete(file)
+    },
     rename: async(source, name) => {
       const target = source.slice(0, source.lastIndexOf('/') + 1) + name
       files.set(target, files.get(source))
@@ -785,7 +788,12 @@ const dialogsFor = (env, show) => evaluate('src/utils/accountDataDialogs.ts', {
   '@/utils/dataSpace': env.space,
 })
 
-test('5.7 regression: logging into an empty server account does NOT auto-upload local playlists, history or profile', async() => {
+test('5.7 regression: logging into an empty server account does NOT auto-upload local playlists, history or profile', async context => {
+  const previousEvents = { app: global.app_event, list: global.list_event }
+  global.app_event = Object.fromEntries(['userNameUpdated', 'userAvatarUpdated', 'userGenderUpdated', 'userSignatureUpdated'].map(name => [name, () => {}]))
+  global.list_event = new EventEmitter()
+  let cleanup = () => {}
+  context.after(() => { cleanup(); global.app_event = previousEvents.app; global.list_event = previousEvents.list })
   const env = make()
   await seedLocalImport(env)
   const data = loadData(env)
@@ -797,6 +805,7 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
     requests.push([url, body])
     if (url.endsWith('/api/auth/login')) return { token: 'token', user: { id: 'alice', username: 'alice' } }
     if (url.endsWith('/api/sync/key')) return { clientId: 'client', key: 'key' }
+    if (url.endsWith('/api/me/profile')) return { profile: { displayName: '', avatar: '', signature: '', gender: 'unknown' } }
     if (url.endsWith('/api/me/playlists')) return { playlists: { defaultList: { musicCount: 0 }, loveList: { musicCount: 0 }, userList: [] } }
     throw Error(`Unexpected request ${url}`)
   }
@@ -807,22 +816,71 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
     '@/utils/luxAuthApi': { createLuxAuthClient: () => ({ request }) },
     '../data': { getSyncAuthKey: async() => null, setSyncAuthKey: async() => {} },
     '@/utils/data': data,
-    '../log': { error() {} }, '../utils': {},
+    '../log': { error() {} },
+    '../utils': {},
     '@/utils/nativeModules/utils': { getDeviceName: async() => 'phone' },
-    '@/utils/tools': {}, '../constants': { SYNC_CODE: constants },
+    '@/utils/tools': {},
+    '../constants': { SYNC_CODE: constants },
     '../deviceId': { getSyncDeviceId: async() => 'device' },
     './credentials': evaluate('src/plugins/sync/client/credentials.ts', {}),
     '@/utils/accountDataDialogs': dialogs,
   })
+  const socketPushes = []
+  const listManage = { userLists: [] }
+  const listEvent = evaluate('src/plugins/sync/listEvent.ts', {
+    '@/utils/dataSpace': env.space,
+    '@/config/constant': evaluate('src/config/constant.ts', {}),
+    '@/core/list': { getListMusics: async id => await env.adapter.getData(keys.list + id) ?? [] },
+    '@/utils/listManage': listManage,
+  })
+  const localEvent = evaluate('src/plugins/sync/client/modules/list/localEvent.ts', {
+    '@/plugins/sync/constants': { SYNC_CLOSE_CODE: {} },
+    '../../../listEvent': listEvent,
+    '@/core/sync': { setSyncStatus() {} },
+    '@/utils/tools': { toast() {} },
+  })
+  cleanup = () => { localEvent.unregisterEvent() }
+  const listHandler = evaluate('src/plugins/sync/client/modules/list/handler.ts', {
+    '../../../listEvent': listEvent,
+    '../../../log': { info() {} },
+    '@/core/sync': {},
+    '@/utils/tools': {},
+    './localEvent': localEvent,
+  }).default
+  const socket = {
+    moduleReadys: { list: false },
+    onClose: () => () => {},
+    remoteQueueList: { onListSyncAction: async action => { socketPushes.push(action) } },
+  }
+  let socketReady
+  const connect = () => {
+    connected++
+    socketReady = (async() => {
+      listManage.userLists = await env.adapter.getData(keys.userList) ?? []
+      // Empty-server handshake asks the real list handler for its current-space snapshot.
+      const snapshot = await listHandler.list_sync_get_list_data(socket)
+      if (snapshot.defaultList.length || snapshot.loveList.length || snapshot.userList.length) socketPushes.push(snapshot)
+      await listHandler.list_sync_finished(socket)
+    })()
+  }
+  const profile = evaluate('src/plugins/sync/client/profile.ts', {
+    '@/utils/dataSpace': env.space,
+    '@/utils/data': data,
+    './utils': { parseUrl: () => ({ href: 'https://server', httpProtocol: 'https:', hostPath: 'server' }) },
+    './auth': auth,
+  })
   const client = evaluate('src/plugins/sync/client/index.ts', {
     './auth': auth,
-    './client': { connect: () => { connected++ }, disconnect: async() => {}, sendSyncStatus() {}, sendSyncMessage() {} },
+    './client': { connect, disconnect: async() => {}, sendSyncStatus() {}, sendSyncMessage() {} },
     '../log': { info() {}, r_warn() {} },
     './utils': { parseUrl: () => ({ href: 'https://server', httpProtocol: 'https:', hostPath: 'server' }) },
     '../constants': { SYNC_CODE: constants },
   })
   const login = client.connectLuxServer('https://server', 'alice', 'password')
-  for (let i = 0; i < 20 && !overlay; i++) await new Promise(resolve => setImmediate(resolve))
+  for (let i = 0; i < 20; i++) {
+    if (overlay) break
+    await new Promise(resolve => setImmediate(resolve))
+  }
   assert.ok(overlay)
   assert.equal(connected, 0, 'socket must not start list/history sync before a decision')
   assert.equal(overlay.contents.lists.length, 2)
@@ -831,12 +889,18 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
   const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local')))
   await overlay.finish(null)
   await login
+  await socketReady
+  assert.equal(socket.moduleReadys.list, true)
   assert.equal(connected, 1)
   assert.equal(await env.adapter.getData(keys.userList), null)
   assert.equal(await env.adapter.getData(keys.playHistory), null)
   assert.equal(await env.adapter.getData(keys.userName), null)
   for (const [key, value] of before) assert.equal(env.disk.get(key), value)
-  assert.equal(requests.filter(([url]) => !/\/(login|key|playlists)$/.test(url)).length, 0)
+  // SyncLogin calls this after connectLuxServer; execute the real profile path too.
+  await profile.syncLuxProfileOnLogin('https://server')
+  assert.deepEqual(requests.filter(([url, body]) => !/\/(login|key)$/.test(url) && body != null), [], 'no data-upload HTTP requests')
+  assert.deepEqual(socketPushes, [], 'no socket list snapshot or action push')
+  assert.equal(requests.filter(([url]) => url.endsWith('/api/me/profile')).length, 1)
   let recheck = 0
   assert.equal(await dialogs.offerLocalImport(await data.getLuxAuth(), async() => { recheck++; throw Error('must not prompt twice') }), false)
   assert.equal(recheck, 0)
@@ -903,9 +967,13 @@ test('5.7 logout keep/delete touches only the captured account, including shards
     env.files.set(directory, '')
     const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local') || key.endsWith('@lux:s:bob')))
     const logout = evaluate('src/utils/syncLogout.ts', {
-      '@/core/common': { updateSetting() {} }, '@/core/player/player': {},
-      '@/plugins/sync': { disconnectServer: async() => {} }, '@/store/player/state': { isPlay: false },
-      '@/utils/data': data, '@/utils/dataSpace': env.space, '@/utils/dataSpace/operations': operationsFor(env),
+      '@/core/common': { updateSetting() {} },
+      '@/core/player/player': {},
+      '@/plugins/sync': { disconnectServer: async() => {} },
+      '@/store/player/state': { isPlay: false },
+      '@/utils/data': data,
+      '@/utils/dataSpace': env.space,
+      '@/utils/dataSpace/operations': operationsFor(env),
     })
     await logout.applySyncAccountLogout(remove)
     assert.equal(env.space.getActiveSpace(), 'local')
@@ -917,6 +985,135 @@ test('5.7 logout keep/delete touches only the captured account, including shards
     assert.equal(remaining.length > 0, !remove)
     assert.equal(env.files.has(directory), !remove)
     assert.equal((await env.space.listSpaces()).some(space => space.id === 'lux:s:alice'), !remove)
+  }
+})
+
+// Expected ownership comes from fixture writes, independently of ownsSpaceKey.
+const deletionFixture = async(ids = ['lux:s:alice', 'lux:s:alice2', 'lux:s:alice20', 'lux:s:2', 'lux:s:20']) => {
+  const env = make(legacy)
+  await env.space.initializeDataSpaces()
+  const owned = new Map()
+  for (const id of ['local', ...ids]) {
+    await env.space.setActiveSpace(id)
+    const before = new Set(env.disk.keys())
+    for (const key of env.space.perSpaceKeys) await env.adapter.saveData(key, `value for ${id} / ${key}`)
+    await env.adapter.saveData(keys.userList, [{ id: 'big', name: id }])
+    await env.adapter.saveData(keys.list + 'big', [{ id, bytes: 'x'.repeat(1100000) }])
+    const root = env.space.namespacedKey(keys.list + 'big', id)
+    assert.ok(env.disk.get(root).startsWith('@___PART_A___'), 'fixture must use real sharded storage')
+    owned.set(id, new Set([...env.disk.keys()].filter(key => !before.has(key))))
+    const directory = env.avatar.avatarDirectory(id)
+    env.files.set(directory, '')
+    env.files.set(`${directory}/avatar.png`, `avatar bytes for ${id}`)
+    env.files.set(`${directory}/avatar.png.migration-tmp`, `unfinished bytes for ${id}`)
+    await operationsFor(env).persistImportDecision(id)
+  }
+  // Unpublished shards, legacy shards, backup chunks and shared files are not owned roots.
+  env.disk.set('@___PART_A___@list__big@lux:s:alice299', 'unpublished shard bytes')
+  env.disk.set('@___PART_A___@list__legacy0', 'legacy shard bytes')
+  env.disk.set('dataSpaceBackup@v1:chunk:99', 'retained backup bytes')
+  env.disk.set('@lux_auth', '{"token":"untouched auth"}')
+  env.disk.set('@lux_auth_servers', '{"other":"untouched server index"}')
+  env.files.set('/private/user/avatar.png', 'legacy avatar bytes')
+  env.files.set('/private/cache/shared', 'shared cache bytes')
+  await env.space.setActiveSpace('local')
+  return { ...env, owned }
+}
+const unchangedExcept = (before, after, exceptions = new Set()) => {
+  for (const key of new Set([...before.keys(), ...after.keys()])) {
+    if (!exceptions.has(key)) {
+      assert.equal(after.has(key), before.has(key), key)
+      assert.equal(after.get(key), before.get(key), key)
+    }
+  }
+}
+
+test('5.7 real deleteSpaceData removes only published roots/shards and avatar directory for similar and numeric account IDs', async() => {
+  for (const target of ['lux:s:alice', 'lux:s:alice2', 'lux:s:2']) {
+    const env = await deletionFixture()
+    const before = new Map(env.disk)
+    const files = new Map(env.files)
+    const removed = env.owned.get(target)
+    const spaces = JSON.parse(before.get('dataSpaceSpaces'))
+    await operationsFor(env).deleteSpaceData(target)
+    for (const key of removed) assert.equal(env.disk.has(key), false, key)
+    unchangedExcept(before, env.disk, new Set([...removed, 'dataSpaceSpaces']))
+    assert.equal(env.disk.get('dataSpaceSpaces'), JSON.stringify(spaces.filter(space => space.id !== target)))
+    const directory = env.avatar.avatarDirectory(target)
+    assert.deepEqual(env.files, new Map([...files].filter(([path]) => path !== directory && !path.startsWith(`${directory}/`))))
+  }
+})
+
+test('5.7 real deleteSpaceData refuses active and local spaces without changing any storage or file bytes', async() => {
+  const env = await deletionFixture()
+  await env.space.setActiveSpace('lux:s:alice')
+  for (const target of ['local', 'lux:s:alice']) {
+    const disk = new Map(env.disk)
+    const files = new Map(env.files)
+    await assert.rejects(operationsFor(env).deleteSpaceData(target), /Cannot delete active or local space/)
+    assert.deepEqual(env.disk, disk)
+    assert.deepEqual(env.files, files)
+  }
+})
+
+test('5.7 real logout switches to local before deletion and clears only the logged-out account auth/Keychain; keep preserves all data', async() => {
+  for (const remove of [true, false]) {
+    const env = await deletionFixture()
+    // Replace sentinel credentials with real persisted sessions on two servers and one sibling account.
+    env.disk.delete('@lux_auth')
+    env.disk.delete('@lux_auth_servers')
+    const data = loadData(env)
+    const auths = [
+      { serverId: 'other', token: 'other-token', refreshToken: 'other-refresh', user: { id: 'alice', username: 'alice' } },
+      { serverId: 's', token: 'sibling-token', refreshToken: 'sibling-refresh', user: { id: 'alice2', username: 'alice2' } },
+      { serverId: 's', token: 'target-token', refreshToken: 'target-refresh', user: { id: 'alice', username: 'alice' } },
+    ]
+    for (const auth of auths) await data.setLuxAuth(auth)
+    await data.setSyncLoginCompleted(true)
+    const before = new Map(env.disk)
+    const files = new Map(env.files)
+    const tokens = new Map(env.secure.tokens)
+    const sessions = JSON.parse(before.get(keys.luxAuthServers))
+    const removals = []
+    const originalRemove = env.storage.multiRemove
+    env.storage.multiRemove = async keys => {
+      // Observe the physical I/O of the real operation; do not replace deleteSpaceData.
+      assert.equal(env.space.getActiveSpace(), 'local', 'must switch before removing account roots/shards')
+      assert.equal(env.disk.get('dataSpaceActive'), 'local')
+      removals.push(...keys)
+      await originalRemove(keys)
+    }
+    const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/common': { updateSetting() {} },
+      '@/core/player/player': {},
+      '@/plugins/sync': { disconnectServer: async() => {} },
+      '@/store/player/state': { isPlay: false },
+      '@/utils/data': data,
+      '@/utils/dataSpace': env.space,
+      '@/utils/dataSpace/operations': operationsFor(env),
+    })
+    await logout.applySyncAccountLogout(remove)
+    const target = 'lux:s:alice'
+    assert.equal(env.space.getActiveSpace(), 'local')
+    assert.deepEqual(new Set(removals), remove ? env.owned.get(target) : new Set())
+    const expectedTokens = new Map(tokens)
+    expectedTokens.delete(`lux.refresh.${encodeURIComponent(JSON.stringify(['s', 'alice']))}`)
+    assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(auths[2])), null)
+    for (const auth of auths.slice(0, 2)) assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(auth)), auth.refreshToken)
+    assert.equal(tokens.size - expectedTokens.size, 1)
+    assert.deepEqual(env.secure.tokens, expectedTokens)
+    delete sessions.s
+    delete sessions[env.secure.refreshTokenServerKey(auths[2])]
+    assert.equal(env.disk.get(keys.luxAuthServers), JSON.stringify(sessions))
+    assert.equal(env.disk.get(keys.luxAuth), 'null')
+    assert.equal(env.disk.get(keys.syncLoginCompleted), 'false')
+    unchangedExcept(before, env.disk, new Set([
+      ...(remove ? env.owned.get(target) : []),
+      keys.luxAuth, keys.luxAuthServers, keys.syncLoginCompleted, 'dataSpaceActive', 'dataSpaceSpaces',
+    ]))
+    const directory = env.avatar.avatarDirectory(target)
+    assert.deepEqual(env.files, remove ? new Map([...files].filter(([path]) => path !== directory && !path.startsWith(`${directory}/`))) : files)
+    assert.equal((await env.space.listSpaces()).some(space => space.id === target), !remove)
   }
 })
 
@@ -949,11 +1146,16 @@ test('5.7 space list metadata and switching route local/session/signed-out entri
   const calls = []
   const navigation = { pushSyncLoginScreen: async props => { calls.push(['login', props]) }, pushHomeScreen: async() => { calls.push(['home']) } }
   const service = evaluate('src/utils/accountSpaceSwitch.ts', {
-    '@/core/common': { updateSetting: value => calls.push(['setting', value]) }, '@/core/player/player': {}, '@/store/player/state': { isPlay: false },
+    '@/core/common': { updateSetting: value => calls.push(['setting', value]) },
+    '@/core/player/player': {},
+    '@/store/player/state': { isPlay: false },
     '@/plugins/sync': { connectLuxServer: async(...args) => { calls.push(['connect', ...args]) }, disconnectServer: async() => { calls.push(['disconnect']) } },
-    '@/navigation': { navigations: navigation }, '@/utils/data': data,
-    '@/config/constant': { storageDataPrefix: keys }, '@/plugins/storage': env.adapter,
-    '@/utils/dataSpace': env.space, '@/utils/dataSpace/operations': operationsFor(env),
+    '@/navigation': { navigations: navigation },
+    '@/utils/data': data,
+    '@/config/constant': { storageDataPrefix: keys },
+    '@/plugins/storage': env.adapter,
+    '@/utils/dataSpace': env.space,
+    '@/utils/dataSpace/operations': operationsFor(env),
   })
   const rows = await service.loadAccountSpaces()
   assert.equal(rows.length, 2)
