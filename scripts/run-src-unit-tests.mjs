@@ -29,11 +29,15 @@ import './karaoke.src-test.mjs'
 import './memories.src-test.mjs'
 import './monthly.src-test.mjs'
 import './stats-memories.src-test.mjs'
+import './share-card.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
 const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc')
 const files = [
+  'src/utils/shareCard/selection.ts',
+  'src/utils/shareCard/model.ts',
+  'src/utils/shareCard/export.ts',
   'src/components/playlist/playlistDragMath.ts',
   'src/components/playlist/playlistDragState.ts',
   'src/components/playlist/songRowKey.ts',
