@@ -41,19 +41,22 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   const model = useListeningStatsModel()
   const [monthlyOpen, setMonthlyOpen] = useState(false)
   const [monthlyMonth, setMonthlyMonth] = useState<ReportMonth>()
-  const [detail, setDetail] = useState<'stats' | 'replay' | null>(null)
-  const layout = selectStatsLayout(model.memoriesLayout, model.pageStyle, detail != null)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [replayOpen, setReplayOpen] = useState(false)
+  const layout = selectStatsLayout(model.memoriesLayout, model.pageStyle, reportOpen)
   useEffect(() => {
-    setDetail(null)
+    setReportOpen(false)
+    setReplayOpen(false)
     setMonthlyOpen(false)
   }, [model.memoriesLayout])
   const openMonthly = (month?: ReportMonth) => {
     setMonthlyMonth(month)
     setMonthlyOpen(true)
   }
-  const closeMonthly = () => {
-    if (monthlyOpen) setMonthlyOpen(false)
-    else requestClose()
+  const closeReport = () => {
+    setMonthlyOpen(false)
+    setReportOpen(false)
+    setReplayOpen(false)
   }
 
   const requestClose = useCallback(() => {
@@ -61,21 +64,23 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   }, [animateClose, onClose])
 
   useBackHandler(useCallback(() => {
-    if (monthlyOpen) setMonthlyOpen(false)
-    else if (detail) setDetail(null)
-    else requestClose()
+    if (monthlyOpen || reportOpen || replayOpen) {
+      setMonthlyOpen(false)
+      setReportOpen(false)
+      setReplayOpen(false)
+    } else requestClose()
     return true
-  }, [detail, monthlyOpen, requestClose]))
+  }, [monthlyOpen, reportOpen, replayOpen, requestClose]))
 
   return (
     <Animated.View style={[styles.root, sceneStyle]}>
       {monthlyOpen || layout == 'monthly'
-        ? <MonthlyReportPage key={monthlyMonth ? `${monthlyMonth.year}-${monthlyMonth.month}` : 'current'} initialMonth={monthlyMonth} model={model} onClose={closeMonthly} onOpenStats={!detail ? () => { setMonthlyOpen(false); setDetail('stats') } : undefined} bottomPadding={bottomPadding} />
-        : layout == 'cards' || layout == 'timeline'
-          ? <MemoriesStatsPage model={model} timeline={layout == 'timeline'} onClose={requestClose} onOpenMonthly={openMonthly} onOpenStats={() => { setDetail('stats') }} onOpenReplay={() => { model.setRange('year'); setDetail('replay') }} bottomPadding={bottomPadding} />
-          : detail == 'replay' || layout == 'replay'
-            ? <ListeningStatsReplay model={model} onOpenMonthly={openMonthly} onClose={() => { setDetail(null) }} bottomPadding={bottomPadding} />
-            : <ListeningStatsMagazine model={model} onOpenMonthly={openMonthly} onClose={() => { setDetail(null) }} bottomPadding={bottomPadding} />}
+        ? <MonthlyReportPage key={monthlyMonth ? `${monthlyMonth.year}-${monthlyMonth.month}` : 'current'} initialMonth={monthlyMonth} model={model} onClose={closeReport} bottomPadding={bottomPadding} />
+        : !replayOpen && (layout == 'cards' || layout == 'timeline')
+            ? <MemoriesStatsPage model={model} timeline={layout == 'timeline'} onClose={closeReport} onOpenMonthly={openMonthly} onOpenReplay={() => { model.setRange('year'); setReplayOpen(true) }} bottomPadding={bottomPadding} />
+            : replayOpen || layout == 'replay'
+              ? <ListeningStatsReplay model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setReplayOpen(false); setReportOpen(true) }} onClose={replayOpen ? closeReport : requestClose} bottomPadding={bottomPadding} />
+              : <ListeningStatsMagazine model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setReportOpen(true) }} onClose={requestClose} bottomPadding={bottomPadding} />}
     </Animated.View>
   )
 }

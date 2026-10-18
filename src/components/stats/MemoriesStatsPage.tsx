@@ -51,15 +51,13 @@ const useStyles = sharedLuxStyles(() => createStyle({
   event: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, minHeight: 44 },
   eventCover: { width: 40, height: 40, borderRadius: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   empty: { paddingVertical: 22 },
-  footer: { marginTop: 22, alignItems: 'flex-start' },
 }))
 
-export const MemoriesStatsPage = ({ model, timeline, onClose, onOpenMonthly, onOpenStats, onOpenReplay, bottomPadding }: {
+export const MemoriesStatsPage = ({ model, timeline, onClose, onOpenMonthly, onOpenReplay, bottomPadding }: {
   model: ListeningStatsModel
   timeline: boolean
   onClose: () => void
   onOpenMonthly: (month?: ReportMonth) => void
-  onOpenStats: () => void
   onOpenReplay: () => void
   bottomPadding: number
 }) => {
@@ -182,7 +180,6 @@ export const MemoriesStatsPage = ({ model, timeline, onClose, onOpenMonthly, onO
           </>
           )}
       {memories.failed ? <Text size={12} color={r.muted} style={styles.note}>{t('memories_save_failed')}</Text> : null}
-      <View style={styles.footer}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View>
     </ScrollView>
   )
 }
