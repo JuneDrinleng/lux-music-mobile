@@ -23,7 +23,7 @@ const SPACES_KEY = 'dataSpaceSpaces'
 // Profile fields and avatar files belong to the same space (14D profile editing).
 export const perSpaceKeys: readonly string[] = [
   keys.userList, keys.listScrollPosition, keys.listPrevSelectId, keys.listUpdateInfo,
-  keys.playInfo, keys.dislikeList, keys.playHistory, keys.playHistoryCursor,
+  keys.playInfo, keys.dislikeList, keys.playHistory, keys.playHistoryCursor, keys.memoriesMilestones,
   keys.userAvatar, keys.userName, keys.userSignature, keys.userGender, keys.syncConflictMode,
 ]
 export const isPerSpaceKey = (key: string): boolean =>
