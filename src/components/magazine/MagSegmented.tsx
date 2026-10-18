@@ -89,11 +89,13 @@ export const MagSegmented = memo(({
   style,
   compact = false,
   renderItem,
+  itemStyle,
 }: {
   items: readonly MagTabItem[]
   value: string
   onChange: (id: string) => void
   style?: ViewStyle
+  itemStyle?: ViewStyle
   /** Shrink-wrap cells (library grid|list). Default stretches full width. */
   compact?: boolean
   renderItem?: (item: MagTabItem, selected: boolean) => ReactNode
@@ -133,6 +135,7 @@ export const MagSegmented = memo(({
             key={item.id}
             style={({ pressed }) => [
               compact ? styles.cellCompact : styles.cell,
+              itemStyle,
               index > 0 ? (compact ? styles.cellDividerCompact : styles.cellDivider) : null,
               on ? styles.cellOn : null,
               pressed ? { opacity: 0.7 } : null,

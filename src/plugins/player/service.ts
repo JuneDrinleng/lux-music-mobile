@@ -7,6 +7,7 @@ import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-tr
 import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
 // import { play as lrcPlay, pause as lrcPause } from '@/core/lyric'
 import { exitApp } from '@/core/common'
+import { finishTimeoutExit } from '@/core/player/timeoutExit'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
 import { blockTogetherMemberControl } from '@/core/together/control'
@@ -23,6 +24,7 @@ let isInitialized = false
 
 // 销毁播放器并退出
 const handleExitApp = async(reason: string) => {
+  if (reason === 'Timeout Exit') return finishTimeoutExit()
   global.lx.isPlayedStop = false
   exitApp(reason)
 }
@@ -116,7 +118,6 @@ const registerPlaybackService = async() => {
         // console.log('playback-state', info)
         break
     }
-    if (global.lx.isPlayedStop) return handleExitApp('Timeout Exit')
 
     // console.log('currentIsPlaying', currentIsPlaying, global.lx.playInfo.isPlaying)
     // void updateMetaData(global.lx.store_playMusicInfo.musicInfo, currentIsPlaying)

@@ -12,6 +12,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 
+import SleepTimerBtn from './SleepTimerBtn'
+
 export const PLAYER_ICON_TAP = 44
 
 export type PlayerPageId = 'comment' | 'play' | 'lyric'
@@ -59,6 +61,7 @@ export const PlayerChrome = memo(({
           style={styles.tabsInner}
         />
       </View>
+      <SleepTimerBtn />
       <TouchableOpacity
         style={styles.iconBtn}
         activeOpacity={0.7}

@@ -59,6 +59,8 @@ export interface MagazineSheetProps {
   footer?: MagazineSheetFooter
   footerContent?: ReactNode
   importLayout?: boolean
+  /** Sleep timer uses the 7D figure and compact close control. */
+  timerLayout?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -224,6 +226,7 @@ export const MagazineSheet = memo(({
   footer,
   footerContent,
   importLayout = false,
+  timerLayout = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -320,13 +323,13 @@ export const MagazineSheet = memo(({
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={r.display} style={styles.title} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={styles.title} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
-                style={styles.close}
+                style={[styles.close, timerLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
                 activeOpacity={0.7}
                 onPress={requestClose}
-                hitSlop={CLOSE_HIT_SLOP}
+                hitSlop={timerLayout ? 8 : CLOSE_HIT_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel={t('close')}
               >
@@ -338,7 +341,7 @@ export const MagazineSheet = memo(({
               : figure
                 ? (
                   <View style={[styles.figureRow, importLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
-                    <Text size={magType.sheetFigure.size} color={r.display} style={styles.figure}>{figure.value}</Text>
+                    <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
                     {figure.unit
                       ? <Text size={14} color={importLayout ? r.ink : r.muted} style={[styles.figureUnit, importLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
                       : null}
@@ -355,6 +358,7 @@ export const MagazineSheet = memo(({
                 ? (
                   <TextButton
                     compact={importLayout}
+                    labelSize={timerLayout ? 13 : undefined}
                     label={headerAction.text}
                     danger={headerAction.tone === 'danger'}
                     muted={headerAction.disabled}

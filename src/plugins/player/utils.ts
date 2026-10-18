@@ -2,6 +2,7 @@
 
 import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
+import { createVolumeFade } from './volumeFade'
 import { playMusic as handlePlayMusic } from './playList'
 import { getTrackCacheKey } from './cache'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
@@ -170,7 +171,10 @@ export const setLoop = async(loop: boolean) => TrackPlayer.setRepeatMode(loop ? 
 export const setPause = async() => TrackPlayer.pause()
 // export const skipToNext = () => TrackPlayer.skipToNext()
 export const setCurrentTime = async(time: number) => TrackPlayer.seekTo(time)
-export const setVolume = async(num: number) => TrackPlayer.setVolume(num)
+const volumeFade = createVolumeFade(async volume => TrackPlayer.setVolume(volume))
+export const setVolume = volumeFade.setVolume
+export const setSleepTimerGain = volumeFade.setGain
+export const restoreSleepTimerVolume = volumeFade.restore
 export const setPlaybackRate = async(num: number) => TrackPlayer.setRate(num)
 export interface NowPlayingTitles {
   title?: string

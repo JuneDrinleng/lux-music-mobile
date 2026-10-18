@@ -1,7 +1,7 @@
 import { storageDataPrefix, storageDataPrefixOld } from '@/config/constant'
 import defaultSetting from '@/config/defaultSetting'
 import { getData, removeData, saveData } from '@/plugins/storage'
-import migrateSetting from './migrateSetting'
+import migrateSetting, { migrateSleepTimerExit } from './migrateSetting'
 import settingState from '@/store/setting/state'
 import { migrateMetaData, migrateListData } from './migrate'
 import { exitApp, tipDialog } from '@/utils/tools'
@@ -104,7 +104,7 @@ export const initSetting = async() => {
   }
 
   // console.log(setting)
-  const updatedSetting = updateSetting(setting, true)
+  const updatedSetting = updateSetting(migrateSleepTimerExit(setting), true)
   void saveData(storageDataPrefix.setting, updatedSetting.setting)
 
   return updatedSetting

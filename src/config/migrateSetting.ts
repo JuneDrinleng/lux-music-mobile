@@ -47,3 +47,16 @@ export default (setting: any): Partial<LX.AppSetting> => {
 
   return setting
 }
+
+/** Run on raw stored settings, before defaults hide evidence of legacy timer use. */
+export const migrateSleepTimerExit = (stored: Partial<LX.AppSetting> | null): Partial<LX.AppSetting> => {
+  const setting = { ...stored }
+  if (setting['player.timeoutExitAppMigrated'] === true) return setting
+  if (typeof setting['player.timeoutExitApp'] !== 'boolean') {
+    const minutes = Number(setting['player.timeoutExit'])
+    setting['player.timeoutExitApp'] = (Number.isInteger(minutes) && minutes > 0 && minutes <= 1440) ||
+      setting['player.timeoutExitPlayed'] === false
+  }
+  setting['player.timeoutExitAppMigrated'] = true
+  return setting
+}

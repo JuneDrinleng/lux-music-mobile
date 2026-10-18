@@ -168,6 +168,13 @@ declare global {
        * 定时暂停播放-是否等待歌曲播放完毕再暂停
        */
       'player.timeoutExitPlayed': boolean
+      /** Exit the app at the sleep deadline/song end instead of pausing. */
+      'player.timeoutExitApp': boolean
+      /** One-time legacy timeout-exit preference migration. */
+      'player.timeoutExitAppMigrated': boolean
+      /** Fade output over the final 20 seconds of the sleep timer/song. */
+      'player.timeoutExitFade': boolean
+      'player.timeoutExitFadeDuration': number
 
       /**
        * 点击相同列表内的歌曲切歌时是否清空已播放列表（随机模式下列表内所有歌曲会重新参与随机）

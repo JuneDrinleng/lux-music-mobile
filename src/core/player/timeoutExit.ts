@@ -3,60 +3,128 @@ import BackgroundTimer from 'react-native-background-timer'
 import { exitApp } from '@/core/common'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
+import { getDuration, getPosition, restoreSleepTimerVolume, setPause, setSleepTimerGain } from '@/plugins/player/utils'
+import { fadeGain, songRemainingSeconds } from '@/plugins/player/volumeFade'
+
+import { sleepTimerFadeSeconds } from './sleepTimerOptions'
 
 type Hook = (time: number, isPlayedStop: boolean) => void
 
+let generation = 0
+let ticking = false
+let faded = false
+
+const restoreVolume = async() => {
+  if (!faded) return
+  faded = false
+  await restoreSleepTimerVolume()
+}
+
 const timeoutTools = {
   bgTimeout: null as number | null,
-  timeout: null as NodeJS.Timer | null,
+  timeout: null as number | null,
   startTime: 0,
   time: -1,
   timeHooks: [] as Hook[],
-  exit() {
-    if (settingState.setting['player.timeoutExitPlayed'] && playerState.isPlay) {
-      global.lx.isPlayedStop = true
-      this.callHooks()
-    } else {
-      exitApp('Timeout Exit')
-    }
-  },
   getTime() {
-    return Math.max(this.time - Math.round((performance.now() - this.startTime) / 1000), -1)
+    return this.time < 0 ? -1 : Math.max(this.time - Math.floor((performance.now() - this.startTime) / 1000), 0)
   },
   callHooks() {
     const time = this.getTime()
-    for (const hook of this.timeHooks) {
-      hook(time, global.lx.isPlayedStop)
-    }
+    for (const hook of this.timeHooks) hook(time, global.lx.isPlayedStop)
   },
   clearTimeout() {
-    if (!this.bgTimeout) return
-    BackgroundTimer.clearTimeout(this.bgTimeout)
-    clearInterval(this.timeout!)
+    generation++
+    if (this.bgTimeout !== null) BackgroundTimer.clearTimeout(this.bgTimeout)
+    if (this.timeout !== null) BackgroundTimer.clearInterval(this.timeout)
     this.bgTimeout = null
     this.timeout = null
     this.time = -1
     this.callHooks()
   },
+  async tick() {
+    if (ticking) return
+    ticking = true
+    const current = generation
+    try {
+      if (this.time < 0 && !global.lx.isPlayedStop) {
+        this.clearTimeout()
+        await restoreVolume()
+        return
+      }
+      let remaining = Infinity
+      if (settingState.setting['player.timeoutExitFade'] && playerState.isPlay) {
+        if (global.lx.isPlayedStop) {
+          // Only fade the song after the deadline; unknown/live durations skip fading.
+          const [position, duration] = await Promise.all([getPosition(), getDuration()])
+          const configuredRate = settingState.setting['player.playbackRate']
+          const rate = Number.isFinite(configuredRate) ? Math.max(0.25, Math.min(4, configuredRate)) : 1
+          remaining = songRemainingSeconds(Number(position), Number(duration), rate)
+        } else if (!settingState.setting['player.timeoutExitPlayed']) {
+          remaining = this.time - (performance.now() - this.startTime) / 1000
+        }
+      }
+      if (current !== generation) return
+      const gain = fadeGain(remaining, sleepTimerFadeSeconds(settingState.setting['player.timeoutExitFadeDuration']))
+      if (gain < 1) {
+        faded = true
+        await setSleepTimerGain(gain)
+      } else await restoreVolume()
+      this.callHooks()
+    } catch (err) {
+      console.log('Sleep timer fade failed', err)
+    } finally {
+      // This lock is held across awaits; other ticks only read it and return.
+      // eslint-disable-next-line require-atomic-updates
+      ticking = false
+    }
+  },
   start(time: number) {
     this.clearTimeout()
+    global.lx.isPlayedStop = false
+    void restoreVolume().catch(console.log)
     this.time = time
     this.startTime = performance.now()
     this.bgTimeout = BackgroundTimer.setTimeout(() => {
-      this.clearTimeout()
-      this.exit()
+      this.bgTimeout = null
+      this.time = -1
+      if (settingState.setting['player.timeoutExitPlayed'] && playerState.isPlay) {
+        global.lx.isPlayedStop = true
+        this.callHooks()
+        void this.tick()
+      } else void finishTimeoutExit()
     }, time * 1000)
-    this.timeout = setInterval(() => {
-      this.callHooks()
-    }, 1000)
+    this.timeout = BackgroundTimer.setInterval(() => { void this.tick() }, 250)
+    this.callHooks()
   },
   addTimeHook(hook: Hook) {
     this.timeHooks.push(hook)
     hook(this.getTime(), global.lx.isPlayedStop)
   },
   removeTimeHook(hook: Hook) {
-    this.timeHooks.splice(this.timeHooks.indexOf(hook), 1)
+    const index = this.timeHooks.indexOf(hook)
+    if (index >= 0) this.timeHooks.splice(index, 1)
   },
+}
+
+// Pause before restoring output to avoid a full-volume burst at the deadline/song end.
+export const finishTimeoutExit = async() => {
+  global.lx.isPlayedStop = false
+  timeoutTools.clearTimeout()
+  if (settingState.setting['player.timeoutExitApp']) {
+    // Restoring native volume may hang or fail; it must never delay legacy exit.
+    void restoreVolume().catch(console.log)
+    exitApp('Timeout Exit')
+    return
+  }
+  const current = generation
+  try {
+    await setPause()
+  } catch (err) {
+    console.log('Sleep timer pause failed', err)
+  }
+  if (current !== generation) return
+  await restoreVolume().catch(console.log)
 }
 
 
@@ -64,7 +132,9 @@ export const startTimeoutExit = (time: number) => {
   timeoutTools.start(time)
 }
 export const stopTimeoutExit = () => {
+  global.lx.isPlayedStop = false
   timeoutTools.clearTimeout()
+  void restoreVolume().catch(console.log)
 }
 
 export const getTimeoutExitTime = () => {
@@ -72,7 +142,7 @@ export const getTimeoutExitTime = () => {
 }
 
 export const useTimeoutExitTimeInfo = () => {
-  const [info, setInfo] = useState({ time: 0, isPlayedStop: false })
+  const [info, setInfo] = useState({ time: timeoutTools.getTime(), isPlayedStop: global.lx.isPlayedStop })
   useEffect(() => {
     const hook: Hook = (time, isPlayedStop) => {
       setInfo({ time, isPlayedStop })
@@ -94,6 +164,5 @@ export const onTimeUpdate = (handler: Hook) => {
 
 
 export const cancelTimeoutExit = () => {
-  global.lx.isPlayedStop = false
-  timeoutTools.callHooks()
+  stopTimeoutExit()
 }
