@@ -40,6 +40,7 @@ const validCache = (cache: RecommendationCache | null): cache is RecommendationC
 export const createRecommendationEngine = (deps: RecommendationDependencies) => {
   const queues = new Map<string, Promise<unknown>>()
   const memory = new Map<string, RecommendationCache>()
+  let generation = 0
   const enqueue = async<T>(space: string, action: () => Promise<T>): Promise<T> => {
     const task = (queues.get(space) ?? Promise.resolve()).catch(() => {}).then(action)
     queues.set(space, task)
@@ -47,12 +48,14 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
   }
   const request = async(kind: 'daily' | 'similar' | 'radio', anchor: Song | undefined, exclude: readonly Song[], opts: RecommendationOptions) => {
     const spaceId = deps.getSpaceId()
+    const startedGeneration = generation
     const now = opts.now ?? Date.now()
     const readDate = localDateReader(opts.timeZone)
     const date = dateKey(readDate(now))
-    const history = copy(deps.getHistory())
     const sources = [...deps.getSources()]
-    const assertSpace = () => { if (deps.getSpaceId() != spaceId) throw new Error('Data space changed during recommendation request') }
+    const assertSpace = () => {
+      if (deps.getSpaceId() != spaceId || generation != startedGeneration) throw new Error('Data space changed during recommendation request')
+    }
     return enqueue(spaceId, async(): Promise<RecommendationBatch> => {
       assertSpace()
       let cache = memory.get(spaceId)
@@ -67,6 +70,7 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       // Retain only the repeat window, bounded to avoid unbounded radio storage growth.
       const exposures = cache.exposures.filter(item => item.at <= now && now - item.at < 3 * 86_400_000)
       const seed = `${date}:${spaceId}`
+      let history = copy(deps.getHistory())
       let items: Recommendation[]
       let failures: SourceFailure[]
       if (kind == 'daily' && cache.date == date) {
@@ -79,6 +83,7 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       } else {
         const collected = await collectCandidates([historySource, ...sources], { spaceId, now, seed, history, anchor }, opts.timeoutMs)
         assertSpace()
+        history = copy(deps.getHistory())
         items = rankCandidates(collected.candidates, {
           now,
           seed: kind == 'daily' ? seed : `${seed}:${kind}:${exposures.length}`,
@@ -110,7 +115,7 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
     })
   }
   return {
-    clearSessionCache: () => { memory.clear() },
+    clearSessionCache: () => { generation++; memory.clear() },
     getDailyRecommendations: async(opts: RecommendationOptions = {}) => request('daily', undefined, [], opts),
     getSimilar: async(song: Song, opts: RecommendationOptions = {}) => {
       const result = await request('similar', copy(song), [], opts)

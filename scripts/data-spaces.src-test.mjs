@@ -1030,6 +1030,57 @@ const unchangedExcept = (before, after, exceptions = new Set()) => {
   }
 }
 
+test('recommendation cache migrates with milestones/history and logout keep/delete preserves other spaces', async() => {
+  for (const loggedIn of [false, true]) {
+    const cache = { version: 1, date: '2026-10-18', daily: [], dailyFailures: [], exposures: [] }
+    const raw = JSON.stringify(cache)
+    const env = make({
+      [keys.recommendations]: raw,
+      [keys.syncLoginCompleted]: JSON.stringify(loggedIn),
+      [keys.syncMode]: '"lux"',
+      [keys.luxAuth]: JSON.stringify({ serverId: 's', user: { id: 'alice' } }),
+    })
+    await env.space.initializeDataSpaces()
+    const target = loggedIn ? 'lux:s:alice' : 'local'
+    assert.ok(env.space.perSpaceKeys.includes(keys.recommendations))
+    assert.equal(env.disk.get(`${keys.recommendations}@${target}`), raw)
+    assert.equal(env.disk.get(keys.recommendations), raw)
+    assert.deepEqual(await env.adapter.getData(keys.recommendations), cache)
+    await env.load().initializeDataSpaces()
+    assert.deepEqual(await env.adapter.getData(keys.recommendations), cache)
+  }
+  for (const remove of [false, true]) {
+    const env = make()
+    await env.space.initializeDataSpaces()
+    const data = loadData(env)
+    for (const id of ['local', 'lux:s:bob', 'lux:s:alice']) {
+      await env.space.setActiveSpace(id)
+      // Include a real sharded cache, since playback metadata can grow beyond a root value.
+      await env.adapter.saveData(keys.recommendations, { id, payload: 'x'.repeat(1100000) })
+    }
+    await data.setLuxAuth({ serverId: 's', token: 'a', user: { id: 'alice', username: 'Alice' } })
+    const before = new Map(env.disk)
+    const root = `${keys.recommendations}@lux:s:alice`
+    const shards = JSON.parse(before.get(root).slice('@___PART_A___'.length))
+    const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/common': { updateSetting() {} },
+      '@/core/player/player': {},
+      '@/plugins/sync': { disconnectServer: async() => {} },
+      '@/store/player/state': { isPlay: false },
+      '@/utils/data': data,
+      '@/utils/dataSpace': env.space,
+      '@/utils/dataSpace/operations': operationsFor(env),
+    })
+    await logout.applySyncAccountLogout(remove)
+    assert.equal(env.space.getActiveSpace(), 'local')
+    for (const key of [root, ...shards]) assert.equal(env.disk.has(key), !remove, key)
+    for (const id of ['local', 'lux:s:bob']) {
+      await env.space.setActiveSpace(id)
+      assert.deepEqual(await env.adapter.getData(keys.recommendations), { id, payload: 'x'.repeat(1100000) })
+    }
+  }
+})
+
 test('5.7 real deleteSpaceData removes only published roots/shards and avatar directory for similar and numeric account IDs', async() => {
   for (const target of ['lux:s:alice', 'lux:s:alice2', 'lux:s:2']) {
     const env = await deletionFixture()

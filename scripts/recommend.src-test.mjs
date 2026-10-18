@@ -343,3 +343,71 @@ test('malformed persisted cache is disposable and cannot break local fallback', 
   assert.equal((await env.engine.getDailyRecommendations(dailyOpts)).items.length, 10)
   assert.equal(env.loads(), 1)
 })
+
+test('leaving and returning to the same space cancels old work even when the space ID matches again', async() => {
+  let release
+  let entered
+  const loading = new Promise(resolve => { entered = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const env = serviceEnv(new Map(), { load: async() => { entered(); await gate } })
+  const pending = env.engine.getDailyRecommendations(dailyOpts)
+  await loading
+  env.engine.clearSessionCache()
+  env.switchTo('lux:s:bob')
+  env.engine.clearSessionCache()
+  env.switchTo('local')
+  release()
+  await assert.rejects(pending, /Data space changed/)
+  assert.equal(env.disk.size, 0)
+  assert.equal((await env.engine.getDailyRecommendations(dailyOpts)).items.length, 10)
+})
+
+test('plays and dislikes arriving while sources load are excluded before returning a batch', async() => {
+  const env = serviceEnv(new Map(), {
+    load: () => {
+      env.setHistory([record(song(0), {}, now - 1000)])
+      env.dislike(item => sameSong(item, song(1)))
+    },
+  })
+  const result = await env.engine.getDailyRecommendations({ ...dailyOpts, limit: 100 })
+  assert.equal(result.items.length, 38)
+  assert.ok(result.items.every(item => !['Song 0', 'Song 1'].includes(item.song.name)))
+})
+
+test('all public APIs dedupe aliases, exclude dislikes and apply completion/skip scoring', async() => {
+  const candidates = [candidate(0, 'A'), candidate(0, 'A', 'tx'), candidate(1, 'A'), candidate(2, 'A')]
+  const env = serviceEnv(new Map(), { pool: candidates })
+  env.setHistory([record(song(0, 'A'), { completed: true }), record(song(1, 'A'), { skipped: true })])
+  env.dislike(item => sameSong(item, song(2, 'A')))
+  for (const run of [
+    () => env.engine.getDailyRecommendations(dailyOpts),
+    () => env.engine.getSimilar(song('seed', 'A'), dailyOpts),
+    () => env.engine.getRadioNext(song('seed', 'A'), [], dailyOpts),
+  ]) {
+    // Independent sessions exercise the same persisted boundary without previous exposures.
+    env.disk.clear()
+    env.engine.clearSessionCache()
+    const result = await run()
+    assert.deepEqual(result.items.map(item => item.song.name), ['Song 0', 'Song 1'])
+    assert.ok(result.items[0].score > result.items[1].score)
+    assert.ok(result.items[0].reasons.includes('completed'))
+  }
+})
+
+test('similar and radio degrade to local candidates when every catalog source fails or times out', async() => {
+  for (const kind of ['similar', 'radio']) {
+    const env = serviceEnv(new Map(), {
+      sources: [
+        { id: 'wy:similar', load: async() => { throw Error('offline') } },
+        { id: 'kg:artist', load: async() => new Promise(() => {}) },
+      ],
+    })
+    const opts = { ...dailyOpts, timeoutMs: 5 }
+    const result = kind == 'similar'
+      ? await env.engine.getSimilar(song('seed'), opts)
+      : await env.engine.getRadioNext(song('seed'), [], opts)
+    assert.equal(result.items.length, 10)
+    assert.ok(result.items.every(item => item.origin == 'library'))
+    assert.deepEqual(result.failures, [{ id: 'wy:similar', reason: 'failed' }, { id: 'kg:artist', reason: 'timeout' }])
+  }
+})
