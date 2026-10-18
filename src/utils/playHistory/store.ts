@@ -114,6 +114,7 @@ onDataSpaceChanged(async() => {
   records = []
   cursor = null
   loaded = false
+  notify()
   await flush?.()
   await loadPlayHistoryStore()
 })

@@ -27,6 +27,7 @@ import './sleep-timer.src-test.mjs'
 import './lyric-seek.src-test.mjs'
 import './karaoke.src-test.mjs'
 import './memories.src-test.mjs'
+import './monthly.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
@@ -57,6 +58,7 @@ const files = [
   'src/components/magazine/magSegmentedLayout.ts',
   'src/components/stats/replayPalette.ts',
   'src/utils/memories/calendar.ts',
+  'src/utils/memories/monthly.ts',
   'src/utils/memories/onThisDay.ts',
   'src/utils/memories/milestones.ts',
   'src/utils/playHistory/types.ts',

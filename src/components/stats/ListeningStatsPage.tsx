@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Animated, useWindowDimensions } from 'react-native'
 
 import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
@@ -9,6 +9,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 
+import { MonthlyReportPage } from './MonthlyReportPage'
 import { ListeningStatsMagazine } from './ListeningStatsMagazine'
 import { ListeningStatsReplay } from './ListeningStatsReplay'
 import { useListeningStatsModel } from './useListeningStatsModel'
@@ -34,21 +35,25 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   const { width } = useWindowDimensions()
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const model = useListeningStatsModel()
+  const [monthlyOpen, setMonthlyOpen] = useState(false)
 
   const requestClose = useCallback(() => {
     animateClose(onClose)
   }, [animateClose, onClose])
 
   useBackHandler(useCallback(() => {
-    requestClose()
+    if (monthlyOpen) setMonthlyOpen(false)
+    else requestClose()
     return true
-  }, [requestClose]))
+  }, [monthlyOpen, requestClose]))
 
   return (
     <Animated.View style={[styles.root, sceneStyle]}>
-      {model.pageStyle == 'replay'
-        ? <ListeningStatsReplay model={model} onClose={requestClose} bottomPadding={bottomPadding} />
-        : <ListeningStatsMagazine model={model} onClose={requestClose} bottomPadding={bottomPadding} />}
+      {monthlyOpen
+        ? <MonthlyReportPage model={model} onClose={() => { setMonthlyOpen(false) }} bottomPadding={bottomPadding} />
+        : model.pageStyle == 'replay'
+          ? <ListeningStatsReplay model={model} onOpenMonthly={() => { setMonthlyOpen(true) }} onClose={requestClose} bottomPadding={bottomPadding} />
+          : <ListeningStatsMagazine model={model} onOpenMonthly={() => { setMonthlyOpen(true) }} onClose={requestClose} bottomPadding={bottomPadding} />}
     </Animated.View>
   )
 }
