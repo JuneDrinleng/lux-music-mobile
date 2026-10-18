@@ -22,7 +22,8 @@ const model = load('src/utils/syncStatus.ts', { '../plugins/sync/constants': con
 const serverCheck = load('src/utils/serverCheck.ts')
 const errors = load('src/plugins/sync/client/userErrors.ts')
 const zh = JSON.parse(readFileSync(new URL('../src/lang/zh-cn.json', import.meta.url), 'utf8'))
-const translate = (key, args = {}) => zh[key]?.replace(/{{(\w+)}}/g, (_, name) => args[name]) ?? key
+const i18n = load('src/lang/i18n.ts', { react: {}, './index': { messages: { zh_cn: zh } } }).createI18n('zh_cn')
+const translate = (key, args) => i18n.t(key, args)
 const map = (status, overrides = {}) => model.mapSyncStatus({ enabled: true, mode: 'lux', status: { status: false, message: '', ...status }, now: 1000, ...overrides })
 
 test('error mapping table: every message, LuxRequestError code/status and socket close yields its localized state', () => {
@@ -75,7 +76,7 @@ test('countdown uses the existing backoff deadline, rounds up, caps at zero and 
   assert.deepEqual([0, 1, 999, 1000, 1999, 2000, 3000].map(now => model.retrySeconds(2000, now)), [2, 2, 2, 1, 1, 0, 0])
   assert.equal(model.retrySeconds(undefined, 0), null)
   assert.equal(map({ message: 'failure', attempts: 3, retryAt: 31000 }).seconds, 30)
-  assert.equal(translate('sync_state_attempts', { count: 3, seconds: 30 }), '已尝试 3 次 · 下次 30 秒后')
+  assert.equal(translate('sync_state_attempts', { count: 3, seconds: 30 }), '已尝试 3 次 • 下次 30 秒后')
   assert.equal(map({ message: 'failure' }).seconds, null)
 })
 
@@ -112,19 +113,20 @@ const commonDeps = h => ({
   '@/utils/syncStatus': model,
   '@/utils/accountPage': load('src/utils/accountPage.ts'),
 })
-const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 1000 }) => {
-  const h = hookHarness(); const events = []; const deps = commonDeps(h)
+const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 1000 }, hasSocket = true) => {
+  const h = hookHarness(); const events = []; const clocks = []; const deps = commonDeps(h)
   Object.assign(deps['react-native'], {
     Animated: { View: 'AnimatedView', Value: class { interpolate() {} setValue() {} }, timing: () => ({ start() {} }) },
     Dimensions: { get: () => ({ width: 390 }) },
     Easing: { out: x => x, cubic() {}, bezier() {} },
     StyleSheet: { absoluteFillObject: {} },
   })
+  deps['@/utils/tools'].toast = value => { events.push(['toast', value]) }
   const noop = () => {}; const asyncNoop = async() => {}
   Object.assign(deps, {
     '@/screens/SyncStatus': { default: 'SyncStatusPage', SyncStatusRow: 'SyncStatusRow' },
     '@/screens/Login/ServerStep': { default: 'ServerStep' },
-    '@/plugins/sync/client/client': { reconnectNow: () => { events.push(['retry']); return true } },
+    '@/plugins/sync/client/client': { reconnectNow: () => { events.push(['retry']); return hasSocket } },
     '@/utils/enterLocalSpace': { enterLocalSpace: async value => { events.push(['local', value]) } },
     '@/plugins/sync/client/sessionExpired': { showSessionExpiredDialog: asyncNoop, expiredAccountUsername: () => 'june' },
     '@/utils/accountDataDialogs': { showLogoutOptions: asyncNoop },
@@ -155,16 +157,16 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
       getSyncMode: async() => 'lux',
       findLuxAuthForHost: async() => ({ user: { username: 'june' } }),
       setSyncHost: async host => { events.push(['saveHost', host]) },
-      addSyncHostHistory: asyncNoop,
+      addSyncHostHistory: async host => { events.push(['history', host]) },
       setSyncMode: async mode => { events.push(['mode', mode]) },
     },
     '@/utils/syncLoginPrefill': { loadSyncLoginFormSnapshot: async() => ({ host: 'https://server', luxUsername: 'june' }) },
-    '@/plugins/sync/data': { getSyncHostHistory: async() => ['https://server'] },
+    '@/plugins/sync/data': { getSyncHostHistory: async() => ['https://server', 'http://older'], removeSyncHostHistory: async index => { events.push(['deleteHost', index]) } },
     '@/plugins/sync/client/credentials': {},
     '@/plugins/sync/client/userErrors': {},
-    '@/plugins/sync': { connectLuxServer: asyncNoop },
+    '@/plugins/sync': { connectLuxServer: async host => { events.push(['connectLux', host]) }, connectServer: async host => { events.push(['connectLx', host]) }, disconnectServer: async() => { events.push(['disconnect']) } },
     '@/store/setting/hook': { useSettingValue: key => key === 'sync.enable' },
-    '@/core/common': { updateSetting: noop, setNavActiveId: value => { events.push(['nav', value]) } },
+    '@/core/common': { updateSetting: value => { events.push(['setting', value]) }, setNavActiveId: value => { events.push(['nav', value]) } },
     '@/core/apiSource': {},
     '@/store/version/hook': { useVersionInfo: () => ({}), useVersionDownloadProgressUpdated: () => ({}) },
     '@/core/version': {},
@@ -183,10 +185,11 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/components/stats/useListeningStatsModel': { useStatsPageStylePreference: () => ({}) },
     '@/screens/AdminConsole': { AdminConsoleLayer: 'AdminConsoleLayer' },
   })
-  const screen = load('src/screens/Home/Vertical/Tabs/SettingsTab.tsx', deps, { setInterval: () => 1, clearInterval() {} }).default
+  const screen = load('src/screens/Home/Vertical/Tabs/SettingsTab.tsx', deps, { setInterval: fn => { clocks.push(fn); return clocks.length }, clearInterval() {} }).default
   let tree
   return {
     events,
+    tick() { clocks.forEach(fn => fn()) },
     render() {
       const previous = global.app_event
       global.app_event = { on() {}, off() {} }
@@ -228,6 +231,50 @@ test('merged address/format entry opens editable current host and keeps both pro
   assert.ok(h.events.some(([name, value]) => name === 'mode' && value === 'lx'))
 })
 
+
+test('merged entry retains validation, history selection/toggle/delete and protocol hints', async() => {
+  const h = settingsHarness()
+  h.render(); await settle(); h.render()
+  h.find('SettingRow', p => p.title === zh.sync_state_address_format).onPress()
+  h.render(); await settle(); h.render()
+  const tapText = text => {
+    const target = nodes(h.render()).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.type === 'Text' && child.props.children === text))
+    assert.ok(target, text)
+    target.props.onPress(); h.render()
+  }
+  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lx))
+  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lux))
+  tapText(zh.setting_fill_sync_address)
+  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).children.props.onChangeText('invalid')
+  h.render()
+  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).onConfirm()
+  assert.ok(h.events.some(([name, value]) => name === 'toast' && value === zh.setting_sync_host_value_error_tip))
+  assert.ok(!h.events.some(([name]) => name === 'saveHost'))
+  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).onCancel(); h.render()
+  tapText('https://server'); await settle()
+  assert.ok(h.events.some(([name]) => name === 'disconnect'))
+  assert.ok(h.events.some(([name, value]) => name === 'setting' && value['sync.enable'] === false))
+  tapText('http://older'); await settle(); h.render()
+  assert.ok(h.events.some(([name, value]) => name === 'saveHost' && value === 'http://older'))
+  assert.ok(h.events.some(([name, value]) => name === 'history' && value === 'http://older'))
+  tapText(zh.setting_manage_records)
+  h.find('IconButton', p => p.accessibilityLabel === zh.delete).onPress(); await settle(); h.render()
+  assert.ok(h.events.some(([name, index]) => name === 'deleteHost' && index === 0))
+  assert.ok(!nodes(h.render()).some(node => node.type === 'Text' && node.props.children === 'https://server'))
+  h.find('IconButton', p => p.accessibilityLabel === zh.delete).onPress(); await settle(); h.render()
+  assert.ok(h.events.some(([name, value]) => name === 'saveHost' && value === ''))
+})
+
+test('Settings display clock only rerenders the existing deadline without connecting', async() => {
+  const h = settingsHarness({ status: false, message: 'offline', attempts: 3, retryAt: Date.now() - 1000 })
+  h.render(); await settle(); h.render()
+  h.find('SyncStatusRow').onPress(); h.render()
+  for (let i = 0; i < 5; i++) { h.tick(); h.render() }
+  assert.equal(h.find('SyncStatusPage').model.seconds, 0)
+  assert.equal(h.find('SyncStatusPage').model.attempts, 3)
+  assert.deepEqual(h.events, [])
+})
+
 test('unreachable actions use immediate reconnect, prefilled ServerStep and Home without pausing sync', async() => {
   const h = settingsHarness({ status: false, message: 'offline', attempts: 3, retryAt: Date.now() + 30000 })
   h.render(); await settle(); h.render()
@@ -265,7 +312,7 @@ test('synced row shows one action and exact name/host/relative text; expired rel
   let taps = 0
   const tree = hooks.render(Row, { model: map({ status: true, lastSyncedAt: 1000 }), name: 'June', host: 'https://lux.june-nas.cn', now: 61000, onPress: () => { taps++ } })
   assert.equal(nodes(tree).filter(node => node.type === 'TouchableOpacity').length, 1)
-  assert.ok(nodes(tree).some(node => node.props?.children === 'June · lux.june-nas.cn · 1 分钟前'))
+  assert.ok(nodes(tree).some(node => node.props?.children === 'June • lux.june-nas.cn • 1 分钟前'))
   nodes(tree).find(node => node.type === 'TouchableOpacity').props.onPress()
   assert.equal(taps, 1)
   const h = settingsHarness({ status: false, message: constants.SYNC_CODE.luxSessionExpired })
@@ -275,4 +322,26 @@ test('synced row shows one action and exact name/host/relative text; expired rel
   h.find('SyncStatusPage').onLogin(); await settle(); h.render()
   assert.equal(h.find('SyncStatusPage'), undefined)
   assert.deepEqual(h.events.at(-1), ['login', { onboarding: false, initialHost: 'https://server', initialUsername: 'june' }])
+})
+
+
+test('manual retry without a socket calls the existing connection entry exactly once', async() => {
+  const h = settingsHarness({ status: false, message: 'offline' }, false)
+  h.render(); await settle(); h.render()
+  h.find('SyncStatusRow').onPress(); h.render()
+  h.find('SyncStatusPage').onRetry(); await settle()
+  assert.deepEqual(h.events, [['retry'], ['connectLux', 'https://server']])
+})
+
+test('all three locales interpolate status text through the production translator', () => {
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    const messages = JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8'))
+    const translator = load('src/lang/i18n.ts', { react: {}, './index': { messages: { zh_cn: messages } } }).createI18n('zh_cn')
+    assert.deepEqual(Object.keys(messages).filter(key => key.startsWith('sync_state_')), Object.keys(zh).filter(key => key.startsWith('sync_state_')))
+    for (const key of Object.keys(zh).filter(key => key.startsWith('sync_state_'))) {
+      const text = translator.t(key, { count: 3, seconds: 30, value: 'NAS', version: '1.9', minimum: '2.1' })
+      assert.ok(!/[{}]/.test(text), `${locale}: ${key}: ${text}`)
+    }
+    assert.ok(translator.t('sync_state_attempts', { count: 3, seconds: 30 }).includes('30'))
+  }
 })

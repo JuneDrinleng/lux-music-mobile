@@ -79,8 +79,8 @@ const heartbeatTools = {
     // })
 
     this.delayRetryTimeout = setTimeout(() => {
-      this.delayRetryTimeout = null
       if (client !== socket || getSession()?.id != sessionId) return
+      this.delayRetryTimeout = null
       console.log(dateFormat(new Date()), 'reconnect...')
       sendSyncStatus({
         status: false,
@@ -283,6 +283,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     sendSyncStatus({
       status: false,
       message: initMessage,
+      attempts: heartbeatTools.failedNum,
     })
   })
   onSessionClose(sessionId, () => {

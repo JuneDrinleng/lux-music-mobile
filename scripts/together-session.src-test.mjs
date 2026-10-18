@@ -365,3 +365,19 @@ test('asynchronous failed-close after connection timeout preserves the already s
   assert.equal(h.client.getStatus().retryAt, scheduled.retryAt)
   assert.equal([...h.delays.values()].includes(5000), true)
 })
+
+
+test('stale retry callback cannot erase the replacement retry timer reference', async() => {
+  const h = harness()
+  h.connect()
+  h.sockets[0].emit('close', { code: 1006 })
+  const stale = [...h.timers].find(([id]) => h.delays.get(id) === 2000)[1]
+  h.client.reconnectNow()
+  h.sockets[1].emit('open')
+  h.sockets[1].emit('close', { code: 1006 })
+  const nextId = [...h.timers].find(([id]) => h.delays.get(id) === 5000)[0]
+  stale()
+  await h.client.disconnect()
+  assert.equal(h.timers.has(nextId), false)
+  assert.equal(h.client.getStatus().retryAt, undefined)
+})

@@ -41,7 +41,7 @@ export const mapSyncStatus = ({ enabled, local = false, mode, status, check, now
   // Expiry is retained when the existing expired-session flow disables sync.
   if (!enabled && kind !== 'expired') return null
   if (!kind && status.status) kind = 'synced'
-  if (!kind && (error.message || error.code || error.status || status.message || status.retryAt != null || check?.reachable === false)) kind = 'unreachable'
+  if (!kind && ([error.message, error.code, error.status, status.message].some(Boolean) || status.retryAt != null || check?.reachable === false)) kind = 'unreachable'
   // Explicit disconnect / no configured session has no row.
   if (!kind) return null
   return {
@@ -60,7 +60,7 @@ export type SyncStatusModel = NonNullable<ReturnType<typeof mapSyncStatus>>
 export const syncStatusText = (model: SyncStatusModel, { name, host, relative, unknown }: { name: string, host: string, relative: string, unknown: string }) => ({
   symbol: model.kind === 'synced' ? '✓' : model.kind === 'expired' ? '⌛' : '✕',
   detailKey: model.kind === 'unreachable' ? model.seconds == null ? 'sync_state_retry_manual' : 'sync_state_retry_after' : model.kind === 'expired' ? 'sync_state_relogin_hint' : 'sync_state_versions',
-  syncedDetail: `${name} · ${syncHostname(host)} · ${relative}`,
+  syncedDetail: `${name} • ${syncHostname(host)} • ${relative}`,
   version: model.serverVersion ?? unknown,
   minimum: model.requiredVersion ?? unknown,
 } as const)
