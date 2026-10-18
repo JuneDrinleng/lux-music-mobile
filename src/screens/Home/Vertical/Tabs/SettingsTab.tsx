@@ -75,7 +75,8 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { H1_AFTER_TOP, PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
-import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
+import { MEMORIES_LAYOUTS, type MemoriesLayout } from '@/utils/memories/layout'
+import { useMemoriesLayoutPreference, useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
 import { AdminConsoleLayer } from '@/screens/AdminConsole'
 
 /**
@@ -147,6 +148,8 @@ export default () => {
   const [luxPassword, setLuxPassword] = useState('')
   const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'sync' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
+  const { layout: memoriesLayout, setLayout: setMemoriesLayout } = useMemoriesLayoutPreference()
+  const memoriesLayoutLabel = (id: MemoriesLayout) => t(`setting_memories_layout_${id}`)
   const statsPageStyleLabel = (id: StatsPageStyle) => (
     id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
   )
@@ -389,6 +392,8 @@ export default () => {
     t('setting_lux_theme_lavender'),
     t('setting_lux_theme_oat_milk'),
     t('setting_lux_theme_ink_night'),
+    t('setting_memories_layout'),
+    ...MEMORIES_LAYOUTS.map(memoriesLayoutLabel),
     t('setting_stats_page_style'),
     t('setting_stats_page_style_magazine'),
     t('setting_stats_page_style_replay'),
@@ -926,7 +931,7 @@ export default () => {
               <SectionHeader title={t('setting_appearance')} meta={t('settings_meta_appearance')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="translate" iconBg={r.iconWrap.orange} title={t('setting_basic_lang')} subtitle={activeLanguageLabel} onPress={handleOpenLanguageDetail} />
               <SettingRow icon="palette-outline" iconBg={r.iconWrap.orange} title={t('setting_lux_theme')} subtitle={luxThemeLabel(luxThemeId)} onPress={handleOpenThemeDetail} />
-              <SettingRow icon="newspaper-variant-outline" iconBg={r.iconWrap.orange} title={t('setting_stats_page_style')} subtitle={statsPageStyleLabel(statsPageStyle)} onPress={handleOpenStatsPageStyleDetail} last />
+              <SettingRow icon="newspaper-variant-outline" iconBg={r.iconWrap.orange} title={t('setting_stats_page_style')} subtitle={`${memoriesLayoutLabel(memoriesLayout)} · ${statsPageStyleLabel(statsPageStyle)}`} onPress={handleOpenStatsPageStyleDetail} last />
             </View>
             )
           : null}
@@ -1096,6 +1101,11 @@ export default () => {
             ? (
               <View style={styles.optionList}>
                 <Text size={magType.meta.size} color={r.muted} style={styles.optionLocalNote}>{t('setting_stats_page_style_local_only')}</Text>
+                <Text size={magType.rowTitle.size} color={r.ink}>{t('setting_memories_layout')}</Text>
+                {MEMORIES_LAYOUTS.map((id, index) => (
+                  <OptionRow key={id} label={memoriesLayoutLabel(id)} selected={memoriesLayout === id} onPress={() => { setMemoriesLayout(id) }} last={index === MEMORIES_LAYOUTS.length - 1} />
+                ))}
+                <Text size={magType.rowTitle.size} color={r.ink}>{t('setting_stats_details_style')}</Text>
                 {STATS_PAGE_STYLES.map((id, index) => (
                   <OptionRow key={id} label={statsPageStyleLabel(id)} selected={statsPageStyle === id} onPress={() => { setStatsPageStyle(id) }} last={index === STATS_PAGE_STYLES.length - 1} />
                 ))}

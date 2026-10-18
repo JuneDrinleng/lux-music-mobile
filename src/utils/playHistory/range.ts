@@ -3,7 +3,7 @@
 import { type PlayRecord } from './types'
 
 /** Rolling windows. `days7` is the last 7 local days including today, not a calendar week. */
-export type PlayRangeId = 'today' | 'days7' | 'month' | 'year' | 'all'
+export type PlayRangeId = 'today' | 'days7' | 'week' | 'month' | 'year' | 'all'
 
 export interface RangeBounds {
   /** Inclusive. `null` means the beginning of the history. */
@@ -96,6 +96,7 @@ export const rangeBounds = (range: PlayRangeId, now: number): RangeBounds => {
   if (range == 'today') return { start: startOfLocalDay(now), end }
   if (range == 'days7') return { start: startOfLocalDay(now) - 6 * DAY_MS, end }
   const date = new Date(now)
+  if (range == 'week') return { start: new Date(date.getFullYear(), date.getMonth(), date.getDate() - (date.getDay() + 6) % 7).getTime(), end: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime() }
   if (range == 'month') return { start: new Date(date.getFullYear(), date.getMonth(), 1).getTime(), end }
   return { start: new Date(date.getFullYear(), 0, 1).getTime(), end }
 }
@@ -103,6 +104,11 @@ export const rangeBounds = (range: PlayRangeId, now: number): RangeBounds => {
 export const previousRangeBounds = (range: PlayRangeId, now: number): RangeBounds | null => {
   const current = rangeBounds(range, now)
   if (range == 'all' || current.start == null) return null
+  if (range == 'week') {
+    const start = new Date(current.start)
+    const end = new Date(now)
+    return { start: new Date(start.getFullYear(), start.getMonth(), start.getDate() - 7).getTime(), end: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6).getTime() }
+  }
   if (range == 'today' || range == 'days7') {
     const length = current.end - current.start
     return { start: current.start - length, end: current.start }
@@ -257,6 +263,11 @@ export const buildChartBuckets = (
 ): ChartBucket[] => {
   if (range == 'today') return buildTodayHourlyBuckets(records, now)
   if (range == 'days7') return buildDayBuckets(last7DayStarts(now), records, now)
+  if (range == 'week') {
+    const today = new Date(now)
+    const count = (today.getDay() + 6) % 7 + 1
+    return buildDayBuckets(Array.from({ length: count }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - count + 1 + i).getTime()), records, now)
+  }
   if (range == 'month') return buildMonthDayBuckets(records, now)
   if (range == 'year') return buildYearMonthBuckets(records, now)
   return buildAllChartBuckets(records, now)
@@ -270,6 +281,7 @@ const artistNames = (singer: string): string[] => {
 const dayCountFor = (range: PlayRangeId, now: number, records: readonly PlayRecord[]): number => {
   if (range == 'today') return 1
   if (range == 'days7') return 7
+  if (range == 'week') return (new Date(now).getDay() + 6) % 7 + 1
   if (range == 'month') return new Date(now).getDate()
   if (range == 'year') {
     const start = rangeBounds(range, now).start ?? startOfLocalDay(now)

@@ -24,7 +24,7 @@ export const statsBucketLabel = (
     // Editorial axis: 0 / 6 / 12 / 18 only; current slot stays highlighted via the bar fill.
     show = bucket.hour % 6 == 0
   } else if (bucket.kind == 'day') {
-    if (range == 'days7') text = bucket.isCurrent ? t('stats_today') : t(weekdayKeys[bucket.weekday])
+    if (range == 'days7' || range == 'week') text = bucket.isCurrent ? t('stats_today') : t(weekdayKeys[bucket.weekday])
     else {
       text = String(bucket.dayOfMonth)
       show = bucket.isCurrent || bucket.dayOfMonth == 1 || bucket.dayOfMonth % 5 == 0

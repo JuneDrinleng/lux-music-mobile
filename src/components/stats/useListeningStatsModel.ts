@@ -27,6 +27,20 @@ import {
 import { formatMinutes } from '@/utils/formatMinutes'
 import { toast } from '@/utils/tools'
 
+import { DEFAULT_MEMORIES_LAYOUT, type MemoriesLayout } from '@/utils/memories/layout'
+import { getMemoriesLayout, hydrateMemoriesLayout, setMemoriesLayout, subscribeMemoriesLayout } from '@/utils/memories/layoutStore'
+
+export const useMemoriesLayoutPreference = () => {
+  const [layout, setLayout] = useState<MemoriesLayout>(getMemoriesLayout)
+  useEffect(() => {
+    let active = true
+    void hydrateMemoriesLayout().then(value => { if (active) setLayout(value) })
+    const unsubscribe = subscribeMemoriesLayout(setLayout)
+    return () => { active = false; unsubscribe() }
+  }, [])
+  return { layout, setLayout: setMemoriesLayout, defaultLayout: DEFAULT_MEMORIES_LAYOUT }
+}
+
 const TOP_N = 5
 
 export const useStatsPageStylePreference = () => {
@@ -46,12 +60,17 @@ export const useStatsPageStylePreference = () => {
 
 export const useListeningStatsModel = () => {
   const t = useI18n()
-  const [range, setRange] = useState<PlayRangeId>('today')
+  const [range, setRange] = useState<PlayRangeId>(() => getMemoriesLayout() == 'cards' ? 'month' : 'today')
   const [records, setRecords] = useState(() => getPlayRecords())
   const [now, setNow] = useState(() => Date.now())
   const [luxSync, setLuxSync] = useState(false)
   const [chartMode, setChartMode] = useState<StatsChartMode>(DEFAULT_STATS_CHART_MODE)
   const { style: pageStyle } = useStatsPageStylePreference()
+  const { layout: memoriesLayout } = useMemoriesLayoutPreference()
+
+  useEffect(() => {
+    if (memoriesLayout == 'cards') setRange('month')
+  }, [memoriesLayout])
 
   useEffect(() => subscribePlayHistory(() => {
     setRecords(getPlayRecords())
@@ -143,6 +162,7 @@ export const useListeningStatsModel = () => {
     chartMode,
     onChartModeChange,
     pageStyle,
+    memoriesLayout,
     stats,
     songs,
     artists,

@@ -182,7 +182,8 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/theme/magazineType': { magType: new Proxy({}, { get: () => ({ size: 12 }) }) },
     '@/theme/luxTokens': { LUX_THEME_IDS: [], luxThemeRegistry: {} },
     '@/utils/playHistory/statsPageStyle': {},
-    '@/components/stats/useListeningStatsModel': { useStatsPageStylePreference: () => ({}) },
+    '@/utils/memories/layout': { MEMORIES_LAYOUTS: ['monthly', 'cards', 'timeline'] },
+    '@/components/stats/useListeningStatsModel': { useStatsPageStylePreference: () => ({}), useMemoriesLayoutPreference: () => ({ layout: 'monthly' }) },
     '@/screens/AdminConsole': { AdminConsoleLayer: 'AdminConsoleLayer' },
   })
   const screen = load('src/screens/Home/Vertical/Tabs/SettingsTab.tsx', deps, { setInterval: fn => { clocks.push(fn); return clocks.length }, clearInterval() {} }).default
