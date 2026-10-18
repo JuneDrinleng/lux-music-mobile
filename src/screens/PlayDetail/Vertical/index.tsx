@@ -123,7 +123,7 @@ export default memo(({
           <Comment embedded hideChrome onBack={() => { setPage(1) }} refreshKey={commentRefreshKey} />
         </View>
         <View collapsable={false} style={styles.page}>
-          <Pic componentId={componentId} active={pageIndex === 1} />
+          <Pic componentId={componentId} active={active && pageIndex === 1} onLyricPress={() => { setPage(2) }} />
         </View>
         <View collapsable={false} style={styles.page}>
           <Lyric ref={lyricRef} active={active && pageIndex === 2} />

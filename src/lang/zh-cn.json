@@ -1395,5 +1395,13 @@
   "sync_state_relogin": "重新登录",
   "sync_state_local": "切换到本地用户",
   "sync_state_address_format": "同步地址与格式",
-  "sync_state_settings_eyebrow": "SETTINGS"
+  "sync_state_settings_eyebrow": "SETTINGS",
+  "player_lyric_translation_pill": "译",
+  "player_lyric_roma_pill": "音",
+  "player_lyric_enter_hint": "点歌词进入歌词页",
+  "player_lyric_extras": "附加行",
+  "player_lyric_none": "无",
+  "player_lyric_translation": "翻译",
+  "player_lyric_roma": "罗马音",
+  "player_lyric_share": "分享歌词"
 }

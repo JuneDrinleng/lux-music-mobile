@@ -1395,5 +1395,13 @@
   "sync_state_relogin": "重新登入",
   "sync_state_local": "切換到本機使用者",
   "sync_state_address_format": "同步地址與格式",
-  "sync_state_settings_eyebrow": "SETTINGS"
+  "sync_state_settings_eyebrow": "SETTINGS",
+  "player_lyric_translation_pill": "譯",
+  "player_lyric_roma_pill": "音",
+  "player_lyric_enter_hint": "點歌詞進入歌詞頁",
+  "player_lyric_extras": "附加行",
+  "player_lyric_none": "無",
+  "player_lyric_translation": "翻譯",
+  "player_lyric_roma": "羅馬音",
+  "player_lyric_share": "分享歌詞"
 }
