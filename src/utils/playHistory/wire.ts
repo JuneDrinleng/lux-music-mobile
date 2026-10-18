@@ -72,7 +72,10 @@ export const toWireRecord = (value: unknown): PlayRecord | null => {
     if (img == null) return null
     song.img = img
   }
-  return { id, deviceId, startedAt, endedAt, listenedMs, song }
+  const record: PlayRecord = { id, deviceId, startedAt, endedAt, listenedMs, song }
+  if (value.completed != null) record.completed = value.completed
+  if (value.skipped != null) record.skipped = value.skipped
+  return record
 }
 
 export const chunkWireRecords = (records: readonly unknown[]): PlayRecord[][] => {

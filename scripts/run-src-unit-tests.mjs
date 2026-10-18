@@ -29,6 +29,7 @@ import './karaoke.src-test.mjs'
 import './memories.src-test.mjs'
 import './monthly.src-test.mjs'
 import './stats-memories.src-test.mjs'
+import './play-history-completed.src-test.mjs'
 import './share-card.src-test.mjs'
 import './share-card-ui.src-test.mjs'
 

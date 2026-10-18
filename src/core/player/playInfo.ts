@@ -1,3 +1,4 @@
+import { finishPlayHistorySession } from '@/utils/playHistory/tracker'
 import playerActions from '@/store/player/action'
 import playerState from '@/store/player/state'
 
@@ -119,7 +120,8 @@ const setPlayerMusicInfo = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
  * @param musicInfo 歌曲信息
  * @param isTempPlay 是否临时播放
  */
-export const setPlayMusicInfo = (listId: string | null, musicInfo: LX.Download.ListItem | LX.Music.MusicInfo | null, isTempPlay: boolean = false) => {
+export const setPlayMusicInfo = (listId: string | null, musicInfo: LX.Download.ListItem | LX.Music.MusicInfo | null, isTempPlay: boolean = false, historyReason: Parameters<typeof finishPlayHistorySession>[0] = 'switch') => {
+  finishPlayHistorySession(musicInfo ? historyReason : 'stop')
   playerActions.setPlayMusicInfo(listId, musicInfo, isTempPlay)
   setPlayerMusicInfo(musicInfo)
 

@@ -27,3 +27,8 @@ export const qualifiesAsPlay = (listenedMs: number, durationMs: number | null | 
   if (!Number.isFinite(listenedMs) || listenedMs <= 0) return false
   return listenedMs >= playCountThresholdMs(durationMs)
 }
+
+/** Completion uses actual audio advancement, never the current seek position. */
+export const isCompletedPlay = (listenedMs: number, durationMs: number | null): boolean => {
+  return durationMs != null && Number.isFinite(durationMs) && durationMs > 0 && listenedMs >= durationMs * 0.9
+}
