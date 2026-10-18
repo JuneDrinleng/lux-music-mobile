@@ -23,7 +23,7 @@ const harness = () => {
 test('migration verifies secure storage, strips every plaintext secret, marks completion and reruns idempotently', async() => {
   const h = harness()
   await h.run()
-  assert.equal(await h.secure.getRefreshToken('nas'), 'secret-refresh')
+  assert.equal(await h.secure.getRefreshToken(JSON.stringify(['nas', 'alice'])), 'secret-refresh')
   assert.equal(h.active.refreshToken, undefined)
   assert.equal(h.sessions.nas.refreshToken, undefined)
   assert.equal(h.active.password, undefined)
@@ -32,7 +32,7 @@ test('migration verifies secure storage, strips every plaintext secret, marks co
   const before = JSON.stringify([h.active, h.sessions])
   await h.run()
   assert.equal(JSON.stringify([h.active, h.sessions]), before)
-  assert.equal(await h.secure.getRefreshToken('nas'), 'secret-refresh')
+  assert.equal(await h.secure.getRefreshToken(JSON.stringify(['nas', 'alice'])), 'secret-refresh')
 })
 
 test('interrupted migration resumes without losing the token or trusting its marker', async() => {
@@ -43,7 +43,7 @@ test('interrupted migration resumes without losing the token or trusting its mar
   h.crash(false)
   await h.run()
   assert.equal(h.active.refreshToken, undefined)
-  assert.equal(await h.secure.getRefreshToken('nas'), 'secret-refresh')
+  assert.equal(await h.secure.getRefreshToken(JSON.stringify(['nas', 'alice'])), 'secret-refresh')
 })
 
 test('unavailable keychain discards plaintext and the next 401 requires relogin without crashing', async() => {

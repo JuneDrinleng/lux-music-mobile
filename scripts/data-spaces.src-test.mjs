@@ -299,10 +299,12 @@ test('production data helpers isolate profile, default/love/custom lists and met
     '@/plugins/sync': { disconnectServer: async() => {} },
     '@/store/player/state': { isPlay: false },
     '@/utils/data': data,
+    '@/utils/dataSpace': env.space,
+    '@/utils/dataSpace/operations': { deleteSpaceData: async() => {} },
   })
   await logout.applySyncAccountLogout()
-  assert.equal(env.space.getActiveSpace(), 'lux:s:a')
-  assert.equal(await data.getUserName(), 'lux:s:a')
+  assert.equal(env.space.getActiveSpace(), 'local')
+  assert.equal(await data.getUserName(), 'local')
 })
 
 test('a write already in flight keeps its physical namespace when the active account changes', async() => {
@@ -580,10 +582,10 @@ test('refresh rotation persists both auth records, serializes servers, preserves
     data.rotateLuxAuth(b, { token: 'b1', refreshToken: 'rb1' }),
   ])
   assert.equal(JSON.parse(env.disk.get('@lux_auth')).refreshToken, undefined)
-  assert.equal(await env.secure.getRefreshToken('a'), 'ra1')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['a', 'alice'])), 'ra1')
   assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).a.refreshToken, undefined)
   assert.equal(JSON.parse(env.disk.get('@lux_auth_servers')).b.refreshToken, undefined)
-  assert.equal(await env.secure.getRefreshToken('b'), 'rb1')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['b', 'bob'])), 'rb1')
   assert.equal(env.space.getActiveSpace(), activeSpace)
   assert.equal(await data.clearLuxAuthForServer(b), false, 'stale refresh failure must not delete rotated tokens')
   assert.equal(await data.clearLuxAuthForServer(nextB), true)
@@ -594,7 +596,7 @@ test('refresh rotation persists both auth records, serializes servers, preserves
   assert.equal(env.space.getActiveSpace(), activeSpace, 'expiry does not delete account data')
 })
 
-test('login activates its data space; stale rotation cannot overwrite a switched account', async() => {
+test('login activates its data space; inactive refresh cannot overwrite a switched account', async() => {
   const env = make()
   await env.space.initializeDataSpaces()
   const data = loadData(env)
@@ -604,10 +606,11 @@ test('login activates its data space; stale rotation cannot overwrite a switched
   assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
   await data.setLuxAuth(bob)
   assert.equal(env.space.getActiveSpace(), 'lux:s:bob')
-  assert.equal(await data.rotateLuxAuth(alice, { token: 'stale', refreshToken: 'stale' }), null)
+  assert.equal((await data.rotateLuxAuth(alice, { token: 'renewed-alice', refreshToken: 'renewed-ra' })).user.id, 'alice')
+  assert.equal((await data.getLuxAuth()).user.id, 'bob', 'inactive refresh cannot replace the selected account')
   assert.equal(await data.clearLuxAuthForServer(alice), false)
   assert.equal((await data.getLuxAuth('s')).refreshToken, undefined)
-  assert.equal(await env.secure.getRefreshToken('s'), 'rb')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['s', 'bob'])), 'rb')
 })
 
 
@@ -665,7 +668,7 @@ test('password replacement persists one new session for its server without passw
   const servers = JSON.parse(env.disk.get('@lux_auth_servers'))
   assert.deepEqual(active, servers.a)
   assert.equal(active.token, 'new'); assert.equal(active.refreshToken, undefined)
-  assert.equal(await env.secure.getRefreshToken('a'), 'new-refresh')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['a', 'alice'])), 'new-refresh')
   assert.equal(active.sessionId, 'new-session'); assert.equal(active.user.displayName, 'Alice')
   assert.equal(active.serverUrl, 'https://a'); assert.deepEqual(servers.b, bob)
   for (const secret of ['old-secret', 'new-secret', 'response-secret']) assert.equal(JSON.stringify([...env.disk]).includes(secret), false)
@@ -681,10 +684,10 @@ test('secure refresh reads reject stale accounts; server switches preserve each 
   const savedA = await data.getLuxAuth('a')
   await data.setLuxAuth(savedA)
   assert.equal(await data.getLuxRefreshToken(savedA), 'ra')
-  assert.equal(await env.secure.getRefreshToken('b'), 'rb')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['b', 'bob'])), 'rb')
   const replacement = { ...a, token: 'new-account', refreshToken: 'new-refresh', user: b.user }
   await data.setLuxAuth(replacement)
-  assert.equal(await data.getLuxRefreshToken(savedA), null)
+  assert.equal(await data.getLuxRefreshToken(savedA), 'ra', 'another account on the same server keeps its own session')
   assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('a')), 'new-refresh')
   const logout = evaluate('src/utils/syncLogout.ts', {
     '@/core/common': { updateSetting() {} },
@@ -692,12 +695,15 @@ test('secure refresh reads reject stale accounts; server switches preserve each 
     '@/plugins/sync': { disconnectServer: async() => {} },
     '@/store/player/state': { isPlay: false },
     '@/utils/data': data,
+    '@/utils/dataSpace': env.space,
+    '@/utils/dataSpace/operations': { deleteSpaceData: async() => {} },
   })
   await logout.applySyncAccountLogout()
-  assert.equal(await env.secure.getRefreshToken('a'), null)
-  assert.equal(await env.secure.getRefreshToken('b'), 'rb')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['a', 'bob'])), null)
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['a', 'alice'])), 'ra')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['b', 'bob'])), 'rb')
   await data.clearLuxAuth()
-  assert.equal(await env.secure.getRefreshToken('b'), null)
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['b', 'bob'])), null)
 })
 
 test('legacy session binding transfers its verified refresh token into the server namespace', async() => {
@@ -749,7 +755,255 @@ test('401 refresh reads the actual secure backend and persists rotation without 
   })
   await client.request('https://nas/api/me', undefined, saved.token)
   assert.equal(refreshes, 1)
-  assert.equal(await env.secure.getRefreshToken('nas'), 'rotated-refresh')
+  assert.equal(await env.secure.getRefreshToken(JSON.stringify(['nas', 'alice'])), 'rotated-refresh')
   assert.equal((await data.getLuxAuth('nas')).token, 'new')
   assert.equal(JSON.stringify([...env.disk]).includes('rotated-refresh'), false)
+})
+
+// 5.7: exercise the production storage adapter, import gate, auth and connection order.
+const operationsFor = env => evaluate('src/utils/dataSpace/operations.ts', {
+  '@react-native-async-storage/async-storage': env.storage,
+  '@/config/constant': evaluate('src/config/constant.ts', {}),
+  '@/plugins/storage': env.adapter,
+  '@/utils/fs': env.fs,
+  './avatar': env.avatar,
+  './index': env.space,
+})
+const seedLocalImport = async env => {
+  await env.space.initializeDataSpaces()
+  await env.adapter.saveData(keys.userList, [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }])
+  await env.adapter.saveData(keys.list + 'one', [{ id: 'song1' }])
+  await env.adapter.saveData(keys.list + 'two', [{ id: 'song2' }, { id: 'song3' }])
+  await env.adapter.saveData(keys.playHistory, [{ id: 'record1' }])
+  await env.adapter.saveData(keys.userName, 'Local Name')
+  await env.adapter.saveData(keys.userAvatar, '/private/user/local/avatar.png')
+  env.files.set('/private/user/local/avatar.png', 'local-avatar-bytes')
+}
+const dialogsFor = (env, show) => evaluate('src/utils/accountDataDialogs.ts', {
+  'react-native-navigation': { Navigation: { showOverlay: show, dismissOverlay: async() => {} } },
+  '@/utils/dataSpace/operations': operationsFor(env),
+  '@/utils/dataSpace': env.space,
+})
+
+test('5.7 regression: logging into an empty server account does NOT auto-upload local playlists, history or profile', async() => {
+  const env = make()
+  await seedLocalImport(env)
+  const data = loadData(env)
+  const requests = []
+  let overlay
+  let connected = 0
+  const dialogs = dialogsFor(env, async args => { overlay = args.component.passProps })
+  const request = async(url, body) => {
+    requests.push([url, body])
+    if (url.endsWith('/api/auth/login')) return { token: 'token', user: { id: 'alice', username: 'alice' } }
+    if (url.endsWith('/api/sync/key')) return { clientId: 'client', key: 'key' }
+    if (url.endsWith('/api/me/playlists')) return { playlists: { defaultList: { musicCount: 0 }, loveList: { musicCount: 0 }, userList: [] } }
+    throw Error(`Unexpected request ${url}`)
+  }
+  const constants = evaluate('src/plugins/sync/constants.ts', {}).SYNC_CODE
+  const auth = evaluate('src/plugins/sync/client/auth.ts', {
+    './utils': { request: async url => ({ text: url.endsWith('/hello') ? constants.helloMsg : constants.idPrefix + 'server' }) },
+    './userErrors': evaluate('src/plugins/sync/client/userErrors.ts', {}),
+    '@/utils/luxAuthApi': { createLuxAuthClient: () => ({ request }) },
+    '../data': { getSyncAuthKey: async() => null, setSyncAuthKey: async() => {} },
+    '@/utils/data': data,
+    '../log': { error() {} }, '../utils': {},
+    '@/utils/nativeModules/utils': { getDeviceName: async() => 'phone' },
+    '@/utils/tools': {}, '../constants': { SYNC_CODE: constants },
+    '../deviceId': { getSyncDeviceId: async() => 'device' },
+    './credentials': evaluate('src/plugins/sync/client/credentials.ts', {}),
+    '@/utils/accountDataDialogs': dialogs,
+  })
+  const client = evaluate('src/plugins/sync/client/index.ts', {
+    './auth': auth,
+    './client': { connect: () => { connected++ }, disconnect: async() => {}, sendSyncStatus() {}, sendSyncMessage() {} },
+    '../log': { info() {}, r_warn() {} },
+    './utils': { parseUrl: () => ({ href: 'https://server', httpProtocol: 'https:', hostPath: 'server' }) },
+    '../constants': { SYNC_CODE: constants },
+  })
+  const login = client.connectLuxServer('https://server', 'alice', 'password')
+  for (let i = 0; i < 20 && !overlay; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.ok(overlay)
+  assert.equal(connected, 0, 'socket must not start list/history sync before a decision')
+  assert.equal(overlay.contents.lists.length, 2)
+  assert.equal(overlay.contents.songs, 3)
+  assert.equal(overlay.contents.history, 1)
+  const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local')))
+  await overlay.finish(null)
+  await login
+  assert.equal(connected, 1)
+  assert.equal(await env.adapter.getData(keys.userList), null)
+  assert.equal(await env.adapter.getData(keys.playHistory), null)
+  assert.equal(await env.adapter.getData(keys.userName), null)
+  for (const [key, value] of before) assert.equal(env.disk.get(key), value)
+  assert.equal(requests.filter(([url]) => !/\/(login|key|playlists)$/.test(url)).length, 0)
+  let recheck = 0
+  assert.equal(await dialogs.offerLocalImport(await data.getLuxAuth(), async() => { recheck++; throw Error('must not prompt twice') }), false)
+  assert.equal(recheck, 0)
+  const restarted = env.load()
+  await restarted.initializeDataSpaces()
+  assert.ok(await env.storage.getItem(operationsFor(env).decisionKey('lux:server:alice')))
+})
+
+test('5.7 all and selected import copy exact choices, avatar bytes and history without modifying local data; repeat is idempotent', async() => {
+  for (const all of [false, true]) {
+    const env = make()
+    await seedLocalImport(env)
+    const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local')))
+    await env.space.setActiveSpace('lux:s:alice')
+    const operations = operationsFor(env)
+    const choice = { ids: all ? ['one', 'two'] : ['two'], history: all, all }
+    await operations.copyLocalData('lux:s:alice', choice)
+    await operations.copyLocalData('lux:s:alice', choice)
+    assert.deepEqual((await env.adapter.getData(keys.userList)).map(item => item.id), choice.ids)
+    assert.equal((await env.adapter.getData(keys.list + 'two')).length, 2)
+    assert.equal((await env.adapter.getData(keys.playHistory))?.length ?? 0, all ? 1 : 0)
+    assert.equal(await env.adapter.getData(keys.userName), all ? 'Local Name' : null)
+    if (all) {
+      assert.equal(await env.adapter.getData(keys.userAvatar), '/private/user/lux%3As%3Aalice/avatar.png')
+      assert.equal(env.files.get('/private/user/lux%3As%3Aalice/avatar.png'), 'local-avatar-bytes')
+    }
+    for (const [key, value] of before) assert.equal(env.disk.get(key), value)
+    assert.equal(env.files.get('/private/user/local/avatar.png'), 'local-avatar-bytes')
+    await operations.persistImportDecision('lux:s:alice')
+    assert.equal(await operations.prepareLocalImport('lux:s:alice', async() => { assert.fail('decision persisted') }), null)
+  }
+})
+
+test('5.7 nonempty server and no local data do not prompt; malformed/failed server reads cannot imply empty', async() => {
+  const env = make()
+  await seedLocalImport(env)
+  await env.space.setActiveSpace('lux:s:a')
+  const ops = operationsFor(env)
+  assert.equal(await ops.prepareLocalImport('lux:s:a', async() => false), null)
+  await assert.rejects(ops.prepareLocalImport('lux:s:a', async() => { throw Error('offline') }), /offline/)
+  const dialogs = dialogsFor(env, async() => { assert.fail('must not show') })
+  assert.equal(dialogs.remoteAccountEmpty({ defaultList: { musicCount: 1 }, loveList: { musicCount: 0 }, userList: [] }), false)
+  assert.equal(dialogs.remoteAccountEmpty({ defaultList: { musicCount: 0 }, loveList: { musicCount: 0 }, userList: [{ musicCount: 0 }] }), false)
+  assert.throws(() => dialogs.remoteAccountEmpty({}))
+  const empty = make()
+  await empty.space.initializeDataSpaces()
+  await empty.space.setActiveSpace('lux:s:a')
+  assert.equal(await operationsFor(empty).prepareLocalImport('lux:s:a', async() => { assert.fail('no local data') }), null)
+})
+
+test('5.7 logout keep/delete touches only the captured account, including shards/avatar/Keychain; local and another account survive', async() => {
+  for (const remove of [false, true]) {
+    const env = make()
+    await seedLocalImport(env)
+    const data = loadData(env)
+    const a = { serverId: 's', serverUrl: 'https://server', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+    const b = { ...a, token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
+    await data.setLuxAuth(b)
+    await env.adapter.saveData(keys.userName, 'Bob')
+    await data.setLuxAuth(a)
+    await env.adapter.saveData(keys.userName, 'Alice')
+    await env.adapter.saveData(keys.list + 'big', Array(120000).fill('large-song'))
+    const directory = env.avatar.avatarDirectory('lux:s:alice')
+    env.files.set(directory, '')
+    const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local') || key.endsWith('@lux:s:bob')))
+    const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/common': { updateSetting() {} }, '@/core/player/player': {},
+      '@/plugins/sync': { disconnectServer: async() => {} }, '@/store/player/state': { isPlay: false },
+      '@/utils/data': data, '@/utils/dataSpace': env.space, '@/utils/dataSpace/operations': operationsFor(env),
+    })
+    await logout.applySyncAccountLogout(remove)
+    assert.equal(env.space.getActiveSpace(), 'local')
+    assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(a)), null)
+    assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(b)), 'rb')
+    assert.equal((await data.listLuxAuthSessions()).length, 1)
+    for (const [key, value] of before) assert.equal(env.disk.get(key), value)
+    const remaining = [...env.disk.keys()].filter(key => operationsFor(env).ownsSpaceKey(key, 'lux:s:alice'))
+    assert.equal(remaining.length > 0, !remove)
+    assert.equal(env.files.has(directory), !remove)
+    assert.equal((await env.space.listSpaces()).some(space => space.id === 'lux:s:alice'), !remove)
+  }
+})
+
+test('5.7 same-server accounts retain separate sessions and Keychain tokens, switching restores the matching session', async() => {
+  const env = make()
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const a = { serverId: 's', serverUrl: 'https://server', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+  const b = { ...a, token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
+  await data.setLuxAuth(a)
+  await data.setLuxAuth(b)
+  assert.equal((await data.listLuxAuthSessions()).length, 2)
+  const savedA = (await data.listLuxAuthSessions()).find(auth => auth.user.id === 'alice')
+  await data.setLuxAuth(savedA)
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
+  assert.equal((await data.findLuxAuthForHost('https://server')).user.id, 'alice')
+  assert.equal(await data.getLuxRefreshToken(savedA), 'ra')
+  assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(b)), 'rb')
+})
+
+test('5.7 space list metadata and switching route local/session/signed-out entries correctly', async context => {
+  const previous = global.app_event
+  global.app_event = { syncModeUpdated() {} }
+  context.after(() => { global.app_event = previous })
+  const env = make()
+  await seedLocalImport(env)
+  const data = loadData(env)
+  const a = { serverId: 's', serverUrl: 'https://server', token: 'a', user: { id: 'alice', username: 'alice' } }
+  await data.setLuxAuth(a)
+  const calls = []
+  const navigation = { pushSyncLoginScreen: async props => { calls.push(['login', props]) }, pushHomeScreen: async() => { calls.push(['home']) } }
+  const service = evaluate('src/utils/accountSpaceSwitch.ts', {
+    '@/core/common': { updateSetting: value => calls.push(['setting', value]) }, '@/core/player/player': {}, '@/store/player/state': { isPlay: false },
+    '@/plugins/sync': { connectLuxServer: async(...args) => { calls.push(['connect', ...args]) }, disconnectServer: async() => { calls.push(['disconnect']) } },
+    '@/navigation': { navigations: navigation }, '@/utils/data': data,
+    '@/config/constant': { storageDataPrefix: keys }, '@/plugins/storage': env.adapter,
+    '@/utils/dataSpace': env.space, '@/utils/dataSpace/operations': operationsFor(env),
+  })
+  const rows = await service.loadAccountSpaces()
+  assert.equal(rows.length, 2)
+  const local = rows.find(item => item.space.id === 'local')
+  const account = rows.find(item => item.space.id !== 'local')
+  const messages = JSON.parse(readFileSync(join(root, 'src/lang/zh-cn.json'), 'utf8'))
+  const t = (key, args = {}) => messages[key].replace(/\{(\w+)\}/g, (_, name) => args[name])
+  const ops = operationsFor(env)
+  assert.match(ops.spaceMeta(local.space, false, false, local.contents, t), /^不同步 • 2 个歌单 • [\d.]+ MB$/)
+  assert.equal(ops.spaceMeta(account.space, true, true, account.contents, t), 'server • 已登录 • 正在使用')
+  assert.equal(ops.spaceMeta(account.space, false, false, account.contents, t), 'server • 已退出（数据保留）')
+  await service.switchAccountSpace(local.space)
+  assert.equal(env.space.getActiveSpace(), 'local')
+  await service.switchAccountSpace(account.space, account.session)
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
+  assert.ok(calls.some(call => call[0] === 'connect' && call[1] === 'https://server' && call[2] === 'alice'))
+  await service.switchAccountSpace({ id: 'lux:s:bob', kind: 'lux', host: 'https://server', username: 'bob' })
+  assert.deepEqual(calls.at(-1), ['login', { onboarding: false, initialHost: 'https://server', initialUsername: 'bob' }])
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice', 'signed-out navigation keeps the current space until login succeeds')
+})
+
+test('5.7 accepting all/selected choices in the real import dialog service copies once and persists the decision', async() => {
+  for (const all of [false, true]) {
+    const env = make()
+    await seedLocalImport(env)
+    await env.space.setActiveSpace('lux:s:alice')
+    let shown = 0
+    const dialogs = dialogsFor(env, async args => {
+      shown++
+      await args.component.passProps.finish({ ids: all ? ['one', 'two'] : ['one'], history: true, all })
+    })
+    const auth = { serverUrl: 'https://server', token: 'a', user: { id: 'alice', username: 'alice' } }
+    const remote = async() => ({ playlists: { defaultList: { musicCount: 0 }, loveList: { musicCount: 0 }, userList: [] } })
+    assert.equal(await dialogs.offerLocalImport(auth, remote), all)
+    assert.equal(await dialogs.offerLocalImport(auth, remote), false)
+    assert.equal(shown, 1)
+    assert.equal((await env.adapter.getData(keys.userList)).length, all ? 2 : 1)
+    assert.equal((await env.adapter.getData(keys.playHistory)).length, 1)
+    assert.equal((await env.adapter.getData(env.space.namespacedKey(keys.userList, 'local'))).length, 2)
+  }
+})
+
+test('5.7 installed server-only Keychain entries upgrade to their known account owner without touching other account tokens', async() => {
+  const a = { serverId: 's', serverUrl: 'https://server', token: 'a', user: { id: 'alice', username: 'alice' } }
+  const env = make({ '@lux_auth': JSON.stringify(a), '@lux_auth_servers': JSON.stringify({ s: a }) })
+  await env.secure.setRefreshToken('s', 'installed-v1-token')
+  const data = loadData(env)
+  await data.migrateStoredLuxCredentials()
+  assert.equal(await data.getLuxRefreshToken(a), 'installed-v1-token')
+  assert.equal(await env.secure.getRefreshToken('s'), null)
+  await data.migrateStoredLuxCredentials()
+  assert.equal(await data.getLuxRefreshToken(a), 'installed-v1-token')
 })

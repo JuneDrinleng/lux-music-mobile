@@ -19,15 +19,16 @@ import { saveEditedProfile } from '@/plugins/sync/client/profile'
 import { findLuxAuthForHost, getUserAvatarDataUrl, getUserGender, getUserSignature } from '@/utils/data'
 import { getActiveSpace, listSpaces } from '@/utils/dataSpace'
 import { accountRows, createSessionService, relativeActivity, type AccountSession } from '@/utils/accountPage'
-import { pushSyncLoginScreen } from '@/navigation/navigation'
+import AccountSpaces from './AccountSpaces'
 import ChangePassword from '@/screens/Login/ChangePassword'
 
-export default function AccountPage({ host, lux, nickname, avatar, onBack, onLogout }: {
+export default function AccountPage({ host, lux, nickname, avatar, onBack, onLogout, onManageData }: {
   host: string
   lux: boolean
   nickname: string
   avatar: string | number | null
   onBack: () => void
+  onManageData: () => void
   onLogout: () => Promise<void>
 }) {
   const { colors } = useLuxTheme()
@@ -36,7 +37,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const [page, setPage] = useState<'account' | 'edit' | 'devices' | 'password'>('account')
+  const [page, setPage] = useState<'account' | 'edit' | 'devices' | 'password' | 'spaces'>('account')
   const [session, setSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [sessions, setSessions] = useState<AccountSession[] | null>(null)
   const [others, setOthers] = useState('')
@@ -138,7 +139,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     <UnderlineInput accessibilityLabel={label} value={value} onChangeText={onChangeText} maxLength={maxLength} editable={!readOnly && !busy} autoCorrect={false} style={{ fontWeight: '400', borderBottomWidth: 1.5, borderBottomColor: r.ink }} />
     <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text>
   </View>
-  const eyebrow = page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
+  const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
   return <Modal visible animationType="slide" statusBarTranslucent onRequestClose={back}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
@@ -159,9 +160,9 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
           })
         })}{row(t('password_title'), undefined, () => { if (session) { setMessage(''); setPage('password') } })}</> : null}
         {section(t('account_switch_section'))}
-        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { void pushSyncLoginScreen({ onboarding: false, initialHost: host }) })}
+        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { setMessage(''); setPage('spaces') })}
         {rows.includes('logout') ? <View style={styles.logout}><SecondaryButton compact danger label={t('account_logout')} onPress={() => { void run(onLogout, 'account_logout_failed') }} disabled={busy} style={styles.button} /></View> : null}
-      </> : page === 'edit' ? <>
+      </> : page === 'spaces' ? <AccountSpaces onManageData={onManageData} /> : page === 'edit' ? <>
         <Text size={32} color={r.display} style={styles.title}>{t('account_edit_title')}</Text>
         <View style={styles.avatar}>{avatarCircle(96, draftAvatar, draft)}</View>
         <View style={styles.pick}><SecondaryButton compact label={t('account_change_avatar')} onPress={pickAvatar} disabled={busy} style={{ paddingHorizontal: 14 }} /></View>

@@ -11,6 +11,8 @@ export interface DataSpace {
   id: SpaceId
   kind: 'local' | 'lux'
   label?: string
+  host?: string
+  username?: string
   lastActiveAt: number
 }
 export const MIGRATION_KEY = 'dataSpaceMigration'
@@ -51,7 +53,7 @@ export const luxSpaceId = (serverId: string, userId: string): SpaceId => {
 }
 const validSpace = (id: string): id is SpaceId => id == 'local' || /^lux:[^:]+:[^:]+$/.test(id)
 export const listSpaces = async(): Promise<DataSpace[]> => JSON.parse(await AsyncStorage.getItem(SPACES_KEY) ?? '[]') as DataSpace[]
-export const setActiveSpace = async(spaceId: SpaceId, label?: string): Promise<void> => {
+export const setActiveSpace = async(spaceId: SpaceId, label?: string, host?: string): Promise<void> => {
   if (!validSpace(spaceId)) throw new Error('Invalid data space')
   const run = switching.then(async() => {
     if (!migrationComplete) {
@@ -61,7 +63,8 @@ export const setActiveSpace = async(spaceId: SpaceId, label?: string): Promise<v
     const spaces = await listSpaces()
     const previous = spaces.find(space => space.id == spaceId)
     const next: DataSpace = { ...previous, id: spaceId, kind: spaceId == 'local' ? 'local' : 'lux', lastActiveAt: Date.now() }
-    if (label) next.label = label
+    if (label) { next.label = label; next.username = label }
+    if (host) next.host = host
     await AsyncStorage.setItem(SPACES_KEY, JSON.stringify([...spaces.filter(space => space.id != spaceId), next]))
     await AsyncStorage.setItem(ACTIVE_KEY, spaceId)
     if (activeSpace == spaceId) return
@@ -216,4 +219,8 @@ export const initializeDataSpaces = async(): Promise<void> => {
   } catch (error) {
     log.error('data space initialization failed; continuing startup:', error)
   }
+}
+
+export const reloadActiveSpace = async(): Promise<void> => {
+  for (const listener of listeners) await listener()
 }

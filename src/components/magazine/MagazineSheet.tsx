@@ -57,6 +57,8 @@ export interface MagazineSheetProps {
   /** FlatList / custom list body. Prefer this over nesting scrollables. */
   children?: ReactNode
   footer?: MagazineSheetFooter
+  footerContent?: ReactNode
+  importLayout?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -220,6 +222,8 @@ export const MagazineSheet = memo(({
   sectionLabel,
   children,
   footer,
+  footerContent,
+  importLayout = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -310,7 +314,7 @@ export const MagazineSheet = memo(({
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }]}>
           <View style={styles.inkBar} />
-          <View style={styles.header}>
+          <View style={[styles.header, importLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
@@ -333,15 +337,15 @@ export const MagazineSheet = memo(({
               ? <View style={{ marginTop: 12 }}>{subject}</View>
               : figure
                 ? (
-                  <View style={styles.figureRow}>
+                  <View style={[styles.figureRow, importLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
                     <Text size={magType.sheetFigure.size} color={r.display} style={styles.figure}>{figure.value}</Text>
                     {figure.unit
-                      ? <Text size={14} color={r.muted} style={styles.figureUnit}>{figure.unit}</Text>
+                      ? <Text size={14} color={importLayout ? r.ink : r.muted} style={[styles.figureUnit, importLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
                       : null}
                   </View>
                   )
                 : null}
-            <View style={styles.toolRule} />
+            <View style={[styles.toolRule, importLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
             {toolExtra
               ? <View style={styles.toolExtra}>{toolExtra}</View>
               : null}
@@ -350,6 +354,7 @@ export const MagazineSheet = memo(({
               {headerAction
                 ? (
                   <TextButton
+                    compact={importLayout}
                     label={headerAction.text}
                     danger={headerAction.tone === 'danger'}
                     muted={headerAction.disabled}
@@ -371,7 +376,7 @@ export const MagazineSheet = memo(({
                 ? <EmptyState eyebrow={empty.eyebrow} title={empty.text} />
                 : children}
           </View>
-          {footer
+          {footerContent ?? (footer
             ? (
               <View style={styles.footer}>
                 <View style={styles.footerRule} />
@@ -395,7 +400,7 @@ export const MagazineSheet = memo(({
                 </View>
               </View>
               )
-            : <View style={{ height: 12 }} />}
+            : <View style={{ height: 12 }} />)}
         </Animated.View>
       </View>
     </Modal>

@@ -398,7 +398,7 @@ export default function SyncLogin({ onboarding = false, initialHost = '', initia
       const [mode, savedHost] = await Promise.all([getSyncMode(), getPreferredSyncHost()])
       if (!active) return
       const entry = resolveSyncLoginEntry(onboarding, mode, initialHost, savedHost)
-      setLegacy(initialUsername ? false : entry.legacy)
+      setLegacy(initialUsername !== undefined ? false : entry.legacy)
       setHost(entry.host)
       setReady(true)
     }

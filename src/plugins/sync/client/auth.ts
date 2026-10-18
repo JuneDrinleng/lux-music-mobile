@@ -180,6 +180,14 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
   // switch cannot leave a new session paired with the previous account's key.
   const committedSession = !password ? await getLuxAuth(serverId) ?? session : session
   await setLuxAuth({ ...committedSession, serverId, serverUrl: urlInfo.href })
+  // Resolve first-login import BEFORE opening the socket (lists/history can upload
+  // as soon as it connects). No local-space data is exposed without consent.
+  const { offerLocalImport } = await import('@/utils/accountDataDialogs')
+  const importedProfile = await offerLocalImport({ ...committedSession, serverId, serverUrl: urlInfo.href }, requestJson)
+  if (importedProfile) {
+    const { pushLuxProfileToServer } = await import('./profile')
+    await pushLuxProfileToServer()
+  }
   return keyInfo
 }
 
