@@ -1,16 +1,22 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
+import SyncStatusPage, { SyncStatusRow } from '@/screens/SyncStatus'
+import ServerStep from '@/screens/Login/ServerStep'
+import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
+import { reconnectNow } from '@/plugins/sync/client/client'
+import { enterLocalSpace } from '@/utils/enterLocalSpace'
+import { expiredAccountUsername, showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
+  BackButton,
   DOCK_BASE_HEIGHT,
   EmptyState,
   Hairline,
@@ -45,7 +51,7 @@ import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
-import { setLanguage, updateSetting } from '@/core/common'
+import { setLanguage, setNavActiveId, updateSetting } from '@/core/common'
 import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 import { checkUpdate } from '@/core/version'
@@ -113,7 +119,6 @@ export default () => {
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const topPadding = statusBarHeight
   const detailSceneWidth = Dimensions.get('window').width
-  const settingsMasthead = t('settings_masthead', { version: currentVer })
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
   const backupModeRef = useRef<'export' | 'import'>('export')
@@ -140,7 +145,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'sync' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
   const statsPageStyleLabel = (id: StatsPageStyle) => (
     id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
@@ -164,6 +169,20 @@ export default () => {
   const activeApiSource = useSettingValue('common.apiSource')
   const isSyncEnabled = useSettingValue('sync.enable')
   const syncStatus = useStatus()
+  const [now, setNow] = useState(Date.now)
+  const [statusPage, setStatusPage] = useState<SyncStatusModel | null>(null)
+  const [checkingAddress, setCheckingAddress] = useState(false)
+  const statusModel = mapSyncStatus({ enabled: isSyncEnabled, local: !syncHost.trim(), mode: syncMode, status: syncStatus, now })
+  useEffect(() => {
+    if (activeNavId !== 'nav_setting' || (!isSyncEnabled && !statusPage)) return
+    // Display clock only; the socket owns every reconnect and retry deadline.
+    setNow(Date.now())
+    const timer = setInterval(() => { setNow(Date.now()) }, 1000)
+    return () => { clearInterval(timer) }
+  }, [isSyncEnabled, statusPage, activeNavId])
+  useEffect(() => {
+    if (syncStatus.status) setStatusPage(null)
+  }, [syncStatus.status])
   const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
   const releaseChannelSetting = useSettingValue('common.releaseChannel')
@@ -188,10 +207,16 @@ export default () => {
   useEffect(() => {
     void getSyncMode().then(setSyncModeLocal)
     void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
-    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode) }
+    const refreshHost = () => { void getSyncHost().then(host => { setSyncHostLocal(host ?? '') }) }
+    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode); refreshHost() }
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
-    return () => { global.app_event.off('syncModeUpdated', handleSyncModeUpdated) }
+    global.app_event.on('focus', refreshHost)
+    return () => {
+      global.app_event.off('syncModeUpdated', handleSyncModeUpdated)
+      global.app_event.off('focus', refreshHost)
+    }
   }, [])
+  const reloginUsername = expiredAccountUsername(syncHost) ?? luxUsername
   const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
   const activeSearchSourceLabel = useMemo(() => {
@@ -384,6 +409,7 @@ export default () => {
     t('setting_sync'),
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
+    t('sync_state_address_format'),
     t('setting_sync_format'),
     t('setting_sync_clear_conflict_mode'),
     t('setting_sync_clear_conflict_mode_desc'),
@@ -453,7 +479,6 @@ export default () => {
       case 'searchSource': return t('setting_search_source')
       case 'player': return t('setting_custom_source_title')
       case 'sync': return t('setting_sync')
-      case 'syncFormat': return t('setting_sync_format')
       case 'resourceCache': return t('setting_cache_management')
       case 'changelog': return t('version_about_update_title')
       default: return ''
@@ -521,7 +546,7 @@ export default () => {
   }, [syncHost])
 
   useEffect(() => {
-    if (syncStatus.message == SYNC_CODE.luxSessionExpired || (syncMode == 'lux' && (syncStatus.message == SYNC_CODE.authFailed || syncStatus.message == SYNC_CODE.missingAuthCode))) {
+    if (statusModel?.kind === 'expired' || syncStatus.message == SYNC_CODE.luxSessionExpired || (syncMode == 'lux' && (syncStatus.message == SYNC_CODE.authFailed || syncStatus.message == SYNC_CODE.missingAuthCode))) {
       setAuthCodeModalVisible(false)
       void showSessionExpiredDialog(syncHost)
       return
@@ -538,13 +563,13 @@ export default () => {
       default:
         break
     }
-  }, [syncStatus.message, syncMode, syncHost, t])
+  }, [syncStatus.message, statusModel?.kind, syncMode, syncHost, t])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
   }
   const handleOpenSyncHostModal = () => {
-    setSyncHostDraft('')
+    setSyncHostDraft(syncHost)
     setSyncHostModalVisible(true)
   }
   const handleCloseSyncHostModal = () => {
@@ -667,14 +692,10 @@ export default () => {
   const handleOpenSyncDetail = () => {
     setActiveOptionDetail('sync')
   }
-  const handleOpenSyncFormatDetail = () => {
-    setActiveOptionDetail('syncFormat')
-  }
   const handleSelectSyncFormat = (value: string) => {
     const mode = value == 'lux' ? 'lux' : 'lx'
     void setSyncMode(mode)
     setSyncModeLocal(mode)
-    setActiveOptionDetail(null)
     if (mode == 'lux' && syncHost) setLuxLoginModalVisible(true)
   }
   const handleSelectApiSource = (id: string) => {
@@ -820,6 +841,8 @@ export default () => {
       setIsManagingApiSources(false)
       setIsManagingSyncHosts(false)
       setAdminConsoleVisible(false)
+      setStatusPage(null)
+      setCheckingAddress(false)
       wasOnSettingsRef.current = false
       return
     }
@@ -841,7 +864,7 @@ export default () => {
         overScrollMode="never"
       >
         <MagTopBar
-          masthead={settingsMasthead}
+          leading={<BackButton compact onPress={() => { setNavActiveId('nav_search') }} accessibilityLabel={t('back')} />}
           trailing={
             <IconButton
               name="magnify"
@@ -877,7 +900,12 @@ export default () => {
             </View>
             )
           : null}
-        <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('nav_setting')}</Text>
+        <Text size={11} color={r.eyebrow} style={styles.statusEyebrow}>{t('sync_state_settings_eyebrow')}</Text>
+        <Text size={32} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
+        {statusModel ? <SyncStatusRow model={statusModel} name={nickname} host={syncHost} now={now} onPress={() => {
+          if (statusModel.route === 'sync') handleOpenSyncDetail()
+          else setStatusPage(statusModel)
+        }} /> : null}
 
         {showProfileHero
           ? (
@@ -917,8 +945,7 @@ export default () => {
           ? (
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('setting_sync_host_title')} subtitle={activeSyncStatusLabel} onPress={handleOpenSyncDetail} />
-              <SettingRow icon="swap-horizontal" iconBg={r.iconWrap.purple} title={t('setting_sync_format')} subtitle={syncMode == 'lux' ? 'lux music' : 'lx music'} onPress={handleOpenSyncFormatDetail} />
+              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={handleOpenSyncDetail} />
               {showAdminConsoleEntry
                 ? (
                   <SettingRow
@@ -1184,6 +1211,8 @@ export default () => {
           {activeOptionDetail === 'sync'
             ? (
               <View style={styles.optionList}>
+                <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
+                <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} />
                 {syncHostHistory.map((host, index) => (
                   <View key={host}>
                     <TouchableOpacity style={styles.manageOptionRow} activeOpacity={0.7} onPress={() => { handleSelectSyncHost(host) }} accessibilityRole="button">
@@ -1217,14 +1246,6 @@ export default () => {
               )
             : null}
 
-          {activeOptionDetail === 'syncFormat'
-            ? (
-              <View style={styles.optionList}>
-                <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
-                <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} last />
-              </View>
-              )
-            : null}
 
         </ScrollView>
       </Animated.View>
@@ -1290,6 +1311,36 @@ export default () => {
         bottomDockHeight={bottomDockHeight}
         detailSceneWidth={detailSceneWidth}
       />
+      {statusPage != null || checkingAddress ? <Modal transparent visible statusBarTranslucent animationType="slide" onRequestClose={() => {
+        if (checkingAddress) setCheckingAddress(false)
+        else setStatusPage(null)
+      }}><View style={styles.syncStatusLayer}>
+        {checkingAddress ? <ServerStep initialHost={syncHost} showHistory onBack={() => { setCheckingAddress(false) }} onReady={host => {
+          void saveSyncHost(host).then(async() => {
+            setSyncHostLocal(host)
+            await addSyncHostHistory(host)
+            setCheckingAddress(false)
+            setStatusPage(null)
+            await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: host })
+          })
+        }} /> : statusPage ? <SyncStatusPage model={statusModel ?? statusPage} host={syncHost} username={reloginUsername || nickname}
+          onBack={() => { setStatusPage(null) }}
+          onHome={() => { setStatusPage(null); setNavActiveId('nav_search') }}
+          onRetry={() => {
+            if (!reconnectNow()) void (syncMode === 'lux' ? connectLuxServer(syncHost) : connectServer(syncHost)).catch(() => {})
+          }}
+          onCheckAddress={() => { setCheckingAddress(true) }}
+          onLogin={() => { setStatusPage(null); void navigations.pushSyncLoginScreen({ onboarding: false, initialHost: syncHost, initialUsername: reloginUsername || undefined }) }}
+          onLocal={() => {
+            void enterLocalSpace(t('sync_login_local_user_name')).then(async() => {
+              await setSyncMode('lx')
+              setSyncHostLocal('')
+              setStatusPage(null)
+              setNavActiveId('nav_search')
+            }).catch(() => { toast(t('account_logout_failed')) })
+          }}
+        /> : null}
+      </View></Modal> : null}
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )
@@ -1304,6 +1355,14 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     paddingHorizontal: PAGE_GUTTER,
     paddingBottom: 18,
   },
+  syncStatusLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 6,
+    elevation: APP_LAYER_INDEX.controls + 6,
+    backgroundColor: colors.bg.app,
+  },
+  statusEyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
+  settingsTitle: { lineHeight: 38, fontWeight: '800' },
   pageTitle: {
     fontWeight: '800',
     letterSpacing: -1,

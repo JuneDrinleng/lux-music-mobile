@@ -26,6 +26,8 @@ const deferred = () => {
 const harness = () => {
   const session = load('src/plugins/sync/client/session.ts')
   const timers = new Map()
+  const delays = new Map()
+  let now = 1000
   let timerId = 0
   const sockets = []
   const calls = []
@@ -40,6 +42,12 @@ const harness = () => {
     send(data) { this.sent.push(data) }
   }
   const client = load('src/plugins/sync/client/client.ts', specifier => {
+    if (specifier == '@/utils/syncStatus') {
+      return load('src/utils/syncStatus.ts', name => {
+        if (name === '../plugins/sync/constants') return load('src/plugins/sync/constants.ts')
+        throw new Error(name)
+      })
+    }
     if (specifier == './session') return session
     if (specifier == './utils') return { encryptMsg: async(_key, data) => data, decryptMsg: (_key, data) => decrypt(data) }
     if (specifier == './sync') return { callObj: {} }
@@ -63,11 +71,12 @@ const harness = () => {
     throw new Error(specifier)
   }, {
     WebSocket: Socket,
-    setTimeout: callback => { timers.set(++timerId, callback); return timerId },
-    clearTimeout: id => timers.delete(id),
+    Date: class extends Date { static now() { return now } },
+    setTimeout: (callback, delay) => { timers.set(++timerId, callback); delays.set(timerId, delay); return timerId },
+    clearTimeout: id => { timers.delete(id); delays.delete(id) },
   })
   const connect = () => { client.connect({ wsProtocol: 'ws:', hostPath: 'test' }, { clientId: 'self', key: '' }); sockets.at(-1).emit('open'); return session.getSession().id }
-  return { session, client, sockets, calls, timers, connect, setDecrypt: value => { decrypt = value } }
+  return { session, client, sockets, calls, timers, delays, advance: ms => { now += ms }, connect, setDecrypt: value => { decrypt = value } }
 }
 
 test('reconnect transitions and stale close preserve the new session; old-server finished enables together', () => {
@@ -308,4 +317,67 @@ test('blocked together actions return clean messages without diagnostic suffixes
     assert.equal(result.message, 'together_offline')
     assert.doesNotMatch(result.message, /gate|session=|mode=/)
   }
+})
+
+
+test('sync status exposes the actual socket retry deadline, immediate reconnect cancels it, and success resets attempts', () => {
+  const h = harness()
+  h.connect()
+  h.calls[0].funcsObj.finished()
+  h.sockets[0].emit('close', { code: 1006 })
+  assert.equal(h.client.getStatus().attempts, 1)
+  assert.equal(h.client.getStatus().retryAt, 3000)
+  const [retryId, callback] = [...h.timers].find(([id]) => h.delays.get(id) === 2000)
+  h.advance(500)
+  assert.equal(h.client.reconnectNow(), true)
+  assert.equal(h.timers.has(retryId), false)
+  assert.equal(h.client.getStatus().retryAt, undefined)
+  assert.equal(h.sockets.length, 2)
+  callback() // Native callback already queued when the user tapped retry.
+  assert.equal(h.sockets.length, 2)
+  h.sockets[1].emit('open')
+  h.sockets[1].emit('close', { code: 1006 })
+  assert.equal(h.client.getStatus().attempts, 2)
+  assert.equal(h.client.getStatus().retryAt, 6500)
+  const next = [...h.timers].find(([id]) => h.delays.get(id) === 5000)[1]
+  h.advance(5000)
+  next()
+  assert.equal(h.sockets.length, 3)
+  h.sockets[2].emit('open')
+  h.calls[2].funcsObj.finished()
+  assert.equal(h.client.getStatus().status, true)
+  assert.equal(h.client.getStatus().retryAt, undefined)
+  assert.equal(h.client.getStatus().lastSyncedAt, 6500)
+  h.sockets[2].emit('close', { code: 1006 })
+  assert.equal(h.client.getStatus().attempts, 1)
+})
+
+
+test('asynchronous failed-close after connection timeout preserves the already scheduled retry deadline', () => {
+  const h = harness()
+  h.client.connect({ wsProtocol: 'ws:', hostPath: 'test' }, { clientId: 'self', key: '' })
+  const timeout = [...h.timers].find(([id]) => h.delays.get(id) === 120000)[1]
+  timeout()
+  const scheduled = h.client.getStatus()
+  assert.equal(scheduled.attempts, 2, 'retain the existing timeout/backoff failure count')
+  assert.equal(scheduled.retryAt, 6000)
+  h.sockets[0].emit('close', { code: 4000 })
+  assert.equal(h.client.getStatus().retryAt, scheduled.retryAt)
+  assert.equal([...h.delays.values()].includes(5000), true)
+})
+
+
+test('stale retry callback cannot erase the replacement retry timer reference', async() => {
+  const h = harness()
+  h.connect()
+  h.sockets[0].emit('close', { code: 1006 })
+  const stale = [...h.timers].find(([id]) => h.delays.get(id) === 2000)[1]
+  h.client.reconnectNow()
+  h.sockets[1].emit('open')
+  h.sockets[1].emit('close', { code: 1006 })
+  const nextId = [...h.timers].find(([id]) => h.delays.get(id) === 5000)[0]
+  stale()
+  await h.client.disconnect()
+  assert.equal(h.timers.has(nextId), false)
+  assert.equal(h.client.getStatus().retryAt, undefined)
 })

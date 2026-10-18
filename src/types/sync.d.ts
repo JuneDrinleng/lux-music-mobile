@@ -56,6 +56,11 @@ declare global {
       }
 
       interface Status {
+        error?: { message?: string, code?: string, status?: number, serverVersion?: string, requiredVersion?: string }
+        closeCode?: number
+        attempts?: number
+        retryAt?: number
+        lastSyncedAt?: number
         status: boolean
         message: string
       }

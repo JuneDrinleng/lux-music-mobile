@@ -43,6 +43,8 @@ const connectServer = async(host: string, authCode?: string) => {
     sendSyncStatus({
       status: false,
       message: err.message,
+      attempts: 1,
+      error: { message: err.message, status: err.status, code: err.code, serverVersion: err.serverVersion, requiredVersion: err.requiredVersion },
     })
     switch (err.message) {
       case SYNC_CODE.connectServiceFailed:
@@ -69,6 +71,8 @@ const connectLuxServer = async(host: string, username?: string, password?: strin
     sendSyncStatus({
       status: false,
       message: err.message,
+      attempts: 1,
+      error: { message: err.message, status: err.status, code: err.code, serverVersion: err.serverVersion, requiredVersion: err.requiredVersion },
     })
     log.r_warn(err.message)
     return Promise.reject(err)

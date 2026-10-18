@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { SYNC_CODE } from '../constants'
 import { Navigation } from 'react-native-navigation'
 import { createSessionExpiredDialog, type ExpiredAccount } from '@/utils/sessionExpiredDialog'
 import { getActiveSpace, luxSpaceId } from '@/utils/dataSpace'
@@ -8,6 +9,7 @@ import { syncHostCompareKey } from '@/utils/syncLoginPrefill'
 
 export const SESSION_EXPIRED_OVERLAY = 'lux.SessionExpiredDialog'
 const expiredAccounts = new Map<string, ExpiredAccount>()
+export const expiredAccountUsername = (host: string): string | undefined => expiredAccounts.get(syncHostCompareKey(host))?.username
 const componentId = 'lux.sessionExpired'
 const isActive = (account: ExpiredAccount) => getActiveSpace() === luxSpaceId(account.serverId, account.userId)
 const present = createSessionExpiredDialog({
@@ -17,6 +19,9 @@ const present = createSessionExpiredDialog({
     if (!isActive(account)) return
     updateSetting({ 'sync.enable': false })
     await disconnectServer()
+    const { setSyncStatus } = await import('@/core/sync')
+    if (!isActive(account)) return
+    setSyncStatus({ status: false, message: SYNC_CODE.luxSessionExpired })
   },
   show: async(account, later, login) => {
     await Navigation.showOverlay({

@@ -1,5 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { retryDelayMs } from '@/utils/syncStatus'
 import { encryptMsg, decryptMsg } from './utils'
 import { callObj } from './sync'
 // import { action as commonAction } from '@/store/modules/common'
@@ -24,8 +25,7 @@ let status: LX.Sync.Status = {
 }
 
 export const sendSyncStatus = (newStatus: Omit<LX.Sync.Status, 'address'>) => {
-  status.status = newStatus.status
-  status.message = newStatus.message
+  status = { ...newStatus, lastSyncedAt: newStatus.status ? Date.now() : status.lastSyncedAt }
   setSyncStatus(status)
 }
 
@@ -37,7 +37,6 @@ export const sendSyncMessage = (message: string) => {
 const heartbeatTools = {
   failedNum: 0,
   maxTryNum: 100000,
-  stepMs: 3000,
   connectTimeout: null as NodeJS.Timeout | null,
   pingTimeout: null as NodeJS.Timeout | null,
   delayRetryTimeout: null as NodeJS.Timeout | null,
@@ -71,7 +70,8 @@ const heartbeatTools = {
       throw new Error('connect error')
     }
 
-    const waitTime = Math.min(2000 + Math.floor(this.failedNum / 2) * this.stepMs, 30000)
+    const waitTime = retryDelayMs(this.failedNum)
+    sendSyncStatus({ status: false, message: status.message || 'disconnected', closeCode: status.closeCode, attempts: this.failedNum, retryAt: Date.now() + waitTime })
 
     // sendSyncStatus({
     //   status: false,
@@ -79,12 +79,13 @@ const heartbeatTools = {
     // })
 
     this.delayRetryTimeout = setTimeout(() => {
-      this.delayRetryTimeout = null
       if (client !== socket || getSession()?.id != sessionId) return
+      this.delayRetryTimeout = null
       console.log(dateFormat(new Date()), 'reconnect...')
       sendSyncStatus({
         status: false,
         message: `Try reconnect... (${this.failedNum})`,
+        attempts: this.failedNum,
       })
       connect(socket.data.urlInfo, socket.data.keyInfo)
     }, waitTime)
@@ -142,6 +143,7 @@ const heartbeatTools = {
     socket.addEventListener('close', (event) => {
       if (!isCurrentSession(sessionId)) return
       // console.log(event.code)
+      sendSyncStatus({ ...status, status: false, closeCode: event.code, attempts: this.failedNum })
       switch (event.code) {
         case SYNC_CLOSE_CODE.normal:
         case SYNC_CLOSE_CODE.failed:
@@ -281,6 +283,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
     sendSyncStatus({
       status: false,
       message: initMessage,
+      attempts: heartbeatTools.failedNum,
     })
   })
   onSessionClose(sessionId, () => {
@@ -318,6 +321,7 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   session.addEventListener('error', ({ message }) => {
     if (!isCurrentSession(sessionId)) return
     sendSyncStatus({
+      ...status,
       status: false,
       message,
     })
@@ -325,7 +329,10 @@ export const connect = (urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
 }
 
 export const disconnect = async() => {
-  if (!client) return
+  if (!client) {
+    sendSyncStatus({ status: false, message: '' })
+    return
+  }
   log.info('disconnecting...')
   const socket = client
   closeSession(getSocketSession(socket)!.id)
@@ -334,6 +341,14 @@ export const disconnect = async() => {
   client = null
   heartbeatTools.clearTimeout()
   heartbeatTools.failedNum = 0
+}
+
+export const reconnectNow = (): boolean => {
+  if (!client) return false
+  const { urlInfo, keyInfo } = client.data
+  sendSyncStatus({ status: false, message: SYNC_CODE.connecting, attempts: heartbeatTools.failedNum })
+  connect(urlInfo, keyInfo)
+  return true
 }
 
 export const getStatus = (): LX.Sync.Status => status

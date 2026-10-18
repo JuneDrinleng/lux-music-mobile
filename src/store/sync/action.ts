@@ -3,13 +3,12 @@ import state from './state'
 
 export default {
   setStatus(info: LX.Sync.Status) {
-    state.status.status = info.status
-    state.status.message = info.message
+    state.status = { ...info }
 
     global.state_event.syncStatusUpdated({ ...state.status })
   },
   setMessage(message: LX.Sync.Status['message']) {
-    state.status.message = message
+    state.status = { ...state.status, message, error: undefined }
 
     global.state_event.syncStatusUpdated({ ...state.status })
   },

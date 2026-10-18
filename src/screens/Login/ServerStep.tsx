@@ -15,13 +15,13 @@ import { useI18n } from '@/lang'
 import { navigations } from '@/navigation'
 import { createServerChecker, initialServerCheck, parseServerInfo } from '@/utils/serverCheck'
 
-export default function ServerStep({ onBack, onReady, showHistory = false, disabled = false, children }: { onBack: () => void, onReady?: (host: string) => void, showHistory?: boolean, disabled?: boolean, children?: ReactNode }) {
+export default function ServerStep({ onBack, onReady, showHistory = false, disabled = false, initialHost = '', children }: { onBack: () => void, onReady?: (host: string) => void, showHistory?: boolean, disabled?: boolean, initialHost?: string, children?: ReactNode }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(initialHost)
   const [state, setState] = useState(initialServerCheck)
   const [opening, setOpening] = useState(false)
   const blocked = opening || disabled
@@ -45,6 +45,7 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
       return parseServerInfo(await response.json())
     },
   }), [])
+  useEffect(() => { if (initialHost) checker.input(initialHost) }, [checker, initialHost])
   useEffect(() => () => { checker.dispose() }, [checker])
   const pending = state.status === 'checking'
   const row = (label: string, value: boolean | null, detail?: string) => (
