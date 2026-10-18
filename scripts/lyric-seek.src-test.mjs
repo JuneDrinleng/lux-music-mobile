@@ -82,6 +82,9 @@ const fixture = (locale = locales[0]) => {
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Image': { default: 'Image' },
     '@/components/MusicAddModal': { default: 'MusicAddModal' },
+    '@/components/shareCard/LyricSelectionSheet': { LyricSelectionSheet: 'LyricSelectionSheet' },
+    '@/components/shareCard/ShareCardPage': { ShareCardPage: 'ShareCardPage' },
+    '@/utils/dataSpace': { onDataSpaceWillChange: () => () => {} },
     '@/components/magazine': { Hairline: 'Hairline', PrimaryButton: 'PrimaryButton', SecondaryButton: 'SecondaryButton', MagSegmented: 'MagSegmented' },
     '@/config/constant': { LIST_IDS: { LOVE: 'love' }, MUSIC_TOGGLE_MODE: {}, MUSIC_TOGGLE_MODE_LIST: [] },
     '@/core/together/control': { blockTogetherMemberControl: () => env.locked },
@@ -291,4 +294,24 @@ test('6.3 full lyrics preserve extended rows, add compact extra-line controls an
   header.find(node => node.type === 'SecondaryButton').props.onPress()
   assert.ok(f.env.shares[0].message.includes('First\ntranslation\nromaji\n\nThird'))
   assert.equal(f.button(), undefined)
+})
+
+test('6.7 long press opens selection and generates a card without seeking; track changes invalidate both surfaces', () => {
+  const f = fixture()
+  f.tap(2, true)
+  let sheet = walk(f.root()).find(node => node.type === 'LyricSelectionSheet')
+  assert.equal(sheet.props.initialIndex, 2)
+  assert.equal(sheet.props.lines[2].time, 118900)
+  assert.deepEqual(f.env.seeks, [])
+  assert.ok(f.button())
+  sheet.props.onGenerate([sheet.props.lines[2]])
+  f.render()
+  assert.equal(walk(f.root()).some(node => node.type === 'LyricSelectionSheet'), false)
+  assert.equal(walk(f.root()).find(node => node.type === 'ShareCardPage').props.sources.lyrics.lines[0].text, 'Third')
+  f.env.id = 'different'; f.render()
+  assert.equal(walk(f.root()).some(node => node.type === 'ShareCardPage'), false)
+  f.tap(0, true)
+  sheet = walk(f.root()).find(node => node.type === 'LyricSelectionSheet')
+  sheet.props.onClose(); f.render()
+  assert.equal(walk(f.root()).some(node => node.type === 'LyricSelectionSheet'), false)
 })

@@ -13,9 +13,11 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { localDateReader } from '@/utils/memories/calendar'
 import { monthAt, monthIndex, monthlyBounds, monthlyReport, switchReportMonth, type ReportMonth } from '@/utils/memories/monthly'
-import { createStyle, toast } from '@/utils/tools'
+import { createStyle } from '@/utils/tools'
 
 import { type ListeningStatsModel } from './useListeningStatsModel'
+import { ShareCardPage } from '@/components/shareCard/ShareCardPage'
+import { buildRangeStats } from '@/utils/playHistory/range'
 
 const useStyles = sharedLuxStyles(() => createStyle({
   root: { flex: 1 },
@@ -60,6 +62,7 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth,
   const statusBarHeight = useStatusbarHeight()
   const { records, now, t } = model
   const [selected, setSelected] = useState(() => monthIndex(initialMonth ?? localDateReader()(now)))
+  const [preview, setPreview] = useState(false)
   const bounds = useMemo(() => monthlyBounds(records, now), [records, now])
   // Clamp on history deletion/import and data-space switches as well as button presses.
   const index = Math.max(bounds.min, Math.min(bounds.max, selected))
@@ -77,16 +80,17 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth,
   const peak = report.peakDay
   const peakLabel = peak ? t('monthly_peak', { month: report.month, day: peak.day, minutes: Math.round(peak.listenedMs / 60_000) }) : ''
   const maxMs = peak?.listenedMs ?? 1
-  const share = () => {
+  const share = async() => {
     const favorites = report.topSongs.map((item, i) => t('monthly_share_song', { rank: i + 1, song: item.song.name, artist: item.song.singer, count: item.playCount })).join('\n')
-    void Share.share({ message: [monthLabel, `${report.minutes.toLocaleString()} ${t('stats_unit_minute')}`, delta, summary, t('monthly_favorites'), favorites, t('monthly_discoveries'), discoveriesText].join('\n') })
-      .catch(() => { toast(t('monthly_share_failed')) })
+    await Share.share({ message: [monthLabel, `${report.minutes.toLocaleString()} ${t('stats_unit_minute')}`, delta, summary, t('monthly_favorites'), favorites, t('monthly_discoveries'), discoveriesText].join('\n') })
   }
+  const annual = useMemo(() => buildRangeStats(records.filter(record => record.startedAt <= now), 'year', Math.min(now, new Date(report.year, 11, 31, 23, 59, 59).getTime())), [records, now, report.year])
   return (
+    <>
     <ScrollView style={[styles.root, { backgroundColor: r.paper }]} contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 26 + bottomPadding }]} showsVerticalScrollIndicator={false}>
       <View style={styles.top}>
         <BackButton compact onPress={onClose} accessibilityLabel={t('back')} />
-        <SecondaryButton compact label={t('monthly_share')} style={styles.share} onPress={share} disabled={!report.playCount} />
+        <SecondaryButton compact label={t('monthly_share')} style={styles.share} onPress={() => { setPreview(true) }} disabled={!report.playCount} />
       </View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('monthly_eyebrow')}</Text>
       <View style={styles.month}>
@@ -141,5 +145,10 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth,
       <Text size={12} color={r.muted} style={styles.discoveries}>{discoveriesText}</Text>
       {onOpenStats ? <View style={styles.empty}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View> : null}
     </ScrollView>
+    {preview ? <ShareCardPage initialTab="monthly" onClose={() => { setPreview(false) }} monthlyFallback={share} sources={{
+      monthly: { title: monthLabel, minutes: report.minutes, playCount: report.playCount, songCount: report.songCount, artistCount: report.artistCount, topSongs: report.topSongs.map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },
+      annual: { title: t('share_card_annual_title', { year: report.year }), minutes: Math.round(annual.listenedMs / 60_000), playCount: annual.songs.reduce((sum, song) => sum + song.playCount, 0), songCount: annual.songs.length, artistCount: annual.artists.length, topSongs: annual.songs.slice(0, 3).map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },
+    }} /> : null}
+    </>
   )
 }

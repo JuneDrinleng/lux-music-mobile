@@ -1,6 +1,20 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { SHARE_CARD_SIZE } from './model'
+import { captureRef, releaseCapture } from 'react-native-view-shot'
+import { type RefObject } from 'react'
+import { type View } from 'react-native'
+import { shareImage } from '@/utils/nativeModules/utils'
+
+/** Capture only the mounted, non-collapsible card, never its editing controls. */
+export const nativeCardExport = (view: RefObject<View>, title: string): CardExportDependencies => ({
+  capture: async options => {
+    if (!view.current) throw new Error('Share card is not mounted')
+    return await captureRef(view, options)
+  },
+  share: async uri => { await shareImage(title, uri) },
+  release: releaseCapture,
+})
 
 export interface CardCaptureOptions {
   width: number

@@ -119,7 +119,25 @@ test('missing tab data and empty reports disable export; lyric line limits also 
   }
 })
 
-const { captureAndShareCard } = load('src/utils/shareCard/export.ts', { './model': model })
+const nativeCalls = []
+const { captureAndShareCard, nativeCardExport } = load('src/utils/shareCard/export.ts', {
+  './model': model,
+  'react-native-view-shot': {
+    captureRef: async(...args) => { nativeCalls.push(['captureRef', ...args]); return 'file:///card.png' },
+    releaseCapture: uri => { nativeCalls.push(['releaseCapture', uri]) },
+  },
+  '@/utils/nativeModules/utils': { shareImage: async(...args) => { nativeCalls.push(['shareImage', ...args]) } },
+})
+test('native adapter captures the card ref, shares its file and releases it; unmounted refs fail capture', async() => {
+  const ref = { current: {} }
+  await captureAndShareCard(true, nativeCardExport(ref, 'Share'))
+  assert.deepEqual(nativeCalls, [
+    ['captureRef', ref, { width: 1080, height: 1440, format: 'png', result: 'tmpfile' }],
+    ['shareImage', 'Share', 'file:///card.png'],
+    ['releaseCapture', 'file:///card.png'],
+  ])
+  await assert.rejects(captureAndShareCard(true, nativeCardExport({ current: null }, 'Share')), /not mounted/)
+})
 const exportFixture = () => {
   const calls = []
   const dependencies = {

@@ -24,6 +24,10 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
+import { LyricSelectionSheet } from '@/components/shareCard/LyricSelectionSheet'
+import { ShareCardPage } from '@/components/shareCard/ShareCardPage'
+import { type ShareLine } from '@/utils/shareCard/selection'
+import { onDataSpaceWillChange } from '@/utils/dataSpace'
 
 export interface LyricType {
   dismissSeek: () => void
@@ -49,6 +53,12 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
   const [isLoved, setIsLoved] = useState(false)
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [shareIndex, setShareIndex] = useState<number | null>(null)
+  const [cardLines, setCardLines] = useState<ShareLine[] | null>(null)
+  const shareLines = useMemo(() => lines.map(item => ({ time: item.time, text: item.text, translation: item.translation })), [lines])
+  const shareSource = useMemo(() => JSON.stringify([musicInfo.id, shareLines]), [musicInfo.id, shareLines])
+  useEffect(() => { setShareIndex(null); setCardLines(null) }, [shareSource, active])
+  useEffect(() => onDataSpaceWillChange(() => { setShareIndex(null); setCardLines(null) }), [])
   const dismissSeek = useCallback(() => { setSelectedIndex(null) }, [])
   useImperativeHandle(ref, () => ({ dismissSeek }), [dismissSeek])
 
@@ -170,7 +180,7 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
           style={styles.lineContent}
           activeOpacity={0.7}
           onPress={() => { setSelectedIndex(index) }}
-          onLongPress={() => { setSelectedIndex(index) }}
+          onLongPress={() => { setSelectedIndex(index); if (item.text.trim()) setShareIndex(index) }}
           accessibilityRole="button"
           accessibilityState={{ selected }}
           accessibilityLabel={item.text || formatPlayTime2(item.time / 1000)}
@@ -284,6 +294,8 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
         </TouchableOpacity>
       </PlayerTransport>
       <MusicAddModal ref={musicAddModalRef} />
+      {shareIndex != null ? <LyricSelectionSheet key={shareSource} source={shareSource} lines={shareLines} initialIndex={shareIndex} song={musicInfo.name} onClose={() => { setShareIndex(null) }} onGenerate={selected => { setShareIndex(null); setCardLines(selected) }} /> : null}
+      {cardLines ? <ShareCardPage initialTab="lyrics" sources={{ lyrics: { title: musicInfo.name, artist: musicInfo.singer, album: musicInfo.album, cover: musicInfo.pic ?? undefined, lines: cardLines } }} onClose={() => { setCardLines(null) }} /> : null}
     </View>
   )
 })

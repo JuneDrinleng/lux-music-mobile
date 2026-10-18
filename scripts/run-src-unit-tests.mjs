@@ -37,7 +37,6 @@ const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc')
 const files = [
   'src/utils/shareCard/selection.ts',
   'src/utils/shareCard/model.ts',
-  'src/utils/shareCard/export.ts',
   'src/components/playlist/playlistDragMath.ts',
   'src/components/playlist/playlistDragState.ts',
   'src/components/playlist/songRowKey.ts',
