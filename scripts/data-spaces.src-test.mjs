@@ -90,6 +90,7 @@ const legacy = {
   '@user_gender': '"female"',
   '@sync_conflict_mode': '"merge_local_remote"',
   '@memories_milestones_v1': '{"version":1,"achieved":{},"ignored":["streak:30"]}',
+  '@recommendations_v1': '{"version":1,"days":{}}',
   '@dislike_list': '"rule"',
   '@play_info': '{}',
   '@list_scroll_position': '{}',
