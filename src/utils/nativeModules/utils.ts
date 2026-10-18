@@ -104,6 +104,12 @@ export const shareText = async(shareTitle: string, title: string, text: string):
   UtilsModule.shareText(shareTitle, title, text)
 }
 
+/** Copies the capture to a provider-backed cache file before opening Android's chooser. */
+export const shareImage = async(shareTitle: string, imageUri: string): Promise<void> => {
+  if (typeof UtilsModule?.shareImage != 'function') throw new Error('Image sharing is unavailable in this native build')
+  await UtilsModule.shareImage(shareTitle, imageUri)
+}
+
 export const getSystemLocales = async(): Promise<string> => {
   return UtilsModule.getSystemLocales()
 }

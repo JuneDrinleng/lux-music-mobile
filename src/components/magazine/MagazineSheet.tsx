@@ -61,6 +61,8 @@ export interface MagazineSheetProps {
   importLayout?: boolean
   /** Sleep timer uses the 7D figure and compact close control. */
   timerLayout?: boolean
+  /** Approved 2A lyric-selection geometry. Other sheet layouts retain their dimensions. */
+  lyricLayout?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -227,6 +229,7 @@ export const MagazineSheet = memo(({
   footerContent,
   importLayout = false,
   timerLayout = false,
+  lyricLayout = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -317,13 +320,13 @@ export const MagazineSheet = memo(({
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }]}>
           <View style={styles.inkBar} />
-          <View style={[styles.header, importLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
+          <View style={[styles.header, importLayout || lyricLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={styles.title} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
@@ -340,15 +343,15 @@ export const MagazineSheet = memo(({
               ? <View style={{ marginTop: 12 }}>{subject}</View>
               : figure
                 ? (
-                  <View style={[styles.figureRow, importLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
-                    <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
+                  <View style={[styles.figureRow, importLayout || lyricLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
+                    <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout || lyricLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
                     {figure.unit
-                      ? <Text size={14} color={importLayout ? r.ink : r.muted} style={[styles.figureUnit, importLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
+                      ? <Text size={lyricLayout ? 15 : 14} color={importLayout || lyricLayout ? r.ink : r.muted} style={[styles.figureUnit, importLayout || lyricLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
                       : null}
                   </View>
                   )
                 : null}
-            <View style={[styles.toolRule, importLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
+            <View style={[styles.toolRule, importLayout || lyricLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
             {toolExtra
               ? <View style={styles.toolExtra}>{toolExtra}</View>
               : null}
@@ -357,8 +360,8 @@ export const MagazineSheet = memo(({
               {headerAction
                 ? (
                   <TextButton
-                    compact={importLayout}
-                    labelSize={timerLayout ? 13 : undefined}
+                    compact={importLayout || lyricLayout}
+                    labelSize={timerLayout || lyricLayout ? 13 : undefined}
                     label={headerAction.text}
                     danger={headerAction.tone === 'danger'}
                     muted={headerAction.disabled}
