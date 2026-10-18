@@ -26,3 +26,16 @@ export const migrateAvatar = async(raw: string, spaceId: SpaceId): Promise<strin
   if (!await existsFile(destination) || (await stat(destination)).size != original.size) throw new Error('Avatar destination verification failed')
   return JSON.stringify(destination)
 }
+
+export const copySpaceAvatar = async(value: string, sourceSpace: SpaceId, targetSpace: SpaceId): Promise<string> => {
+  const source = value.replace(/^file:\/\//, '')
+  if (!source.startsWith(`${avatarDirectory(sourceSpace)}/avatar.`) || !await existsFile(source)) return value
+  const ext = source.slice(source.lastIndexOf('.') + 1)
+  if (!['jpg', 'jpeg', 'png', 'webp', 'bmp'].includes(ext)) return value
+  const directory = avatarDirectory(targetSpace)
+  if (!await existsFile(directory)) await mkdir(directory)
+  const target = `${directory}/avatar.${ext}`
+  await writeFile(target, String(await readFile(source, 'base64')), 'base64')
+  if ((await stat(target)).size !== (await stat(source)).size) throw new Error('Avatar import verification failed')
+  return target
+}

@@ -6,6 +6,7 @@ import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
+import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
@@ -21,7 +22,7 @@ import {
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { clipboardWriteText, confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { clipboardWriteText, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
@@ -58,7 +59,7 @@ import {
 } from '@/core/together/debugPanelPreference'
 import { buildTogetherDiagnosticText } from '@/core/together/debugTelemetry'
 import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
-import { pushSyncLoginScreen } from '@/navigation/navigation'
+import { navigations } from '@/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
@@ -708,28 +709,16 @@ export default () => {
     setActiveOptionDetail(null)
   }
   const handleLogoutSyncAccount = useCallback(async() => {
-    const confirmed = await confirmDialog({
-      title: t('setting_sync_logout_title'),
-      message: t('setting_sync_logout_message'),
-      cancelButtonText: t('cancel'),
-      confirmButtonText: t('setting_sync_logout_confirm'),
-      eyebrow: t('mag_dialog_eyebrow_account_logout'),
-      eyebrowDanger: true,
-      confirmDanger: true,
+    let loggedOut = false
+    await showLogoutOptions(nickname || luxUsername, syncHost, async(remove) => {
+      await rememberSyncLoginForm({ host: syncHost, mode: syncMode, luxUsername, lxAuthCode: authCode })
+      await applySyncAccountLogout(remove)
+      setLuxPassword('')
+      setAuthCode('')
+      loggedOut = true
     })
-    if (!confirmed) return
-
-    await rememberSyncLoginForm({
-      host: syncHost,
-      mode: syncMode,
-      luxUsername,
-      lxAuthCode: authCode,
-    })
-    await applySyncAccountLogout()
-    setLuxPassword('')
-    setAuthCode('')
-    await pushSyncLoginScreen()
-  }, [authCode, luxUsername, syncHost, syncMode, t])
+    if (loggedOut) await navigations.pushHomeScreen()
+  }, [authCode, luxUsername, nickname, syncHost, syncMode])
   const handleClearSyncConflictMode = useCallback(async() => {
     await clearSyncConflictMode()
     toast(t('setting_sync_clear_conflict_mode_success'))
@@ -1024,7 +1013,7 @@ export default () => {
           : null}
 
       </ScrollView>
-      {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} /> : null}
+      {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} /> : null}
       <Animated.View
         pointerEvents={activeOptionDetail ? 'auto' : 'none'}
         style={[

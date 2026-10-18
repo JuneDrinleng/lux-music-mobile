@@ -555,18 +555,19 @@ export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
     auth = withoutLuxSecrets(auth)
     const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
     const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
-    const current = auth.serverId ? sessions[auth.serverId] ?? active : active
+    const current = sessions[refreshTokenServerKey(auth)] ?? (auth.serverId ? sessions[auth.serverId] : null) ?? active
     const oldKey = current ? refreshTokenServerKey(current) : null
     const newKey = refreshTokenServerKey(auth)
     const rebinding = current?.token === auth.token && current.user.id === auth.user.id && oldKey !== newKey
     const refreshToken = input.refreshToken ?? (rebinding && oldKey ? await secureCredentials.getRefreshToken(oldKey) : null)
     if (refreshToken) await secureCredentials.setRefreshToken(newKey, refreshToken)
     else if (current?.user.id !== auth.user.id || current.token !== auth.token) await secureCredentials.clear(newKey)
+    sessions[newKey] = auth
     if (auth.serverId) sessions[auth.serverId] = auth
     await AsyncStorage.multiSet([[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)], [luxAuthPrefix, JSON.stringify(auth)]])
     if (rebinding && oldKey) await secureCredentials.clear(oldKey)
   })
-  if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username)
+  if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username, auth.serverUrl)
 }
 /** Read under the auth mutation lock so account switches cannot lend another user's refresh token. */
 export const getLuxRefreshToken = async(previous: LX.Sync.LuxAuth) => {
@@ -574,7 +575,7 @@ export const getLuxRefreshToken = async(previous: LX.Sync.LuxAuth) => {
   return withLuxAuthWrite(async() => {
     const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
     const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
-    const current = previous.serverId ? sessions[previous.serverId] ?? active : active
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
     if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return null
     return secureCredentials.getRefreshToken(refreshTokenServerKey(current))
   })
@@ -584,11 +585,12 @@ export const rotateLuxAuth = async(previous: LX.Sync.LuxAuth, tokens: { token: s
   return withLuxAuthWrite(async() => {
     const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
     const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
-    const current = previous.serverId ? sessions[previous.serverId] ?? active : active
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
     if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return null
     if (!await secureCredentials.setRefreshToken(refreshTokenServerKey(current), tokens.refreshToken)) return null
     const next = withoutLuxSecrets({ ...current, ...tokens })
-    if (next.serverId) sessions[next.serverId] = next
+    sessions[refreshTokenServerKey(next)] = next
+    if (next.serverId && sessions[next.serverId]?.user.id === next.user.id) sessions[next.serverId] = next
     const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
     if (active?.token === previous.token && active.user.id === previous.user.id && active.serverId === previous.serverId) writes.push([luxAuthPrefix, JSON.stringify(next)])
     await AsyncStorage.multiSet(writes)
@@ -600,10 +602,11 @@ export const clearLuxAuthForServer = async(previous: LX.Sync.LuxAuth) => {
   return withLuxAuthWrite(async() => {
     const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
     const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
-    const current = previous.serverId ? sessions[previous.serverId] ?? active : active
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
     if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return false
     await secureCredentials.clear(refreshTokenServerKey(current))
-    if (previous.serverId) delete sessions[previous.serverId]
+    delete sessions[refreshTokenServerKey(current)]
+    if (previous.serverId && sessions[previous.serverId]?.user.id === previous.user.id) delete sessions[previous.serverId]
     const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
     if (active?.token === previous.token && active.serverId === previous.serverId) writes.push([luxAuthPrefix, 'null'])
     await AsyncStorage.multiSet(writes)
@@ -624,7 +627,7 @@ export const listLuxAuthSessions = async(): Promise<LX.Sync.LuxAuth[]> => {
   await migrateStoredLuxCredentials()
   await luxAuthWrite
   const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
-  return sessions ? Object.values(sessions) : []
+  return [...new Map(Object.values(sessions ?? {}).map(auth => [refreshTokenServerKey(auth), auth])).values()]
 }
 
 export const reloadSyncHostFromStorage = async() => {
@@ -654,6 +657,8 @@ export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth |
   await luxAuthWrite
   const normalized = normalizeSyncHostUrl(host)
   if (!normalized) return null
+  const selected = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  if (selected?.serverUrl && normalizeSyncHostUrl(selected.serverUrl) === normalized) return selected
   const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
   if (sessions) {
     for (const session of Object.values(sessions)) {

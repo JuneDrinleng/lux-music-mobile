@@ -35,7 +35,7 @@ const nativeBackend: SecureCredentialBackend = {
   clear: async(service) => keychain().resetGenericPassword({ service }),
 }
 
-export const refreshTokenServerKey = (auth: { serverId?: string, serverUrl?: string }) => auth.serverId ?? auth.serverUrl ?? 'legacy'
+export const refreshTokenServerKey = (auth: { serverId?: string, serverUrl?: string, user?: { id: string } }) => auth.user?.id ? JSON.stringify([auth.serverId ?? auth.serverUrl ?? 'legacy', auth.user.id]) : auth.serverId ?? auth.serverUrl ?? 'legacy'
 
 export const createSecureCredentials = (backend: SecureCredentialBackend = nativeBackend) => {
   const service = (serverKey: string) => `lux.refresh.${encodeURIComponent(serverKey)}`

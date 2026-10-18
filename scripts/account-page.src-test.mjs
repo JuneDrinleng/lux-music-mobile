@@ -140,6 +140,7 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
     '@/utils/data': { findLuxAuthForHost: async() => savedAuth, getUserAvatarDataUrl: async() => '', getUserGender: async() => 'unknown', getUserSignature: async() => 'signature' },
     '@/utils/dataSpace': { getActiveSpace: () => server ? 'lux:server:alice' : 'local', listSpaces: async() => [{ id: 'local', kind: 'local' }, { id: 'lux:server:alice', kind: 'lux', label: 'alice' }, { id: 'lux:server:bob', kind: 'lux', label: 'bob' }] },
     '@/utils/accountPage': api,
+    './AccountSpaces': { default: 'AccountSpaces' },
     '@/navigation/navigation': { pushSyncLoginScreen: async args => { calls.push(['login', args]) } },
     '@/screens/Login/ChangePassword': { default: 'ChangePassword' },
   }).default
@@ -271,5 +272,95 @@ test('14D failure retains signature/gender draft; cancel discards it; signature 
     view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText(value); view.render()
     view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').at(-1)[1].signature, '')
+  }
+})
+
+test('5.7 login pulls an empty remote profile without automatically POSTing the local profile', async context => {
+  const previous = global.app_event
+  context.after(() => { global.app_event = previous })
+  const profile = { displayName: '', avatar: '', signature: '', gender: 'unknown' }
+  const env = profileHarness(async() => ({ profile }))
+  assert.deepEqual(await env.mod.syncLuxProfileOnLogin(host), profile)
+  assert.deepEqual(env.calls, [[`${host}/api/me/profile`, null, 'token']])
+  assert.equal(env.calls.filter(call => call[1] != null).length, 0)
+})
+
+const renderDataDialog = kind => {
+  const slots = []; let cursor = 0; const finished = []
+  const hooks = {
+    useState: initial => {
+      const index = cursor++
+      if (!(index in slots)) slots[index] = initial
+      return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value }]
+    },
+    useRef: initial => { const index = cursor++; return slots[index] ??= { current: initial } },
+    useEffect() {},
+  }
+  const jsx = (type, props) => ({ type, props })
+  const component = load('src/navigation/components/AccountDataDialog.tsx', {
+    react: hooks,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': { BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
+    '@/components/common/Text': { default: 'Text' },
+    '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),
+    '@/lang': { useI18n: () => t },
+    '@/store/common/hook': { useStatusbarHeight: () => 44 },
+    '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder({ surface: {} }) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/theme/luxColorMath': { rgbaHex: () => 'scrim' },
+    '@/utils/tools': { createStyle: value => value },
+  }).default
+  const contents = { lists: [{ id: 'love', name: '', count: 4 }, { id: 'one', name: 'One', count: 2 }, { id: 'temp', name: '', count: 1 }], songs: 7, history: 11, bytes: 100 }
+  const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children), ...nodes(node.props?.footerContent)]
+  let tree
+  const render = () => { cursor = 0; tree = component({ kind, username: 'Alice', host: 'https://server', contents: kind === 'import' ? contents : undefined, finish: async choice => { finished.push(choice) } }) }
+  render()
+  return { render, finished, nodes: () => nodes(tree), find: (type, label) => nodes(tree).find(node => node.type === type && (!label || node.props.label === label)) }
+}
+
+test('5.7 logout dialog defaults to keep, delete changes choice, cancel makes no logout choice', async() => {
+  const keep = renderDataDialog('logout')
+  assert.equal(keep.find('OptionRow', zh.spaces_keep).props.selected, true)
+  assert.equal(keep.find('OptionRow', zh.spaces_delete).props.selected, false)
+  keep.find('PrimaryButton').props.onPress(); await flush()
+  assert.deepEqual(keep.finished, [false])
+  const remove = renderDataDialog('logout')
+  remove.find('OptionRow', zh.spaces_delete).props.onPress(); remove.render()
+  assert.equal(remove.find('OptionRow', zh.spaces_delete).props.selected, true)
+  remove.find('PrimaryButton').props.onPress(); await flush()
+  assert.deepEqual(remove.finished, [true])
+  const cancel = renderDataDialog('logout')
+  cancel.find('TextButton', zh.cancel).props.onPress(); await flush()
+  assert.deepEqual(cancel.finished, [null])
+})
+
+test('5.7 choose-playlists opens the preview sheet, defaults history off, toggles choices and submits exact selection', async() => {
+  const view = renderDataDialog('import')
+  assert.equal(view.find('MagazineSheet').props.visible, false)
+  view.find('SecondaryButton', zh.spaces_choose).props.onPress(); view.render()
+  assert.equal(view.find('MagazineSheet').props.visible, true)
+  assert.equal(view.find('MagazineSheet').props.figure.value, '2')
+  assert.equal(view.find('Toggle').props.value, false)
+  view.find('MagazineSheet').props.headerAction.onPress(); view.render()
+  assert.equal(view.find('MagazineSheet').props.figure.value, '3')
+  view.find('Toggle').props.onChange(true); view.render()
+  view.find('PrimaryButton', zh.spaces_import).props.onPress(); await flush()
+  assert.deepEqual(view.finished, [{ ids: ['love', 'one', 'temp'], history: true }])
+  const skip = renderDataDialog('import')
+  skip.find('TextButton', zh.spaces_no_import).props.onPress(); await flush()
+  assert.deepEqual(skip.finished, [null])
+  const all = renderDataDialog('import')
+  all.find('PrimaryButton', zh.spaces_import_all).props.onPress(); await flush()
+  assert.deepEqual(all.finished, [{ ids: ['love', 'one', 'temp'], history: true, all: true }])
+})
+
+test('5.7 every new space/dialog string has matching interpolation fields in all three languages', () => {
+  const locales = ['zh-cn', 'zh-tw', 'en-us'].map(locale => JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8')))
+  for (const key of Object.keys(locales[0]).filter(key => key.startsWith('spaces_'))) {
+    const parameters = value => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort()
+    for (const locale of locales) {
+      assert.ok(locale[key], key)
+      assert.deepEqual(parameters(locale[key]), parameters(locales[0][key]), key)
+    }
   }
 })

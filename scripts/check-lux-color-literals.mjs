@@ -73,6 +73,8 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/components/search/SearchSonglistResultRow.tsx',
   'src/components/search/sourceTone.ts',
   'src/screens/Account/AccountPage.tsx',
+  'src/screens/Account/AccountSpaces.tsx',
+  'src/navigation/components/AccountDataDialog.tsx',
   'src/screens/Home/Vertical/BottomNav.tsx',
   'src/screens/Home/Vertical/PlayDetailOverlay.tsx',
   'src/screens/Home/Vertical/PlayQueueSheet.tsx',

@@ -54,19 +54,9 @@ export const syncLuxProfileOnLogin = async(host?: string) => {
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
   if (space != getActiveSpace()) return null
-  const hasRemoteProfile = !!(profile.displayName || profile.avatar || profile.signature || profile.gender != 'unknown')
-  if (hasRemoteProfile) {
-    await applyLuxProfile(profile)
-    return profile
-  }
-  const localProfile: LX.Sync.LuxProfile = {
-    displayName: (await getUserName()) ?? '',
-    avatar: await getUserAvatarDataUrl(),
-    gender: await getUserGender(),
-    signature: (await getUserSignature()) ?? '',
-  }
-  if (space != getActiveSpace()) return null
-  return requestJson<{ profile: LX.Sync.LuxProfile }>(url, localProfile, token).then(({ profile }) => profile)
+  // Login only pulls. Local profile upload requires an explicit import or edit.
+  await applyLuxProfile(profile)
+  return profile
 }
 
 export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
