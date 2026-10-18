@@ -92,6 +92,7 @@ export const storageDataPrefix = {
   dislikeList: '@dislike_list',
 
   memoriesMilestones: '@memories_milestones_v1',
+  recommendations: '@recommendations_v1',
   playHistory: '@play_history',
   playHistoryDevice: '@play_history_device',
   playHistoryCursor: '@play_history_cursor',
