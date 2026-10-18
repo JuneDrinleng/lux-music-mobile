@@ -8,7 +8,6 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
-import android.content.ContentValues;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
@@ -25,8 +24,6 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Environment;
-import android.media.MediaScannerConnection;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -49,7 +46,6 @@ import com.facebook.react.bridge.WritableNativeArray;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.OutputStream;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -407,62 +403,6 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     shareIntent.putExtra(Intent.EXTRA_TEXT,text);
     shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
     Objects.requireNonNull(reactContext.getCurrentActivity()).startActivity(Intent.createChooser(shareIntent, shareTitle));
-  }
-
-  /** Publish a PNG to Pictures/Lux Music. Scoped storage needs no broad permission. */
-  @ReactMethod
-  public void saveShareCard(String imageUri, Promise promise) {
-    new Thread(() -> {
-      Uri published = null;
-      File legacyFile = null;
-      try {
-        Uri input = Uri.parse(imageUri);
-        if (!"file".equals(input.getScheme()) || input.getPath() == null) throw new IllegalArgumentException("Expected a local capture file");
-        File source = new File(input.getPath()).getCanonicalFile();
-        String internalRoot = reactContext.getCacheDir().getCanonicalPath() + File.separator;
-        File externalCache = reactContext.getExternalCacheDir();
-        String externalRoot = externalCache == null ? null : externalCache.getCanonicalPath() + File.separator;
-        if (!source.getPath().startsWith(internalRoot) && (externalRoot == null || !source.getPath().startsWith(externalRoot))) throw new IllegalArgumentException("Capture must be in the app cache");
-        String name = "Lux-" + UUID.randomUUID() + ".png";
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-          ContentValues values = new ContentValues();
-          values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-          values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-          values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Lux Music");
-          values.put(MediaStore.Images.Media.IS_PENDING, 1);
-          published = reactContext.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-          if (published == null) throw new java.io.IOException("Cannot create gallery image");
-          try (FileInputStream in = new FileInputStream(source); OutputStream out = reactContext.getContentResolver().openOutputStream(published)) {
-            if (out == null) throw new java.io.IOException("Cannot open gallery image");
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
-          }
-          values.clear();
-          values.put(MediaStore.Images.Media.IS_PENDING, 0);
-          if (reactContext.getContentResolver().update(published, values, null, null) != 1) throw new java.io.IOException("Cannot publish gallery image");
-          promise.resolve(published.toString());
-        } else {
-          File directory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Lux Music");
-          if (!directory.isDirectory() && !directory.mkdirs()) throw new java.io.IOException("Cannot create gallery directory");
-          legacyFile = new File(directory, name);
-          try (FileInputStream in = new FileInputStream(source); FileOutputStream out = new FileOutputStream(legacyFile)) {
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
-          }
-          final File ready = legacyFile;
-          MediaScannerConnection.scanFile(reactContext, new String[] { ready.getAbsolutePath() }, new String[] { "image/png" }, (path, uri) -> {
-            if (uri == null) { ready.delete(); promise.reject("SAVE_SHARE_CARD", "Gallery scan failed"); }
-            else promise.resolve(uri.toString());
-          });
-        }
-      } catch (Exception error) {
-        if (published != null) reactContext.getContentResolver().delete(published, null, null);
-        if (legacyFile != null) legacyFile.delete();
-        promise.reject("SAVE_SHARE_CARD", error);
-      }
-    }).start();
   }
 
   /** Keep a separate copy: the JS capture may be released while another app reads it. */

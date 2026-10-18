@@ -30,6 +30,7 @@ import './memories.src-test.mjs'
 import './monthly.src-test.mjs'
 import './stats-memories.src-test.mjs'
 import './share-card.src-test.mjs'
+import './share-card-ui.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))

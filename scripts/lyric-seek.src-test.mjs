@@ -296,9 +296,12 @@ test('6.3 full lyrics preserve extended rows, add compact extra-line controls an
   assert.equal(f.button(), undefined)
 })
 
-test('6.7 long press opens selection and generates a card without seeking; track changes invalidate both surfaces', () => {
+test('6.7 long press retains seek selection; its card action opens 2A; track changes invalidate both surfaces', () => {
   const f = fixture()
   f.tap(2, true)
+  assert.ok(f.button())
+  assert.equal(walk(f.root()).some(node => node.type === 'LyricSelectionSheet'), false)
+  walk(f.row(2)).find(node => node.type === 'SecondaryButton').props.onPress(); f.render()
   let sheet = walk(f.root()).find(node => node.type === 'LyricSelectionSheet')
   assert.equal(sheet.props.initialIndex, 2)
   assert.equal(sheet.props.lines[2].time, 118900)
@@ -311,6 +314,7 @@ test('6.7 long press opens selection and generates a card without seeking; track
   f.env.id = 'different'; f.render()
   assert.equal(walk(f.root()).some(node => node.type === 'ShareCardPage'), false)
   f.tap(0, true)
+  walk(f.row(0)).find(node => node.type === 'SecondaryButton').props.onPress(); f.render()
   sheet = walk(f.root()).find(node => node.type === 'LyricSelectionSheet')
   sheet.props.onClose(); f.render()
   assert.equal(walk(f.root()).some(node => node.type === 'LyricSelectionSheet'), false)

@@ -10,6 +10,12 @@ export type ShareCardBackground = typeof SHARE_CARD_BACKGROUNDS[number]
 export const SHARE_CARD_SIZE = { width: 1080, height: 1440 } as const
 export const SHARE_CARD_FRAME = { previewWidth: 300, padding: 22, radius: 6, topRule: 3, footerGap: 20 } as const
 
+/** Contain a content-height preview in the advertised output without stretching its type. */
+export const shareCardCanvas = (width: number, height: number) => {
+  const canvasWidth = Math.max(width, height * SHARE_CARD_SIZE.width / SHARE_CARD_SIZE.height)
+  return { width: canvasWidth, height: canvasWidth * SHARE_CARD_SIZE.height / SHARE_CARD_SIZE.width }
+}
+
 export interface LyricCardContent {
   title: string
   artist: string

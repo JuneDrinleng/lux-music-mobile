@@ -183,3 +183,12 @@ test('empty cards perform no capture; empty capture URI and fallback failure are
   await assert.rejects(captureAndShareCard(true, dependencies, async() => { throw new Error('text share failed') }), /text share failed/)
   assert.deepEqual(calls, [])
 })
+
+
+test('export canvas contains short and long preview cards at 3:4 without stretching', () => {
+  for (const [width, height] of [[300, 280], [300, 400], [300, 760]]) {
+    const canvas = model.shareCardCanvas(width, height)
+    assert.equal(canvas.width / canvas.height, 3 / 4)
+    assert.ok(canvas.width >= width && canvas.height >= height)
+  }
+})

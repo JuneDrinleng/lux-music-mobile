@@ -326,7 +326,7 @@ export const MagazineSheet = memo(({
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={styles.title} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}

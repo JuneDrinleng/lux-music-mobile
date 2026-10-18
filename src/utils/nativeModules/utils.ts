@@ -110,11 +110,6 @@ export const shareImage = async(shareTitle: string, imageUri: string): Promise<v
   await UtilsModule.shareImage(shareTitle, imageUri)
 }
 
-export const saveShareCard = async(imageUri: string): Promise<void> => {
-  if (typeof UtilsModule?.saveShareCard != 'function') throw new Error('Gallery saving is unavailable in this native build')
-  await UtilsModule.saveShareCard(imageUri)
-}
-
 export const getSystemLocales = async(): Promise<string> => {
   return UtilsModule.getSystemLocales()
 }

@@ -17,7 +17,7 @@ import { createStyle } from '@/utils/tools'
 
 import { type ListeningStatsModel } from './useListeningStatsModel'
 import { ShareCardPage } from '@/components/shareCard/ShareCardPage'
-import { buildRangeStats } from '@/utils/playHistory/range'
+import { annualShareReport } from '@/utils/shareCard/reports'
 
 const useStyles = sharedLuxStyles(() => createStyle({
   root: { flex: 1 },
@@ -84,71 +84,71 @@ export const MonthlyReportPage = ({ model, onClose, bottomPadding, initialMonth,
     const favorites = report.topSongs.map((item, i) => t('monthly_share_song', { rank: i + 1, song: item.song.name, artist: item.song.singer, count: item.playCount })).join('\n')
     await Share.share({ message: [monthLabel, `${report.minutes.toLocaleString()} ${t('stats_unit_minute')}`, delta, summary, t('monthly_favorites'), favorites, t('monthly_discoveries'), discoveriesText].join('\n') })
   }
-  const annual = useMemo(() => buildRangeStats(records.filter(record => record.startedAt <= now), 'year', Math.min(now, new Date(report.year, 11, 31, 23, 59, 59).getTime())), [records, now, report.year])
+  const annual = useMemo(() => annualShareReport(records, report.year, now), [records, now, report.year])
   return (
     <>
-    <ScrollView style={[styles.root, { backgroundColor: r.paper }]} contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 26 + bottomPadding }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.top}>
-        <BackButton compact onPress={onClose} accessibilityLabel={t('back')} />
-        <SecondaryButton compact label={t('monthly_share')} style={styles.share} onPress={() => { setPreview(true) }} disabled={!report.playCount} />
-      </View>
-      <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('monthly_eyebrow')}</Text>
-      <View style={styles.month}>
-        <TouchableOpacity style={styles.arrow} hitSlop={{ top: 8, bottom: 8, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel={t('monthly_previous')} accessibilityState={{ disabled: index <= bounds.min }} disabled={index <= bounds.min} onPress={() => { setSelected(monthIndex(switchReportMonth(report, -1, bounds))) }}>
-          <MdiIcon name="chevron-left" size={22} color={r.quiet} />
-        </TouchableOpacity>
-        <Text size={32} color={r.display} style={styles.heading}>{monthLabel}</Text>
-        <TouchableOpacity style={styles.arrow} hitSlop={{ top: 8, bottom: 8, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel={t('monthly_next')} accessibilityState={{ disabled: index >= bounds.max }} disabled={index >= bounds.max} onPress={() => { setSelected(monthIndex(switchReportMonth(report, 1, bounds))) }}>
-          <MdiIcon name="chevron-right" size={22} color={r.quiet} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.figureRow}>
-        <Text size={56} color={r.ink} style={styles.figure}>{report.minutes.toLocaleString()}</Text>
-        <Text size={15} color={r.ink} style={styles.unit}>{t('stats_unit_minute')}</Text>
-        <View style={[styles.delta, { backgroundColor: r.ink }]}><Text size={12} color={r.onInk} style={styles.bold}>{delta}</Text></View>
-      </View>
-      <Text size={12} color={r.muted}>{report.playCount ? summary : t('monthly_empty')}</Text>
-      <View style={styles.chart}>
-        {report.days.map(day => (
-          <View key={day.day} accessible accessibilityLabel={t('monthly_day', { month: report.month, day: day.day, minutes: Math.round(day.listenedMs / 60_000) })} style={[styles.column, { height: `${day.listenedMs / maxMs * 100}%`, backgroundColor: day.day == peak?.day ? r.accent : r.ink }]} />
-        ))}
-      </View>
-      <View style={styles.axis}>
-        <Text size={12} color={r.muted}>{t('stats_date_md', { month: report.month, day: 1 })}</Text>
-        <Text size={12} color={r.muted}>{peakLabel}</Text>
-        <Text size={12} color={r.muted}>{t('stats_date_md', { month: report.month, day: report.days.length })}</Text>
-      </View>
-      <View style={[styles.rule, { backgroundColor: r.ink }]} />
-      <View style={styles.section}>
-        <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_favorites')}</Text>
-        <Text size={12} color={r.muted}>{t('monthly_by_plays')}</Text>
-      </View>
-      {report.topSongs.map((item, i) => (
-        <View key={item.key}>
-          <View style={styles.row}>
-            <View style={styles.rank}>
-              <Svg width="100%" height="100%" viewBox="0 0 28 30"><SvgText x={0} y={23} fontSize={22} fontWeight="800" fill="none" stroke={r.ink} strokeWidth={1}>{String(i + 1).padStart(2, '0')}</SvgText></Svg>
-            </View>
-            <Image url={item.song.img} style={styles.cover} />
-            <View style={styles.song}>
-              <Text size={15} color={r.list} style={styles.bold} numberOfLines={1}>{item.song.name}</Text>
-              <Text size={12} color={r.muted} style={styles.singer} numberOfLines={1}>{item.song.singer}</Text>
-            </View>
-            <Text size={12} color={r.muted}>{t('monthly_plays', { count: item.playCount })}</Text>
-          </View>
-          <Hairline />
+      <ScrollView style={[styles.root, { backgroundColor: r.paper }]} contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 26 + bottomPadding }]} showsVerticalScrollIndicator={false}>
+        <View style={styles.top}>
+          <BackButton compact onPress={onClose} accessibilityLabel={t('back')} />
+          <SecondaryButton compact label={t('monthly_share')} style={styles.share} onPress={() => { setPreview(true) }} disabled={!report.playCount} />
         </View>
-      ))}
-      {!report.playCount ? <Text size={12} color={r.muted} style={styles.empty}>{t('monthly_empty_hint')}</Text> : null}
-      <View style={[styles.rule, { backgroundColor: r.ink }]} />
-      <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_discoveries')}</Text>
-      <Text size={12} color={r.muted} style={styles.discoveries}>{discoveriesText}</Text>
-      {onOpenStats ? <View style={styles.empty}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View> : null}
-    </ScrollView>
-    {preview ? <ShareCardPage initialTab="monthly" onClose={() => { setPreview(false) }} monthlyFallback={share} sources={{
-      monthly: { title: monthLabel, minutes: report.minutes, playCount: report.playCount, songCount: report.songCount, artistCount: report.artistCount, topSongs: report.topSongs.map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },
-      annual: { title: t('share_card_annual_title', { year: report.year }), minutes: Math.round(annual.listenedMs / 60_000), playCount: annual.songs.reduce((sum, song) => sum + song.playCount, 0), songCount: annual.songs.length, artistCount: annual.artists.length, topSongs: annual.songs.slice(0, 3).map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },
-    }} /> : null}
+        <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('monthly_eyebrow')}</Text>
+        <View style={styles.month}>
+          <TouchableOpacity style={styles.arrow} hitSlop={{ top: 8, bottom: 8, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel={t('monthly_previous')} accessibilityState={{ disabled: index <= bounds.min }} disabled={index <= bounds.min} onPress={() => { setSelected(monthIndex(switchReportMonth(report, -1, bounds))) }}>
+            <MdiIcon name="chevron-left" size={22} color={r.quiet} />
+          </TouchableOpacity>
+          <Text size={32} color={r.display} style={styles.heading}>{monthLabel}</Text>
+          <TouchableOpacity style={styles.arrow} hitSlop={{ top: 8, bottom: 8, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel={t('monthly_next')} accessibilityState={{ disabled: index >= bounds.max }} disabled={index >= bounds.max} onPress={() => { setSelected(monthIndex(switchReportMonth(report, 1, bounds))) }}>
+            <MdiIcon name="chevron-right" size={22} color={r.quiet} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.figureRow}>
+          <Text size={56} color={r.ink} style={styles.figure}>{report.minutes.toLocaleString()}</Text>
+          <Text size={15} color={r.ink} style={styles.unit}>{t('stats_unit_minute')}</Text>
+          <View style={[styles.delta, { backgroundColor: r.ink }]}><Text size={12} color={r.onInk} style={styles.bold}>{delta}</Text></View>
+        </View>
+        <Text size={12} color={r.muted}>{report.playCount ? summary : t('monthly_empty')}</Text>
+        <View style={styles.chart}>
+          {report.days.map(day => (
+            <View key={day.day} accessible accessibilityLabel={t('monthly_day', { month: report.month, day: day.day, minutes: Math.round(day.listenedMs / 60_000) })} style={[styles.column, { height: `${day.listenedMs / maxMs * 100}%`, backgroundColor: day.day == peak?.day ? r.accent : r.ink }]} />
+          ))}
+        </View>
+        <View style={styles.axis}>
+          <Text size={12} color={r.muted}>{t('stats_date_md', { month: report.month, day: 1 })}</Text>
+          <Text size={12} color={r.muted}>{peakLabel}</Text>
+          <Text size={12} color={r.muted}>{t('stats_date_md', { month: report.month, day: report.days.length })}</Text>
+        </View>
+        <View style={[styles.rule, { backgroundColor: r.ink }]} />
+        <View style={styles.section}>
+          <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_favorites')}</Text>
+          <Text size={12} color={r.muted}>{t('monthly_by_plays')}</Text>
+        </View>
+        {report.topSongs.map((item, i) => (
+          <View key={item.key}>
+            <View style={styles.row}>
+              <View style={styles.rank}>
+                <Svg width="100%" height="100%" viewBox="0 0 28 30"><SvgText x={0} y={23} fontSize={22} fontWeight="800" fill="none" stroke={r.ink} strokeWidth={1}>{String(i + 1).padStart(2, '0')}</SvgText></Svg>
+              </View>
+              <Image url={item.song.img} style={styles.cover} />
+              <View style={styles.song}>
+                <Text size={15} color={r.list} style={styles.bold} numberOfLines={1}>{item.song.name}</Text>
+                <Text size={12} color={r.muted} style={styles.singer} numberOfLines={1}>{item.song.singer}</Text>
+              </View>
+              <Text size={12} color={r.muted}>{t('monthly_plays', { count: item.playCount })}</Text>
+            </View>
+            <Hairline />
+          </View>
+        ))}
+        {!report.playCount ? <Text size={12} color={r.muted} style={styles.empty}>{t('monthly_empty_hint')}</Text> : null}
+        <View style={[styles.rule, { backgroundColor: r.ink }]} />
+        <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('monthly_discoveries')}</Text>
+        <Text size={12} color={r.muted} style={styles.discoveries}>{discoveriesText}</Text>
+        {onOpenStats ? <View style={styles.empty}><SecondaryButton compact label={t('memories_stats_details')} onPress={onOpenStats} /></View> : null}
+      </ScrollView>
+      {preview ? <ShareCardPage initialTab="monthly" onClose={() => { setPreview(false) }} monthlyFallback={share} sources={{
+        monthly: { title: monthLabel, minutes: report.minutes, playCount: report.playCount, songCount: report.songCount, artistCount: report.artistCount, topSongs: report.topSongs.map(item => ({ name: item.song.name, singer: item.song.singer, playCount: item.playCount })) },
+        annual: { ...annual, title: t('share_card_annual_title', { year: report.year }) },
+      }} /> : null}
     </>
   )
 }

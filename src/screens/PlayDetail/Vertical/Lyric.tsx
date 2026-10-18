@@ -180,7 +180,7 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
           style={styles.lineContent}
           activeOpacity={0.7}
           onPress={() => { setSelectedIndex(index) }}
-          onLongPress={() => { setSelectedIndex(index); if (item.text.trim()) setShareIndex(index) }}
+          onLongPress={() => { setSelectedIndex(index) }}
           accessibilityRole="button"
           accessibilityState={{ selected }}
           accessibilityLabel={item.text || formatPlayTime2(item.time / 1000)}
@@ -194,16 +194,19 @@ export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
           {selected ? <Text size={12} color={r.muted}>{t('player_lyric_seek_hint')}</Text> : null}
         </TouchableOpacity>
         {selected ? (
-          <PrimaryButton
-            compact
-            icon="play"
-            iconSize={13}
-            labelSize={13}
-            labelStyle={styles.seekLabel}
-            style={styles.seekButton}
-            label={t('player_lyric_seek_play', { time: formatPlayTime2(item.time / 1000) })}
-            onPress={() => { confirmSeek(item) }}
-          />
+          <View style={styles.selectionActions}>
+            <PrimaryButton
+              compact
+              icon="play"
+              iconSize={13}
+              labelSize={13}
+              labelStyle={styles.seekLabel}
+              style={styles.seekButton}
+              label={t('player_lyric_seek_play', { time: formatPlayTime2(item.time / 1000) })}
+              onPress={() => { confirmSeek(item) }}
+            />
+            {item.text.trim() ? <SecondaryButton compact labelSize={13} label={t('share_card_generate')} onPress={() => { setShareIndex(index) }} /> : null}
+          </View>
         ) : null}
       </View>
     )
@@ -364,6 +367,7 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   selectedLineText: {
     fontWeight: '700',
   },
+  selectionActions: { gap: 18, alignItems: 'flex-end' },
   seekButton: {
     paddingHorizontal: 14,
     borderRadius: 15,
