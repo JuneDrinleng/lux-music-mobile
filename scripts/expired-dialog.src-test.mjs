@@ -114,6 +114,8 @@ test('production expiry adapter clears only auth, ignores inactive server, and n
   let overlay
   const auth = { serverId: account.serverId, serverUrl: account.host, token: account.token, user: { id: account.userId, username: account.username } }
   const adapter = load('src/plugins/sync/client/sessionExpired.ts', {
+    '../constants': { SYNC_CODE: { luxSessionExpired: 'Lux session expired' } },
+    '@/core/sync': { setSyncStatus: value => { events.push(['status', value]) } },
     'react-native-navigation': {
       Navigation: {
         showOverlay: async value => { overlay = value.component; events.push('show') },
@@ -133,8 +135,10 @@ test('production expiry adapter clears only auth, ignores inactive server, and n
   events.length = 0
   await Promise.all([adapter.showSessionExpiredDialog(account.host, auth), adapter.showSessionExpiredDialog(account.host, auth)])
   assert.equal(events.filter(event => event === 'show').length, 1)
+  assert.equal(adapter.expiredAccountUsername(account.host), 'june')
   assert.equal(events.filter(event => event === 'disconnect').length, 1)
   assert.ok(events.some(event => event[0] === 'setting' && event[1]['sync.enable'] === false))
+  assert.ok(events.some(event => event[0] === 'status' && event[1].message === 'Lux session expired'))
   assert.equal(events.some(event => event[0] === 'navigate'), false)
   await overlay.passProps.login()
   assert.deepEqual(events.at(-1), ['navigate', { onboarding: false, initialHost: account.host, initialUsername: 'june' }])

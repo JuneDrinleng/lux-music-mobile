@@ -21,13 +21,15 @@ const translations = JSON.parse(readFileSync(new URL('../src/lang/en-us.json', i
 const globals = { i18n: { t: key => translations[key] } }
 const errors = load('src/plugins/sync/client/userErrors.ts', {}, globals)
 const constants = load('src/plugins/sync/constants.ts').SYNC_CODE
-const authHarness = (session, response = { code: 200, text: '{}' }, savedKey = null) => {
+const authHarness = (session, response = { code: 200, text: '{}' }, savedKey = null, { hello = constants.helloMsg, info } = {}) => {
   const requests = []
   const auth = load('src/plugins/sync/client/auth.ts', {
+    '@/utils/serverCheck': load('src/utils/serverCheck.ts'),
     './utils': {
       request: async(url, options) => {
         requests.push([url, options])
-        if (url.endsWith('/hello')) return { code: 200, text: constants.helloMsg }
+        if (url.endsWith('/hello')) return { code: 200, text: hello }
+        if (url.endsWith('/api/server-info') && info) return { code: 200, text: JSON.stringify(info) }
         if (url.endsWith('/id')) return { code: 200, text: `${constants.idPrefix}server` }
         return response
       },
@@ -136,4 +138,15 @@ test('together user messages exclude gate diagnostics while logs retain them', (
   assert.match(handler, /log.warn\('\[together\]'[^\n]*formatTogetherGateHint\(snap\)/)
   assert.match(handler, /return message\n/)
   assert.doesNotMatch(handler, /return `.*formatTogetherGateHint/)
+})
+
+
+test('protocol mismatch and server-info minimum client version reach callers as structured incompatibility errors', async() => {
+  for (const [hello, message, version] of [['Hello~::^-^::~v3~', constants.lowServiceVersion, 'v3'], ['Hello~::^-^::~v5~', constants.highServiceVersion, 'v5']]) {
+    const { auth } = authHarness(session, undefined, null, { hello })
+    await assert.rejects(auth.authLux(urlInfo), error => error.message === message && error.serverVersion === version && error.requiredVersion === 'v4')
+  }
+  const { auth, requests } = authHarness(session, undefined, null, { info: { name: 'NAS', version: '1.9.0', minClientVersion: '999.0.0', registration: { enabled: false, inviteOnly: false } } })
+  await assert.rejects(auth.authLux(urlInfo), error => error.message === constants.highServiceVersion && error.serverVersion === '1.9.0' && error.requiredVersion === '999.0.0')
+  assert.equal(requests.some(([url]) => url.endsWith('/api/sync/key') || url.endsWith('/api/auth/me')), false)
 })

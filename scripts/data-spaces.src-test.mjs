@@ -811,6 +811,7 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
   }
   const constants = evaluate('src/plugins/sync/constants.ts', {}).SYNC_CODE
   const auth = evaluate('src/plugins/sync/client/auth.ts', {
+    '@/utils/serverCheck': evaluate('src/utils/serverCheck.ts', {}),
     './utils': { request: async url => ({ text: url.endsWith('/hello') ? constants.helloMsg : constants.idPrefix + 'server' }) },
     './userErrors': evaluate('src/plugins/sync/client/userErrors.ts', {}),
     '@/utils/luxAuthApi': { createLuxAuthClient: () => ({ request }) },
