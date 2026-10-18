@@ -46,12 +46,16 @@ export const OptionRow = memo(({
   last = false,
   description,
   leading = false,
+  compact = false,
+  disabled = false,
 }: {
   label: string
   selected: boolean
   onPress: () => void
   last?: boolean
   description?: string
+  compact?: boolean
+  disabled?: boolean
   leading?: boolean
 }) => {
   const styles = useStyles()
@@ -60,11 +64,13 @@ export const OptionRow = memo(({
   return (
     <View>
       <TouchableOpacity
-        style={[styles.row, leading ? { alignItems: 'flex-start', justifyContent: 'flex-start', paddingBottom: 0, borderBottomWidth: 1, borderBottomColor: r.hairline } : null]}
+        style={[styles.row, leading ? { alignItems: 'flex-start', justifyContent: 'flex-start', paddingBottom: 0, borderBottomWidth: 1, borderBottomColor: r.hairline } : null, compact ? { minHeight: 28, paddingVertical: 3, paddingBottom: 3, marginVertical: 8 } : null]}
+        hitSlop={compact ? { top: 8, bottom: 8, left: 0, right: 0 } : undefined}
+        disabled={disabled}
         activeOpacity={0.7}
         onPress={onPress}
         accessibilityRole="radio"
-        accessibilityState={{ selected }}
+        accessibilityState={{ selected, disabled }}
       >
         {leading ? <View style={[styles.dot, { marginTop: 6, borderWidth: 1.5, borderColor: r.ink, backgroundColor: selected ? r.accent : 'transparent' }]} /> : null}
         <View style={{ flex: 1 }}>

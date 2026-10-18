@@ -83,3 +83,17 @@ export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
   if (space != getActiveSpace()) return null
   return requestJson<{ profile: LX.Sync.LuxProfile }>(url, profile, token)
 }
+
+// The editor keeps its draft in memory. Never write local profile fields before PATCH succeeds.
+export const saveEditedProfile = async(profile: LX.Sync.LuxProfile, server: boolean) => {
+  const space = getActiveSpace()
+  if (!server) {
+    await applyLuxProfile(profile)
+    return
+  }
+  const [url, token] = await Promise.all([getProfileUrl(), getToken()])
+  if (!url || !token || space != getActiveSpace()) throw new Error('Profile session unavailable')
+  const result = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, { displayName: profile.displayName, avatar: profile.avatar, signature: profile.signature, gender: profile.gender }, token, 'PATCH')
+  if (space != getActiveSpace()) throw new Error('Profile account changed')
+  await applyLuxProfile(result.profile)
+}
