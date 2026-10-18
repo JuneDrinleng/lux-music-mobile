@@ -7,7 +7,7 @@ import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import StatusBar from '@/components/common/StatusBar'
 import { MdiIcon } from '@/components/common/MdiIcon'
-import { BackButton, Rule, SecondaryButton, TextButton, UnderlineInput } from '@/components/magazine'
+import { BackButton, OptionRow, Rule, SecondaryButton, TextButton, UnderlineInput } from '@/components/magazine'
 import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle, confirmDialog } from '@/utils/tools'
@@ -41,6 +41,8 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const [sessions, setSessions] = useState<AccountSession[] | null>(null)
   const [others, setOthers] = useState('')
   const [draft, setDraft] = useState(nickname)
+  const [draftSignature, setDraftSignature] = useState('')
+  const [draftGender, setDraftGender] = useState<LX.Sync.LuxProfile['gender']>('unknown')
   const [draftAvatar, setDraftAvatar] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -91,16 +93,18 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
         if (!auth) throw new Error('Session unavailable')
         setSession(auth)
       }
-      const currentAvatar = await getUserAvatarDataUrl()
+      const [currentAvatar, signature, gender] = await Promise.all([getUserAvatarDataUrl(), getUserSignature(), getUserGender()])
       setDraft(nickname)
+      setDraftSignature(signature ?? '')
+      setDraftGender(gender)
       setDraftAvatar(currentAvatar)
       setPage('edit')
     })
   }
   const save = () => {
     void run(async() => {
-      const [gender, signature] = await Promise.all([getUserGender(), getUserSignature()])
-      await saveEditedProfile({ displayName: draft.trim(), avatar: draftAvatar ?? '', gender, signature: signature ?? '' }, server)
+      const signature = draftSignature.trim().substring(0, 140)
+      await saveEditedProfile({ displayName: draft.trim(), avatar: draftAvatar ?? '', gender: draftGender, signature: signature === t('me_profile_status') ? '' : signature }, server)
       setPage('account')
     })
   }
@@ -129,9 +133,9 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const row = (title: string, subtitle: string | undefined, onPress: () => void, thumb?: ReactNode) => <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" onPress={onPress} style={[styles.row, { borderBottomColor: r.hairline }]}>
     <View style={styles.flex}><Text size={15} color={r.list} style={styles.bold}>{title}</Text>{subtitle ? <Text size={12} color={r.muted} style={styles.subtitle}>{subtitle}</Text> : null}</View>{thumb}<MdiIcon name="chevron-right" size={18} color={r.ink} />
   </TouchableOpacity>
-  const field = (label: string, value: string, hint: string, readOnly = false) => <View style={styles.field}>
+  const field = (label: string, value: string, hint: string, readOnly = false, onChangeText = setDraft, maxLength?: number) => <View style={styles.field}>
     <Text size={12} color={r.muted} style={styles.bold}>{label}</Text>
-    <UnderlineInput accessibilityLabel={label} value={value} onChangeText={setDraft} editable={!readOnly && !busy} autoCorrect={false} style={{ fontWeight: '400', borderBottomWidth: 1.5, borderBottomColor: r.ink }} />
+    <UnderlineInput accessibilityLabel={label} value={value} onChangeText={onChangeText} maxLength={maxLength} editable={!readOnly && !busy} autoCorrect={false} style={{ fontWeight: '400', borderBottomWidth: 1.5, borderBottomColor: r.ink }} />
     <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text>
   </View>
   const eyebrow = page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
@@ -163,6 +167,11 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
         <View style={styles.pick}><SecondaryButton compact label={t('account_change_avatar')} onPress={pickAvatar} disabled={busy} style={{ paddingHorizontal: 14 }} /></View>
         {field(t('account_nickname'), draft, t('account_nickname_hint'))}
         {field(t('auth_username'), server ? session?.user.username ?? '' : t('account_local'), t(server ? 'account_username_hint' : 'account_local_username_hint'), true)}
+        {field(t('setting_profile_signature'), draftSignature, t('setting_profile_signature_placeholder'), false, setDraftSignature, 140)}
+        <View style={styles.field}>
+          <Text size={12} color={r.muted} style={styles.bold}>{t('setting_profile_gender')}</Text>
+          {(['male', 'female', 'unknown'] as const).map(value => <OptionRow key={value} leading compact disabled={busy} label={t(`setting_profile_gender_${value}`)} selected={draftGender === value} onPress={() => { setDraftGender(value) }} />)}
+        </View>
         <Text size={12} color={r.muted} style={styles.field}>{t(server ? 'account_save_note' : 'account_save_local_note')}</Text>
       </> : page === 'devices' ? <>
         <Text size={32} color={r.display} style={styles.title}>{t('account_devices')}</Text>

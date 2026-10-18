@@ -93,7 +93,7 @@ export const saveEditedProfile = async(profile: LX.Sync.LuxProfile, server: bool
   }
   const [url, token] = await Promise.all([getProfileUrl(), getToken()])
   if (!url || !token || space != getActiveSpace()) throw new Error('Profile session unavailable')
-  const result = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, { displayName: profile.displayName, avatar: profile.avatar }, token, 'PATCH')
+  const result = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, { displayName: profile.displayName, avatar: profile.avatar, signature: profile.signature, gender: profile.gender }, token, 'PATCH')
   if (space != getActiveSpace()) throw new Error('Profile account changed')
   await applyLuxProfile(result.profile)
 }

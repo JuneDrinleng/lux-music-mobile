@@ -81,13 +81,13 @@ const profileHarness = send => {
 test('profile PATCH is server-first; failure leaves local data and events unchanged, local save skips server', async context => {
   const previousEvents = global.app_event
   context.after(() => { global.app_event = previousEvents })
-  const draft = { displayName: 'New name', avatar: 'data:image/png;base64,new', gender: 'unknown', signature: 'signature' }
+  const draft = { displayName: 'New name', avatar: 'data:image/png;base64,new', gender: 'female', signature: 'New signature' }
   let finish
   const env = profileHarness(async() => new Promise(resolve => { finish = resolve }))
   const saving = env.mod.saveEditedProfile(draft, true)
   await flush()
   assert.deepEqual(env.local, env.old); assert.deepEqual(env.writes, [])
-  assert.deepEqual(env.calls, [[`${host}/api/me/profile`, { displayName: draft.displayName, avatar: draft.avatar }, 'token', 'PATCH']])
+  assert.deepEqual(env.calls, [[`${host}/api/me/profile`, draft, 'token', 'PATCH']])
   finish({ profile: draft }); await saving
   assert.deepEqual(env.local, draft); assert.equal(env.events.length, 4)
   const failed = profileHarness(async() => { throw new Error('offline') })
@@ -122,7 +122,7 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
     '@/components/common/Image': { default: 'Image' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
-    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'SecondaryButton', 'TextButton', 'UnderlineInput'].map(key => [key, key])),
+    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder() },
     '@/theme/magazineRoles': { magazineRoles: () => ({}) },
     '@/utils/tools': { createStyle: value => value, confirmDialog: async() => confirm },
@@ -229,4 +229,47 @@ test('session operations retain automatic refresh and retry through the shared r
   ])
   assert.equal(calls[2][1].headers.Authorization, 'Bearer renewed')
   assert.equal(calls[3][1].headers.Authorization, 'Bearer renewed')
+})
+
+test('14D loads signature and gender into an isolated draft and saves them together for Lux and local users', async() => {
+  for (const server of [true, false]) {
+    const view = renderAccount({ server }); await flush(); view.render()
+    view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
+    const signature = view.find('UnderlineInput', zh.setting_profile_signature)
+    assert.equal(signature.props.value, 'signature')
+    assert.equal(signature.props.maxLength, 140)
+    assert.ok(view.text(zh.setting_profile_signature_placeholder))
+    const options = view.nodes().filter(node => node.type === 'OptionRow')
+    assert.deepEqual(options.map(node => node.props.label), [zh.setting_profile_gender_male, zh.setting_profile_gender_female, zh.setting_profile_gender_unknown])
+    assert.equal(options[2].props.selected, true)
+    assert.ok(options.every(node => node.props.leading && node.props.compact))
+    signature.props.onChangeText('  New signature  ')
+    options[1].props.onPress(); view.render()
+    view.find('UnderlineInput', '昵称').props.onChangeText('New name'); view.render()
+    assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
+    view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+    assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', { displayName: 'New name', avatar: '', signature: 'New signature', gender: 'female' }, server])
+    assert.equal(view.text('编辑资料'), undefined)
+  }
+})
+
+test('14D failure retains signature/gender draft; cancel discards it; signature keeps old validation', async() => {
+  const view = renderAccount({ failSave: true }); await flush(); view.render()
+  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
+  view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('x'.repeat(150))
+  view.find('OptionRow', zh.setting_profile_gender_male).props.onPress(); view.render()
+  view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+  assert.equal(view.calls.find(call => call[0] === 'save')[1].signature, 'x'.repeat(140))
+  assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'x'.repeat(150))
+  assert.equal(view.find('OptionRow', zh.setting_profile_gender_male).props.selected, true)
+  assert.ok(view.text(zh.account_save_failed))
+  view.find('BackButton').props.onPress(); view.render()
+  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
+  assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'signature')
+  assert.equal(view.find('OptionRow', zh.setting_profile_gender_unknown).props.selected, true)
+  for (const value of ['   ', zh.me_profile_status]) {
+    view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText(value); view.render()
+    view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+    assert.equal(view.calls.filter(call => call[0] === 'save').at(-1)[1].signature, '')
+  }
 })
