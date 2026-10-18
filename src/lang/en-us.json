@@ -1,4 +1,7 @@
 {
+  "memories_milestone_unique_songs": "Your {count}th song",
+  "memories_milestone_streak": "Listen for {days} consecutive days",
+  "memories_milestone_artist_hours": "{hours} hours with {artist}",
   "add_to": "Add to ...",
   "agree": "Sure",
   "agree_go": "Turn it on",
