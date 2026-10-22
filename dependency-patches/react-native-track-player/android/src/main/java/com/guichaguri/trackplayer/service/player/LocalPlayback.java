@@ -3,12 +3,17 @@
 package com.guichaguri.trackplayer.service.player;
 
 import android.content.Context;
+import android.os.Bundle;
+import androidx.media3.common.MediaItem;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.Promise;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
+import androidx.media3.common.Tracks;
+import java.util.Objects;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -210,6 +215,85 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         promise.resolve(null);
     }
 
+    // Disabled by default. All pre-existing playback methods below retain their old path.
+    private boolean gaplessEnabled = false;
+    private String gaplessNextId;
+    private Format gaplessSourceFormat;
+
+    public void setGaplessPlayback(boolean enabled) {
+        if (enabled == gaplessEnabled) return;
+        player.setPreloadConfiguration(enabled
+            ? new ExoPlayer.PreloadConfiguration(5_000_000L)
+            : ExoPlayer.PreloadConfiguration.DEFAULT);
+        if (!enabled && gaplessEnabled) {
+            gaplessNextId = null;
+            removeUpcomingTracks();
+        }
+        gaplessEnabled = enabled;
+    }
+
+    /** Compare native identity on the player looper: a late URL must never change a newer queue. */
+    public boolean setGaplessNext(String currentId, @Nullable Track next) {
+        Track current = getCurrentTrack();
+        if (!gaplessEnabled || current == null || !currentId.equals(current.originalItem.getString("id"))
+                || player.getPlaybackState() == Player.STATE_ENDED) return false;
+        MediaSource source = next == null ? null : next.toMediaSource(context, this);
+        gaplessNextId = null;
+        removeUpcomingTracks();
+        if (next != null) {
+            int index = player.getCurrentMediaItemIndex() + 1;
+            queue.add(index, next);
+            gaplessNextId = next.originalItem.getString("id");
+            gaplessSourceFormat = selectedAudioFormat(player.getCurrentTracks());
+            try {
+                player.addMediaSource(index, source);
+            } catch (RuntimeException error) {
+                queue.remove(index);
+                gaplessNextId = null;
+                throw error;
+            }
+        }
+        return true;
+    }
+
+    @Nullable
+    private static Format selectedAudioFormat(Tracks tracks) {
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (group.isTrackSelected(i)) return group.getTrackFormat(i);
+            }
+        }
+        return null;
+    }
+
+    private void emitGapless(String event, String id) {
+        if (!(context instanceof MusicService)) return;
+        Bundle data = new Bundle();
+        data.putString("id", id);
+        ((MusicService) context).emit(event, data);
+    }
+
+    @Override
+    public void onMediaItemTransition(@Nullable MediaItem item, int reason) {
+        // Use MEDIA_ITEM_TRANSITION_REASON here, not DISCONTINUITY_REASON (different enums).
+        Track current = getCurrentTrack();
+        if (gaplessEnabled && current != null && gaplessNextId != null
+                && gaplessNextId.equals(current.originalItem.getString("id"))
+                && reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+            String id = gaplessNextId;
+            gaplessNextId = null;
+            Format nextFormat = selectedAudioFormat(player.getCurrentTracks());
+            boolean compatible = gaplessSourceFormat != null && nextFormat != null
+                && Objects.equals(gaplessSourceFormat.sampleMimeType, nextFormat.sampleMimeType)
+                && gaplessSourceFormat.sampleRate == nextFormat.sampleRate
+                && gaplessSourceFormat.channelCount == nextFormat.channelCount
+                && gaplessSourceFormat.pcmEncoding == nextFormat.pcmEncoding;
+            emitGapless(compatible ? "gapless-transition" : "gapless-fallback", id);
+        }
+        super.onMediaItemTransition(item, reason);
+    }
+
     public void setLoudnessNormalization(boolean enabled, int target, boolean preventClipping) {
         loudness.set(context, enabled, target, preventClipping);
     }
@@ -366,6 +450,14 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     @Override
     public void onPlayerError(PlaybackException error) {
         prepared = false;
+        if (gaplessEnabled) {
+            gaplessNextId = null;
+            Track current = getCurrentTrack();
+            if (current != null) {
+                emitGapless("gapless-fallback", current.originalItem.getString("id"));
+                return;
+            }
+        }
         super.onPlayerError(error);
     }
 

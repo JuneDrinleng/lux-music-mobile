@@ -1,5 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { initGapless, isGaplessEnabled, preloadGapless } from '@/plugins/player/gapless'
 import { getMusicUrl } from '@/core/music'
 import { getNextPlayMusicInfo, resetRandomNextMusicInfo } from '@/core/player/player'
 import { checkUrl } from '@/utils/request'
@@ -38,6 +39,7 @@ const preloadNextMusicUrl = async(curTime: number) => {
 }
 
 export default () => {
+  initGapless()
   const setProgress = (time: number) => {
     if (!playerState.musicInfo.id) return
     preloadMusicInfo.preProgress = time
@@ -56,6 +58,10 @@ export default () => {
   }
 
   const handlePlayProgressChanged: typeof global.state_event.playProgressChanged = (progress) => {
+    if (isGaplessEnabled()) {
+      void preloadGapless(progress.nowPlayTime, progress.maxPlayTime)
+      return
+    }
     const duration = progress.maxPlayTime
     if (duration > 10 && duration - progress.nowPlayTime < 10 && !preloadMusicInfo.info) {
       void preloadNextMusicUrl(progress.nowPlayTime)

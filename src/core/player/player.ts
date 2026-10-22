@@ -304,6 +304,33 @@ const debouncePlay = debounceBackgroundTimer((musicInfo: LX.Player.PlayMusic) =>
   })
 }, 200)
 
+const debounceGaplessDetails = debounceBackgroundTimer((musicInfo: LX.Player.PlayMusic) => {
+  void getPicPath({ musicInfo, listId: playerState.playMusicInfo.listId }).then((url: string) => {
+    if (
+      musicInfo.id != playerState.playMusicInfo.musicInfo?.id ||
+      playerState.musicInfo.pic == url ||
+      playerState.loadErrorPicUrl == url) return
+    setMusicInfo({ pic: url })
+    global.app_event.picUpdated()
+  })
+
+  void getLyricInfo({ musicInfo }).then((lyricInfo) => {
+    if (musicInfo.id != playerState.playMusicInfo.musicInfo?.id) return
+    setMusicInfo({
+      lrc: lyricInfo.lyric,
+      tlrc: lyricInfo.tlyric,
+      lxlrc: lyricInfo.lxlyric,
+      rlrc: lyricInfo.rlyric,
+      rawlrc: lyricInfo.rawlrcInfo.lyric,
+    })
+    global.app_event.lyricUpdated()
+  }).catch((err) => {
+    console.log(err)
+    if (musicInfo.id != playerState.playMusicInfo.musicInfo?.id) return
+    setStatusText(global.i18n.t('lyric__load_error'))
+  })
+}, 200)
+
 // 处理音乐播放
 const handlePlay = async() => {
   if (!isInitialized()) {
@@ -534,6 +561,21 @@ export const getNextPlayMusicInfo = async(): Promise<LX.Player.PlayMusicInfo | n
     // randomNextMusicInfo.index = nextIndex
   }
   return nextPlayMusicInfo
+}
+
+/** Native has already advanced; use the same state/history/queue events without stopping audio. */
+export const acceptGaplessTrack = async(info: LX.Player.PlayMusicInfo) => {
+  if (!settingState.setting['player.audio.gapless.enabled']) return
+  if (info.isTempPlay) removeTempPlayList(0)
+  setPlayMusicInfo(info.listId, info.musicInfo, info.isTempPlay, 'end')
+  resetRandomNextMusicInfo()
+  clearDelayNextTimeout()
+  clearLoadTimeout()
+  if (settingState.setting['player.togglePlayMethod'] == 'random' && !info.isTempPlay) addPlayedList(info)
+  debounceGaplessDetails(info.musicInfo)
+  global.app_event.playerPlaying()
+  global.app_event.play()
+  await syncNotificationLikeState()
 }
 
 const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo, isAutoToggle = false) => {

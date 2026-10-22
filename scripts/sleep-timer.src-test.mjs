@@ -489,10 +489,11 @@ test('three languages contain every sleep timer label', () => {
   }
 })
 
-for (const exit of [false, true]) {
-  test(`finish-current-song ignores playback states and handles track boundary before advancing (exit=${exit})`, async() => {
+for (const [exit, gapless] of [[false, false], [true, false], [false, true], [true, true]]) {
+  test(`finish-current-song ignores playback states and handles track boundary before advancing (exit=${exit}, gapless=${gapless})`, async() => {
     const f = await fixture(true)
     f.setting['player.timeoutExitApp'] = exit
+    f.setting['player.audio.gapless.enabled'] = gapless
     const listeners = {}
     const events = ['RemotePlay', 'RemotePause', 'RemoteNext', 'RemotePrevious', 'RemoteStop', 'PlaybackError', 'RemoteSeek', 'PlaybackState', 'PlaybackTrackChanged']
     const states = ['None', 'Ready', 'Stopped', 'Paused', 'Playing', 'Buffering', 'Connecting']
@@ -505,6 +506,7 @@ for (const exit of [false, true]) {
         Event: Object.fromEntries(events.map(name => [name, name])),
         State: Object.fromEntries(states.map(name => [name, name])),
       },
+      './gapless': { isGaplessEnabled: () => gapless },
       './utils': { isTempId: () => false, isEmpty: () => false, isNotificationLikeSupported: false },
       '@/core/common': { exitApp: () => { throw new Error('Sleep timer must pause without quitting') } },
       '@/core/player/timeoutExit': { finishTimeoutExit: async() => { lx.isPlayedStop = false; await f.timer.finishTimeoutExit() } },

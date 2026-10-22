@@ -471,6 +471,35 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
+    public void setGaplessPlayback(final boolean enabled, final Promise promise) {
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) throw new IllegalStateException("Gapless requires local playback");
+                ((LocalPlayback) playback).setGaplessPlayback(enabled);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("gapless_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setGaplessNext(final String currentId, final ReadableMap item, final Promise promise) {
+        final Bundle data = item == null ? null : Arguments.toBundle(item);
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) { promise.resolve(false); return; }
+                Track next = data == null ? null : new Track(getReactApplicationContext(), data, binder.getRatingType());
+                promise.resolve(((LocalPlayback) playback).setGaplessNext(currentId, next));
+            } catch (RuntimeException error) {
+                promise.reject("gapless_preload_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
     public void setEqualizer(ReadableMap config, final Promise promise) {
         final boolean enabled;
         final double[] gains = new double[10];
