@@ -39,6 +39,8 @@ const defaultSetting: LX.AppSetting = {
   'player.timeoutExitPlayed': true,
   'player.timeoutExitFade': true,
   'player.timeoutExitFadeDuration': 30,
+  'player.timeoutExitStopNoise': true,
+  'player.whiteNoise': {},
   'player.isAutoCleanPlayedList': false,
   'player.isHandleAudioFocus': true,
   'player.isEnableAudioOffload': true,

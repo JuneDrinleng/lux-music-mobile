@@ -63,6 +63,20 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     protected boolean autoUpdateMetadata;
     private final MusicService fadeService;
 
+    public void setNoise(String id, boolean enabled, double volume) {
+        if (fadeService != null) fadeService.noiseMixer.set(id, enabled, volume);
+    }
+    public void stopNoise() {
+        if (fadeService != null) fadeService.noiseMixer.stopAll();
+    }
+    public void setNoiseTimer(boolean stop, float gain) {
+        if (fadeService != null) {
+            fadeService.stopNoiseWithTimer = stop;
+            fadeService.noiseMixer.setTimerGain(stop ? gain : 1);
+        }
+    }
+
+
     public Looper getApplicationLooper() {
         return player.getApplicationLooper();
     }

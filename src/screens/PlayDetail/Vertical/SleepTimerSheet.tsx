@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react'
-import { ScrollView, View } from 'react-native'
+import { useRef, type ReactNode } from 'react'
+import { ScrollView, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import TimeoutExitEditModal, { type TimeoutExitEditModalType, useTimeInfo } from '@/components/TimeoutExitEditModal'
 import { MagazineSheet, MagSegmented, PrimaryButton, SecondaryButton, Toggle } from '@/components/magazine'
@@ -25,7 +25,7 @@ export default ({ visible, onClose, info }: {
   const played = useSettingValue('player.timeoutExitPlayed')
   const fade = useSettingValue('player.timeoutExitFade')
   const fadeSeconds = sleepTimerFadeSeconds(useSettingValue('player.timeoutExitFadeDuration'))
-  const [stopNoise, setStopNoise] = useState(true)
+  const stopNoise = useSettingValue('player.timeoutExitStopNoise')
   const customRef = useRef<TimeoutExitEditModalType>(null)
   const timeInfo = useTimeInfo()
   const running = info.time >= 0 || info.isPlayedStop
@@ -33,12 +33,12 @@ export default ({ visible, onClose, info }: {
     updateSetting({ 'player.timeoutExit': String(minutes) })
     startTimeoutExit(minutes * 60)
   }
-  const row = (title: string, subtitle: string | undefined, control: ReactNode, last = false) => (
+  const row = (title: string, subtitle: string | undefined, control: ReactNode, last = false, open?: () => void) => (
     <View style={[styles.row, last ? { borderBottomWidth: 0 } : null]}>
-      <View style={styles.rowText}>
+      <TouchableOpacity style={styles.rowText} disabled={!open} onPress={open} accessibilityRole={open ? 'button' : undefined} accessibilityLabel={open ? t('noise_link') : undefined}>
         <Text size={15} color={r.list} style={styles.bold}>{title}</Text>
         {subtitle ? <Text size={12} color={r.muted} style={styles.subtitle}>{subtitle}</Text> : null}
-      </View>
+      </TouchableOpacity>
       {control}
     </View>
   )
@@ -73,7 +73,7 @@ export default ({ visible, onClose, info }: {
           {row(t('sleep_timer_fade_duration'), t('sleep_timer_fade_options'),
             <MagSegmented compact itemStyle={styles.segmentItem} style={styles.segment} items={SLEEP_TIMER_FADE_SECONDS.map(seconds => ({ id: String(seconds), label: `${seconds}s` }))} value={String(fadeSeconds)} onChange={value => { updateSetting({ 'player.timeoutExitFadeDuration': Number(value) }) }} renderItem={(item, on) => <Text size={13} color={on ? r.onInk : r.ink} style={styles.bold}>{item.label}</Text>} />, !SHOW_SLEEP_TIMER_NOISE)}
           {SHOW_SLEEP_TIMER_NOISE ? row(t('sleep_timer_stop_noise'), undefined,
-            <Toggle compact value={stopNoise} accessibilityLabel={t('sleep_timer_stop_noise')} onChange={setStopNoise} />, true) : null}
+            <Toggle compact value={stopNoise} accessibilityLabel={t('sleep_timer_stop_noise')} onChange={value => { updateSetting({ 'player.timeoutExitStopNoise': value }) }} />, true, () => { onClose(); global.app_event.hidePlayDetail(); global.app_event.openWhiteNoise() }) : null}
         </ScrollView>
       </MagazineSheet>
       <TimeoutExitEditModal ref={customRef} timeInfo={timeInfo} customOnly />
@@ -87,7 +87,7 @@ const useStyles = sharedLuxStyles(colors => createStyle({
   chip: { paddingHorizontal: 14, borderWidth: 1.5, borderColor: colors.ink.strong },
   segmentItem: { paddingHorizontal: 13 },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: colors.line.divider },
-  rowText: { flex: 1 },
+  rowText: { flex: 1, minHeight: 44, justifyContent: 'center' },
   bold: { fontWeight: '700' },
   subtitle: { marginTop: 2 },
   segment: { borderRadius: 16, borderWidth: 1.5, alignSelf: 'center' },

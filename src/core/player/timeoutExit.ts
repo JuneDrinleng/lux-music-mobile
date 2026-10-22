@@ -5,6 +5,9 @@ import settingState from '@/store/setting/state'
 import { cancelNativeFadeOut, getDuration, getPosition, isNativeFadeOutSupported, restoreSleepTimerVolume, setPause, setSleepTimerGain, startNativeFadeOut } from '@/plugins/player/utils'
 import { fadeGain, songRemainingSeconds } from '@/plugins/player/volumeFade'
 
+import { noise } from '@/plugins/player/noise'
+import { stopWhiteNoise } from './whiteNoise'
+
 import { sleepTimerFadeSeconds, SLEEP_TIMER_MINUTES } from './sleepTimerOptions'
 
 type Hook = (time: number, isPlayedStop: boolean) => void
@@ -25,16 +28,19 @@ const cancelNativeFade = async() => {
 const syncNativeFade = async() => {
   const current = generation
   if (!isNativeFadeOutSupported || nativeFailed) return false
-  if (!settingState.setting['player.timeoutExitFade']) {
+  if (!settingState.setting['player.timeoutExitFade'] && !noise.supported) {
     await cancelNativeFade()
     return false
   }
-  const duration = sleepTimerFadeSeconds(settingState.setting['player.timeoutExitFadeDuration']) * 1000
+  const duration = settingState.setting['player.timeoutExitFade'] ? sleepTimerFadeSeconds(settingState.setting['player.timeoutExitFadeDuration']) * 1000 : 1
   const finishSong = settingState.setting['player.timeoutExitPlayed']
-  const key = `${generation}:${deadlineAt}:${duration}:${finishSong}`
+  const stopNoise = settingState.setting['player.timeoutExitStopNoise']
+  const key = `${generation}:${deadlineAt}:${duration}:${finishSong}:${stopNoise}`
   if (nativeKey !== key) {
     nativeKey = key
     try {
+      if (noise.supported) await noise.timer(stopNoise)
+      if (current !== generation || nativeKey !== key) return true
       await startNativeFadeOut(duration, deadlineAt, finishSong, key)
     } catch (err) {
       if (current !== generation) return true
@@ -53,6 +59,7 @@ const restoreVolume = async() => {
   if (!faded) return
   faded = false
   await restoreSleepTimerVolume()
+  if (noise.supported) await noise.timer(settingState.setting['player.timeoutExitStopNoise'])
 }
 
 const timeoutTools = {
@@ -93,7 +100,7 @@ const timeoutTools = {
       }
       if (current !== generation) return
       let remaining = Infinity
-      if (settingState.setting['player.timeoutExitFade'] && playerState.isPlay) {
+      if (settingState.setting['player.timeoutExitFade'] && (playerState.isPlay || noise.supported)) {
         if (global.lx.isPlayedStop) {
           // Only fade the song after the deadline; unknown/live durations skip fading.
           const [position, duration] = await Promise.all([getPosition(), getDuration()])
@@ -109,6 +116,7 @@ const timeoutTools = {
       if (gain < 1) {
         faded = true
         await setSleepTimerGain(gain)
+        if (noise.supported) await noise.timer(settingState.setting['player.timeoutExitStopNoise'], gain)
       } else await restoreVolume()
       this.callHooks()
     } catch (err) {
@@ -162,6 +170,7 @@ export const finishTimeoutExit = async() => {
     console.log('Sleep timer pause failed', err)
   }
   if (current !== generation) return
+  if (noise.supported && settingState.setting['player.timeoutExitStopNoise']) await stopWhiteNoise().catch(console.log)
   await cancelNativeFade().catch(console.log)
   await restoreVolume().catch(console.log)
 }

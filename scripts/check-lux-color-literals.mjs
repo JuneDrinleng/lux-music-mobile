@@ -8,6 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** 已经改成 useLuxTheme() 的竖屏表面。新的颜色字面量应加令牌，不要写回这些文件。 */
 export const MIGRATED_LUX_COLOR_FILES = [
+  'src/screens/Home/Vertical/WhiteNoisePage.tsx',
   'src/components/ChangelogView.tsx',
   'src/components/magazine/BackButton.tsx',
   'src/components/magazine/Checkbox.tsx',
