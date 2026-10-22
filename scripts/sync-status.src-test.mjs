@@ -171,6 +171,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/store/version/hook': { useVersionInfo: () => ({}), useVersionDownloadProgressUpdated: () => ({}) },
     '@/core/version': {},
     '@/store/version/state': {},
+    '@/core/together/roomFeed': load('src/core/together/roomFeed.ts'),
     '@/core/together/debugPanelPreference': { getTogetherDebugPanelEnabled: () => false, isTogetherDebugPanelBuild: () => false, loadTogetherDebugPanelPreference: asyncNoop, subscribeTogetherDebugPanel: noop },
     '@/core/together/debugTelemetry': {},
     '@/utils/releaseChannel': { resolveChannel: () => 'dev' },

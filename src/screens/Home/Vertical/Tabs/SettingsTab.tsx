@@ -50,6 +50,7 @@ import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
 import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
 import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
+import { resolveTogetherLayout } from '@/core/together/roomFeed'
 import { useSettingValue } from '@/store/setting/hook'
 import { setLanguage, setNavActiveId, updateSetting } from '@/core/common'
 import { setApiSource } from '@/core/apiSource'
@@ -146,7 +147,7 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'sync' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'togetherLayout' | 'sync' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
   const { layout: memoriesLayout, setLayout: setMemoriesLayout } = useMemoriesLayoutPreference()
   const memoriesLayoutLabel = (id: MemoriesLayout) => t(`setting_memories_layout_${id}`)
@@ -167,6 +168,7 @@ export default () => {
     handleGetAppCacheSize,
   } = useResourceCache()
   const defaultSignature = t('me_profile_status')
+  const togetherLayout = resolveTogetherLayout(useSettingValue('together.roomLayout'))
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
   const activeApiSource = useSettingValue('common.apiSource')
@@ -406,6 +408,9 @@ export default () => {
     activeSearchSourceLabel,
     ...searchSourceOptions.map((item) => item.label),
     t('setting_player'),
+    t('together_layout'),
+    t('together_layout_6A'),
+    t('together_layout_6B'),
     t('setting_basic_source'),
     activeApiSourceLabel,
   )
@@ -482,6 +487,7 @@ export default () => {
       case 'theme': return t('setting_lux_theme')
       case 'statsPageStyle': return t('setting_stats_page_style')
       case 'searchSource': return t('setting_search_source')
+      case 'togetherLayout': return t('together_layout')
       case 'player': return t('setting_custom_source_title')
       case 'sync': return t('setting_sync')
       case 'resourceCache': return t('setting_cache_management')
@@ -941,7 +947,8 @@ export default () => {
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="text-search" iconBg={r.iconWrap.green} title={t('setting_search_source')} subtitle={activeSearchSourceLabel} onPress={handleOpenSearchSourceDetail} />
-              <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} last />
+              <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} />
+              <SettingRow icon="account-multiple-outline" iconBg={r.iconWrap.green} title={t('together_layout')} subtitle={togetherLayout} onPress={() => { setActiveOptionDetail('togetherLayout') }} last />
             </View>
             )
           : null}
@@ -1112,6 +1119,10 @@ export default () => {
               </View>
               )
             : null}
+
+          {activeOptionDetail === 'togetherLayout' ? <View style={styles.optionList}>
+            {(['6A', '6B'] as const).map((layout, index) => <OptionRow key={layout} label={t(`together_layout_${layout}`)} selected={togetherLayout === layout} onPress={() => { updateSetting({ 'together.roomLayout': layout }) }} last={index === 1} />)}
+          </View> : null}
 
           {activeOptionDetail === 'language'
             ? (

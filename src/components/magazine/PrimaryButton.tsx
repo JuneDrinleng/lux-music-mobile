@@ -37,6 +37,7 @@ const useStyles = sharedLuxStyles((colors) => {
 
 export const PrimaryButton = memo(({
   label,
+  accessibilityLabel,
   onPress,
   disabled = false,
   danger = false,
@@ -51,6 +52,7 @@ export const PrimaryButton = memo(({
   badgeStyle,
 }: {
   label: string
+  accessibilityLabel?: string
   onPress?: () => void
   disabled?: boolean
   danger?: boolean
@@ -74,6 +76,7 @@ export const PrimaryButton = memo(({
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       accessibilityState={{ disabled, selected }}
     >
