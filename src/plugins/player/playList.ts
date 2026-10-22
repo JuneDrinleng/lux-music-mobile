@@ -8,10 +8,37 @@ import settingState from '@/store/setting/state'
 import playerState from '@/store/player/state'
 import { getTrackCacheKey } from './cache'
 import { notificationArtwork } from './notificationArtwork'
+import { isGaplessEnabled } from './gapless'
 import { rememberPlayingCacheSong } from '@/utils/cachedSongInfo'
 
 
 const list: LX.Player.Track[] = []
+let nativeQueue = false
+export const trackNativeQueue = () => { nativeQueue = true }
+
+export const buildGaplessTrack = (musicInfo: LX.Player.PlayMusic, url: string) => buildTracks(musicInfo, url)[0]
+
+export const restoreLegacyTail = async() => {
+  if (!nativeQueue || !playerState.playMusicInfo.musicInfo) return
+  await TrackPlayer.removeUpcomingTracks()
+  await TrackPlayer.add(buildTracks(playerState.playMusicInfo.musicInfo))
+}
+
+const playGaplessMusic = async(musicInfo: LX.Player.PlayMusic, url: string, time: number) => {
+  nativeQueue = true
+  await TrackPlayer.removeUpcomingTracks()
+  const track = buildGaplessTrack(musicInfo, url)
+  await TrackPlayer.add([track])
+  const queue = await TrackPlayer.getQueue() as LX.Player.Track[]
+  const index = queue.findIndex(item => item.id === track.id)
+  await TrackPlayer.skip(index)
+  if (time) await TrackPlayer.seekTo(time)
+  if (global.lx.restorePlayInfo) {
+    await TrackPlayer.pause()
+    global.lx.restorePlayInfo = null
+  } else await TrackPlayer.play()
+  if (index > 0) await TrackPlayer.remove(Array.from({ length: index }, (_, i) => i))
+}
 
 const defaultUserAgent = 'Mozilla/5.0 (Linux; Android 10; Pixel 3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Mobile Safari/537.36'
 
@@ -120,10 +147,15 @@ export const isTempTrack = (trackId: string) => /\/\/default$/.test(trackId)
 
 
 export const getCurrentTrackId = async() => {
+  if (nativeQueue) return (await getCurrentTrack())?.id
   const currentTrackIndex = await TrackPlayer.getCurrentTrack()
   return list[currentTrackIndex]?.id
 }
 export const getCurrentTrack = async() => {
+  if (nativeQueue) {
+    const index = await TrackPlayer.getCurrentTrack()
+    return index == null ? undefined : await TrackPlayer.getTrack(index) as LX.Player.Track
+  }
   const currentTrackIndex = await TrackPlayer.getCurrentTrack()
   return list[currentTrackIndex]
 }
@@ -157,7 +189,15 @@ export const initTrackInfo = async(musicInfo: LX.Player.PlayMusic, mInfo: LX.Pla
 
 
 const handlePlayMusic = async(musicInfo: LX.Player.PlayMusic, url: string, time: number) => {
-// console.log(tracks, time)
+  if (isGaplessEnabled()) return playGaplessMusic(musicInfo, url, time)
+  if (nativeQueue) {
+    const queue = await TrackPlayer.getQueue() as LX.Player.Track[]
+    list.splice(0, list.length, ...queue)
+    // Serialized by playPromise; resynchronize only after leaving the opt-in path.
+    // eslint-disable-next-line require-atomic-updates
+    nativeQueue = false
+  }
+  // console.log(tracks, time)
   const tracks = buildTracks(musicInfo, url)
   const track = tracks[0]
   // await updateMusicInfo(track)

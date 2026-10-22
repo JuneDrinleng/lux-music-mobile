@@ -11,6 +11,7 @@ import { cycleNotificationSleepTimer, finishTimeoutExit, onNativeFadeEnded } fro
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
 import { blockTogetherMemberControl } from '@/core/together/control'
+import { handleGaplessFallback, handleGaplessTransition, isGaplessEnabled } from './gapless'
 import { scheduleImageCacheTrim } from '@/utils/imageCache'
 
 let isInitialized = false
@@ -33,6 +34,13 @@ const handleExitApp = async(reason: string) => {
 const registerPlaybackService = async() => {
   if (isInitialized) return
 
+  TrackPlayer.addEventListener('gapless-transition' as TPEvent, (event: { id: string }) => { void handleGaplessTransition(event.id).catch(() => {}) })
+  TrackPlayer.addEventListener('gapless-fallback' as TPEvent, (event: { id: string }) => { void handleGaplessFallback(event.id).catch(() => {}) })
+  TrackPlayer.addEventListener(TPEvent.PlaybackQueueEnded, () => {
+    if (!isGaplessEnabled() || global.lx.gettingUrlId || isEmpty()) return
+    if (global.lx.isPlayedStop) { void handleExitApp('Timeout Exit'); return }
+    global.app_event.playerEnded()
+  })
   console.log('reg services...')
   if (isNativeFadeOutSupported) {
     TrackPlayer.addEventListener('sleep-timer-ended' as TPEvent, (event: { requestId: string }) => { onNativeFadeEnded(event.requestId) })

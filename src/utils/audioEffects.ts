@@ -91,3 +91,7 @@ export const composeAudioGain = (settings: Partial<AudioEffectSettings>, volume 
 export const restoreLoudness = async(settings: Partial<AudioEffectSettings>, bridge?: AudioEffectsBridge | null): Promise<boolean> => {
   return commitAudioEffect('loudness', normalizeAudioEffects(settings), bridge, () => {}).catch(() => false)
 }
+
+export const restoreGapless = async(settings: Partial<AudioEffectSettings>, bridge?: AudioEffectsBridge | null): Promise<boolean> => {
+  return commitAudioEffect('gapless', normalizeAudioEffects(settings), bridge, () => {}).catch(() => false)
+}

@@ -130,7 +130,7 @@ test('equalizer-only bridge capability enables only EQ and a creation failure ne
   await assert.rejects(api.commitAudioEffect('equalizer', { ...defaults, 'player.audio.equalizer.enabled': true }, bridge, () => assert.fail('Failed EQ must not persist')), /Device has no Equalizer/)
   const native = read('dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/module/MusicModule.java')
   assert.match(native, /@ReactMethod\s+public void setEqualizer\(ReadableMap config, final Promise promise\)/)
-  assert.doesNotMatch(native, /void setGaplessPlayback/)
+  assert.match(native, /@ReactMethod\s+public void setGaplessPlayback\(final boolean enabled, final Promise promise\)/)
 })
 
 test('player startup restores saved EQ and loudness only after setup and tolerates missing or failing devices', async() => {
@@ -138,9 +138,13 @@ test('player startup restores saved EQ and loudness only after setup and tolerat
   try {
     for (const mode of ['supported', 'missing', 'failing']) {
       const events = []
-      const saved = { ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock), 'player.audio.loudness.enabled': true, 'player.audio.loudness.target': -11 }
+      const saved = { ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock), 'player.audio.loudness.enabled': true, 'player.audio.loudness.target': -11, 'player.audio.gapless.enabled': true }
       const before = structuredClone(saved)
       const bridge = mode === 'missing' ? {} : {
+        setGaplessPlayback: async enabled => {
+          events.push(['gapless', enabled])
+          if (mode === 'failing') throw Error('Gapless unavailable')
+        },
         setLoudnessNormalization: async config => {
           events.push(['loudness', config])
           if (mode === 'failing') throw Error('Loudness creation failed')
@@ -166,6 +170,7 @@ test('player startup restores saved EQ and loudness only after setup and tolerat
       await new Promise(resolve => setImmediate(resolve))
       assert.equal(events.some(([name]) => name === 'eq'), false)
       assert.equal(events.some(([name]) => name === 'loudness'), false)
+      assert.equal(events.some(([name]) => name === 'gapless'), false)
       assert.equal(global.lx.playerStatus.isInitialized, false)
       completeSetup()
       await start
@@ -173,6 +178,8 @@ test('player startup restores saved EQ and loudness only after setup and tolerat
       assert.equal(global.lx.playerStatus.isIniting, false)
       assert.deepEqual(saved, before)
       if (mode !== 'missing') {
+        assert.deepEqual(events.find(([name]) => name === 'gapless'), ['gapless', true])
+        assert.ok(events.findIndex(([name]) => name === 'loudness') < events.findIndex(([name]) => name === 'gapless'))
         assert.deepEqual(events.find(([name]) => name === 'loudness')[1], { enabled: true, target: -11, preventClipping: true })
         assert.ok(events.findIndex(([name]) => name === 'eq') < events.findIndex(([name]) => name === 'loudness'))
         assert.deepEqual(events.find(([name]) => name === 'eq')[1], { enabled: true, preset: 'rock', gains: api.PRESET_GAINS.rock })
@@ -192,7 +199,7 @@ test('loudness native capability enables loudness and failures never persist', a
   await assert.rejects(api.commitAudioEffect('loudness', { ...defaults, 'player.audio.loudness.enabled': true }, bridge, () => assert.fail('Failed loudness must not persist')), /Loudness creation failed/)
   const native = read('dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/module/MusicModule.java')
   assert.match(native, /@ReactMethod\s+public void setLoudnessNormalization\(ReadableMap config, final Promise promise\)/)
-  assert.doesNotMatch(native, /void setGaplessPlayback/)
+  assert.match(native, /@ReactMethod\s+public void setGaplessPlayback\(final boolean enabled, final Promise promise\)/)
 })
 
 test('gain composition keeps targets, EQ headroom, ducking and sleep fade independent', () => {

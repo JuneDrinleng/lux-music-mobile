@@ -3,7 +3,7 @@
 import TrackPlayer from 'react-native-track-player'
 import { NativeModules } from 'react-native'
 import settingState from '@/store/setting/state'
-import { restoreEqualizer, restoreLoudness, type AudioEffectsBridge } from '@/utils/audioEffects'
+import { restoreEqualizer, restoreLoudness, restoreGapless, type AudioEffectsBridge } from '@/utils/audioEffects'
 import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache, isNotificationLikeSupported } from './utils'
 
 // const listenEvent = () => {
@@ -63,6 +63,7 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
   })
   await restoreEqualizer(settingState.setting, NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined)
   await restoreLoudness(settingState.setting, NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined)
+  await restoreGapless(settingState.setting, NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined)
   global.lx.playerStatus.isInitialized = true
   global.lx.playerStatus.isIniting = false
   await updateOptions()
