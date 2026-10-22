@@ -8,6 +8,7 @@ import static androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_
 import static androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS;
 
 import android.content.Context;
+import android.os.Looper;
 import android.support.v4.media.session.PlaybackStateCompat;
 import android.util.Log;
 
@@ -32,6 +33,7 @@ import androidx.media3.exoplayer.metadata.MetadataOutput;
 
 import com.google.common.collect.ImmutableList;
 import com.guichaguri.trackplayer.service.MusicManager;
+import com.guichaguri.trackplayer.service.MusicService;
 import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.Track;
 
@@ -59,9 +61,35 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     protected int previousState = PlaybackStateCompat.STATE_NONE;
     protected float volumeMultiplier = 1.0F;
     protected boolean autoUpdateMetadata;
+    private final MusicService fadeService;
+
+    public Looper getApplicationLooper() {
+        return player.getApplicationLooper();
+    }
+
+    public boolean isPlayRequested() {
+        return player.getPlayWhenReady();
+    }
+
+    public void startFadeOut(long durationMs, long endAtMs, boolean finishSong, String requestId) {
+        if (fadeService != null) fadeService.startFadeOut(this, durationMs, endAtMs, finishSong, requestId);
+    }
+
+    public void cancelFadeOut() {
+        if (fadeService != null) fadeService.cancelFadeOut();
+    }
+
+    private void restoreFadeVolume() {
+        if (fadeService != null) fadeService.restoreFadeVolume();
+    }
+
+    public void setSleepTimerVolume(float volume) {
+        setPlayerVolume(volume * volumeMultiplier);
+    }
 
     public ExoPlayback(Context context, MusicManager manager, T player, boolean autoUpdateMetadata) {
         this.context = context;
+        this.fadeService = context instanceof MusicService ? (MusicService) context : null;
         this.manager = manager;
         this.player = player;
         this.autoUpdateMetadata = autoUpdateMetadata;
@@ -164,6 +192,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
 
     public void pause() {
         player.setPlayWhenReady(false);
+        restoreFadeVolume();
     }
 
     public void stop() {
@@ -172,6 +201,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
 
         player.stop();
         player.setPlayWhenReady(false);
+        restoreFadeVolume();
         player.seekTo(0);
     }
 
@@ -182,6 +212,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
         player.stop();
         player.clearMediaItems();
         player.setPlayWhenReady(false);
+        restoreFadeVolume();
     }
 
     public boolean isRemote() {
@@ -213,6 +244,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     }
 
     public void seekTo(long time) {
+        restoreFadeVolume();
         if (queue.isEmpty()) return;
         lastKnownWindow = player.getCurrentMediaItemIndex();
         lastKnownPosition = player.getCurrentPosition();
@@ -225,7 +257,8 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     }
 
     public void setVolume(float volume) {
-        setPlayerVolume(volume * volumeMultiplier);
+        restoreFadeVolume();
+        setSleepTimerVolume(volume);
     }
 
     public void setVolumeMultiplier(float multiplier) {
@@ -260,11 +293,13 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     }
 
     public void destroy() {
+        cancelFadeOut();
         player.release();
     }
 
     @Override
     public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        if (fadeService != null) fadeService.onFadeTrackChanged();
         if(lastKnownWindow != player.getCurrentMediaItemIndex()) {
             Integer prevIndex = lastKnownWindow == C.INDEX_UNSET ? null : lastKnownWindow;
             Integer nextIndex = getCurrentTrackIndex();

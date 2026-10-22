@@ -174,6 +174,18 @@ export const setPause = async() => TrackPlayer.pause()
 export const setCurrentTime = async(time: number) => TrackPlayer.seekTo(time)
 const volumeFade = createVolumeFade(async volume => TrackPlayer.setVolume(volume))
 export const setVolume = volumeFade.setVolume
+const nativeFade = NativeModules.TrackPlayerModule as {
+  CAPABILITY_NATIVE_FADE_OUT?: boolean
+  startFadeOut?: (durationMs: number, endAtMs: number, finishSong: boolean, requestId: string) => Promise<void>
+  cancelFadeOut?: () => Promise<void>
+} | undefined
+export const isNativeFadeOutSupported = nativeFade?.CAPABILITY_NATIVE_FADE_OUT === true && typeof nativeFade.startFadeOut === 'function' && typeof nativeFade.cancelFadeOut === 'function'
+export const startNativeFadeOut = async(durationMs: number, endAtMs: number, finishSong: boolean, requestId: string) => {
+  if (isNativeFadeOutSupported) await nativeFade!.startFadeOut!(durationMs, endAtMs, finishSong, requestId)
+}
+export const cancelNativeFadeOut = async() => {
+  if (isNativeFadeOutSupported) await nativeFade!.cancelFadeOut!()
+}
 export const setSleepTimerGain = volumeFade.setGain
 export const restoreSleepTimerVolume = volumeFade.restore
 export const setPlaybackRate = async(num: number) => TrackPlayer.setRate(num)
