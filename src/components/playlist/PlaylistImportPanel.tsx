@@ -18,6 +18,7 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { magType } from '@/theme/magazineType'
 import { pickMusicCover } from '@/utils/musicCover'
 import { createStyle } from '@/utils/tools'
+import PlaylistImportFlow from './PlaylistImportFlow'
 
 interface ImportCandidate {
   id: string
@@ -31,6 +32,8 @@ interface PlaylistImportPanelProps {
   submitting: boolean
   bottomInset: number
   targetListName?: string
+  targetListId?: string
+  onImported?: (id: string) => void
   items: ImportCandidate[]
   selectedMap: Record<string, true>
   allSelected: boolean
@@ -57,7 +60,7 @@ const matchesImportQuery = (item: ImportCandidate, query: string) => {
   return name.includes(query) || singer.includes(query) || from.includes(query)
 }
 
-export default ({
+const LocalPlaylistImportPanel = ({
   visible,
   loading,
   submitting,
@@ -258,3 +261,13 @@ const useLuxStyles = sharedLuxStyles((colors) => {
     },
   })
 })
+
+/** Keep the original local-list selector intact behind the platform tab. */
+export default function PlaylistImportPanel(props: PlaylistImportPanelProps) {
+  const [local, setLocal] = useState(false)
+  const [returnedFromLocal, setReturnedFromLocal] = useState(false)
+  useEffect(() => { if (!props.visible) { setLocal(false); setReturnedFromLocal(false) } }, [props.visible])
+  if (!props.visible) return null
+  if (local) return <LocalPlaylistImportPanel {...props} onClose={() => { setReturnedFromLocal(true); setLocal(false) }} />
+  return <PlaylistImportFlow initialTab={returnedFromLocal ? 'platform' : 'text'} targetListId={props.targetListId} targetListName={props.targetListName} onClose={props.onClose} onImported={props.onImported} onLocalImport={() => { setLocal(true) }} />
+}
