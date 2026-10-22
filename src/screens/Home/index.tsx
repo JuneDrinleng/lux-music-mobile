@@ -13,6 +13,7 @@ import { getStatusBarStyle, navigations, useNavigationComponentDidAppear } from 
 import settingState from '@/store/setting/state'
 import PermissionPromptHost from '@/components/PermissionPromptHost'
 import AppDialogHost from '@/components/AppDialogHost'
+import ClipboardInvitePrompt from './Vertical/ListenTogether/ClipboardInvitePrompt'
 import { MagToastHost } from '@/components/magazine'
 import themeState from '@/store/theme/state'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -66,6 +67,7 @@ export default ({ componentId }: Props) => {
             ? <Horizontal />
             : <Vertical />
         }
+        <ClipboardInvitePrompt />
         <AppDialogHost />
         <PermissionPromptHost />
         <MagToastHost />

@@ -28,6 +28,7 @@ import { useShowTogetherDebugPanel } from '@/core/together/useTogetherDebugPanel
 import { useTogetherGateSnapshot } from '@/core/together/useTogetherGateSnapshot'
 import { useTogether } from '@/store/together/hook'
 import TogetherDebugPanel from '@/screens/Home/Vertical/ListenTogether/TogetherDebugPanel'
+import InviteSheet from './InviteSheet'
 import TogetherReadinessPanel from '@/screens/Home/Vertical/ListenTogether/TogetherReadinessPanel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -83,6 +84,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
   const together = useTogether()
   const showDebugPanel = useShowTogetherDebugPanel()
   const gateSnap = useTogetherGateSnapshot(showDebugPanel)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [joinError, setJoinError] = useState<string | undefined>()
 
@@ -141,6 +143,8 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
       >
         <View style={styles.topBar}>
           <BackButton onPress={requestClose} />
+          <View style={{ flex: 1 }} />
+          {together.room && together.connection == 'online' ? <SecondaryButton compact label={t('invite_entry')} onPress={() => { setInviteOpen(true) }} /> : null}
         </View>
 
         <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('together_title')}</Text>
@@ -243,6 +247,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
             </>
             )}
       </ScrollView>
+      <InviteSheet visible={inviteOpen} onClose={() => { setInviteOpen(false) }} />
       <TogetherDebugPanel visible={showDebugPanel} gateSnap={gateSnap} />
     </Animated.View>
   )

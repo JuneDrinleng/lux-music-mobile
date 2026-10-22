@@ -27,6 +27,7 @@ declare namespace LX {
       }
       interface RoomSnapshot {
         roomId: string // UUID，每次开房都不同
+        inviteExpiresAt?: number // Optional server-issued expiry (epoch milliseconds)
         code: string // 6 位数字邀请码
         hostId: string // memberId
         members: Member[] // 按 joinedAt 升序

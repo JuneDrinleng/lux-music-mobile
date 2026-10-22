@@ -58,6 +58,7 @@ export interface MagazineSheetProps {
   children?: ReactNode
   footer?: MagazineSheetFooter
   footerContent?: ReactNode
+  inviteLayout?: boolean
   importLayout?: boolean
   /** Sleep timer uses the 7D figure and compact close control. */
   timerLayout?: boolean
@@ -229,6 +230,7 @@ export const MagazineSheet = memo(({
   children,
   footer,
   footerContent,
+  inviteLayout = false,
   importLayout = false,
   timerLayout = false,
   lyricLayout = false,
@@ -328,13 +330,13 @@ export const MagazineSheet = memo(({
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }]}>
           <View style={styles.inkBar} />
-          <View style={[styles.header, importLayout || lyricLayout || recommendationLayout || radioLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
+          <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={timerLayout || radioLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout || recommendationLayout || radioLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
@@ -351,10 +353,10 @@ export const MagazineSheet = memo(({
               ? <View style={recommendationLayout ? { marginTop: 12, borderTopWidth: 2, borderTopColor: r.ink, paddingTop: 2 } : { marginTop: 12 }}>{subject}</View>
               : figure
                 ? (
-                  <View style={[styles.figureRow, importLayout || lyricLayout || radioLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
+                  <View style={[styles.figureRow, inviteLayout || importLayout || lyricLayout || radioLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
                     <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout || lyricLayout || radioLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
                     {figure.unit
-                      ? <Text size={lyricLayout || radioLayout ? 15 : 14} color={importLayout || lyricLayout || radioLayout ? r.ink : r.muted} style={[styles.figureUnit, importLayout || lyricLayout || radioLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
+                      ? <Text size={lyricLayout || radioLayout ? 15 : 14} color={inviteLayout || importLayout || lyricLayout || radioLayout ? r.ink : r.muted} style={[styles.figureUnit, inviteLayout || importLayout || lyricLayout || radioLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
                       : null}
                   </View>
                   )
@@ -362,18 +364,18 @@ export const MagazineSheet = memo(({
             {!recommendationLayout
               ? (
                 <>
-                  <View style={[styles.toolRule, importLayout || lyricLayout || radioLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
+                  <View style={[styles.toolRule, inviteLayout || importLayout || lyricLayout || radioLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
                   {toolExtra
                     ? <View style={styles.toolExtra}>{toolExtra}</View>
                     : null}
-                  <View style={[styles.toolRow, radioLayout ? { height: 40, paddingVertical: 0 } : null]}>
+                  <View style={[styles.toolRow, inviteLayout || radioLayout ? { height: 40, paddingVertical: 0 } : null]}>
                     <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
                     {headerAction
                       ? (
                         <TextButton
-                          style={radioLayout ? { height: 28, minHeight: 28 } : undefined}
-                          compact={importLayout || lyricLayout || radioLayout}
-                          labelSize={timerLayout || lyricLayout || radioLayout ? 13 : undefined}
+                          style={inviteLayout || radioLayout ? { height: 28, minHeight: 28 } : undefined}
+                          compact={inviteLayout || importLayout || lyricLayout || radioLayout}
+                          labelSize={inviteLayout || timerLayout || lyricLayout || radioLayout ? 13 : undefined}
                           label={headerAction.text}
                           danger={headerAction.tone === 'danger'}
                           muted={headerAction.disabled}
