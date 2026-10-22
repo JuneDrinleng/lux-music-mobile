@@ -11,6 +11,7 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { getUserName } from '@/utils/data'
 import { getActiveSpace, onDataSpaceWillChange } from '@/utils/dataSpace'
+import { saveCardToGallery } from '@/utils/shareCard/save'
 import { captureAndShareCard, nativeCardExport } from '@/utils/shareCard/export'
 import { buildShareCard, initialShareCardOptions, shareCardCanvas, SHARE_CARD_BACKGROUNDS, SHARE_CARD_TABS, type ShareCardSources, type ShareCardTab, type ShareCardBackground } from '@/utils/shareCard/model'
 import { createStyle, toast } from '@/utils/tools'
@@ -43,6 +44,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
   toggle: { paddingHorizontal: 13 },
   footer: { flexDirection: 'row', gap: 16, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 26 },
   primary: { flex: 1 },
+  save: { height: 46, borderRadius: 23 },
   report: { marginTop: 22, gap: 8 },
   figure: { fontWeight: '800', lineHeight: 60 },
   empty: { paddingVertical: 30 },
@@ -111,6 +113,18 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
       await captureAndShareCard(card.canExport, { ...adapter, share: async uri => { assertActive(); await adapter.share(uri) } }, options.tab === 'monthly' && monthlyFallback ? async() => { assertActive(); await monthlyFallback() } : undefined)
     } catch { if (aliveRef.current) toast(t(options.tab === 'monthly' ? 'monthly_share_failed' : 'share_card_failed')) } finally { busyRef.current = false; if (aliveRef.current) setBusy(false) }
   }
+  const save = async() => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    const space = getActiveSpace()
+    try {
+      await saveCardToGallery(card.canExport, nativeCardExport(cardRef, t('share_card_share')), {
+        isActive: () => aliveRef.current && space === getActiveSpace(),
+        notify: key => { toast(t(key)) },
+      })
+    } finally { busyRef.current = false; if (aliveRef.current) setBusy(false) }
+  }
   const canvas = shareCardCanvas(cardLayout.width, cardLayout.height)
   const cardBody = <>
     {lyric ? <>
@@ -152,6 +166,7 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
         </ScrollView>
         {cardLayout.width > 0 ? <View ref={cardRef} collapsable={false} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.exportCanvas, canvas, { backgroundColor }]}><View style={[styles.card, { width: cardLayout.width, marginTop: 0, backgroundColor, borderTopColor: ink }]}>{cardBody}</View></View> : null}
         <View style={styles.footer}>
+          <SecondaryButton style={styles.save} labelSize={13} label={t('share_card_save')} onPress={() => { void save() }} disabled={!card.canExport || !cardLayout.width || busy} />
           <PrimaryButton compact style={styles.primary} label={t('share_card_share')} onPress={() => { void share() }} disabled={!card.canExport || !cardLayout.width || busy} />
         </View>
       </View>

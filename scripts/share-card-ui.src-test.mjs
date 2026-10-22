@@ -13,7 +13,7 @@ export const walk = node => !node || typeof node !== 'object' ? [] : Array.isArr
 export const shareCardFixture = (file = 'src/components/shareCard/ShareCardPage.tsx', locale = 'zh-cn', overrides = {}) => {
   const slots = []; const effects = []; const events = new Map(); const beforeSpace = new Set()
   let cursor = 0; let tree; let props; let space = 'local'
-  const env = { captures: [], shares: [], releases: [], textShares: [], toasts: [], closed: 0, history: [], failCapture: false, failShare: false, name: Promise.resolve('June') }
+  const env = { saves: [], permissionRequests: [], platform: { OS: 'android', Version: 36 }, permission: 'granted', captures: [], shares: [], releases: [], textShares: [], toasts: [], closed: 0, history: [], failCapture: false, failShare: false, name: Promise.resolve('June') }
   const hooks = {
     memo: value => value,
     useState: initial => {
@@ -41,7 +41,17 @@ export const shareCardFixture = (file = 'src/components/shareCard/ShareCardPage.
   const deps = {
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    'react-native': { ...Object.fromEntries(['Modal', 'ScrollView', 'View', 'FlatList', 'TouchableOpacity'].map(name => [name, name])), Share: { share: async value => { env.textShares.push(value) } } },
+    'react-native': {
+      ...Object.fromEntries(['Modal', 'ScrollView', 'View', 'FlatList', 'TouchableOpacity'].map(name => [name, name])),
+      Share: { share: async value => { env.textShares.push(value) } },
+      Platform: env.platform,
+      PermissionsAndroid: {
+        PERMISSIONS: { WRITE_EXTERNAL_STORAGE: 'android.permission.WRITE_EXTERNAL_STORAGE' },
+        RESULTS: { GRANTED: 'granted' },
+        request: async permission => { env.permissionRequests.push(permission); await env.permissionWait; if (env.failPermission) throw Error('permission'); return env.permission },
+      },
+      NativeModules: { GalleryModule: { saveImage: async uri => { env.saves.push(uri); if (env.failSave) throw env.failSave; return env.savedUri ?? 'content://media/external/images/media/123' } } },
+    },
     'react-native-svg': { default: 'Svg', Text: 'SvgText' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Text': { default: 'Text' },
@@ -99,7 +109,7 @@ const open = locale => {
   return f
 }
 
-test('2B opens the requested tab; PNG system share alone is available; capture-only fallback and chooser failure stay distinct', async() => {
+test('2B opens the requested tab; PNG system share remains available alongside album save; capture-only fallback and chooser failure stay distinct', async() => {
   const f = open()
   assert.equal(f.nodes('TextTabs')[0].props.value, 'monthly')
   assert.equal(f.nodes('PrimaryButton').length, 1)
@@ -200,4 +210,103 @@ test('monthly 分享月报 opens the selected month in 2B and defers existing te
   assert.equal(f.env.textShares.length, 1)
   preview.props.onClose(); f.render()
   assert.equal(f.nodes('ShareCardPage').length, 0)
+})
+
+const settle = async f => { await new Promise(resolve => setImmediate(resolve)); f.render() }
+const saveButton = f => f.nodes('SecondaryButton').find(node => node.props.label === f.t('share_card_save'))
+
+test('2B approved album button sits before share, keeps all existing actions and saves PNG with localized success', async() => {
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    const f = open(locale)
+    const button = saveButton(f)
+    const footer = f.nodes('View').find(node => Array.isArray(node.props.children) && node.props.children.includes(button))
+    assert.deepEqual(footer.props.children.map(node => node.type), ['SecondaryButton', 'PrimaryButton'])
+    assert.equal(button.props.style.height, 46)
+    assert.equal(button.props.style.borderRadius, 23)
+    assert.equal(button.props.disabled, false)
+    assert.equal(f.nodes('BackButton').length, 1)
+    assert.equal(f.nodes('TextButton').length, 1)
+    assert.equal(f.nodes('SecondaryButton').length, 4)
+    button.props.onPress(); await settle(f)
+    assert.deepEqual(f.env.saves, ['file:///card.png'])
+    assert.deepEqual(f.env.captures[0][1], { width: 1080, height: 1440, format: 'png', result: 'tmpfile' })
+    assert.deepEqual(f.env.permissionRequests, [])
+    assert.deepEqual(f.env.shares, [])
+    assert.deepEqual(f.env.releases, ['file:///card.png'])
+    assert.deepEqual(f.env.toasts, [f.t('share_card_saved')])
+    assert.equal(saveButton(f).props.disabled, false)
+  }
+})
+
+test('legacy permission denied/never ask again shows a toast and never captures or saves; granted permission saves', async() => {
+  for (const permission of ['denied', 'never_ask_again', 'granted']) {
+    const f = open(); f.env.platform.Version = 28; f.env.permission = permission
+    saveButton(f).props.onPress(); await settle(f)
+    assert.deepEqual(f.env.permissionRequests, ['android.permission.WRITE_EXTERNAL_STORAGE'])
+    const granted = permission === 'granted'
+    assert.equal(f.env.captures.length, granted ? 1 : 0)
+    assert.equal(f.env.saves.length, granted ? 1 : 0)
+    assert.deepEqual(f.env.toasts, [f.t(granted ? 'share_card_saved' : 'share_card_save_denied')])
+    assert.equal(saveButton(f).props.disabled, false)
+  }
+  for (const version of [21, 22, 29, 36]) {
+    const f = open(); f.env.platform.Version = version
+    saveButton(f).props.onPress(); await settle(f)
+    assert.deepEqual(f.env.permissionRequests, [])
+    assert.equal(f.env.saves.length, 1)
+  }
+})
+
+test('album capture, permission request and ROM write failures are handled, release files and never text-share', async() => {
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    for (const failure of ['capture', 'save', 'permission', 'native-denied', 'invalid-uri']) {
+      const f = open(locale)
+      if (failure === 'capture') f.env.failCapture = true
+      if (failure === 'save') f.env.failSave = Error('disk full')
+      if (failure === 'permission') { f.env.platform.Version = 28; f.env.failPermission = true }
+      if (failure === 'native-denied') f.env.failSave = { code: 'E_PERMISSION_DENIED' }
+      if (failure === 'invalid-uri') f.env.savedUri = ''
+      saveButton(f).props.onPress(); await settle(f)
+      assert.deepEqual(f.env.toasts, [f.t(failure === 'native-denied' ? 'share_card_save_denied' : 'share_card_save_failed')])
+      assert.equal(saveButton(f).props.disabled, false)
+      assert.deepEqual(f.env.textShares, [])
+      assert.deepEqual(f.env.shares, [])
+      assert.deepEqual(f.env.releases, ['capture', 'permission'].includes(failure) ? [] : ['file:///card.png'])
+    }
+  }
+})
+
+test('album and share share one busy guard; empty cards and stale permission/capture results cannot save', async() => {
+  for (const stage of ['permission', 'capture']) {
+    const f = open(); let finish
+    const wait = new Promise(resolve => { finish = resolve })
+    if (stage === 'permission') { f.env.platform.Version = 28; f.env.permissionWait = wait } else f.env.captureWait = wait
+    saveButton(f).props.onPress(); saveButton(f).props.onPress(); f.nodes('PrimaryButton')[0].props.onPress(); f.render()
+    assert.equal(saveButton(f).props.disabled, true)
+    assert.equal(f.nodes('PrimaryButton')[0].props.disabled, true)
+    f.changeSpace(); finish(); await settle(f)
+    assert.equal(f.env.saves.length, 0)
+    assert.equal(f.env.shares.length, 0)
+    assert.deepEqual(f.env.toasts, [])
+    assert.equal(f.env.captures.length, stage === 'capture' ? 1 : 0)
+    assert.equal(f.env.releases.length, stage === 'capture' ? 1 : 0)
+  }
+  const f = open(); f.nodes('TextTabs')[0].props.onChange('annual'); f.render()
+  assert.equal(saveButton(f).props.disabled, true)
+  saveButton(f).props.onPress(); await settle(f)
+  assert.deepEqual(f.env.captures, [])
+})
+
+test('album save returns native content URI after publishing and rejects an unavailable bridge', async() => {
+  const f = open()
+  const { saveCardToGallery } = f.load(join(root, 'src/utils/shareCard/save.ts'))
+  const released = []
+  const uri = await saveCardToGallery(true, { capture: async() => 'file:///card.png', release: value => released.push(value) }, { isActive: () => true, notify: () => {} })
+  assert.equal(uri, 'content://media/external/images/media/123')
+  assert.deepEqual(released, ['file:///card.png'])
+  const missing = shareCardFixture(undefined, 'zh-cn', { 'react-native': { NativeModules: {}, Platform: { OS: 'android', Version: 29 } } })
+  const messages = []
+  await missing.load(join(root, 'src/utils/shareCard/save.ts')).saveCardToGallery(true, { capture: async() => 'file:///card.png', release: value => released.push(value) }, { isActive: () => true, notify: value => messages.push(value) })
+  assert.deepEqual(messages, ['share_card_save_failed'])
+  assert.equal(released.length, 2)
 })
