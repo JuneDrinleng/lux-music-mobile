@@ -25,7 +25,30 @@ declare namespace LX {
         items: LX.Music.MusicInfoOnline[] // 最多 200 首，只放在线歌曲
         currentId: string | null // 当前歌曲的 musicInfo.id
       }
+      interface ChatMessage {
+        id: number
+        roomId: string
+        senderId: string
+        displayName: string
+        text: string
+        at: number
+        clientMsgId: string
+      }
+      interface ChatPage { messages: ChatMessage[], hasMore: boolean }
+      interface ChatPush { roomId: string, message: ChatMessage }
+      interface ReactionPush { roomId: string, memberId: string, displayName: string, emoji: string, at: number }
+      interface SongRequest {
+        id: string
+        song: LX.Music.MusicInfoOnline
+        requestedBy: { memberId: string, displayName: string }
+        at: number
+        status: 'pending'
+      }
+      interface RequestsPush { roomId: string, requests: SongRequest[], version: number }
       interface RoomSnapshot {
+        chat?: ChatMessage[]
+        requests?: SongRequest[]
+        requestsVersion?: number
         roomId: string // UUID，每次开房都不同
         inviteExpiresAt?: number // Optional server-issued expiry (epoch milliseconds)
         code: string // 6 位数字邀请码
@@ -99,12 +122,23 @@ declare namespace LX {
       'together:hostUpdateState': (req: Together.HostUpdateStateRequest) => LuxResult<Together.UpdateAck>
       'together:hostUpdateQueue': (req: Together.HostUpdateQueueRequest) => LuxResult<Together.UpdateAck>
       'together:transferHost': (req: { roomId: string, memberId: string }) => LuxResult<null>
+      'together:chat:send': (req: { text: string, clientMsgId: string }) => LuxResult<Together.ChatMessage>
+      'together:chat:history': (req: { roomId: string, beforeId?: number, limit?: number }) => LuxResult<Together.ChatPage>
+      'together:reaction': (req: { emoji: string }) => LuxResult<null>
+      'together:request:add': (req: { song: LX.Music.MusicInfoOnline }) => LuxResult<null>
+      'together:request:approve': (req: { requestId: string, expectedQueueVersion?: number }) => LuxResult<Together.UpdateAck>
+      'together:request:reject': (req: { requestId: string }) => LuxResult<null>
+      'together:request:remove': (req: { requestId: string }) => LuxResult<null>
+      'together:request:reorder': (req: { requestIds: string[] }) => LuxResult<null>
       'together:ping': (req: { t0: number }) => LuxResult<Together.PingResult>
     }>
     type ClientSyncTogetherActions = WarpPromiseRecord<{
       'together:onRoomState': (push: Together.RoomStatePush) => void
       'together:onMemberChanged': (push: Together.MemberChangedPush) => void
       'together:onHostChanged': (push: Together.HostChangedPush) => void
+      'together:onChat': (push: Together.ChatPush) => void
+      'together:onReaction': (push: Together.ReactionPush) => void
+      'together:onRequests': (push: Together.RequestsPush) => void
       'together:onRoomClosed': (push: Together.RoomClosedPush) => void
     }>
   }

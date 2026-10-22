@@ -32,7 +32,12 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     const enablePlayHistory = lux && featureVersion.playHistory == supportedFeatures.playHistory
     setPlayHistoryFeatureEnabled(enablePlayHistory)
     const enableTogether = lux && featureVersion.together == supportedFeatures.together
-    negotiateTogether(id!, enableTogether)
+    negotiateTogether(id!, enableTogether, supportedFeatures)
+    if (enableTogether) {
+      for (const key of ['together.chat', 'together.reaction', 'together.request'] as const) {
+        if (supportedFeatures[key] == 1) features[key] = true
+      }
+    }
     switch (serverType) {
       case 'server':
         if (featureVersion.list == supportedFeatures.list) {

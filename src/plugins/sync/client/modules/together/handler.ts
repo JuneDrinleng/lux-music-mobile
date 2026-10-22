@@ -24,6 +24,21 @@ const handler: Handler = {
     if (!isCurrentSession(sessionId) || !isSessionTogetherNegotiated()) return
     emitTogetherPush({ sessionId: sessionId!, type: 'hostChanged', push })
   },
+  async 'together:onChat'(socket, push) {
+    const sessionId = getSocketSession(socket)?.id
+    if (!isCurrentSession(sessionId) || !isSessionTogetherNegotiated()) return
+    emitTogetherPush({ sessionId: sessionId!, type: 'chat', push })
+  },
+  async 'together:onReaction'(socket, push) {
+    const sessionId = getSocketSession(socket)?.id
+    if (!isCurrentSession(sessionId) || !isSessionTogetherNegotiated()) return
+    emitTogetherPush({ sessionId: sessionId!, type: 'reaction', push })
+  },
+  async 'together:onRequests'(socket, push) {
+    const sessionId = getSocketSession(socket)?.id
+    if (!isCurrentSession(sessionId) || !isSessionTogetherNegotiated()) return
+    emitTogetherPush({ sessionId: sessionId!, type: 'requests', push })
+  },
   async 'together:onRoomClosed'(socket, push) {
     const sessionId = getSocketSession(socket)?.id
     if (!isCurrentSession(sessionId) || !isSessionTogetherNegotiated()) return

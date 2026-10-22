@@ -5,10 +5,12 @@ export type SessionState = 'connecting' | 'negotiated' | 'togetherReady' | 'toge
 export interface Session {
   readonly id: number
   readonly state: SessionState
+  readonly togetherFeatures?: LX.Sync.SupportedFeatures
 }
 
 interface MutableSession extends Session {
   state: SessionState
+  togetherFeatures?: LX.Sync.SupportedFeatures
   cleanups: Set<() => void>
 }
 
@@ -47,11 +49,15 @@ export const onSessionClose = (id: number, cleanup: () => void) => {
   if (isCurrentSession(id)) current!.cleanups.add(cleanup)
 }
 
-export const negotiateTogether = (id: number, enabled: boolean) => {
+export const negotiateTogether = (id: number, enabled: boolean, supportedFeatures?: LX.Sync.SupportedFeatures) => {
   if (!isCurrentSession(id)) return
+  current!.togetherFeatures = enabled ? supportedFeatures : undefined
   // A repeated handshake never resets an already ready module.
   const next = enabled ? (current!.state == 'togetherReady' ? 'togetherReady' : 'negotiated') : 'togetherUnsupported'
-  if (current!.state == next) return
+  if (current!.state == next) {
+    notify()
+    return
+  }
   current!.state = next
   notify()
 }

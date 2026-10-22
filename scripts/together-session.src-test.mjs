@@ -211,6 +211,8 @@ const coreHarness = () => {
     '@/store/together/action': { default: actions },
     '@/utils/data': { getSyncMode: async() => 'lux', getLuxAuth: async() => ({ serverId: 'server-a' }) },
     '@/utils/tools': { toast: noop },
+    '@/store/together/roomFeed': { togetherRoomFeed: load('src/core/together/roomFeed.ts').createRoomFeed(api.callTogether) },
+    './roomFeed': load('src/core/together/roomFeed.ts'),
     './roomRevision': load('src/core/together/roomRevision.ts'),
     './clock': { startClockSync: noop, stopClockSync: noop },
     './debugPanelPreference': { loadTogetherDebugPanelPreference: async() => false, subscribeTogetherDebugPanel: noop },
