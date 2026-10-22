@@ -330,7 +330,7 @@ export const MagazineSheet = memo(({
         <Animated.View style={[styles.mask, { opacity: maskOpacity }, radioLayout ? { backgroundColor: r.ink } : null]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={requestClose} />
         </Animated.View>
-        <Animated.View style={[styles.panel, { height: panelH, maxHeight: '100%', transform: [{ translateY }] }]}>
+        <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }, inlineBottomInset != null ? { maxHeight: '100%' } : null]}>
           <View style={styles.inkBar} />
           <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>

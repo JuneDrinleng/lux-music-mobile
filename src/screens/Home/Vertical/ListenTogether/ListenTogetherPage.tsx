@@ -166,10 +166,10 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 }}>
             <Image url={room.playback.musicInfo?.meta.picUrl ?? ''} style={{ width: 48, height: 48, borderRadius: 4, backgroundColor: r.placeholder }} />
             <View style={{ flex: 1 }}><Text size={17} color={r.ink} style={{ fontWeight: '800' }} numberOfLines={1}>{room.playback.musicInfo?.name ?? t('invite_no_song')}</Text><Text size={12} color={r.muted}>{room.playback.musicInfo?.singer ?? ''} · {Math.floor(room.playback.positionMs / 60000)}:{String(Math.floor(room.playback.positionMs / 1000) % 60).padStart(2, '0')} / {Math.floor(room.playback.durationMs / 60000)}:{String(Math.floor(room.playback.durationMs / 1000) % 60).padStart(2, '0')}</Text></View>
-            <PrimaryButton compact label="" accessibilityLabel={t(room.playback.isPlaying ? 'together_pause' : 'together_play')} icon={room.playback.isPlaying ? 'pause' : 'play'} style={{ width: 40, height: 40, paddingHorizontal: 0 }} disabled={!isHost} onPress={togglePlay} />
+            <PrimaryButton compact label="" accessibilityLabel={t(room.playback.isPlaying ? 'together_pause' : 'together_play')} icon={room.playback.isPlaying ? 'pause' : 'play'} style={{ width: 44, height: 44, paddingHorizontal: 0 }} disabled={!isHost} onPress={togglePlay} />
           </View>
-          {together.connection != 'online' ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_offline')}</Text> : null}
-          {showDebugPanel && gateSnap ? <Text size={11} color={r.quiet} style={styles.hint}>{formatTogetherGateHint(gateSnap)}</Text> : null}
+          {together.connection != 'online' ? <Text size={14} color={r.muted} style={styles.hint}>{t(together.connection == 'unsupported' ? 'together_unsupported' : 'together_offline')}</Text> : null}
+          {showDebugPanel && gateSnap ? <Text size={11} color={r.quiet} style={[styles.hint, { fontVariant: ['tabular-nums'] }]} selectable>{formatTogetherGateHint(gateSnap)}</Text> : null}
         </>}
         members={<>
               <SectionHeader title={t('together_invite_code')} showRule={false} headGap={18} />

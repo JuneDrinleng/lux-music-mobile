@@ -136,7 +136,7 @@ export default function RoomFeedView({ feed, selfId, hostId, members, onRequests
     {(isStream ? membersVisible : activeTab == 'members') ? members : null}
     </View>
     </ScrollView>
-    {isStream && feed.capabilities.reactions ? <View pointerEvents="box-none" style={{ position: 'absolute', right: 22, bottom: bottomInset + 108, width: 44, gap: 8 }}>{emojis.map(emoji => <SecondaryButton key={emoji} label={emoji} labelSize={18} style={{ width: 40, height: 40, paddingHorizontal: 0 }} onPress={() => { reaction(emoji) }} />)}</View> : null}
+    {isStream && feed.capabilities.reactions ? <View pointerEvents="box-none" style={{ position: 'absolute', right: 22, bottom: bottomInset + 108, width: 44, gap: 8 }}>{emojis.map(emoji => <SecondaryButton key={emoji} compact label={emoji} labelSize={18} style={{ width: 44, height: 44, paddingHorizontal: 0 }} onPress={() => { reaction(emoji) }} />)}</View> : null}
     {isStream && feed.capabilities.reactions ? <View pointerEvents="none" style={{ position: 'absolute', right: 66, bottom: bottomInset + 90, width: 100, height: 180, overflow: 'hidden' }}><FloatingReactions key={feed.roomId} feed={feed} /></View> : null}
     {isStream || activeTab == 'chat' ? <View style={{ paddingHorizontal: 22 }}>      {feed.capabilities.chat || (isStream && feed.capabilities.requests) ? <View style={styles.composer}>
         {isStream && feed.capabilities.requests ? <SecondaryButton compact label={`♪ ${t('together_requests')}`} style={{ paddingHorizontal: 12 }} onPress={onRequests} /> : !isStream && feed.capabilities.reactions ? <Text size={20} color={r.ink}>☺</Text> : null}

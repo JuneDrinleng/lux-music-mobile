@@ -77,7 +77,7 @@ export default function RequestSheet({ feed, selfId, hostId, bottomInset, onClos
           const target = Math.max(0, Math.min(model.pending.length - 1, index + shift))
           if (target != index) act(async() => togetherRoomFeed.reorderRequests(reorderRequestIds(model.pending.map(item => item.request.id), index, target)))
         }} /> : null}
-        {model.canManage || entry.request.requestedBy.memberId == selfId ? <TextButton compact label="×" accessibilityLabel={t('together_request_remove')} labelSize={16} style={{ minWidth: 16, minHeight: 28 }} underline={false} disabled={busy} onPress={() => { act(async() => togetherRoomFeed.requestAction('remove', entry.request.id)) }} /> : null}
+        {model.canManage || entry.request.requestedBy.memberId == selfId ? <TextButton compact label="×" accessibilityLabel={t('together_request_remove')} labelSize={16} style={{ minWidth: 44, minHeight: 28 }} underline={false} disabled={busy} onPress={() => { act(async() => togetherRoomFeed.requestAction('remove', entry.request.id)) }} /> : null}
       </View>)}
       <Text size={12} color={r.muted} style={styles.foot}>{t('together_request_return')}</Text>
       {model.canManage && model.pending.length ? <SecondaryButton compact label={t('together_request_approve')} disabled={busy} onPress={() => { act(async() => togetherRoomFeed.requestAction('approve', model.pending[0].request.id)) }} /> : null}
