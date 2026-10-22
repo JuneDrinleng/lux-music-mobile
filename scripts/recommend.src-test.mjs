@@ -16,16 +16,20 @@ const moduleLoader = (dependencies = {}) => {
     const module = { exports: {} }
     cache.set(file, module)
     const js = ts.transpileModule(readFileSync(file, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+      fileName: file,
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
     }).outputText
     new Script(`(function(require,module,exports){${js}\n})`, { filename: file }).runInThisContext()(name => {
       if (name in dependencies) return dependencies[name]
       const path = name.startsWith('@/') ? join(root, 'src', name.slice(2)) : resolve(dirname(file), name)
-      return load(existsSync(`${path}.ts`) ? `${path}.ts` : join(path, 'index.ts'))
+      return load(existsSync(`${path}.ts`) ? `${path}.ts` : existsSync(`${path}.tsx`) ? `${path}.tsx` : join(path, 'index.ts'))
     }, module, module.exports)
     return module.exports
   }
-  return name => load(join(root, 'src/utils/recommend', `${name}.ts`))
+  return name => {
+    const path = join(root, 'src/utils/recommend', name)
+    return load(existsSync(`${path}.ts`) ? `${path}.ts` : `${path}.tsx`)
+  }
 }
 const { rankCandidates, sameSong } = moduleLoader()('engine')
 const now = new Date(2026, 9, 18, 12).getTime()
@@ -248,7 +252,9 @@ test('daily source failure returns and persists local-only recommendations and f
   assert.equal(first.items.length, 10)
   assert.ok(first.items.every(item => item.origin == 'library'))
   assert.deepEqual(first.failures, [{ id: 'wy:chart', reason: 'failed' }])
-  assert.deepEqual(await serviceEnv(env.disk).engine.getDailyRecommendations(dailyOpts), first)
+  assert.deepEqual(await env.engine.getDailyRecommendations(dailyOpts), first)
+  // A source that is no longer usable must not retain a stale failure/retry notice.
+  assert.deepEqual(await serviceEnv(env.disk).engine.getDailyRecommendations(dailyOpts), { ...first, failures: [] })
 })
 
 test('similar API excludes seed aliases, exposes provider groups/reasons; radio excludes queue and recent recommendations', async() => {
@@ -710,5 +716,297 @@ test('radio bindings run with the sheet closed, clean listeners on stop/space ch
     radio.radioSession.stop()
     global.app_event = previousApp
     global.state_event = previousState
+  }
+})
+
+test('default app bindings never construct or call remote sources in local/disconnected mode', async() => {
+  let space = 'local'
+  const sync = { status: { status: false } }
+  let remoteLoads = 0
+  const engine = moduleLoader({
+    '@/store/sync/state': { default: sync, __esModule: true },
+    '@/config/constant': { storageDataPrefix: { recommendations: 'recommendations' } },
+    '@/core/dislikeList': { hasDislike: () => false },
+    '@/plugins/storage': { getData: async() => null, saveData: async() => {} },
+    '@/utils': { toNewMusicInfo: song => song },
+    '@/utils/dataSpace': { getActiveSpace: () => space, namespacedKey: (key, id) => `${key}@${id}`, onDataSpaceWillChange: () => {} },
+    '../playHistory/store': { getPlayRecords: () => [] },
+    './local': { localSources: () => [{ id: 'local:library', load: async() => pool }] },
+    './platform': { platformSources: () => { remoteLoads++; return [] } },
+  })('index')
+  for (const id of ['local', 'lux:s:u']) {
+    space = id
+    const batch = await engine.getDailyRecommendations(dailyOpts)
+    assert.equal(batch.items.length, 10)
+    assert.deepEqual(batch.failures, [])
+    assert.equal(remoteLoads, 0)
+  }
+  sync.status.status = true
+  space = 'lux:s:connected'
+  await engine.getDailyRecommendations(dailyOpts)
+  assert.equal(remoteLoads, 1)
+})
+
+test('local empty/nonempty history ends loading without auth, server, or failure notices', async() => {
+  const { createRecommendationLoader } = moduleLoader()('loadState')
+  for (const history of [[], [record(song('history'))]]) {
+    const env = serviceEnv(new Map(), { pool: [] })
+    env.setHistory(history)
+    const states = []
+    const loader = createRecommendationLoader(state => states.push(state), 500)
+    await loader.load(onProgress => env.engine.getDailyRecommendations({ ...dailyOpts, onProgress }))
+    const final = states.at(-1)
+    assert.equal(final.loading, false)
+    assert.equal(final.failed, false)
+    assert.equal(final.batch.items.length, history.length)
+    assert.deepEqual(final.batch.failures, [])
+  }
+})
+
+test('daily source timeout resolves with local results and overall timeout includes queued/storage waits', async() => {
+  const never = () => new Promise(() => {})
+  const env = serviceEnv(new Map(), { sources: [{ id: 'remote:hang', load: never }] })
+  const start = performance.now()
+  const batch = await env.engine.getDailyRecommendations({ ...dailyOpts, timeoutMs: 15, overallTimeoutMs: 500 })
+  assert.equal(batch.items.length, 10)
+  assert.deepEqual(batch.failures, [{ id: 'remote:hang', reason: 'timeout' }])
+  assert.ok(performance.now() - start < 500)
+  const hung = serviceEnv(new Map(), { read: never })
+  await assert.rejects(hung.engine.getDailyRecommendations({ ...dailyOpts, overallTimeoutMs: 15 }), /timed out/)
+  await assert.rejects(hung.engine.getDailyRecommendations({ ...dailyOpts, overallTimeoutMs: 15 }), /timed out/)
+})
+
+test('local cards publish before remote starts; supplements and final/cache preserve their positions', async() => {
+  let finishRemote
+  let started
+  const remoteReady = new Promise(resolve => { started = resolve })
+  let remoteStarted = false
+  const env = serviceEnv(new Map(), {
+    pool: pool.slice(0, 3),
+    sources: [{
+      id: 'remote:catalog',
+      load: async() => { remoteStarted = true; return new Promise(resolve => { finishRemote = resolve; started() }) },
+    }],
+  })
+  const updates = []
+  const pending = env.engine.getDailyRecommendations({
+    ...dailyOpts,
+    onProgress: batch => {
+      updates.push(batch)
+      if (batch.items.length && !remoteStarted) assert.equal(batch.items.length, 3)
+    },
+  })
+  await remoteReady
+  const first = updates.find(batch => batch.items.length)
+  assert.ok(first)
+  finishRemote(pool.slice(3))
+  const final = await pending
+  assert.deepEqual(final.items.slice(0, 3), first.items)
+  assert.equal(final.items.length, 10)
+  for (const update of updates.filter(batch => batch.items.length)) {
+    assert.deepEqual(update.items.slice(0, 3), first.items)
+  }
+  assert.deepEqual((await env.engine.getDailyRecommendations(dailyOpts)).items, final.items)
+})
+
+test('loader exits loading on thrown error, timeout, and space invalidation; ignores late progress', async() => {
+  const { createRecommendationLoader } = moduleLoader()('loadState')
+  const states = []
+  const loader = createRecommendationLoader(state => states.push(state), 15)
+  await loader.load(async() => { throw Error('bad') })
+  assert.deepEqual(states.at(-1), { batch: null, loading: false, failed: true })
+  let progress
+  await loader.load(async publish => { progress = publish; return new Promise(() => {}) })
+  assert.equal(states.at(-1).loading, false)
+  assert.equal(states.at(-1).failed, true)
+  const length = states.length
+  progress({ items: pool })
+  assert.equal(states.length, length)
+  const pending = loader.load(async publish => { progress = publish; return new Promise(() => {}) })
+  await new Promise(resolve => setImmediate(resolve))
+  loader.invalidate()
+  await pending
+  assert.deepEqual(states.at(-1), { batch: null, loading: false, failed: false })
+  progress({ items: pool })
+  assert.equal(states.at(-1).batch, null)
+})
+
+test('large ranking yields to navigation callbacks and preserves synchronous ranking output', async() => {
+  const { rankCandidatesAsync } = moduleLoader()('engine')
+  const candidates = Array.from({ length: 2000 }, (_, i) => candidate(i))
+  const opts = { ...options, history: candidates.map(item => record(item.song)) }
+  let navigated = false
+  const pending = rankCandidatesAsync(candidates, opts)
+  setTimeout(() => { navigated = true }, 0)
+  const result = await pending
+  assert.equal(navigated, true)
+  assert.deepEqual(result, rankCandidates(candidates, opts))
+})
+
+// Minimal hook host exercises the real Sheet lifecycle without a native renderer.
+const hookHost = () => {
+  const hooks = []
+  let cursor = 0
+  let effects = []
+  let dirty = false
+  const sameDeps = (a, b) => a && b && a.length == b.length && a.every((value, index) => Object.is(value, b[index]))
+  const react = {
+    memo: value => value,
+    useState: initial => {
+      const id = cursor++
+      hooks[id] ??= { value: typeof initial == 'function' ? initial() : initial }
+      return [hooks[id].value, value => {
+        const next = typeof value == 'function' ? value(hooks[id].value) : value
+        if (!Object.is(next, hooks[id].value)) { hooks[id].value = next; dirty = true }
+      }]
+    },
+    useRef: initial => {
+      const id = cursor++
+      hooks[id] ??= { current: initial }
+      return hooks[id]
+    },
+    useMemo: (create, deps) => {
+      const id = cursor++
+      if (!sameDeps(hooks[id]?.deps, deps)) hooks[id] = { deps, value: create() }
+      return hooks[id].value
+    },
+    useCallback: (callback, deps) => react.useMemo(() => callback, deps),
+    useEffect: (effect, deps) => {
+      const id = cursor++
+      if (sameDeps(hooks[id]?.deps, deps)) return
+      effects.push(() => {
+        hooks[id]?.cleanup?.()
+        hooks[id] = { deps, cleanup: effect() }
+      })
+    },
+  }
+  return {
+    react,
+    dispose: () => { hooks.forEach(hook => hook.cleanup?.()) },
+    render: (component, props) => {
+      let result
+      do {
+        dirty = false; cursor = 0; effects = []
+        result = component(props)
+        effects.forEach(effect => effect())
+      } while (dirty)
+      return result
+    },
+  }
+}
+
+test('invisible Sheet mounts no Modal; interrupted close releases it and stale close cannot hide reopening', () => {
+  const host = hookHost()
+  const animations = []
+  const jsx = (type, props) => ({ type, props })
+  const { MagazineSheet } = moduleLoader({
+    react: host.react,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': {
+      Animated: {
+        Value: class { setValue() {} interpolate() { return 0 } },
+        View: 'AnimatedView',
+        timing: (value, config) => {
+          const animation = { config, start: callback => { animation.callback = callback }, stop: () => { animation.callback?.({ finished: false }) } }
+          animations.push(animation)
+          return animation
+        },
+      },
+      Easing: { out: value => value, cubic: 0 },
+      Keyboard: { addListener: () => ({ remove() {} }) },
+      Platform: { OS: 'android' },
+      Modal: 'Modal',
+      View: 'View',
+      TouchableOpacity: 'TouchableOpacity',
+      useWindowDimensions: () => ({ height: 800 }),
+    },
+    '@/components/common/Text': { default: 'Text', __esModule: true },
+    '@/components/common/MdiIcon': { MdiIcon: 'Icon' },
+    '@/lang': { useI18n: () => key => key },
+    '@/theme/LuxTheme': { sharedLuxStyles: () => () => ({}), useLuxTheme: () => ({ colors: {} }) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/theme/magazineType': { PAGE_GUTTER: 22, magType: { eyebrow: { size: 11 }, sheetTitle: { size: 22 } } },
+    '@/utils/tools': { createStyle: value => value },
+    './EmptyState': { EmptyState: 'EmptyState' },
+    './Hairline': { Hairline: 'Hairline' },
+    './PrimaryButton': { PrimaryButton: 'PrimaryButton' },
+    './TextButton': { TextButton: 'TextButton' },
+  })('../../components/magazine/MagazineSheet')
+  const props = { visible: false, onClose() {}, title: 'Sheet' }
+  assert.equal(host.render(MagazineSheet, props), null)
+  assert.equal(host.render(MagazineSheet, { ...props, visible: true }).type, 'Modal')
+  host.render(MagazineSheet, props)
+  animations.at(-1).callback({ finished: false })
+  assert.equal(host.render(MagazineSheet, props), null)
+  host.render(MagazineSheet, { ...props, visible: true })
+  host.render(MagazineSheet, props)
+  const stale = animations.at(-1).callback
+  host.render(MagazineSheet, { ...props, visible: true })
+  stale({ finished: true })
+  assert.equal(host.render(MagazineSheet, { ...props, visible: true }).type, 'Modal')
+})
+
+test('Dock tabs receive presses while DailyStrip and its real load hook remain mounted', async() => {
+  const host = hookHost()
+  const previousStateEvent = global.state_event
+  global.state_event = new EventEmitter()
+  const jsx = (type, props) => ({ type, props })
+  const env = serviceEnv(new Map(), { sources: [{ id: 'remote:hang', load: async() => new Promise(() => {}) }] })
+  const dependencies = {
+    react: host.react,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': {
+      View: 'View',
+      ScrollView: 'ScrollView',
+      TouchableOpacity: 'TouchableOpacity',
+      AppState: { addEventListener: () => ({ remove() {} }) },
+    },
+    '@/components/common/Text': { default: 'Text', __esModule: true },
+    '@/components/common/Image': { default: 'Image', __esModule: true },
+    '@/components/common/MdiIcon': { MdiIcon: 'Icon' },
+    '@/lang': { useI18n: () => key => key },
+    '@/theme/LuxTheme': { sharedLuxStyles: () => () => ({}), useLuxTheme: () => ({ colors: {} }) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/theme/magazineType': { PAGE_GUTTER: 22 },
+    '@/utils/tools': { createStyle: value => value },
+    '@/utils/recommend': { getDailyRecommendations: opts => env.engine.getDailyRecommendations({ ...dailyOpts, ...opts, timeoutMs: 30 }) },
+    '@/utils/dataSpace': { onDataSpaceWillChange: () => () => {}, onDataSpaceChanged: () => () => {} },
+    './actions': {},
+    './RecommendationViews': { useRecommendationStyles: () => ({}), useRecommendationAction: () => ({ run() {}, pending: false }) },
+    './Hairline': { Hairline: 'Hairline' },
+    './IconButton': { IconButton: 'IconButton' },
+    './Chip': { StatusChip: 'StatusChip' },
+  }
+  const { useRecommendations } = moduleLoader(dependencies)('../../components/recommend/useRecommendations')
+  let loadState
+  const { DailyStrip } = moduleLoader({ ...dependencies, './useRecommendations': { useRecommendations: () => { loadState = useRecommendations(); return loadState } } })('../../components/recommend/DailyStrip')
+  const { Dock } = moduleLoader(dependencies)('../../components/magazine/Dock')
+  const selected = []
+  const dock = Dock({ navItems: ['nav_search', 'nav_love', 'nav_setting'].map(id => ({ id, label: id, icon: id })), onNavPress: id => selected.push(id) })
+  const tabs = []
+  const visit = node => {
+    if (!node || typeof node != 'object') return
+    if (Array.isArray(node)) { node.forEach(visit); return }
+    if (node.props?.accessibilityRole == 'tab') tabs.push(node)
+    visit(node.props?.children)
+  }
+  visit(dock)
+  try {
+    host.render(DailyStrip, {})
+    assert.equal(loadState.loading, true)
+    tabs[1].props.onPress()
+    for (let tick = 0; tick < 100; tick++) {
+      await new Promise(resolve => setTimeout(resolve, 1))
+      host.render(DailyStrip, {})
+      if (!loadState.loading && loadState.batch?.items.length) break
+    }
+    assert.equal(loadState.loading, false)
+    assert.ok(loadState.batch.items.length)
+    tabs[2].props.onPress()
+    tabs[0].props.onPress()
+    assert.deepEqual(selected, ['nav_love', 'nav_setting', 'nav_search'])
+  } finally {
+    host.dispose()
+    global.state_event = previousStateEvent
   }
 })

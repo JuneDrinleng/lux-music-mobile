@@ -27,6 +27,6 @@ export const localSources = (): CandidateSource[] => [...new Set([
     if (spaceId != getActiveSpace()) return []
     const songs = await getListMusics(id)
     if (spaceId != getActiveSpace()) return []
-    return songs.map(libraryCandidate)
+    return songs.slice(0, 300).map(libraryCandidate)
   },
 }))

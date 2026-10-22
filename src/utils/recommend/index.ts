@@ -1,4 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+import syncState from '@/store/sync/state'
+import { usableRecommendationSources } from './availability'
 import { storageDataPrefix } from '@/config/constant'
 import { hasDislike } from '@/core/dislikeList'
 import { getData, saveData } from '@/plugins/storage'
@@ -15,7 +17,7 @@ const engine = createRecommendationEngine({
   getSpaceId: getActiveSpace,
   getHistory: getPlayRecords,
   isDisliked: song => hasDislike(toNewMusicInfo({ ...song, types: [], _types: {} })),
-  getSources: () => [...localSources(), ...platformSources()],
+  getSources: () => [...localSources(), ...usableRecommendationSources(getActiveSpace(), syncState.status.status, platformSources)],
   readCache: async spaceId => getData<RecommendationCache>(cacheKey(spaceId)),
   writeCache: async(spaceId, cache) => saveData(cacheKey(spaceId), cache),
 })

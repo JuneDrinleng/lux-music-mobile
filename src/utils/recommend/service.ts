@@ -1,11 +1,12 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+import { withRecommendationTimeout } from './timeout'
 import { dateKey, localDateReader, type TimeZone } from '../memories/calendar'
 import { type PlayRecord } from '../playHistory/types'
-import { rankCandidates, sameSong } from './engine'
+import { rankCandidatesAsync, sameSong } from './engine'
 import { collectCandidates, historySource, type SourceFailure } from './sources'
 import { type CandidateSource, type Recommendation, type RecommendationExposure, type Song } from './types'
 
-export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number, retryFailedSources?: boolean, affinityWeight?: number, discoveryWeight?: number }
+export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number, retryFailedSources?: boolean, affinityWeight?: number, discoveryWeight?: number, overallTimeoutMs?: number, onProgress?: (batch: RecommendationBatch) => void }
 export interface RecommendationBatch {
   spaceId: string
   date: string
@@ -17,6 +18,7 @@ export interface RecommendationCache {
   date: string
   daily: Recommendation[]
   dailyFailures: SourceFailure[]
+  dailySourceIds?: string[]
   exposures: RecommendationExposure[]
 }
 export interface RecommendationDependencies {
@@ -32,6 +34,7 @@ const validSong = (song: Song): boolean => !!song && typeof song.source == 'stri
   typeof song.name == 'string' && typeof song.singer == 'string'
 const validCache = (cache: RecommendationCache | null): cache is RecommendationCache => !!cache && cache.version == 1 &&
   typeof cache.date == 'string' && Array.isArray(cache.daily) && Array.isArray(cache.dailyFailures) && Array.isArray(cache.exposures) &&
+  (cache.dailySourceIds == null || (Array.isArray(cache.dailySourceIds) && cache.dailySourceIds.every(id => typeof id == 'string'))) &&
   cache.daily.every(item => validSong(item?.song) && typeof item.key == 'string' && Array.isArray(item.reasons) && Number.isFinite(item.score)) &&
   cache.exposures.every(item => validSong(item?.song) && Number.isFinite(item.at))
 
@@ -41,8 +44,8 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
   const queues = new Map<string, Promise<unknown>>()
   const memory = new Map<string, RecommendationCache>()
   let generation = 0
-  const enqueue = async<T>(space: string, action: () => Promise<T>): Promise<T> => {
-    const task = (queues.get(space) ?? Promise.resolve()).catch(() => {}).then(action)
+  const enqueue = async<T>(space: string, action: () => Promise<T>, timeoutMs: number, expire: () => void): Promise<T> => {
+    const task = (queues.get(space) ?? Promise.resolve()).catch(() => {}).then(async() => withRecommendationTimeout(action(), timeoutMs, expire))
     queues.set(space, task)
     try { return await task } finally { if (queues.get(space) == task) queues.delete(space) }
   }
@@ -53,15 +56,18 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
     const readDate = localDateReader(opts.timeZone)
     const date = dateKey(readDate(now))
     const sources = [...deps.getSources()]
+    let expired = false
     const assertSpace = () => {
-      if (deps.getSpaceId() != spaceId || generation != startedGeneration) throw new Error('Data space changed during recommendation request')
+      if (expired || deps.getSpaceId() != spaceId || generation != startedGeneration) throw new Error('Data space changed during recommendation request')
     }
-    return enqueue(spaceId, async(): Promise<RecommendationBatch> => {
+    return withRecommendationTimeout(enqueue(spaceId, async(): Promise<RecommendationBatch> => {
       assertSpace()
       let cache = memory.get(spaceId)
       if (!cache) {
         try {
-          const stored = await deps.readCache(spaceId)
+          const stored = await withRecommendationTimeout(deps.readCache(spaceId), 250)
+          // The per-space queue serializes cache reads and writes.
+          // eslint-disable-next-line require-atomic-updates
           if (validCache(stored)) cache = stored
         } catch { /* Storage failure must still allow local recommendations. */ }
       }
@@ -70,23 +76,60 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       // Retain only the repeat window, bounded to avoid unbounded radio storage growth.
       const exposures = cache.exposures.filter(item => item.at <= now && now - item.at < 3 * 86_400_000)
       const seed = `${date}:${spaceId}`
-      let history = copy(deps.getHistory())
+      let history = copy(deps.getHistory().slice(-2000))
       let items: Recommendation[]
       let failures: SourceFailure[]
       const previousDaily = cache.daily
-      const retryDaily = kind == 'daily' && cache.date == date && opts.retryFailedSources && (cache.dailyFailures.length > 0 || !previousDaily.length)
+      const sourceIds = cache.dailySourceIds ?? []
+      const retryRequested = opts.retryFailedSources === true && (cache.dailyFailures.length > 0 || !previousDaily.length)
+      const sourcesAdded = sources.some(source => !sourceIds.includes(source.id))
+      const retryDaily = kind == 'daily' && cache.date == date && (retryRequested || sourcesAdded)
       if (kind == 'daily' && cache.date == date && !retryDaily) {
         // Preserve cached order/scores; apply new dislikes and playback exclusions immediately.
-        const allowed = new Set(rankCandidates(cache.daily, {
+        const allowed = new Set((await rankCandidatesAsync(cache.daily, {
           now, seed, history, isDisliked: deps.isDisliked, limit: cache.daily.length,
-        }).map(item => item.key))
+        })).map(item => item.key))
         items = cache.daily.filter(item => allowed.has(item.key))
-        failures = cache.dailyFailures
+        failures = cache.dailyFailures.filter(failure => sources.some(source => source.id == failure.id) || failure.id == historySource.id)
       } else {
-        const collected = await collectCandidates([historySource, ...sources], { spaceId, now, seed, history, anchor }, opts.timeoutMs)
+        const context = { spaceId, now, seed, history, anchor }
+        let shown: Recommendation[] = retryDaily ? previousDaily : []
+        const retainOrder = (ranked: Recommendation[]) => {
+          const remaining = new Map(ranked.map(item => [item.key, item]))
+          const retained = shown.flatMap(item => {
+            const next = remaining.get(item.key)
+            remaining.delete(item.key)
+            return next ? [next] : []
+          })
+          return [...retained, ...remaining.values()]
+        }
+        const progress = async(candidates: Parameters<typeof rankCandidatesAsync>[0], failures: SourceFailure[]) => {
+          assertSpace()
+          if (kind != 'daily' || !opts.onProgress) return
+          const ranked = await rankCandidatesAsync([...candidates, ...shown], {
+            now,
+            seed,
+            history,
+            isDisliked: deps.isDisliked,
+            limit: candidates.length + shown.length,
+            recommended: exposures.filter(exposure => !shown.some(item => sameSong(item.song, exposure.song))),
+          })
+          assertSpace()
+          // Progress callbacks are serialized by collectCandidates.
+          // eslint-disable-next-line require-atomic-updates
+          shown = retainOrder(ranked).slice(0, 100)
+          opts.onProgress(copy({ spaceId, date, items: shown.slice(0, opts.limit ?? 30), failures }))
+        }
+        const local = await collectCandidates([historySource, ...sources.filter(source => source.id.startsWith('local:'))], context, opts.timeoutMs, progress)
+        // Local cards are published before even starting the usable remote sources.
+        const remote = await collectCandidates(sources.filter(source => !source.id.startsWith('local:')), context, opts.timeoutMs,
+          async(candidates, failures) => { await progress([...local.candidates, ...candidates], [...local.failures, ...failures]) })
+        const collected = { candidates: [...local.candidates, ...remote.candidates], failures: [...local.failures, ...remote.failures] }
         assertSpace()
-        history = copy(deps.getHistory())
-        items = rankCandidates(retryDaily ? [...collected.candidates, ...previousDaily] : collected.candidates, {
+        // This request owns its history snapshot.
+        // eslint-disable-next-line require-atomic-updates
+        history = copy(deps.getHistory().slice(-2000))
+        items = await rankCandidatesAsync(retryDaily ? [...collected.candidates, ...previousDaily] : collected.candidates, {
           now,
           seed: kind == 'daily' ? seed : `${seed}:${kind}:${exposures.length}`,
           history,
@@ -96,20 +139,20 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
           discoveryWeight: opts.discoveryWeight,
           exclude,
           recommended: retryDaily ? exposures.filter(exposure => !previousDaily.some(item => sameSong(item.song, exposure.song))) : exposures,
-          limit: kind == 'daily' ? 100 : opts.limit ?? 20,
+          limit: kind == 'daily' ? collected.candidates.length + previousDaily.length : opts.limit ?? 20,
         })
         failures = collected.failures
-        if (retryDaily) {
+        if (retryDaily || shown.length > 0) {
           // Recovery appends newly available candidates without shuffling today's existing strip.
           const remaining = new Map(items.map(item => [item.key, item]))
-          const retained = cache.daily.flatMap(item => {
+          const retained = shown.flatMap(item => {
             const next = remaining.get(item.key)
             remaining.delete(item.key)
             return next ? [next] : []
           })
           items = [...retained, ...remaining.values()]
         }
-        if (kind == 'daily') cache = { ...cache, date, daily: items, dailyFailures: failures }
+        if (kind == 'daily') cache = { ...cache, date, daily: items.slice(0, 100), dailyFailures: failures, dailySourceIds: sources.map(source => source.id) }
       }
       const selected = items.slice(0, Math.max(0, opts.limit ?? (kind == 'daily' ? 30 : 20)))
       // Daily exposures are recorded once per song/day; cached reads do not extend the cooldown.
@@ -123,10 +166,10 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       cache = { ...cache, exposures: exposures.slice(-2000) }
       assertSpace()
       memory.set(spaceId, copy(cache))
-      try { await deps.writeCache(spaceId, copy(cache)) } catch { /* Session cache remains usable if disk is unavailable. */ }
+      try { await withRecommendationTimeout(deps.writeCache(spaceId, copy(cache)), 250) } catch { /* Session cache remains usable if disk is unavailable. */ }
       assertSpace()
       return copy({ spaceId, date, items: selected, failures })
-    })
+    }, opts.overallTimeoutMs ?? 9000, () => { expired = true }), opts.overallTimeoutMs ?? 9000, () => { expired = true })
   }
   return {
     clearSessionCache: () => { generation++; memory.clear() },

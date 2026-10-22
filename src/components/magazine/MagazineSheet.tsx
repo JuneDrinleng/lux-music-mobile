@@ -287,15 +287,19 @@ export const MagazineSheet = memo(({
     }
     if (!mounted || closingRef.current) return
     closingRef.current = true
-    Animated.timing(anim, {
+    let current = true
+    const closeAnimation = Animated.timing(anim, {
       toValue: 0,
       duration: CLOSE_MS,
       easing: OPEN_EASING,
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      closingRef.current = false
-      if (finished) setMounted(false)
     })
+    closeAnimation.start(() => {
+      if (!current) return
+      closingRef.current = false
+      setMounted(false)
+    })
+    return () => { current = false; closingRef.current = false; closeAnimation.stop() }
   }, [visible, anim, mounted])
 
   const requestClose = () => {
