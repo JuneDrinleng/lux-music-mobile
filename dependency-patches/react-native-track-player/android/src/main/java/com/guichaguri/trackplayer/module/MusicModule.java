@@ -471,6 +471,43 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
+    public void setEqualizer(ReadableMap config, final Promise promise) {
+        final boolean enabled;
+        final double[] gains = new double[10];
+        try {
+            enabled = config.getBoolean("enabled");
+            String preset = config.getString("preset");
+            if (preset == null) throw new IllegalArgumentException("Missing preset");
+            ReadableArray values = config.getArray("gains");
+            if (values == null || values.size() != gains.length) {
+                throw new IllegalArgumentException("Expected ten equalizer gains");
+            }
+            for (int i = 0; i < gains.length; i++) {
+                double value = values.getDouble(i);
+                if (Double.isNaN(value) || Double.isInfinite(value)) {
+                    throw new IllegalArgumentException("Gain must be finite");
+                }
+                gains[i] = Math.max(-12, Math.min(12, value));
+            }
+        } catch (RuntimeException error) {
+            promise.reject("invalid_equalizer", error);
+            return;
+        }
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) {
+                    throw new IllegalStateException("Equalizer requires local playback");
+                }
+                ((LocalPlayback) playback).setEqualizer(enabled, gains);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("equalizer_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
     public void setNoise(final String id, final boolean enabled, final double volume, final Promise callback) {
         if (com.guichaguri.trackplayer.service.player.NoiseMixer.index(id) < 0
                 || Double.isNaN(volume) || Double.isInfinite(volume)) {

@@ -1,6 +1,9 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import TrackPlayer from 'react-native-track-player'
+import { NativeModules } from 'react-native'
+import settingState from '@/store/setting/state'
+import { restoreEqualizer, type AudioEffectsBridge } from '@/utils/audioEffects'
 import { updateOptions, setVolume, setPlaybackRate, migratePlayerCache, isNotificationLikeSupported } from './utils'
 
 // const listenEvent = () => {
@@ -58,6 +61,7 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
     audioOffload: isEnableAudioOffload,
     autoUpdateMetadata: false,
   })
+  await restoreEqualizer(settingState.setting, NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined)
   global.lx.playerStatus.isInitialized = true
   global.lx.playerStatus.isIniting = false
   await updateOptions()

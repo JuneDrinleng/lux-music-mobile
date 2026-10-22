@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 public class MusicService extends HeadlessJsTaskService {
 
     public final com.guichaguri.trackplayer.service.player.NoiseMixer noiseMixer = new com.guichaguri.trackplayer.service.player.NoiseMixer();
+    public final com.guichaguri.trackplayer.service.player.SessionEqualizer equalizer = new com.guichaguri.trackplayer.service.player.SessionEqualizer();
     public boolean stopNoiseWithTimer = true;
     MusicManager manager;
     Handler handler;
@@ -153,6 +154,7 @@ public class MusicService extends HeadlessJsTaskService {
         cancelFadeOut();
         fadePlayback = null;
         noiseMixer.release();
+        equalizer.detach();
         if(handler != null) {
             handler.removeMessages(0);
             handler = null;

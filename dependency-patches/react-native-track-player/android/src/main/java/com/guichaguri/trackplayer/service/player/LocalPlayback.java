@@ -27,6 +27,7 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 
 import com.guichaguri.trackplayer.service.MusicManager;
+import com.guichaguri.trackplayer.service.MusicService;
 import com.guichaguri.trackplayer.service.Utils;
 import com.guichaguri.trackplayer.service.models.Track;
 
@@ -49,10 +50,13 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     private AdjustableCacheEvictor cacheEvictor;
     private DatabaseProvider databaseProvider;
     private boolean prepared = false;
+    private final SessionEqualizer equalizer;
     public LocalPlayback(Context context, MusicManager manager, ExoPlayer player, long maxCacheSize,
                          boolean autoUpdateMetadata) {
         super(context, manager, player, autoUpdateMetadata);
         this.cacheMaxSize = maxCacheSize;
+        this.equalizer = context instanceof MusicService
+            ? ((MusicService) context).equalizer : new SessionEqualizer();
     }
 
     @Override
@@ -64,6 +68,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
         }
 
         super.initialize();
+        equalizer.attach(player);
 
         resetQueue();
     }
@@ -199,6 +204,10 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
             }
         }
         promise.resolve(null);
+    }
+
+    public void setEqualizer(boolean enabled, double[] gains) {
+        equalizer.set(context, enabled, gains);
     }
 
     private void prepare() {
@@ -354,6 +363,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
     @Override
     public void destroy() {
+        equalizer.detach();
         super.destroy();
 
         if(cache != null) {

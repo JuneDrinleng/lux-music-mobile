@@ -123,3 +123,58 @@ test('approved audio surfaces retain all controls, localized unsupported reasons
   }
   assert.equal(languages[0].audio_effects_unsupported, '不支持')
 })
+
+test('equalizer native module capability enables only EQ and a creation failure never persists', async() => {
+  const bridge = { setEqualizer: async() => { throw Error('Device has no Equalizer') } }
+  assert.deepEqual(api.audioEffectCapabilities(bridge), { equalizer: true, loudness: false, gapless: false })
+  await assert.rejects(api.commitAudioEffect('equalizer', { ...defaults, 'player.audio.equalizer.enabled': true }, bridge, () => assert.fail('Failed EQ must not persist')), /Device has no Equalizer/)
+  const native = read('dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/module/MusicModule.java')
+  assert.match(native, /@ReactMethod\s+public void setEqualizer\(ReadableMap config, final Promise promise\)/)
+  assert.doesNotMatch(native, /void setLoudnessNormalization|void setGaplessPlayback/)
+})
+
+test('player startup restores saved EQ only after setup and tolerates missing or failing devices', async() => {
+  const originalGlobal = global.lx
+  try {
+    for (const mode of ['supported', 'missing', 'failing']) {
+      const events = []
+      const saved = { ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock) }
+      const before = structuredClone(saved)
+      const bridge = mode === 'missing' ? {} : {
+        setEqualizer: async config => {
+          events.push(['eq', config])
+          if (mode === 'failing') throw Error('Equalizer creation failed')
+        },
+      }
+      let completeSetup
+      const setup = new Promise(resolve => { completeSetup = resolve })
+      const utils = Object.fromEntries(['updateOptions', 'setVolume', 'setPlaybackRate', 'migratePlayerCache'].map(name => [name, async() => events.push([name])]))
+      const player = load('src/plugins/player/index.ts', name => {
+        if (name === 'react-native-track-player') return { default: { setupPlayer: async() => { events.push(['setup']); await setup; events.push(['ready']) } }, __esModule: true }
+        if (name === 'react-native') return { NativeModules: { TrackPlayerModule: bridge } }
+        if (name === '@/store/setting/state') return { default: { setting: saved }, __esModule: true }
+        if (name === '@/utils/audioEffects') return api
+        if (name === './utils') return utils
+        assert.fail(`Unexpected dependency ${name}`)
+      })
+      global.lx = { playerStatus: { isIniting: false, isInitialized: false } }
+      const start = player.initial({ volume: 1, playRate: 1, cacheSize: 0, isHandleAudioFocus: true, isEnableAudioOffload: false })
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(events.some(([name]) => name === 'eq'), false)
+      assert.equal(global.lx.playerStatus.isInitialized, false)
+      completeSetup()
+      await start
+      assert.equal(global.lx.playerStatus.isInitialized, true)
+      assert.equal(global.lx.playerStatus.isIniting, false)
+      assert.deepEqual(saved, before)
+      if (mode !== 'missing') {
+        assert.deepEqual(events.find(([name]) => name === 'eq')[1], { enabled: true, preset: 'rock', gains: api.PRESET_GAINS.rock })
+        assert.ok(events.findIndex(([name]) => name === 'ready') < events.findIndex(([name]) => name === 'eq'))
+      }
+      assert.ok(events.some(([name]) => name === 'setVolume'))
+      assert.ok(events.some(([name]) => name === 'setPlaybackRate'))
+    }
+  } finally {
+    global.lx = originalGlobal
+  }
+})

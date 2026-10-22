@@ -70,3 +70,8 @@ export const commitAudioEffect = async(effect: AudioEffect, settings: AudioEffec
   persist(safe)
   return true
 }
+
+/** Restore after setup without writing settings or blocking playback on unsupported devices. */
+export const restoreEqualizer = async(settings: Partial<AudioEffectSettings>, bridge?: AudioEffectsBridge | null): Promise<boolean> => {
+  return commitAudioEffect('equalizer', normalizeAudioEffects(settings), bridge, () => {}).catch(() => false)
+}
