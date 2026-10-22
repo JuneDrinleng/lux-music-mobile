@@ -1608,5 +1608,9 @@
   "smart_after": "晚于",
   "smart_withinDays": "在最近",
   "smart_notWithinDays": "不在最近",
-  "smart_added_unknown": "旧曲库没有准确加入时间，暂不可选"
+  "smart_added_unknown": "旧曲库没有准确加入时间，暂不可选",
+  "smart_sort_summary": "按{field}",
+  "smart_sort_summary_asc": "按{field}（升序）",
+  "smart_limit_summary": "最多 {num} 首",
+  "smart_limit_none": "不限数量"
 }

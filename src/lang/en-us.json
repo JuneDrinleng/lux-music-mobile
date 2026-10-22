@@ -1608,5 +1608,9 @@
   "smart_after": "after",
   "smart_withinDays": "within",
   "smart_notWithinDays": "not within",
-  "smart_added_unknown": "Unavailable until library addition dates are recorded"
+  "smart_added_unknown": "Unavailable until library addition dates are recorded",
+  "smart_sort_summary": "By {field}",
+  "smart_sort_summary_asc": "By {field} (ascending)",
+  "smart_limit_summary": "Up to {num} songs",
+  "smart_limit_none": "No limit"
 }
