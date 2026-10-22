@@ -32,7 +32,7 @@ const fixture = async(wait = false) => {
   await volume.setVolume(0.8)
   const lx = { isPlayedStop: false }
   const player = { isPlay: true, playRate: 1 }
-  const setting = { 'player.timeoutExitApp': false, 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
+  const setting = { 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
   const native = {
     setSleepTimerGain: volume.setGain,
     restoreSleepTimerVolume: async() => { events.push('restore'); await volume.restore() },
@@ -259,7 +259,7 @@ const walk = node => {
   return [node, ...[node.props?.children].flat(Infinity).flatMap(walk)]
 }
 const uiFixture = () => {
-  const settings = { 'player.timeoutExitApp': false, 'player.timeoutExit': '', 'player.timeoutExitPlayed': true, 'player.timeoutExitFade': true, 'player.timeoutExitFadeDuration': 30 }
+  const settings = { 'player.timeoutExit': '', 'player.timeoutExitPlayed': true, 'player.timeoutExitFade': true, 'player.timeoutExitFadeDuration': 30 }
   const starts = []
   const info = { time: -1, isPlayedStop: false }
   let cancels = 0
@@ -325,12 +325,7 @@ test('7D chips start/restart, persist selected duration, retain custom input and
   const toggle = nodes.find(n => n.props?.accessibilityLabel === '播完当前这首再停')
   toggle.props.onChange(false)
   assert.equal(f.settings['player.timeoutExitPlayed'], false)
-  const exitToggle = nodes.find(n => n.props?.accessibilityLabel === '同时退出 App')
-  assert.equal(exitToggle.props.compact, true)
-  assert.equal(exitToggle.props.value, false)
-  exitToggle.props.onChange(true)
-  assert.equal(f.settings['player.timeoutExitApp'], true)
-  assert.equal(f.render().find(n => n.props?.accessibilityLabel === '同时退出 App').props.value, true)
+  assert.equal(nodes.some(n => n.props?.accessibilityLabel === '同时退出 App'), false)
   assert.equal(nodes.some(n => n.props?.children === '到点后同时关闭白噪音'), false)
   f.info.time = 1421
   nodes = f.render()
@@ -396,7 +391,7 @@ for (const exit of [false, true]) {
     for (const state of states) await listeners.PlaybackState({ state })
     assert.deepEqual(f.events, [])
     await listeners.PlaybackTrackChanged({ track: 'song' })
-    assert.deepEqual(f.events, [exit ? 'exit' : 'pause'])
+    assert.deepEqual(f.events, ['pause'])
     assert.equal(lx.isPlayedStop, false)
     assert.equal(f.lx.isPlayedStop, false)
     assert.equal(f.output.at(-1), 0.8)
@@ -410,7 +405,7 @@ test('custom input cancel keeps the running timer; confirm validates and restart
   let hidden = false
   let input = '22'
   let refIndex = 0
-  const settings = { 'player.timeoutExitApp': false }
+  const settings = {}
   const deps = {
     react: {
       forwardRef: fn => fn,
@@ -451,17 +446,17 @@ test('custom input cancel keeps the running timer; confirm validates and restart
   assert.equal(hidden, true)
   const full = walk(modal({ timeInfo: { active: true } }, {}))
   const settingNode = full.find(n => typeof n.type === 'function' && n.type.name === 'Setting')
-  const findExit = () => walk(settingNode.type()).find(n => n.type === 'TouchableOpacity' && n.props.accessibilityLabel === '同时退出 App')
-  assert.equal(findExit().props.accessibilityState.checked, false)
-  findExit().props.onPress()
-  assert.equal(findExit().props.accessibilityState.checked, true)
-  assert.deepEqual(patches.at(-1), { 'player.timeoutExitApp': true })
+  const controls = walk(settingNode.type())
+  assert.equal(controls.some(n => n.props?.accessibilityLabel === '同时退出 App'), false)
+  const fadeToggle = controls.find(n => n.type === 'TouchableOpacity')
+  fadeToggle.props.onPress()
+  assert.deepEqual(patches.at(-1), { 'player.timeoutExitFade': true })
 })
 
 for (const exit of [false, true]) {
   for (const wait of [false, true]) {
     for (const fade of [false, true]) {
-      test(`timeout action: exit=${exit}, finish song=${wait}, fade=${fade}`, async() => {
+      test(`timeout stops playback with ignored legacy exit=${exit}, finish song=${wait}, fade=${fade}`, async() => {
         const f = await fixture(wait)
         Object.assign(f.setting, { 'player.timeoutExitApp': exit, 'player.timeoutExitFade': fade })
         f.timer.startTimeoutExit(60)
@@ -477,8 +472,8 @@ for (const exit of [false, true]) {
           await f.timer.finishTimeoutExit()
           await flush()
         }
-        assert.equal(f.events.includes('exit'), exit)
-        assert.equal(f.events.includes('pause'), !exit)
+        assert.equal(f.events.includes('exit'), false)
+        assert.equal(f.events.includes('pause'), true)
         assert.equal(f.output.at(-1), 0.8)
         assert.equal(f.lx.isPlayedStop, false)
         assert.equal(f.timer.getTimeoutExitTime(), -1)
@@ -487,7 +482,7 @@ for (const exit of [false, true]) {
   }
 }
 
-test('legacy exit is immediate even when native restoration never completes or rejects', async() => {
+test('timer pauses without exiting even when native restoration never completes or rejects', async() => {
   for (const fail of [false, true]) {
     const f = await fixture()
     f.setting['player.timeoutExitApp'] = true
@@ -495,7 +490,7 @@ test('legacy exit is immediate even when native restoration never completes or r
     await f.advance(55)
     f.native.restoreSleepTimerVolume = () => fail ? Promise.reject(new Error('restore failure')) : new Promise(() => {})
     await f.expire()
-    assert.deepEqual(f.events, ['exit'])
+    assert.deepEqual(f.events, ['pause'])
   }
 })
 
@@ -505,41 +500,78 @@ const migration = load('src/config/migrateSetting.ts', name => {
 })
 const defaults = load('src/config/defaultSetting.ts').default
 
-test('timer migration distinguishes legacy use, fresh installs and explicit choices; repeats preserve user OFF', () => {
-  for (const raw of [null, {}, { ...defaults }, { 'player.timeoutExit': '', 'player.timeoutExitPlayed': true }, { 'player.timeoutExit': 'invalid' }]) {
-    const result = migration.migrateSleepTimerExit(raw)
-    assert.equal(result['player.timeoutExitApp'], false)
-    assert.equal(result['player.timeoutExitAppMigrated'], true)
-    assert.deepEqual(migration.migrateSleepTimerExit(result), result)
-  }
-  for (const raw of [{ 'player.timeoutExit': '22' }, { 'player.timeoutExitPlayed': false }, migration.default({ version: '1.0', player: { timeoutExit: '45', timeoutExitPlayed: true } })]) {
-    const result = migration.migrateSleepTimerExit(raw)
-    assert.equal(raw['player.timeoutExitAppMigrated'], undefined)
-    assert.equal(result['player.timeoutExitApp'], true)
-    result['player.timeoutExitApp'] = false
-    assert.deepEqual(migration.migrateSleepTimerExit(result), result)
-  }
-  assert.equal(migration.migrateSleepTimerExit({ 'player.timeoutExit': '22', 'player.timeoutExitApp': false })['player.timeoutExitApp'], false)
+test('legacy settings migration preserves timer preferences without enabling app exit', () => {
+  assert.equal(migration.migrateSleepTimerExit, undefined)
+  const result = migration.default({ version: '1.0', player: { timeoutExit: '45', timeoutExitPlayed: false } })
+  assert.equal(result['player.timeoutExit'], '45')
+  assert.equal(result['player.timeoutExitPlayed'], false)
+  assert.equal(result['player.timeoutExitApp'], undefined)
+  assert.equal(result['player.timeoutExitAppMigrated'], undefined)
 })
 
-test('settings initialization migrates raw storage and persists the marker across launches', async() => {
-  for (const used of [false, true]) {
-    let stored = used ? { version: '2.0', 'player.timeoutExit': '30' } : null
-    const deps = {
-      '@/config/constant': { storageDataPrefix: { setting: 'new' }, storageDataPrefixOld: { setting: 'old' } },
-      '@/config/defaultSetting': defaults,
-      '@/plugins/storage': { getData: async key => key === 'new' ? stored : null, saveData: async(key, value) => { stored = { ...value } } },
-      './migrateSetting': migration,
-      '@/store/setting/state': { setting: defaults },
-      './migrate': {},
-      '@/utils/tools': {},
+test('settings initialization silently ignores removed timer keys and preserves unrelated preferences', async() => {
+  for (const exit of [undefined, false, true]) {
+    for (const marker of [undefined, false, true]) {
+      // Cover both merge paths: sparse old storage and a full persisted settings object.
+      for (const base of [{}, defaults]) {
+        const raw = {
+          ...base,
+          version: '2.0',
+          'player.timeoutExit': '22',
+          'player.timeoutExitPlayed': false,
+          'player.timeoutExitFade': false,
+          'player.timeoutExitFadeDuration': 60,
+          'player.volume': 0.3,
+          'common.langId': 'en-us',
+          ...(exit === undefined ? {} : { 'player.timeoutExitApp': exit }),
+          ...(marker === undefined ? {} : { 'player.timeoutExitAppMigrated': marker }),
+        }
+        let stored = { ...raw }
+        const deps = {
+          '@/config/constant': { storageDataPrefix: { setting: 'new' }, storageDataPrefixOld: { setting: 'old' } },
+          '@/config/defaultSetting': defaults,
+          '@/plugins/storage': { getData: async key => key === 'new' ? stored : null, saveData: async(key, value) => { stored = { ...value } } },
+          './migrateSetting': migration,
+          '@/store/setting/state': { setting: defaults },
+          './migrate': {},
+          '@/utils/tools': {},
+        }
+        const config = load('src/config/setting.ts', name => { assert.ok(name in deps, name); return deps[name] }, {
+          console: {
+            log: () => assert.fail('Unexpected log during settings load'),
+            warn: () => assert.fail('Unexpected warning during settings load'),
+            error: () => assert.fail('Unexpected error during settings load'),
+          },
+        })
+        const expected = { ...defaults, ...raw }
+        delete expected['player.timeoutExitApp']
+        delete expected['player.timeoutExitAppMigrated']
+        for (let launch = 0; launch < 2; launch++) {
+          const result = await config.initSetting()
+          assert.deepEqual(result.setting, expected)
+          assert.deepEqual(stored, expected)
+          assert.equal(result.updatedSettingKeys.includes('player.timeoutExitApp'), false)
+          assert.equal(result.updatedSettingKeys.includes('player.timeoutExitAppMigrated'), false)
+        }
+      }
     }
-    const config = load('src/config/setting.ts', name => { assert.ok(name in deps, name); return deps[name] })
-    const first = await config.initSetting()
-    assert.equal(first.setting['player.timeoutExitApp'], used)
-    assert.equal(stored['player.timeoutExitAppMigrated'], true)
-    stored['player.timeoutExitApp'] = false
-    const second = await config.initSetting()
-    assert.equal(second.setting['player.timeoutExitApp'], false)
   }
+})
+
+test('fresh settings never enable or persist the removed exit preference', async() => {
+  let stored = null
+  const deps = {
+    '@/config/constant': { storageDataPrefix: { setting: 'new' }, storageDataPrefixOld: { setting: 'old' } },
+    '@/config/defaultSetting': defaults,
+    '@/plugins/storage': { getData: async() => stored, saveData: async(key, value) => { stored = value } },
+    './migrateSetting': migration,
+    '@/store/setting/state': { setting: defaults },
+    './migrate': {},
+    '@/utils/tools': {},
+  }
+  const config = load('src/config/setting.ts', name => deps[name])
+  const result = await config.initSetting()
+  assert.deepEqual(result.setting, defaults)
+  assert.equal('player.timeoutExitApp' in stored, false)
+  assert.equal('player.timeoutExitAppMigrated' in stored, false)
 })

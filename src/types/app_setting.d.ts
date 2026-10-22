@@ -168,10 +168,6 @@ declare global {
        * 定时暂停播放-是否等待歌曲播放完毕再暂停
        */
       'player.timeoutExitPlayed': boolean
-      /** Exit the app at the sleep deadline/song end instead of pausing. */
-      'player.timeoutExitApp': boolean
-      /** One-time legacy timeout-exit preference migration. */
-      'player.timeoutExitAppMigrated': boolean
       /** Fade output over the final 20 seconds of the sleep timer/song. */
       'player.timeoutExitFade': boolean
       'player.timeoutExitFadeDuration': number
