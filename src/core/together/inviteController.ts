@@ -14,6 +14,7 @@ export const createInviteController = (deps: {
   let running = false
   let foreground = false
   let reading = false
+  let foregroundRevision = 0
   const init = async() => {
     ready ??= deps.load().then(value => {
       if (!value) return
@@ -37,7 +38,7 @@ export const createInviteController = (deps: {
       if (!foreground) return
       if (gate.supported === false) { deps.changed(null); return }
       const decision = pendingInviteDecision(pending, gate)
-      if (!pending) return
+      if (!pending) { deps.changed(null); return }
       if (decision == 'join') {
         // Clear before RPC: a rejected join never loops on store notifications.
         state.pending = null
@@ -82,6 +83,7 @@ export const createInviteController = (deps: {
       await pump()
     },
     foreground: async(active: boolean) => {
+      const revision = ++foregroundRevision
       foreground = active
       if (!active) { deps.changed(null); return }
       await init()
@@ -91,7 +93,7 @@ export const createInviteController = (deps: {
       reading = true
       try {
         const invite = parseInviteText(await deps.read())
-        if (!foreground || !invite || state.ignored.includes(inviteIdentity(invite))) return
+        if (!foreground || revision !== foregroundRevision || !invite || state.ignored.includes(inviteIdentity(invite))) return
         state.pending = { invite, accepted: false }
         await save()
         await pump()

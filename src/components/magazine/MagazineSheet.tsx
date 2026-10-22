@@ -336,7 +336,7 @@ export const MagazineSheet = memo(({
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={timerLayout || radioLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout || recommendationLayout || radioLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
@@ -368,7 +368,7 @@ export const MagazineSheet = memo(({
                   {toolExtra
                     ? <View style={styles.toolExtra}>{toolExtra}</View>
                     : null}
-                  <View style={[styles.toolRow, radioLayout ? { height: 40, paddingVertical: 0 } : null]}>
+                  <View style={[styles.toolRow, inviteLayout || radioLayout ? { height: 40, paddingVertical: 0 } : null]}>
                     <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
                     {headerAction
                       ? (

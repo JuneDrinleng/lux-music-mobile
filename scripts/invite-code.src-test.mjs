@@ -131,3 +131,123 @@ test('failed join retains invite without an automatic retry loop', async() => {
   assert.equal(disk.pending.accepted, false)
   assert.deepEqual(events.at(-1), invite)
 })
+
+// Render the production components with the same hook/JSX adapters as auth-screens.
+const renderInviteView = (file, overrides = {}) => {
+  const values = []; let cursor = 0; let jsxCalls = 0; let controllerDeps
+  const events = []
+  const jsx = (type, props) => { jsxCalls++; return { type, props } }
+  const deps = {
+    react: {
+      useState: initial => { const index = cursor++; if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial; return [values[index], value => { values[index] = value }] },
+      useEffect: () => {},
+    },
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': { View: 'View', ScrollView: 'ScrollView', AppState: {}, Share: { share: async value => { events.push(['share', value.message]) } } },
+    '@react-native-clipboard/clipboard': { default: {} },
+    '@/components/common/Text': { default: 'Text' },
+    '@/components/magazine': Object.fromEntries(['MagDialog', 'MagazineSheet', 'PrimaryButton', 'SecondaryButton', 'TextButton'].map(key => [key, key])),
+    '@/core/together/inviteController': { createInviteController: value => { controllerDeps = value; return { dismiss: async disable => { events.push(['dismiss', disable]); value.changed(null) }, accept: async() => { events.push(['accept']); value.changed(null) } } } },
+    '@/core/together/inviteCode': m,
+    '@/core/together': { refreshRoom: async() => {}, joinTogetherRoom: async() => ({ ok: true }) },
+    '@/plugins/storage': {},
+    '@/utils/data': {},
+    '@/plugins/sync/client/session': {},
+    '@/store/together/action': {},
+    '@/store/together/state': { default: {} },
+    '@/store/together/hook': { useTogether: () => ({ room: { ...invite, members: [], playback: {} }, connection: 'online' }) },
+    '@/lang': { useI18n: () => key => key },
+    '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: {} }), sharedLuxStyles: builder => () => builder() },
+    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/utils/tools': { createStyle: value => value, toast: () => {}, clipboardWriteText: value => { events.push(['copy', value]) } },
+    ...overrides,
+  }
+  const module = { exports: {} }
+  const js = ts.transpileModule(readFileSync(new URL(`../src/screens/Home/Vertical/ListenTogether/${file}.tsx`, import.meta.url), 'utf8'), { fileName: `${file}.tsx`, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText
+  new Script(`(function(require,module,exports){${js}})`).runInThisContext()(name => { assert.ok(name in deps, name); return deps[name] }, module, module.exports)
+  return {
+    render: () => { cursor = 0; jsxCalls = 0; return module.exports.default({ visible: true, onClose: () => {} }) },
+    show: value => controllerDeps.changed(value),
+    events,
+    jsxCalls: () => jsxCalls,
+    setServer: value => { values[0] = value },
+  }
+}
+const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
+test('hidden clipboard prompt mounts nothing, leaving no dialog or layer over the Dock', () => {
+  const h = renderInviteView('ClipboardInvitePrompt')
+  assert.equal(h.render(), null)
+  assert.equal(h.jsxCalls(), 0)
+  for (const [label, event] of [['invite_ignore', ['dismiss', undefined]], ['invite_never', ['dismiss', true]], ['invite_join', ['accept']]]) {
+    h.show(invite)
+    const tree = h.render()
+    assert.equal(tree.type, 'MagDialog')
+    nodes(tree).find(node => node.props?.label === label).props.onPress()
+    assert.deepEqual(h.events.at(-1), event)
+    assert.equal(h.render(), null)
+    assert.equal(h.jsxCalls(), 0)
+  }
+})
+test('6D copies the entire machine-readable token and shares the complete displayed invite', async() => {
+  const h = renderInviteView('InviteSheet')
+  h.setServer(invite.serverId)
+  const sheet = h.render()
+  const buttons = nodes(sheet.props.footerContent)
+  buttons.find(node => node.type === 'SecondaryButton').props.onPress()
+  const token = h.events.at(-1)[1]
+  assert.ok(token.startsWith('₤LX482799-') && token.endsWith('₤'))
+  assert.equal(m.parseInviteText(token).roomId, invite.roomId)
+  buttons.find(node => node.type === 'PrimaryButton').props.onPress()
+  assert.deepEqual(h.events.at(-1), ['share', h.events.at(-2)[1]])
+  const displayed = nodes(sheet).find(node => node.type === 'Text' && node.props.selectable).props.children
+  assert.equal(h.events.at(-1)[1], displayed)
+  assert.equal(m.parseInviteText(displayed).code, invite.code)
+})
+test('all invite copy is available in each supported locale', () => {
+  const locales = ['zh-cn', 'zh-tw', 'en-us'].map(locale => JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8')))
+  for (const key of Object.keys(locales[0]).filter(key => key.startsWith('invite_'))) for (const locale of locales) assert.equal(typeof locale[key], 'string', key)
+})
+test('empty controller exposes null and background work never joins or reads', async() => {
+  const h = harness()
+  await h.controller.pump()
+  assert.equal(h.reads(), 0)
+  await h.controller.foreground(false)
+  assert.equal(h.events.at(-1), null)
+  assert.equal(h.joins.length, 0)
+})
+test('accepted invite waits for login and connection notifications without another clipboard read', async() => {
+  const h = harness()
+  await h.controller.foreground(true)
+  await h.controller.accept()
+  h.gate({ loggedIn: true, connected: false, serverId: invite.serverId })
+  await h.controller.pump()
+  assert.equal(h.joins.length, 0)
+  h.gate({ loggedIn: true, connected: true, serverId: invite.serverId })
+  await h.controller.pump()
+  await h.controller.pump()
+  assert.equal(h.joins.length, 1)
+  assert.equal(h.reads(), 1)
+  assert.equal(h.disk().pending, null)
+})
+test('a previous foreground read cannot surface after background and reactivation', async() => {
+  let resolveRead
+  let signalRead
+  const started = new Promise(resolve => { signalRead = resolve })
+  const events = []
+  const controller = controllerModule.exports.createInviteController({
+    load: async() => null,
+    save: async() => {},
+    read: async() => new Promise(resolve => { resolveRead = resolve; signalRead() }),
+    gate: async() => ({ loggedIn: false, connected: false }),
+    join: async() => { throw new Error('must not join') },
+    changed: value => events.push(value),
+  })
+  const first = controller.foreground(true)
+  await started
+  await controller.foreground(false)
+  await controller.foreground(true)
+  resolveRead(m.formatInviteText(invite))
+  await first
+  assert.equal(events.some(Boolean), false)
+  assert.equal(events.at(-1), null)
+})

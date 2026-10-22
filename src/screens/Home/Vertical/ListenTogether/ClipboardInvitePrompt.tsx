@@ -66,6 +66,8 @@ export default function ClipboardInvitePrompt() {
     const room = subscribeTogether(() => { run(controller.pump()) })
     return () => { app.remove(); session(); room(); run(controller.foreground(false)) }
   }, [controller])
+  // The global host must leave the Dock completely unobstructed when idle.
+  if (!invite) return null
   const dismiss = () => { void controller.dismiss().catch(() => {}) }
   return (
     <MagDialog clipboardLayout visible={invite != null} onClose={dismiss} eyebrow={t('invite_detected')} title={t('invite_join_title', { name: invite?.host ?? t('invite_host') })}>
