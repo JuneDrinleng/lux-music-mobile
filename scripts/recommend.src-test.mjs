@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events'
 import ts from 'typescript'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const moduleLoader = (dependencies = {}) => {
+export const moduleLoader = (dependencies = {}) => {
   const cache = new Map()
   const load = file => {
     if (cache.has(file)) return cache.get(file).exports
@@ -844,7 +844,7 @@ test('large ranking yields to navigation callbacks and preserves synchronous ran
 })
 
 // Minimal hook host exercises the real Sheet lifecycle without a native renderer.
-const hookHost = () => {
+export const hookHost = () => {
   const hooks = []
   let cursor = 0
   let effects = []
@@ -946,7 +946,7 @@ test('invisible Sheet mounts no Modal; interrupted close releases it and stale c
   assert.equal(host.render(MagazineSheet, { ...props, visible: true }).type, 'Modal')
 })
 
-test('Dock tabs receive presses while DailyStrip and its real load hook remain mounted', async() => {
+test('Dock tabs receive presses while the recommendation carousel and its real load hook remain mounted', async() => {
   const host = hookHost()
   const previousStateEvent = global.state_event
   global.state_event = new EventEmitter()
@@ -972,6 +972,8 @@ test('Dock tabs receive presses while DailyStrip and its real load hook remain m
     '@/utils/recommend': { getDailyRecommendations: opts => env.engine.getDailyRecommendations({ ...dailyOpts, ...opts, timeoutMs: 30 }) },
     '@/utils/dataSpace': { onDataSpaceWillChange: () => () => {}, onDataSpaceChanged: () => () => {} },
     './actions': {},
+    '@/components/magazine': { SectionHeader: 'SectionHeader' },
+    './DailyCover': { DailyCover: 'DailyCover' },
     './RecommendationViews': { useRecommendationStyles: () => ({}), useRecommendationAction: () => ({ run() {}, pending: false }) },
     './Hairline': { Hairline: 'Hairline' },
     './IconButton': { IconButton: 'IconButton' },
@@ -979,7 +981,7 @@ test('Dock tabs receive presses while DailyStrip and its real load hook remain m
   }
   const { useRecommendations } = moduleLoader(dependencies)('../../components/recommend/useRecommendations')
   let loadState
-  const { DailyStrip } = moduleLoader({ ...dependencies, './useRecommendations': { useRecommendations: () => { loadState = useRecommendations(); return loadState } } })('../../components/recommend/DailyStrip')
+  const { RecommendationSection } = moduleLoader({ ...dependencies, './useRecommendations': { useRecommendations: () => { loadState = useRecommendations(); return loadState } } })('../../components/recommend/RecommendationSection')
   const { Dock } = moduleLoader(dependencies)('../../components/magazine/Dock')
   const selected = []
   const dock = Dock({ navItems: ['nav_search', 'nav_love', 'nav_setting'].map(id => ({ id, label: id, icon: id })), onNavPress: id => selected.push(id) })
@@ -992,16 +994,21 @@ test('Dock tabs receive presses while DailyStrip and its real load hook remain m
   }
   visit(dock)
   try {
-    host.render(DailyStrip, {})
+    host.render(RecommendationSection, { discover: { cover: null, title: 'Weekly', sourceListId: null } })
     assert.equal(loadState.loading, true)
     tabs[1].props.onPress()
     for (let tick = 0; tick < 100; tick++) {
       await new Promise(resolve => setTimeout(resolve, 1))
-      host.render(DailyStrip, {})
+      host.render(RecommendationSection, { discover: { cover: null, title: 'Weekly', sourceListId: null } })
       if (!loadState.loading && loadState.batch?.items.length) break
     }
     assert.equal(loadState.loading, false)
     assert.ok(loadState.batch.items.length)
+    const rendered = host.render(RecommendationSection, { discover: { cover: null, title: 'Weekly', sourceListId: null } })
+    const dailyCard = rendered.props.children[1].props.children[0]
+    assert.deepEqual(dailyCard.props.cover.props.items, loadState.batch.items)
+    assert.equal(rendered.props.children[3].props.loading, false)
+    assert.equal(rendered.props.children[3].props.empty, false)
     tabs[2].props.onPress()
     tabs[0].props.onPress()
     assert.deepEqual(selected, ['nav_love', 'nav_setting', 'nav_search'])

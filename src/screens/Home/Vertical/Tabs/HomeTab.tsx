@@ -2,9 +2,9 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
-import { DailyStrip } from '@/components/recommend/DailyStrip'
+import { RecommendationSection } from '@/components/recommend/RecommendationSection'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
@@ -18,7 +18,6 @@ import {
   RankedRow,
   SectionHeader,
   SkeletonRow,
-  TextButton,
 } from '@/components/magazine'
 import useLinkedPlaylistId from '@/components/playlist/hooks/useLinkedPlaylistId'
 import { weekdayKey } from '@/components/stats/statsShared'
@@ -327,7 +326,6 @@ interface AllContentProps {
   isPlaylistCurrent: (listId: string | null | undefined) => boolean
   handlePlayPlaylist: (listId: string | null | undefined) => void
   handlePlayPlaylistPress: (listId: string | null | undefined) => (event: GestureResponderEvent) => void
-  coverWidth: number
 }
 
 const AllContent = memo(({
@@ -338,53 +336,17 @@ const AllContent = memo(({
   isPlaylistCurrent,
   handlePlayPlaylist,
   handlePlayPlaylistPress,
-  coverWidth,
 }: AllContentProps) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const t = useI18n()
-  const discoverMeta = formatHomeDailyMeta(
-    discover.tag,
-    discover.count,
-    discover.count == null ? '' : t('home_daily_tracks', { count: discover.count }),
-  )
 
   return (
     <View>
-      <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.discoverKicker}>
-        {t('home_discover_kicker')}
-      </Text>
-
-      <TouchableOpacity
-        activeOpacity={0.88}
-        onPress={() => { openPlaylistDetail(discover.sourceListId) }}
-      >
-        {discover.cover
-          ? <Image style={[styles.discoverCover, { width: coverWidth }]} url={discover.cover} />
-          : <View style={[styles.discoverCover, styles.discoverCoverFallback, { width: coverWidth, backgroundColor: r.placeholder }]} />}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        activeOpacity={0.88}
-        onPress={() => { openPlaylistDetail(discover.sourceListId) }}
-      >
-        <Text size={magType.section.size} color={r.display} style={styles.discoverTitle} numberOfLines={1}>
-          {discover.title}
-        </Text>
-      </TouchableOpacity>
-      <Text size={magType.lead.size} color={r.muted} style={styles.discoverSubtitle}>
-        {discover.subtitle}
-      </Text>
-      <View style={styles.discoverMetaRow}>
-        <Text size={magType.meta.size} color={r.muted} style={styles.discoverMeta} numberOfLines={1}>
-          {discoverMeta}
-        </Text>
-        <TextButton
-          label={t('home_play_now')}
-          onPress={() => { handlePlayPlaylist(discover.sourceListId) }}
-        />
-      </View>
+      <RecommendationSection discover={discover}
+        onOpenWeekly={() => { openPlaylistDetail(discover.sourceListId) }}
+        onPlayWeekly={() => { handlePlayPlaylist(discover.sourceListId) }} />
 
       <SectionHeader
         title={t('home_section_daily')}
@@ -692,7 +654,6 @@ export default memo(() => {
   const r = magazineRoles(colors)
 
   const t = useI18n()
-  const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
   const activeNavId = useNavActiveId()
   const playlists = useMyList()
@@ -1174,7 +1135,6 @@ export default memo(() => {
   const rankedItems = useMemo(() => [...libraryItems], [libraryItems])
   const featuredItem = rankedItems[0] ?? null
   const dailyLists = useMemo(() => rankedItems.slice(0, DAILY_PREVIEW_LIMIT), [rankedItems])
-  const coverWidth = Math.max(0, width - PAGE_GUTTER * 2)
   const currentMusic = playMusicInfo.musicInfo
   const currentMusicInfo = currentMusic
     ? 'metadata' in currentMusic
@@ -1321,7 +1281,6 @@ export default memo(() => {
         <View>
           {activeFilter === 'all' && (
             <ContentReveal>
-              <DailyStrip />
               <AllContent
                 discover={discover}
                 dailyLists={dailyLists}
@@ -1330,7 +1289,6 @@ export default memo(() => {
                 isPlaylistCurrent={isPlaylistCurrent}
                 handlePlayPlaylist={(listId) => { void handlePlayPlaylist(listId) }}
                 handlePlayPlaylistPress={handlePlayPlaylistPress}
-                coverWidth={coverWidth}
               />
             </ContentReveal>
           )}
@@ -1439,42 +1397,6 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => {
     },
     sourceOptionOff: {
       fontWeight: '600',
-    },
-    discoverKicker: {
-      fontWeight: '700',
-      letterSpacing: 2,
-      textTransform: 'uppercase',
-      marginBottom: 12,
-    },
-    discoverCover: {
-      aspectRatio: 1.15,
-      borderRadius: 6,
-      overflow: 'hidden',
-      backgroundColor: r.placeholder,
-    },
-    discoverCoverFallback: {
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    discoverTitle: {
-      fontWeight: '800',
-      letterSpacing: -0.3,
-      marginTop: 14,
-    },
-    discoverSubtitle: {
-      marginTop: 6,
-      lineHeight: 22,
-    },
-    discoverMetaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: 12,
-      gap: 12,
-    },
-    discoverMeta: {
-      flex: 1,
-      minWidth: 0,
     },
     dailyList: {
       marginTop: SECTION_TO_LIST,

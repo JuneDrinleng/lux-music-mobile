@@ -51,19 +51,20 @@ export const RecommendationButton = ({ label, onPress, fill = false, disabled = 
   )
 }
 
-export const RecommendationStatus = ({ loading, failed, failures, empty, reload }: {
+export const RecommendationStatus = ({ loading, failed, failures, empty, reload, compact = false }: {
   loading: boolean
   failed: boolean
   failures: number
   empty: boolean
   reload: () => void
+  compact?: boolean
 }) => {
   const t = useI18n()
   const styles = useRecommendationStyles()
   const r = magazineRoles(useLuxTheme().colors)
   if (!loading && !failed && !failures && !empty) return null
   return (
-    <View style={styles.status} accessibilityLiveRegion="polite">
+    <View style={[styles.status, compact ? styles.compactStatus : null]} accessibilityLiveRegion="polite">
       <Text size={12} color={r.muted}>{t(loading ? 'loading' : failed ? 'recommend_failed' : failures ? 'recommend_sources_failed' : 'recommend_empty', { count: failures })}</Text>
       {!loading && (failed || failures > 0 || empty) ? <RecommendationButton label={t('recommend_retry')} onPress={reload} /> : null}
     </View>
@@ -115,6 +116,7 @@ export const useRecommendationStyles = sharedLuxStyles(colors => {
     buttonTarget: { minHeight: 44, justifyContent: 'center' },
     button: { height: 28, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
     status: { paddingVertical: 12, gap: 16, alignItems: 'flex-start' },
+    compactStatus: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingVertical: 8 },
     song: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 56, paddingVertical: 8 },
     subject: { minHeight: 48, paddingVertical: 0, marginBottom: 6 },
     songMeta: { flexDirection: 'row', gap: 4, marginTop: 2, alignItems: 'center' },
