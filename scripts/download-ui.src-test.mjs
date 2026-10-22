@@ -111,7 +111,7 @@ const harness = () => {
   }
   return { react, reset: () => { states.length = 0 }, render: fn => { cursor = 0; effects.length = 0; return fn() }, effects }
 }
-const descendants = element => element && typeof element == 'object' ? [element, ...Object.values(element.props ?? {}).flatMap(value => Array.isArray(value) ? value.flatMap(descendants) : value && typeof value == 'object' ? descendants(value) : [])] : []
+const descendants = element => Array.isArray(element) ? element.flatMap(descendants) : element && typeof element == 'object' ? [element, ...Object.values(element.props ?? {}).flatMap(value => Array.isArray(value) ? value.flatMap(descendants) : value && typeof value == 'object' ? descendants(value) : [])] : []
 test('10A rendered controls update quality/Wi-Fi, storage gates start, cancel closes, and effect cleanup ignores late free-space results', async() => {
   const h = harness()
   let resolveFree
@@ -159,6 +159,7 @@ test('10A rendered controls update quality/Wi-Fi, storage gates start, cancel cl
   unmount.forEach(fn => fn())
   resolveFree(100 * 1024 ** 2)
   await new Promise(resolve => setImmediate(resolve))
+  // eslint-disable-next-line require-atomic-updates -- single-threaded test harness re-render
   tree = render()
   assert.equal(primary().props.disabled, true, 'an unmounted sheet cannot accept a late storage result')
   const parent = read('src/components/playlist/PlaylistDetailView.tsx')
@@ -182,6 +183,9 @@ test('10C queue controls wire chosen key/action; battery hint uses bridge; origi
   }
 })
 
+
+// Buttons in this view are passed through row `trailing` props, not children.
+const buttonIn = (tree, label) => descendants(tree).flatMap(node => [node, node.props?.trailing]).find(node => node?.type == 'SecondaryButton' && node.props.label == label)
 
 test('10C rendered queue expands, invokes pause/resume/retry for each key, deletes a playlist, and opens battery settings', async() => {
   const h = harness()
@@ -212,15 +216,18 @@ test('10C rendered queue expands, invokes pause/resume/retry for each key, delet
   descendants(tree).find(node => node.type == 'DownloadRow' && node.props.title == 'download_queue').props.onPress()
   tree = render()
   for (const action of ['pause', 'resume', 'retry']) {
-    descendants(tree).find(node => node.type == 'SecondaryButton' && node.props.label == `download_action_${action}`).props.onPress()
+    buttonIn(tree, `download_action_${action}`).props.onPress()
     await new Promise(resolve => setImmediate(resolve))
     tree = render()
   }
   assert.deepEqual(calls.filter(call => call[0] == 'command'), [['command', '0', 'pause'], ['command', '1', 'resume'], ['command', '2', 'retry']])
-  descendants(tree).find(node => node.type == 'SecondaryButton' && node.props.label == 'download_delete').props.onPress()
+  buttonIn(tree, 'download_delete').props.onPress()
   await new Promise(resolve => setImmediate(resolve))
   assert.ok(calls.some(call => call[0] == 'delete' && call[1] == 'p1'))
-  descendants(tree).find(node => node.type == 'SecondaryButton' && node.props.label == 'download_battery_settings').props.onPress()
+  tree = render()
+  const batteryRow = descendants(tree).find(node => node.type == 'SettingRow' && node.props.title == 'download_battery_hint')
+  assert.equal(batteryRow.props.trailing.props.label, 'download_battery_settings')
+  batteryRow.props.trailing.props.onPress()
   await new Promise(resolve => setImmediate(resolve))
   assert.ok(calls.some(call => call[0] == 'battery'))
   descendants(tree).find(node => node.type == 'Toggle').props.onChange(false)
