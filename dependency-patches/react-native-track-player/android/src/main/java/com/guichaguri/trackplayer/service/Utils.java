@@ -30,6 +30,8 @@ public class Utils {
     public static final String NOTIFICATION_CHANNEL = "com.guichaguri.trackplayer";
     public static final String LOG = "RNTrackPlayer";
     public static final int CAPABILITY_LIKE = 1 << 30;
+    public static final int CAPABILITY_SLEEP_TIMER = 1 << 29;
+    public static final String ACTION_SLEEP_TIMER = "com.guichaguri.trackplayer.action.SLEEP_TIMER";
 
     public static Runnable toRunnable(Promise promise) {
         return () -> promise.resolve(null);

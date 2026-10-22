@@ -4,10 +4,10 @@
 import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-track-player'
 // import { store } from '@/store'
 // import { action as playerAction, STATUS } from '@/store/modules/player'
-import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
+import { isTempId, isEmpty, isNotificationLikeSupported, isNotificationSleepTimerSupported } from './utils'
 // import { play as lrcPlay, pause as lrcPause } from '@/core/lyric'
 import { exitApp } from '@/core/common'
-import { finishTimeoutExit } from '@/core/player/timeoutExit'
+import { cycleNotificationSleepTimer, finishTimeoutExit } from '@/core/player/timeoutExit'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
 import { blockTogetherMemberControl } from '@/core/together/control'
@@ -63,6 +63,10 @@ const registerPlaybackService = async() => {
     TrackPlayer.addEventListener(TPEvent.RemoteLike, () => {
       void toggleCollectMusic()
     })
+  }
+
+  if (isNotificationSleepTimerSupported) {
+    TrackPlayer.addEventListener('remote-sleep-timer' as TPEvent, cycleNotificationSleepTimer)
   }
 
   // TrackPlayer.addEventListener(TPEvent.RemoteDuck, async({ permanent, paused, ducking }) => {

@@ -1,4 +1,6 @@
 {
+  "notification_like": "喜歡",
+  "notification_sleep_timer": "定時",
   "together_room_layout": "一起聽房間佈局",
   "memories_milestone_unique_songs": "第 {count} 首歌",
   "memories_milestone_streak": "連續 {days} 天聽歌",
