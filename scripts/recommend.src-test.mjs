@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Script } from 'node:vm'
 import test from 'node:test'
+import { EventEmitter } from 'node:events'
 import ts from 'typescript'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -493,6 +494,11 @@ const actionEnv = () => {
   let onRadio = () => {}
   const queue = [{ source: 'wy', meta: { songId: 'queued' }, name: 'Queued', singer: 'A' }]
   const actions = moduleLoader({
+    './radio': {
+      radioSession: { stop: () => {} },
+      beginRadioSession: () => {},
+      playableRecommendation: item => item.musicInfo ?? { converted: true, ...item.song, types: [], _types: {} },
+    },
     '@/config/constant': { LIST_IDS: { TEMP: 'temp' } },
     '@/utils/listManage': { userLists: [] },
     '@/core/list': { getListMusics: async id => { assert.equal(id, 'temp'); return queue } },
@@ -547,4 +553,162 @@ test('daily empty-state retry can discover newly added library songs on the same
   const recovered = await env.engine.getDailyRecommendations({ ...dailyOpts, retryFailedSources: true })
   assert.equal(recovered.items.length, dailyOpts.limit)
   assert.deepEqual(dailyStripItems(recovered.items), (await env.engine.getDailyRecommendations(dailyOpts)).items)
+})
+
+const { createRadioSession, radioTasteParameters } = moduleLoader()('../../components/recommend/radioSession')
+const radioEnv = () => {
+  let snapshot = { active: true, index: 0, songs: [song('a'), song('b'), song('c'), song('d')] }
+  const calls = { next: [], append: [], dislike: [], remove: [] }
+  let batch = [candidate('new')]
+  let wait = async() => {}
+  const disliked = []
+  const session = createRadioSession({
+    snapshot: async() => snapshot,
+    next: async(...args) => { calls.next.push(args); await wait(); return { items: batch } },
+    append: async items => { calls.append.push(items); snapshot = { ...snapshot, songs: [...snapshot.songs, ...items.map(item => item.song)] } },
+    writeDislike: async item => { calls.dislike.push(item); disliked.push(item) },
+    remove: async item => { calls.remove.push(item); snapshot = { ...snapshot, songs: snapshot.songs.filter(other => !sameSong(item, other)) } },
+    isDisliked: item => disliked.some(other => sameSong(item, other)),
+  })
+  return {
+    session,
+    calls,
+    start: () => session.start(song('seed'), snapshot.songs),
+    setSnapshot: update => { snapshot = { ...snapshot, ...update } },
+    setBatch: items => { batch = items },
+    setWait: fn => { wait = fn },
+  }
+}
+test('radio threshold counts upcoming tracks, replenishes once at <=2 and never while off', async() => {
+  const env = radioEnv()
+  await env.session.replenish()
+  assert.equal(env.calls.next.length, 0)
+  env.start()
+  await env.session.replenish()
+  assert.equal(env.calls.next.length, 0) // 3 upcoming
+  env.setSnapshot({ index: 1 })
+  await env.session.replenish()
+  assert.equal(env.calls.next.length, 1) // 2 upcoming
+  assert.equal(env.calls.append[0].length, 1)
+  assert.equal(env.session.getState().played, 1)
+  await env.session.replenish()
+  assert.equal(env.calls.next.length, 1) // now 3 upcoming
+  env.session.stop()
+  env.setSnapshot({ index: 4 })
+  await env.session.replenish()
+  assert.equal(env.calls.next.length, 1)
+  for (const index of [2, 3]) {
+    const other = radioEnv(); other.start(); other.setSnapshot({ index }); await other.session.replenish()
+    assert.equal(other.calls.next.length, 1)
+  }
+})
+test('radio excludes queue, cross-source and within-batch duplicates, and removed session songs', async() => {
+  const env = radioEnv(); env.start(); env.setSnapshot({ index: 2 })
+  env.setBatch([candidate('a'), candidate('a', undefined, 'tx'), candidate('new'), candidate('new', undefined, 'kg')])
+  await env.session.replenish()
+  assert.deepEqual(env.calls.append[0].map(item => item.song.songmid), ['new'])
+  assert.equal(env.session.getState().added.length, 1)
+  env.setSnapshot({ songs: [song('c'), song('d')], index: 0 })
+  env.setBatch([candidate('a'), candidate('new')])
+  await env.session.replenish()
+  assert.equal(env.calls.append.length, 1)
+  assert.ok(env.calls.next[1][1].some(item => item.songmid == 'new'))
+})
+test('radio dislike writes existing feedback and removes the row, excluding future aliases', async() => {
+  const env = radioEnv(); env.start()
+  await env.session.dislike(song('b'))
+  assert.deepEqual(env.calls.dislike, [song('b')])
+  assert.deepEqual(env.calls.remove, [song('b')])
+  env.setBatch([candidate('b', undefined, 'tx'), candidate('fresh')])
+  await env.session.replenish()
+  assert.deepEqual(env.calls.append[0].map(item => item.song.songmid), ['fresh'])
+  assert.ok(env.calls.next[0][1].some(item => item.songmid == 'b'))
+})
+test('radio pending request is single-flight, rejects stop/queue-switch/taste-change results and recovers failures', async() => {
+  for (const change of [env => env.session.stop(), env => env.setSnapshot({ active: false }), env => env.setSnapshot({ songs: [song('replacement')] }), env => env.session.setTaste('explore')]) {
+    const env = radioEnv(); env.start(); env.setSnapshot({ index: 2 })
+    let release
+    env.setWait(() => new Promise(resolve => { release = resolve }))
+    const pending = env.session.replenish()
+    await new Promise(resolve => setImmediate(resolve))
+    await env.session.replenish()
+    assert.equal(env.calls.next.length, 1)
+    change(env); release(); await pending
+    assert.equal(env.calls.append.length, 0)
+  }
+  const env = radioEnv(); env.start(); env.setSnapshot({ index: 2 })
+  env.setWait(async() => { throw Error('offline') })
+  await assert.rejects(env.session.replenish(), /offline/)
+  env.setWait(async() => {})
+  await env.session.replenish()
+  assert.equal(env.calls.append.length, 1)
+})
+test('three radio tastes map to real ranking parameters and change familiarity/discovery order', async() => {
+  assert.deepEqual(radioTasteParameters('balanced'), { limit: 10, affinityWeight: 1, discoveryWeight: 2 })
+  assert.deepEqual(radioTasteParameters('familiar'), { limit: 10, affinityWeight: 2, discoveryWeight: 0 })
+  assert.deepEqual(radioTasteParameters('explore'), { limit: 10, affinityWeight: 0.25, discoveryWeight: 8 })
+  const songs = [candidate('known', 'A'), candidate('unknown', 'B')]
+  const opts = { ...options, anchor: song('seed', 'A'), history: [record(song('old', 'A'))] }
+  assert.equal(rankCandidates(songs, { ...opts, ...radioTasteParameters('familiar') })[0].song.songmid, 'known')
+  assert.equal(rankCandidates(songs, { ...opts, ...radioTasteParameters('explore') })[0].song.songmid, 'unknown')
+  const env = radioEnv(); env.start(); env.setSnapshot({ index: 2 }); env.session.setTaste('explore')
+  await env.session.replenish()
+  assert.deepEqual(env.calls.next[0][2], radioTasteParameters('explore'))
+})
+
+test('radio bindings run with the sheet closed, clean listeners on stop/space change, and write existing dislike rules', async() => {
+  const previousApp = global.app_event
+  const previousState = global.state_event
+  global.app_event = new EventEmitter()
+  global.state_event = new EventEmitter()
+  const state = { playInfo: { playerListId: 'temp' }, musicInfo: { id: 'a' } }
+  const lists = { tempListMeta: { id: 'radio-queue' } }
+  let queue = ['a', 'b', 'c', 'd'].map(id => ({ id, source: 'wy', name: `Song ${id}`, singer: `Artist ${id}`, meta: { songId: id } }))
+  let nextCalls = 0
+  let changeSpace
+  const feedback = []
+  const radio = moduleLoader({
+    '@/config/constant': { LIST_IDS: { TEMP: 'temp' } },
+    '@/utils/listManage': { userLists: [] },
+    '@/core/list': {
+      getListMusics: async() => queue,
+      removeListMusics: async(id, ids) => { assert.equal(id, 'temp'); queue = queue.filter(item => !ids.includes(item.id)) },
+    },
+    '@/core/dislikeList': { addDislikeInfo: async infos => { feedback.push(...infos) }, hasDislike: () => false },
+    '@/core/player/player': { appendRecommendationQueue: async() => {} },
+    '@/store/player/state': { default: state, __esModule: true },
+    '@/store/list/state': { default: lists, __esModule: true },
+    '@/utils': { toNewMusicInfo: value => value },
+    '@/utils/dataSpace': { onDataSpaceWillChange: fn => { changeSpace = fn } },
+    '@/utils/recommend': { getRadioNext: async() => { nextCalls++; return { items: [] } } },
+  })('../../components/recommend/radio')
+  const tick = () => new Promise(resolve => setImmediate(resolve))
+  try {
+    radio.beginRadioSession(song('seed'), queue.map(item => song(item.id)))
+    await tick()
+    assert.equal(nextCalls, 0)
+    state.musicInfo.id = 'b'
+    global.state_event.emit('playerMusicInfoChanged')
+    await tick()
+    assert.equal(nextCalls, 1)
+    await radio.radioSession.dislike(song('c'))
+    assert.deepEqual(feedback, [{ name: 'Song c', singer: 'Artist c' }])
+    assert.equal(queue.some(item => item.id == 'c'), false)
+    lists.tempListMeta.id = 'replacement-with-overlapping-songs'
+    global.app_event.emit('myListMusicUpdate', ['temp'])
+    await tick()
+    assert.equal(radio.radioSession.getState().seed, null)
+    assert.equal(nextCalls, 1)
+    assert.equal(global.state_event.listenerCount('playerMusicInfoChanged'), 0)
+    assert.equal(global.app_event.listenerCount('myListMusicUpdate'), 0)
+    radio.beginRadioSession(song('seed'), queue.map(item => song(item.id)))
+    changeSpace()
+    await tick()
+    assert.equal(radio.radioSession.getState().seed, null)
+    assert.equal(global.state_event.listenerCount('playInfoChanged'), 0)
+  } finally {
+    radio.radioSession.stop()
+    global.app_event = previousApp
+    global.state_event = previousState
+  }
 })

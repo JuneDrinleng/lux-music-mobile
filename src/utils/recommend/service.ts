@@ -5,7 +5,7 @@ import { rankCandidates, sameSong } from './engine'
 import { collectCandidates, historySource, type SourceFailure } from './sources'
 import { type CandidateSource, type Recommendation, type RecommendationExposure, type Song } from './types'
 
-export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number, retryFailedSources?: boolean }
+export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number, retryFailedSources?: boolean, affinityWeight?: number, discoveryWeight?: number }
 export interface RecommendationBatch {
   spaceId: string
   date: string
@@ -92,6 +92,8 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
           history,
           isDisliked: deps.isDisliked,
           anchor,
+          affinityWeight: opts.affinityWeight,
+          discoveryWeight: opts.discoveryWeight,
           exclude,
           recommended: retryDaily ? exposures.filter(exposure => !previousDaily.some(item => sameSong(item.song, exposure.song))) : exposures,
           limit: kind == 'daily' ? 100 : opts.limit ?? 20,

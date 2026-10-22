@@ -1531,5 +1531,18 @@
   "recommend_reason_completed": "曾完整收聽",
   "recommend_reason_history": "來自收聽紀錄",
   "recommend_reason_playlist": "歌單發現",
-  "recommend_reason_library": "來自音樂庫"
+  "recommend_reason_library": "來自音樂庫",
+  "radio_queue_eyebrow": "播放佇列 · 無盡電台",
+  "radio_queue_title": "基於「{name}」的電台",
+  "radio_auto_play": "自動續播",
+  "radio_queue_meta": "已播 {num} · 佇列剩 3 首時自動補 10 首",
+  "radio_stop": "停止電台",
+  "radio_taste": "口味",
+  "radio_taste_familiar": "更熟悉",
+  "radio_taste_balanced": "平衡",
+  "radio_taste_explore": "更多新歌",
+  "radio_added": "電台補充",
+  "radio_dislike": "不喜歡",
+  "radio_dislike_song": "不喜歡 {name}",
+  "radio_queue_hint": "— 播到最後 3 首會繼續補充 —"
 }

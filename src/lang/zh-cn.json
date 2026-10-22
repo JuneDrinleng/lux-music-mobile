@@ -1531,5 +1531,18 @@
   "recommend_reason_completed": "曾完整收听",
   "recommend_reason_history": "来自收听记录",
   "recommend_reason_playlist": "歌单发现",
-  "recommend_reason_library": "来自音乐库"
+  "recommend_reason_library": "来自音乐库",
+  "radio_queue_eyebrow": "播放队列 · 无尽电台",
+  "radio_queue_title": "基于「{name}」的电台",
+  "radio_auto_play": "自动续播",
+  "radio_queue_meta": "已播 {num} · 队列剩 3 首时自动补 10 首",
+  "radio_stop": "停止电台",
+  "radio_taste": "口味",
+  "radio_taste_familiar": "更熟悉",
+  "radio_taste_balanced": "平衡",
+  "radio_taste_explore": "更多新歌",
+  "radio_added": "电台补充",
+  "radio_dislike": "不喜欢",
+  "radio_dislike_song": "不喜欢 {name}",
+  "radio_queue_hint": "— 播到最后 3 首会继续补充 —"
 }

@@ -1531,5 +1531,18 @@
   "recommend_reason_completed": "Played to the end",
   "recommend_reason_history": "From your listening history",
   "recommend_reason_playlist": "Playlist discovery",
-  "recommend_reason_library": "From your library"
+  "recommend_reason_library": "From your library",
+  "radio_queue_eyebrow": "PLAY QUEUE · ENDLESS RADIO",
+  "radio_queue_title": "Radio based on “{name}”",
+  "radio_auto_play": "Auto-play",
+  "radio_queue_meta": "Played {num} · Add 10 at last 3 tracks",
+  "radio_stop": "Stop radio",
+  "radio_taste": "Taste",
+  "radio_taste_familiar": "Familiar",
+  "radio_taste_balanced": "Balanced",
+  "radio_taste_explore": "Explore",
+  "radio_added": "Radio addition",
+  "radio_dislike": "Dislike",
+  "radio_dislike_song": "Dislike {name}",
+  "radio_queue_hint": "— More tracks at the last 3 —"
 }
