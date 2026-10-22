@@ -41,7 +41,7 @@ export const matchTracks = async<T extends SearchSong>(tracks: readonly ImportTr
       timer = setTimeout(() => { retired.add(source); controller.abort(); resolve([]) }, Math.max(1, options.timeoutMs ?? 10000))
     })
     try {
-      return await Promise.race([Promise.resolve().then(async() => search(query, source, controller.signal)), interrupted])
+      return await Promise.race([Promise.resolve().then(async() => { check(signal); return search(query, source, controller.signal) }), interrupted])
     } catch (error) {
       check(signal)
       return []
@@ -89,7 +89,7 @@ export const withImportDeadline = async<T>(task: () => Promise<T>, signal: Abort
   let timer: ReturnType<typeof setTimeout> | undefined
   let abort: () => void = () => {}
   try {
-    return await Promise.race([Promise.resolve().then(task), new Promise<T>((resolve, reject) => {
+    return await Promise.race([Promise.resolve().then(async() => { check(signal); return task() }), new Promise<T>((resolve, reject) => {
       abort = () => { reject(abortError()) }
       signal.addEventListener('abort', abort, { once: true })
       timer = setTimeout(() => { reject(new Error('IMPORT_TIMEOUT')) }, timeoutMs)

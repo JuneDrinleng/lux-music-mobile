@@ -127,3 +127,72 @@ test('cancellation interrupts a hanging request promptly and suppresses late pro
   assert.equal(updates, 0)
   await assert.rejects(matchTracks([], { sources: ['tx'], signal: controller.signal, search: async() => [] }).then(() => { if (controller.signal.aborted) throw new Error('IMPORT_CANCELLED') }), /IMPORT_CANCELLED/)
 })
+const review = load(join(root, 'src/utils/playlistImport/review.ts'))
+test('review preserves input order, cycles candidates, accepts manual choices and keeps skip distinct from selection', () => {
+  const [row, missing] = review.reviewRows([
+    { track: { title: '晴天', artist: '周杰伦', original: '' }, candidates: [{ song: online('a', 'tx'), score: 95 }, { song: online('b', 'wy'), score: 75 }], status: 'matched' },
+    { track: { title: 'unknown', artist: '', original: '' }, candidates: [], status: 'unmatched' },
+  ])
+  assert.equal(row.selected, true); assert.equal(missing.selected, false)
+  const next = review.nextReviewCandidate(row)
+  assert.equal(next.choice, 1); assert.equal(next.status, 'uncertain'); assert.equal(next.selected, true)
+  assert.equal(review.nextReviewCandidate(next), next)
+  const skipped = review.toggleReviewSkipped(missing)
+  assert.equal(skipped.skipped, true); assert.equal(skipped.selected, false)
+  assert.deepEqual(review.selectedImportSongs([skipped], [], true), [])
+  assert.equal(review.toggleReviewSkipped(skipped).skipped, false)
+  const manual = review.chooseReviewSong(skipped, online('manual', 'kg', '手动选择'), 50)
+  assert.equal(manual.status, 'matched'); assert.equal(manual.selected, true); assert.equal(manual.skipped, false)
+  assert.deepEqual(review.selectedImportSongs([next, manual], [], true).map(item => item.id), ['b', 'manual'])
+})
+test('confirmation rechecks latest target songs and deduplicates recordings within import, with opt-out', () => {
+  const rows = review.reviewRows(['tx', 'wy', 'kg'].map((source, i) => ({
+    track: { title: '晴天', artist: '周杰伦', original: '' },
+    candidates: [{ song: online(String(i), source, i === 2 ? '夜曲' : '晴天'), score: 100 }],
+    status: 'matched',
+  })))
+  assert.deepEqual(review.selectedImportSongs(rows, [], true).map(item => item.id), ['0', '2'])
+  assert.deepEqual(review.selectedImportSongs(rows, [online('latest', 'mg')], true).map(item => item.id), ['2'])
+  assert.equal(review.selectedImportSongs(rows, [online('latest', 'mg')], false).length, 3)
+  rows[2].selected = false
+  assert.equal(review.selectedImportSongs(rows, [], true).length, 1)
+})
+test('platform deadline stops waiting on cancel or timeout and rejects pre-cancelled work', async() => {
+  const { withImportDeadline } = load(join(root, 'src/utils/playlistImport/matcher.ts'))
+  const controller = new AbortController()
+  const pending = withImportDeadline(async() => new Promise(() => {}), controller.signal)
+  controller.abort()
+  await assert.rejects(pending, /IMPORT_CANCELLED/)
+  await assert.rejects(withImportDeadline(async() => [], controller.signal), /IMPORT_CANCELLED/)
+  await assert.rejects(withImportDeadline(async() => new Promise(() => {}), new AbortController().signal, 2), /IMPORT_TIMEOUT/)
+})
+test('existing platform pagination stops scheduling pages after cancellation', async() => {
+  const controller = new AbortController()
+  const calls = []
+  const module = { exports: {} }
+  const sdk = {
+    tx: {
+      songList: {
+        getListDetail: async(id, page) => {
+          calls.push(page)
+          controller.abort()
+          return { list: Array.from({ length: 30 }, (_, i) => online(String(i), 'tx')), info: { img: '' }, total: 90, limit: 30 }
+        },
+      },
+    },
+  }
+  const dependencies = {
+    '@/store/songlist/state': {},
+    '@/store/songlist/action': {},
+    '@/utils': { deduplicationList: list => list, toNewMusicInfo: item => item },
+    '@/utils/musicCover': { applyMusicCoverFallback: list => list },
+    '@/utils/musicSdk': sdk,
+  }
+  const js = ts.transpileModule(readFileSync(join(root, 'src/core/songlist.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText
+  new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    assert.ok(name in dependencies, name)
+    return dependencies[name]
+  }, module, module.exports)
+  await assert.rejects(module.exports.getListDetailAll('tx', 'https://y.qq.com/list/1', true, controller.signal), /IMPORT_CANCELLED/)
+  assert.deepEqual(calls, [1])
+})

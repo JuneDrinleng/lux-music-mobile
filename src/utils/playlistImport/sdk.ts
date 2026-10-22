@@ -19,9 +19,9 @@ export const searchImportSongs = async(query: string, source: ImportSource, sign
   if (signal.aborted) throw abortError()
   return result.list.map(song => toNewMusicInfo(song) as LX.Music.MusicInfoOnline)
 }
-export const loadPlatformSongs = async(text: string) => {
+export const loadPlatformSongs = async(text: string, signal?: AbortSignal) => {
   const link = parsePlatformLink(text)
   if (!link) throw new Error('IMPORT_INVALID_LINK')
   // Existing SDK handles full URLs, short redirects, cookies and provider IDs.
-  return getListDetailAll(link.source, link.url, true)
+  return getListDetailAll(link.source, link.url, true, signal)
 }

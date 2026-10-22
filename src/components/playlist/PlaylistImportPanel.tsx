@@ -265,8 +265,9 @@ const useLuxStyles = sharedLuxStyles((colors) => {
 /** Keep the original local-list selector intact behind the platform tab. */
 export default function PlaylistImportPanel(props: PlaylistImportPanelProps) {
   const [local, setLocal] = useState(false)
-  useEffect(() => { if (!props.visible) setLocal(false) }, [props.visible])
+  const [returnedFromLocal, setReturnedFromLocal] = useState(false)
+  useEffect(() => { if (!props.visible) { setLocal(false); setReturnedFromLocal(false) } }, [props.visible])
   if (!props.visible) return null
-  if (local) return <LocalPlaylistImportPanel {...props} onClose={() => { setLocal(false) }} />
-  return <PlaylistImportFlow targetListId={props.targetListId} targetListName={props.targetListName} onClose={props.onClose} onImported={props.onImported} onLocalImport={() => { setLocal(true) }} />
+  if (local) return <LocalPlaylistImportPanel {...props} onClose={() => { setReturnedFromLocal(true); setLocal(false) }} />
+  return <PlaylistImportFlow initialTab={returnedFromLocal ? 'platform' : 'text'} targetListId={props.targetListId} targetListName={props.targetListName} onClose={props.onClose} onImported={props.onImported} onLocalImport={() => { setLocal(true) }} />
 }

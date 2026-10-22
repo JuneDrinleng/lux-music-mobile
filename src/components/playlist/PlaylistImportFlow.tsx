@@ -8,7 +8,6 @@ import { Checkbox, Hairline, MagazineSheet, MagazineSheetRow, MagTopBar, OptionR
 import { addListMusics, createList, getListMusics } from '@/core/list'
 import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
-import settingState from '@/store/setting/state'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
@@ -19,15 +18,16 @@ import { pickMusicCover } from '@/utils/musicCover'
 import { parseText, type ImportSource, type ImportTrack } from '@/utils/playlistImport/parser'
 import { matchTracks, withImportDeadline } from '@/utils/playlistImport/matcher'
 import { decodeCSV, loadPlatformSongs, searchImportSongs } from '@/utils/playlistImport/sdk'
-import { reviewRows, selectedImportSongs, type ReviewRow } from '@/utils/playlistImport/review'
-import { matchStatus, scoreTrack } from '@/utils/playlistImport/score'
+import { chooseReviewSong, nextReviewCandidate, reviewRows, selectedImportSongs, toggleReviewSkipped, type ReviewRow } from '@/utils/playlistImport/review'
+import { scoreTrack } from '@/utils/playlistImport/score'
 
 type Song = LX.Music.MusicInfoOnline
 type Row = ReviewRow<Song>
 type InputTab = 'text' | 'csv' | 'platform'
 const defaultSources: ImportSource[] = ['tx', 'wy', 'kg']
 
-export default function PlaylistImportFlow({ targetListId, targetListName, onClose, onImported, onLocalImport }: {
+export default function PlaylistImportFlow({ initialTab = 'text', targetListId, targetListName, onClose, onImported, onLocalImport }: {
+  initialTab?: InputTab
   targetListId?: string
   targetListName?: string
   onClose: () => void
@@ -41,7 +41,7 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
   const statusBar = useStatusbarHeight()
   const inset = useSystemGestureInsetBottom()
   const [space] = useState(getActiveSpace)
-  const [tab, setTab] = useState<InputTab>('text')
+  const [tab, setTab] = useState<InputTab>(initialTab)
   const [text, setText] = useState('')
   const [link, setLink] = useState('')
   const [csv, setCsv] = useState<{ name: string, tracks: ImportTrack[], encoding: string } | null>(null)
@@ -101,7 +101,7 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
     try {
       let result: Row[]
       if (tab === 'platform') {
-        const songs = await withImportDeadline(async() => loadPlatformSongs(link), run.signal)
+        const songs = await withImportDeadline(async() => loadPlatformSongs(link, run.signal), run.signal)
         if (run.signal.aborted) return
         if (!songs.length) { setError(t('import_no_results')); return }
         result = reviewRows(songs.map(song => ({ track: { title: song.name, artist: song.singer, original: `${song.name} - ${song.singer}` }, candidates: [{ song, score: 100 }], status: 'matched' })))
@@ -111,13 +111,13 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
       if (!valid() || run.signal.aborted) return
       setRows(result)
       setStatusTab(result.some(row => row.status === 'uncertain') ? 'uncertain' : result.some(row => row.status === 'unmatched') ? 'unmatched' : 'all')
-    } catch { if (valid() && !run.signal.aborted) setError(t('import_error')) } finally { if (valid() && controller.current === run) setBusy(false) }
+    } catch { if (valid() && !run.signal.aborted) setError(t('import_error')) } finally { run.abort(); if (valid() && controller.current === run) setBusy(false) }
   }
   const updateRow = (index: number, change: (row: Row) => Row) => { setRows(previous => previous?.map((row, i) => i === index ? change(row) : row) ?? null) }
   const openManual = (index: number) => {
     const row = rows?.[index]
     if (!row) return
-    setManualQuery(`${row.track.title} ${row.track.artist}`.trim()); setManualSongs([]); setManualIndex(index); setError('')
+    setManualBusy(false); setManualQuery(`${row.track.title} ${row.track.artist}`.trim()); setManualSongs([]); setManualIndex(index); setError('')
   }
   const searchManual = async() => {
     if (!manualQuery.trim()) return
@@ -138,13 +138,15 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
       if (!valid()) return false
       const songs = selectedImportSongs(rows, latest, skipExisting)
       const id = targetListId ?? `userlist_import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-      if (targetListId) await addListMusics(id, songs, settingState.setting['list.addMusicLocationType'])
+      if (!songs.length) { setExisting(latest); return false }
+      if (targetListId) await addListMusics(id, songs, 'bottom')
       else await createList({ id, name: name?.trim(), list: songs })
       if (valid()) { onImported?.(id); onClose() }
       return true
     } catch { if (valid()) setError(t('import_error')); return false } finally { savingRef.current = false; if (valid()) setSaving(false) }
   }
 
+  const recognizedParts = t('import_recognized', { num: '{count}' }).split('{count}')
   const statusItems = ['all', 'uncertain', 'unmatched', 'matched'].map(id => ({ id, label: t(`import_status_${id}` as 'import_status_all', { num: id === 'all' ? rows?.length ?? 0 : rows?.filter(row => row.status === id).length ?? 0 }) }))
   return <Modal visible animationType="slide" onRequestClose={close}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.root, { paddingTop: statusBar }]}>
@@ -154,7 +156,7 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.page}
         ListHeaderComponent={<>
-          <MagTopBar onBack={close} trailing={rows ? <TextButton compact label={t('import_accept_all')} disabled={saving} onPress={() => { setRows(previous => previous?.map(row => ({ ...row, selected: row.status !== 'unmatched' && row.candidates.length > 0 })) ?? null) }} labelSize={15} style={{ paddingHorizontal: 0 }} /> : undefined} />
+          <MagTopBar onBack={close} trailing={rows ? <TextButton compact label={t('import_accept_all')} disabled={saving} onPress={() => { setRows(previous => previous?.map(row => ({ ...row, selected: row.status !== 'unmatched' && row.candidates.length > 0, skipped: false })) ?? null) }} labelSize={15} style={{ paddingHorizontal: 0 }} /> : undefined} />
           <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{rows ? t('import_review_eyebrow') : targetListName ? t('import_target', { name: targetListName }) : t('import_new_target')}</Text>
           <Text size={32} color={r.display} style={styles.title}>{rows ? t('import_review_title', { num: rows.length }) : t('import_paste_title')}</Text>
           <TextTabs items={rows ? statusItems : [{ id: 'text', label: t('import_tab_text') }, { id: 'csv', label: t('import_tab_csv') }, { id: 'platform', label: t('import_tab_platform') }]} value={rows ? statusTab : tab} onChange={value => { if (rows) setStatusTab(value); else if (!busy) { setTab(value as InputTab); setError('') } }} scroll tabStyle={{ paddingTop: 8, paddingBottom: 8 }} style={{ marginTop: 10 }} />
@@ -171,23 +173,23 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
         </>}
         renderItem={({ item: { row, index } }) => {
           const candidate = row.candidates[row.choice]
-          const found = row.status !== 'unmatched' && candidate
+          const found = !row.skipped && candidate && (row.status !== 'unmatched' || row.choice > 0)
           return <View style={styles.reviewRow}>
             <Text size={12} color={r.muted}>{t('import_original', { text: row.track.original })}</Text>
-            {found ? <MagazineSheetRow reviewLayout last title={candidate.song.name} coverUri={pickMusicCover(candidate.song)} subtitle={<View style={styles.subtitle}><SourceTag source={candidate.song.source} label={candidate.song.source} /><Text size={12} color={r.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{t('import_similarity', { artist: candidate.song.singer, num: candidate.score })}</Text></View>} trailing={<View style={styles.actions}>
+            {found ? <MagazineSheetRow reviewLayout last title={candidate.song.name} coverUri={pickMusicCover(candidate.song)} subtitle={<View style={styles.subtitle}><SourceTag neutral source={candidate.song.source} label={candidate.song.source} /><Text size={12} color={r.muted} numberOfLines={1} style={{ flexShrink: 1 }}>{t('import_similarity', { artist: candidate.song.singer, num: candidate.score })}</Text></View>} trailing={<View style={styles.actions}>
               <SecondaryButton compact labelSize={13} label={t('import_next')} disabled={saving} onPress={() => {
                 if (row.candidates.length < 2 || row.choice + 1 >= row.candidates.length) { openManual(index); return }
-                updateRow(index, old => { const choice = old.choice + 1; return { ...old, choice, selected: true, status: matchStatus(old.candidates[choice].score) } })
+                updateRow(index, nextReviewCandidate)
               }} style={{ paddingHorizontal: 14 }} />
-              <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={candidate.song.name} accessibilityState={{ checked: row.selected }} hitSlop={{ top: 12, bottom: 12, left: 4, right: 0 }} disabled={saving} onPress={() => { updateRow(index, old => ({ ...old, selected: !old.selected })) }}><Checkbox checked={row.selected} /></TouchableOpacity>
-            </View>} /> : <View style={styles.unmatched}><Text size={15} color={r.quiet} style={[styles.bold, { flex: 1 }]}>{t(row.selected ? 'import_skipped' : 'import_not_found')}</Text><SecondaryButton compact labelSize={13} label={t('import_manual')} disabled={saving} onPress={() => { openManual(index) }} /><SecondaryButton compact labelSize={13} label={t(row.selected ? 'import_restore' : 'import_skip')} disabled={saving} onPress={() => { updateRow(index, old => ({ ...old, selected: !old.selected, choice: -1 })) }} /></View>}
+              <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={candidate.song.name} accessibilityState={{ checked: row.selected }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} disabled={saving} onPress={() => { updateRow(index, old => ({ ...old, selected: !old.selected })) }}><Checkbox checked={row.selected} /></TouchableOpacity>
+            </View>} /> : <View style={styles.unmatched}><Text size={15} color={r.quiet} style={[styles.bold, { flex: 1 }]}>{t(row.skipped ? 'import_skipped' : 'import_not_found')}</Text><SecondaryButton compact labelSize={13} style={{ paddingHorizontal: 14 }} label={t('import_manual')} disabled={saving} onPress={() => { openManual(index) }} /><SecondaryButton compact labelSize={13} style={{ paddingHorizontal: 14 }} label={t(row.skipped ? 'import_restore' : 'import_skip')} disabled={saving} onPress={() => { updateRow(index, toggleReviewSkipped) }} /></View>}
             <Hairline />
           </View>
         }}
       />
       <View style={[styles.footer, { paddingBottom: inset + 26 }]}>
-        <Text size={12} color={r.muted} style={styles.bold}>{rows ? t('import_will_add', { num: chosenSongs.length }) : tab === 'platform' ? t('import_tab_platform') : t('import_recognized', { num: tracks.length })}</Text>
-        <PrimaryButton compact label={saving ? t('import_saving') : busy ? t('import_progress', { done: progress, total: tracks.length }) : rows ? t('list_import') : t('import_start')} badge={rows ? chosenSongs.length : undefined} labelSize={15} style={{ flex: 1 }} disabled={saving || busy || (rows ? !chosenSongs.length : tab === 'platform' ? !link.trim() : !tracks.length)} onPress={() => { if (rows) void submit(); else void start() }} />
+        <Text size={12} color={r.muted} style={styles.bold}>{rows ? t('import_will_add', { num: chosenSongs.length }) : tab === 'platform' ? t('import_tab_platform') : <>{recognizedParts[0]}<Text size={18} color={r.ink} style={styles.bold}>{tracks.length}</Text>{recognizedParts[1]}</>}</Text>
+        <PrimaryButton compact label={saving ? t('import_saving') : busy ? tab === 'platform' ? t('list_loading') : t('import_progress', { done: progress, total: tracks.length }) : rows ? t('list_import') : t('import_start')} badge={rows ? chosenSongs.length : undefined} labelSize={15} style={{ flex: 1 }} disabled={saving || busy || (rows ? !chosenSongs.length : tab === 'platform' ? !link.trim() : !tracks.length)} onPress={() => { if (rows) void submit(); else void start() }} />
       </View>
     </KeyboardAvoidingView>
     <MagazineSheet visible={sourcePicker} onClose={() => { setSourcePicker(false) }} title={t('import_sources')}>
@@ -195,12 +197,12 @@ export default function PlaylistImportFlow({ targetListId, targetListName, onClo
     </MagazineSheet>
     <MagazineSheet visible={manualIndex != null} onClose={() => { manualController.current?.abort(); setManualIndex(null) }} title={t('import_manual')}>
       <UnderlineInput accessibilityLabel={t('import_manual')} value={manualQuery} onChangeText={setManualQuery} returnKeyType="search" onSubmitEditing={() => { void searchManual() }} />
-      <PrimaryButton compact label={t('import_manual')} disabled={manualBusy || !manualQuery.trim()} onPress={() => { void searchManual() }} style={{ marginVertical: 16 }} />
+      <PrimaryButton compact label={manualBusy ? t('me_searching') : t('import_manual')} disabled={manualBusy || !manualQuery.trim()} onPress={() => { void searchManual() }} style={{ marginVertical: 16 }} />
       {error ? <Text size={12} color={r.danger}>{error}</Text> : null}
       {!manualBusy && !manualSongs.length ? <Text size={12} color={r.muted}>{t('import_search_hint')}</Text> : null}
       <FlatList data={manualSongs} keyExtractor={song => `${song.source}_${song.id}`} keyboardShouldPersistTaps="handled" renderItem={({ item }) => <MagazineSheetRow reviewLayout title={item.name} coverUri={pickMusicCover(item)} subtitle={`${item.singer} · ${item.source}`} onPress={() => {
         if (manualIndex == null) return
-        updateRow(manualIndex, old => ({ ...old, candidates: [{ song: item, score: scoreTrack(old.track, item) }, ...old.candidates], choice: 0, status: 'matched', selected: true })); setManualIndex(null)
+        updateRow(manualIndex, old => chooseReviewSong(old, item, scoreTrack(old.track, item))); setManualIndex(null)
       }} />} />
     </MagazineSheet>
     <ChoosePath ref={choosePath} onConfirm={path => { void readCSV(path) }} />

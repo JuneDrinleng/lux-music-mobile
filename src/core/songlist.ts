@@ -195,7 +195,7 @@ export const getListDetail = async(id: string, source: LX.OnlineSource, page: nu
  * @param isRefresh 是否跳过缓存
  * @returns
  */
-export const getListDetailAll = async(source: LX.OnlineSource, id: string, isRefresh = false): Promise<LX.Music.MusicInfoOnline[]> => {
+export const getListDetailAll = async(source: LX.OnlineSource, id: string, isRefresh = false, signal?: AbortSignal): Promise<LX.Music.MusicInfoOnline[]> => {
   // console.log(tabId)
   const listKey = `sdetail__${source}__${id}`
   let listCache = cache.get(listKey) as LimitDetailCache
@@ -204,12 +204,14 @@ export const getListDetailAll = async(source: LX.OnlineSource, id: string, isRef
   }
 
   const loadData = async(page: number): Promise<ListDetailInfo> => {
+    if (signal?.aborted) throw new Error('IMPORT_CANCELLED')
     const pageKey = `sdetail__${source}__${id}__${page}`
     let pageCache = listCache.get(pageKey) as DetailPageCache
     if (pageCache) return pageCache.data
     return getListDetailLimit(source, id, page)
   }
   return loadData(1).then(async result => {
+    if (signal?.aborted) throw new Error('IMPORT_CANCELLED')
     if (result.total <= result.limit) return result.list
 
     let maxPage = Math.ceil(result.total / result.limit)
@@ -220,5 +222,8 @@ export const getListDetailAll = async(source: LX.OnlineSource, id: string, isRef
         : loadData(loadPage).then(result1 => loadDetail(++loadPage).then(result2 => [...result1.list, ...result2]))
     }
     return loadDetail().then(result2 => [...result.list, ...result2])
-  }).then(list => deduplicationList(list))
+  }).then(list => {
+    if (signal?.aborted) throw new Error('IMPORT_CANCELLED')
+    return deduplicationList(list)
+  })
 }
