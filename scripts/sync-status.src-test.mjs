@@ -131,6 +131,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/plugins/sync/client/sessionExpired': { showSessionExpiredDialog: asyncNoop, expiredAccountUsername: () => 'june' },
     '@/utils/accountDataDialogs': { showLogoutOptions: asyncNoop },
     '@/screens/Account/AccountPage': { default: 'AccountPage' },
+    '@/screens/AiTokenStatus': { default: 'AiTokenStatusPage' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Image': { default: 'Image' },
     '@/utils/syncLogout': {},
@@ -346,4 +347,17 @@ test('all three locales interpolate status text through the production translato
     }
     assert.ok(translator.t('sync_state_attempts', { count: 3, seconds: 30 }).includes('30'))
   }
+})
+
+test('AI settings entry opens a read-only page and back unmounts its layer', () => {
+  const h = settingsHarness({ status: true })
+  let tree = h.render()
+  const row = nodes(tree).find(node => node.type === 'SettingRow' && node.props.title === translate('ai_tokens_title'))
+  assert.ok(row)
+  row.props.onPress()
+  tree = h.render()
+  const page = nodes(tree).find(node => node.type === 'AiTokenStatusPage')
+  assert.ok(page)
+  page.props.onBack()
+  assert.ok(!nodes(h.render()).some(node => node.type === 'AiTokenStatusPage'))
 })

@@ -13,6 +13,7 @@ import { Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableO
 import Text from '@/components/common/Text'
 import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
+import AiTokenStatusPage from '@/screens/AiTokenStatus'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
@@ -135,6 +136,7 @@ export default () => {
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const [isSettingsSearchOpen, setSettingsSearchOpen] = useState(false)
   const [isProfileDetailVisible, setProfileDetailVisible] = useState(false)
+  const [aiTokensVisible, setAiTokensVisible] = useState(false)
   const [isManagingApiSources, setIsManagingApiSources] = useState(false)
   const [syncHost, setSyncHostLocal] = useState('')
   const [syncHostHistory, setSyncHostHistoryLocal] = useState<string[]>([])
@@ -415,6 +417,8 @@ export default () => {
     activeApiSourceLabel,
   )
   const showDataSection = matchesSettingsSearch(
+    t('ai_tokens_title'),
+    t('ai_tokens_entry_subtitle'),
     t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
@@ -958,6 +962,7 @@ export default () => {
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={handleOpenSyncDetail} />
+              <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
               {showAdminConsoleEntry
                 ? (
                   <SettingRow
@@ -1052,6 +1057,7 @@ export default () => {
           : null}
 
       </ScrollView>
+      {aiTokensVisible ? <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={() => { setAiTokensVisible(false) }} /> : null}
       {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} /> : null}
       <Animated.View
         pointerEvents={activeOptionDetail ? 'auto' : 'none'}
