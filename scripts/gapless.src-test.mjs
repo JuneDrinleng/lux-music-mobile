@@ -42,7 +42,9 @@ const gaplessFixture = (enabled = true) => {
   f.api = load('src/plugins/player/gapless.ts', {
     'react-native-track-player': wrapped({ pause: async() => calls.push('pause'), getCurrentTrack: async() => 1, remove: async indexes => calls.push(['remove', indexes]) }),
     'react-native': { NativeModules: { TrackPlayerModule: bridge } },
-    '@/store/setting/state': wrapped({ setting: settings }), '@/store/player/state': wrapped(state), '@/store/together/state': wrapped(together),
+    '@/store/setting/state': wrapped({ setting: settings }),
+    '@/store/player/state': wrapped(state),
+    '@/store/together/state': wrapped(together),
     '@/store/together/action': { subscribeTogether: fn => { f.roleChanged = fn } },
     '@/core/music': { getMusicUrl: async() => { calls.push('url'); return f.resolve() } },
     '@/core/player/player': { getNextPlayMusicInfo: async() => f.next, acceptGaplessTrack: async info => { calls.push(['accept', info]); state.playMusicInfo.musicInfo = info.musicInfo }, playNext: async() => calls.push('next'), setMusicUrl: (...args) => calls.push(['retry', ...args]) },
@@ -165,21 +167,31 @@ const coreFixture = (enabled = false, mode = 'listLoop') => {
   const deps = {
     '@/plugins/player': { isInitialized: () => true, isNotificationLikeSupported: false, setStop: async() => calls.push('stop'), setVolume: async() => {}, setPlaybackRate: async() => {}, setResource: (music, url) => calls.push(['resource', music.id, url]) },
     '@/core/player/playStatus': { setStatusText: () => {} },
-    '@/store/player/state': wrapped(state), '@/store/setting/state': wrapped({ setting }),
-    '@/core/player/playInfo': { getList: id => lists[id] ?? [], setPlayListId: id => { state.playInfo.playerListId = id }, setPlayMusicInfo: (listId, music, temp, reason) => {
-      calls.push(['history', reason]); state.playMusicInfo = { listId, musicInfo: music, isTempPlay: temp }; state.musicInfo = { id: music?.id }; state.progress = { nowPlayTime: 0, maxPlayTime: 0 }
-      if (!temp) state.playInfo.playerPlayIndex = lists[listId]?.indexOf(music) ?? -1
-      calls.push('musicToggled')
-    }, setMusicInfo: () => {} },
+    '@/store/player/state': wrapped(state),
+    '@/store/setting/state': wrapped({ setting }),
+    '@/core/player/playInfo': {
+      getList: id => lists[id] ?? [],
+      setPlayListId: id => { state.playInfo.playerListId = id },
+      setPlayMusicInfo: (listId, music, temp, reason) => {
+        calls.push(['history', reason]); state.playMusicInfo = { listId, musicInfo: music, isTempPlay: temp }; state.musicInfo = { id: music?.id }; state.progress = { nowPlayTime: 0, maxPlayTime: 0 }
+        if (!temp) state.playInfo.playerPlayIndex = lists[listId]?.indexOf(music) ?? -1
+        calls.push('musicToggled')
+      },
+      setMusicInfo: () => {},
+    },
     '@/core/player/playedList': { addPlayedList: info => state.playedList.push(info), clearPlayedList: () => { state.playedList = [] }, removePlayedList: i => state.playedList.splice(i, 1) },
     '@/core/player/tempPlayList': { clearTempPlayeList: () => { state.tempPlayList = [] }, removeTempPlayList: i => state.tempPlayList.splice(i, 1) },
     '@/core/music': { getMusicUrl: async({ musicInfo }) => `file:///${musicInfo.id}.flac`, getPicPath: async() => '', getLyricInfo: async() => ({ rawlrcInfo: {} }) },
-    '@/utils/message': { requestMsg: {} }, '@/utils/common': { getRandom: () => 2 },
+    '@/utils/message': { requestMsg: {} },
+    '@/utils/common': { getRandom: () => 2 },
     './utils': { filterList: async({ list, playerMusicInfo }) => ({ filteredList: list, playerIndex: list.indexOf(playerMusicInfo) }) },
-    'react-native-background-timer': wrapped(bg), '@/utils/tools': { debounceBackgroundTimer: fn => (...args) => bg.setTimeout(() => fn(...args)), checkNotificationPermission: async() => {}, checkIgnoringBatteryOptimization: async() => {} },
+    'react-native-background-timer': wrapped(bg),
+    '@/utils/tools': { debounceBackgroundTimer: fn => (...args) => bg.setTimeout(() => fn(...args)), checkNotificationPermission: async() => {}, checkIgnoringBatteryOptimization: async() => {} },
     '@/config/constant': { LIST_IDS: { TEMP: 'temp', LOVE: 'love' } },
     '@/core/list': { getListMusics: async id => lists[id] ?? [], setTempList: async(id, musics) => { lists.temp = musics }, addListMusics: async(id, musics) => lists[id].push(...musics) },
-    '@/core/dislikeList': {}, '@/store/list/state': wrapped({ tempListMeta: { id: '' } }), '@/core/together/control': { blockTogetherMemberControl: () => false, isTogetherMemberLocked: () => false },
+    '@/core/dislikeList': {},
+    '@/store/list/state': wrapped({ tempListMeta: { id: '' } }),
+    '@/core/together/control': { blockTogetherMemberControl: () => false, isTogetherMemberLocked: () => false },
   }
   const api = load('src/core/player/player.ts', deps)
   return { api, state, calls, lists, songs, async drain() { for (const [id, fn] of [...timers]) { if (timers.delete(id)) fn() }; await flush(); await flush() } }
@@ -248,15 +260,23 @@ const playlistFixture = enabled => {
     getQueue: async() => [...queue],
     add: async tracks => { calls.push(['add', tracks.map(t => t.url)]); queue.push(...tracks) },
     skip: async index => { calls.push(['skip', index]); active = index },
-    pause: async() => calls.push('pause'), seekTo: async time => calls.push(['seek', time]), play: async() => calls.push('play'),
+    pause: async() => calls.push('pause'),
+    seekTo: async time => calls.push(['seek', time]),
+    play: async() => calls.push('play'),
     removeUpcomingTracks: async() => { calls.push('remove-upcoming'); queue.splice(active + 1) },
     remove: async indexes => { calls.push(['remove', indexes]); for (const index of [...indexes].reverse()) { queue.splice(index, 1); if (index < active) active-- } },
   }
   global.lx = { restorePlayInfo: null }
   const api = load('src/plugins/player/playList.ts', {
-    'react-native-track-player': { ...wrapped(tp), State: { Playing: 3 } }, 'react-native-background-timer': wrapped({ setTimeout: () => 1, clearTimeout() {} }),
-    '@/config': { defaultUrl: 'file:///dummy.mp3' }, '@/store/setting/state': wrapped({ setting: settings }), '@/store/player/state': wrapped({ playMusicInfo: { musicInfo: music }, musicInfo: {} }),
-    './cache': { getTrackCacheKey: m => m.id }, './notificationArtwork': {}, './gapless': { isGaplessEnabled: () => settings['player.audio.gapless.enabled'] }, '@/utils/cachedSongInfo': { rememberPlayingCacheSong: async() => {} },
+    'react-native-track-player': { ...wrapped(tp), State: { Playing: 3 } },
+    'react-native-background-timer': wrapped({ setTimeout: () => 1, clearTimeout() {} }),
+    '@/config': { defaultUrl: 'file:///dummy.mp3' },
+    '@/store/setting/state': wrapped({ setting: settings }),
+    '@/store/player/state': wrapped({ playMusicInfo: { musicInfo: music }, musicInfo: {} }),
+    './cache': { getTrackCacheKey: m => m.id },
+    './notificationArtwork': {},
+    './gapless': { isGaplessEnabled: () => settings['player.audio.gapless.enabled'] },
+    '@/utils/cachedSongInfo': { rememberPlayingCacheSong: async() => {} },
   })
   return { api, calls, queue, settings, music }
 }
@@ -297,5 +317,16 @@ test('native API wiring uses Media3 1.8.0 signatures, real native playlist prelo
   assert.match(native, /loudness.attach\(player\)/)
   assert.match(module, /promise.resolve\(\(\(LocalPlayback\) playback\).setGaplessNext\(currentId, next\)\)/)
   assert.match(module, /void setGaplessPlayback\(final boolean enabled, final Promise promise\)/)
-  assert.match(read('dependencies-patch.js'), /def media3Version = '1.8.0'/)
+  assert.match(read('node_modules/react-native-track-player/android/build.gradle'), /def media3Version = '1.8.0'/)
+})
+
+test('white noise regression: gapless path never touches the noise mixer and sleep envelope still drives noise', () => {
+  const prefix = 'dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/'
+  const gapless = read('src/plugins/player/gapless.ts')
+  assert.doesNotMatch(gapless, /noise/i)
+  const local = read(`${prefix}service/player/LocalPlayback.java`)
+  const gaplessNative = local.slice(local.indexOf('private boolean gaplessEnabled'), local.indexOf('public void setLoudnessNormalization'))
+  assert.ok(gaplessNative.length > 0)
+  assert.doesNotMatch(gaplessNative, /Noise/)
+  assert.match(read(`${prefix}service/MusicService.java`), /NoiseMixer/)
 })
