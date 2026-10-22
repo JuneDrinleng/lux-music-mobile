@@ -1,11 +1,11 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import { dateKey, localDateReader, type TimeZone } from '../memories/calendar'
 import { type PlayRecord } from '../playHistory/types'
-import { rankCandidates } from './engine'
+import { rankCandidates, sameSong } from './engine'
 import { collectCandidates, historySource, type SourceFailure } from './sources'
 import { type CandidateSource, type Recommendation, type RecommendationExposure, type Song } from './types'
 
-export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number }
+export interface RecommendationOptions { now?: number, limit?: number, timeZone?: TimeZone, timeoutMs?: number, retryFailedSources?: boolean }
 export interface RecommendationBatch {
   spaceId: string
   date: string
@@ -73,7 +73,9 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       let history = copy(deps.getHistory())
       let items: Recommendation[]
       let failures: SourceFailure[]
-      if (kind == 'daily' && cache.date == date) {
+      const previousDaily = cache.daily
+      const retryDaily = kind == 'daily' && cache.date == date && opts.retryFailedSources && (cache.dailyFailures.length > 0 || !previousDaily.length)
+      if (kind == 'daily' && cache.date == date && !retryDaily) {
         // Preserve cached order/scores; apply new dislikes and playback exclusions immediately.
         const allowed = new Set(rankCandidates(cache.daily, {
           now, seed, history, isDisliked: deps.isDisliked, limit: cache.daily.length,
@@ -84,17 +86,27 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
         const collected = await collectCandidates([historySource, ...sources], { spaceId, now, seed, history, anchor }, opts.timeoutMs)
         assertSpace()
         history = copy(deps.getHistory())
-        items = rankCandidates(collected.candidates, {
+        items = rankCandidates(retryDaily ? [...collected.candidates, ...previousDaily] : collected.candidates, {
           now,
           seed: kind == 'daily' ? seed : `${seed}:${kind}:${exposures.length}`,
           history,
           isDisliked: deps.isDisliked,
           anchor,
           exclude,
-          recommended: exposures,
+          recommended: retryDaily ? exposures.filter(exposure => !previousDaily.some(item => sameSong(item.song, exposure.song))) : exposures,
           limit: kind == 'daily' ? 100 : opts.limit ?? 20,
         })
         failures = collected.failures
+        if (retryDaily) {
+          // Recovery appends newly available candidates without shuffling today's existing strip.
+          const remaining = new Map(items.map(item => [item.key, item]))
+          const retained = cache.daily.flatMap(item => {
+            const next = remaining.get(item.key)
+            remaining.delete(item.key)
+            return next ? [next] : []
+          })
+          items = [...retained, ...remaining.values()]
+        }
         if (kind == 'daily') cache = { ...cache, date, daily: items, dailyFailures: failures }
       }
       const selected = items.slice(0, Math.max(0, opts.limit ?? (kind == 'daily' ? 30 : 20)))

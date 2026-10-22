@@ -4,6 +4,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, useWindowDimensions, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
+import { DailyStrip } from '@/components/recommend/DailyStrip'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
@@ -1320,6 +1321,7 @@ export default memo(() => {
         <View>
           {activeFilter === 'all' && (
             <ContentReveal>
+              <DailyStrip />
               <AllContent
                 discover={discover}
                 dailyLists={dailyLists}

@@ -63,6 +63,7 @@ export interface MagazineSheetProps {
   timerLayout?: boolean
   /** Approved 2A lyric-selection geometry. Other sheet layouts retain their dimensions. */
   lyricLayout?: boolean
+  recommendationLayout?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -230,6 +231,7 @@ export const MagazineSheet = memo(({
   importLayout = false,
   timerLayout = false,
   lyricLayout = false,
+  recommendationLayout = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -320,7 +322,7 @@ export const MagazineSheet = memo(({
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }]}>
           <View style={styles.inkBar} />
-          <View style={[styles.header, importLayout || lyricLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
+          <View style={[styles.header, importLayout || lyricLayout || recommendationLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
@@ -329,10 +331,10 @@ export const MagazineSheet = memo(({
                 <Text size={magType.sheetTitle.size} color={timerLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
-                style={[styles.close, timerLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
+                style={[styles.close, timerLayout || recommendationLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
                 activeOpacity={0.7}
                 onPress={requestClose}
-                hitSlop={timerLayout ? 8 : CLOSE_HIT_SLOP}
+                hitSlop={timerLayout || recommendationLayout ? 8 : CLOSE_HIT_SLOP}
                 accessibilityRole="button"
                 accessibilityLabel={t('close')}
               >
@@ -340,7 +342,7 @@ export const MagazineSheet = memo(({
               </TouchableOpacity>
             </View>
             {subject
-              ? <View style={{ marginTop: 12 }}>{subject}</View>
+              ? <View style={recommendationLayout ? { marginTop: 12, borderTopWidth: 2, borderTopColor: r.ink, paddingTop: 2 } : { marginTop: 12 }}>{subject}</View>
               : figure
                 ? (
                   <View style={[styles.figureRow, importLayout || lyricLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
@@ -351,27 +353,33 @@ export const MagazineSheet = memo(({
                   </View>
                   )
                 : null}
-            <View style={[styles.toolRule, importLayout || lyricLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
-            {toolExtra
-              ? <View style={styles.toolExtra}>{toolExtra}</View>
+            {!recommendationLayout
+              ? (
+                <>
+                  <View style={[styles.toolRule, importLayout || lyricLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
+                  {toolExtra
+                    ? <View style={styles.toolExtra}>{toolExtra}</View>
+                    : null}
+                  <View style={styles.toolRow}>
+                    <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
+                    {headerAction
+                      ? (
+                        <TextButton
+                          compact={importLayout || lyricLayout}
+                          labelSize={timerLayout || lyricLayout ? 13 : undefined}
+                          label={headerAction.text}
+                          danger={headerAction.tone === 'danger'}
+                          muted={headerAction.disabled}
+                          disabled={headerAction.disabled}
+                          onPress={headerAction.onPress}
+                        />
+                        )
+                      : null}
+                  </View>
+                  <Hairline />
+                </>
+                )
               : null}
-            <View style={styles.toolRow}>
-              <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
-              {headerAction
-                ? (
-                  <TextButton
-                    compact={importLayout || lyricLayout}
-                    labelSize={timerLayout || lyricLayout ? 13 : undefined}
-                    label={headerAction.text}
-                    danger={headerAction.tone === 'danger'}
-                    muted={headerAction.disabled}
-                    disabled={headerAction.disabled}
-                    onPress={headerAction.onPress}
-                  />
-                  )
-                : null}
-            </View>
-            <Hairline />
           </View>
           {sectionLabel
             ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.sectionLabel}>{sectionLabel}</Text>

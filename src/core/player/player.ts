@@ -413,6 +413,21 @@ export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
   await playList(LIST_IDS.TEMP, targetIndex)
 }
 
+/** Recommendations use the same isolated queue and together-control guard as song actions. */
+export const playRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
+  if (!musics.length) return
+  if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
+  await setTempList(createPlayQueueMetaId('recommendations'), musics)
+  await playList(LIST_IDS.TEMP, 0)
+}
+
+export const appendRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
+  if (!musics.length) return
+  if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
+  await ensureQueueList()
+  await addListMusics(LIST_IDS.TEMP, musics, 'bottom')
+}
+
 const handleToggleStop = async() => {
   await stop()
   setTimeout(() => {
