@@ -386,6 +386,9 @@ declare global {
        * 是否启用同步
        */
       'sync.enable': boolean
+
+      /** 一起听房间布局（6.16b adds the settings row） */
+      'together.roomLayout': '6A' | '6B'
     }
   }
 }

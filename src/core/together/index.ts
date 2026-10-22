@@ -11,6 +11,8 @@ import {
 import { isTogetherRpcNotReadyError, isTogetherSyncReady } from '@/plugins/sync/client/togetherReady'
 import { isTogetherFeatureEnabled } from '@/plugins/sync/togetherFlag'
 import { getSession, isCurrentSession, subscribeSession } from '@/plugins/sync/client/session'
+import { togetherRoomFeed } from '@/store/together/roomFeed'
+import { roomCapabilities } from './roomFeed'
 import { createRoomRevision } from './roomRevision'
 import togetherActions from '@/store/together/action'
 import togetherState from '@/store/together/state'
@@ -113,6 +115,7 @@ const applySnapshot = (snapshot: LX.Sync.Together.RoomSnapshot) => {
   const previousRole = togetherState.role
   lastVersion = snapshot.version
   togetherActions.setRoom(snapshot, getTogetherSelfId())
+  togetherRoomFeed.setRoom(snapshot)
   void startClockSync()
   syncRole(previousRole, true)
 }
@@ -126,6 +129,7 @@ const clearRoom = (message?: string) => {
   stopClockSync()
   lastVersion = 0
   togetherActions.setRoom(null)
+  togetherRoomFeed.setRoom(null)
   resetTogetherDebugPushSong()
   if (hadRoom && message) toast(message, 'long')
 }
@@ -171,6 +175,13 @@ const handlePush = (event: TogetherPush) => {
     clearRoom(t('together_room_closed'))
     return
   }
+  // These streams have their own version/ID semantics, separate from room.version.
+  if (event.type == 'chat') {
+    if (togetherRoomFeed.getSnapshot().capabilities.chat) togetherRoomFeed.chat(event.push.message)
+    return
+  }
+  if (event.type == 'reaction') { togetherRoomFeed.reaction(event.push); return }
+  if (event.type == 'requests') { togetherRoomFeed.requests(event.push); return }
   const decision = classifyPushVersion(lastVersion, event.push.version)
   if (decision == 'stale') return
   lastVersion = event.push.version
@@ -179,6 +190,11 @@ const handlePush = (event: TogetherPush) => {
     case 'roomState': {
       const { push } = event
       recordTogetherRoomStatePush(push)
+      const previousSong = room.playback.musicInfo
+      const nextSong = push.playback.musicInfo
+      if (previousSong?.id != nextSong?.id || previousSong?.source != nextSong?.source) {
+        togetherRoomFeed.system({ kind: 'system', id: `system:song:${push.version}`, at: push.serverTime, timeSource: 'server', event: 'songChange', song: nextSong })
+      }
       togetherActions.patchRoom({
         version: push.version,
         playbackVersion: push.playbackVersion,
@@ -186,6 +202,7 @@ const handlePush = (event: TogetherPush) => {
         queueVersion: push.queueVersion,
         ...(push.queue ? { queue: push.queue } : {}),
       })
+      togetherRoomFeed.setRoom(togetherState.room)
       const next = togetherState.room
       if (next && togetherState.role == 'member' && togetherState.connection == 'online') {
         void applyPlayback(next).then(() => {
@@ -204,6 +221,11 @@ const handlePush = (event: TogetherPush) => {
       const joinedName = push.change.type == 'join' ? push.members.find(m => m.memberId == push.change.memberId)?.displayName : null
       const leftName = push.change.type == 'leave' ? memberName(push.change.memberId) : null
       togetherActions.patchRoom({ version: push.version, members: push.members })
+      togetherRoomFeed.setRoom(togetherState.room)
+      if (push.change.type == 'join' || push.change.type == 'leave') {
+        const joinedAt = push.change.type == 'join' ? push.members.find(member => member.memberId == push.change.memberId)?.joinedAt : undefined
+        togetherRoomFeed.system({ kind: 'system', id: `system:member:${push.version}`, event: push.change.type, memberId: push.change.memberId, at: joinedAt ?? Date.now(), timeSource: joinedAt == null ? 'local' : 'server' })
+      }
       if (joinedName) toast(t('together_member_joined', { name: joinedName }))
       if (leftName) toast(t('together_member_left', { name: leftName }))
       break
@@ -211,6 +233,7 @@ const handlePush = (event: TogetherPush) => {
     case 'hostChanged': {
       const { push } = event
       togetherActions.patchRoom({ version: push.version, hostId: push.hostId })
+      togetherRoomFeed.setRoom(togetherState.room)
       syncRole(previousRole)
       break
     }
@@ -220,6 +243,9 @@ const handlePush = (event: TogetherPush) => {
 
 export const syncTogetherConnectionFromSocket = () => {
   const session = getSession()
+  const ready = isTogetherSyncReady() && isTogetherFeatureEnabled()
+  if (ready) togetherRoomFeed.setContext(roomCapabilities(session?.togetherFeatures, true), getTogetherSelfId() ?? '')
+  else togetherRoomFeed.disconnect()
   if (!session || session.state == 'connecting' || session.state == 'closed') {
     togetherActions.setConnection('offline')
     stopHostReporting()

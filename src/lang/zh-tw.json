@@ -1,4 +1,5 @@
 {
+  "together_room_layout": "一起聽房間佈局",
   "memories_milestone_unique_songs": "第 {count} 首歌",
   "memories_milestone_streak": "連續 {days} 天聽歌",
   "memories_milestone_artist_hours": "{artist} 累計 {hours} 小時",

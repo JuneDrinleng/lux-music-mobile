@@ -21,4 +21,7 @@ export const featureVersion = {
   dislike: 1,
   playHistory: 1,
   together: 1,
+  'together.chat': 1,
+  'together.reaction': 1,
+  'together.request': 1,
 } as const

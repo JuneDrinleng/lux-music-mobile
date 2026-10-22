@@ -123,6 +123,9 @@ declare global {
         playHistory?: true
         /** Lux only. Listen-together rooms; omitted for LX connection-code sync. */
         together?: true
+        'together.chat'?: true
+        'together.reaction'?: true
+        'together.request'?: true
       }
       type SupportedFeatures = Partial<{ [k in keyof EnabledFeatures]: number }>
     }

@@ -19,6 +19,12 @@ export const callTogether = async<K extends keyof Actions>(method: K, ...args: P
   if (!socket || !isTogetherSyncReady()) {
     throw new TogetherUnavailableError('together is not enabled')
   }
+  const feature = method.startsWith('together:chat:') ? 'together.chat'
+    : method == 'together:reaction' ? 'together.reaction'
+      : method.startsWith('together:request:') ? 'together.request' : null
+  if (feature && getSession()?.togetherFeatures?.[feature] != 1) {
+    throw new TogetherUnavailableError(`${feature} is not enabled`)
+  }
   const remote = socket.remote as unknown as Actions
   const result = await (remote[method] as (...params: Payload<K>) => Promise<Result<K>>)(...args)
   if (!isCurrentSession(id)) throw new TogetherUnavailableError('stale session')
