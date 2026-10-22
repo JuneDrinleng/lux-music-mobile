@@ -34,6 +34,8 @@ export const registerErrors = (form: RegisterForm) => ({
 export const helpMessage = (username: string, host: string, translate: (key: 'auth_help_message', args: { username: string, host: string }) => string) =>
   translate('auth_help_message', { username: username.trim(), host })
 
+const isSessionRejection = (error: unknown) => error instanceof LuxRequestError && (error.status === 401 || error.status === 403)
+
 export const createLuxAuthClient = (deps: {
   send: (url: string, options: { method: string, body?: string, headers: Record<string, string> }) => Promise<{ code: number, text: string }>
   find: (host: string) => Promise<LX.Sync.LuxAuth | null>
@@ -72,7 +74,9 @@ export const createLuxAuthClient = (deps: {
           retired.set(previous.token, { host, userId: previous.user.id })
           return next
         } catch (error) {
-          if (await deps.clear(previous)) deps.expired(host, previous)
+          // Only a definitive rejection ends the session. Network errors, timeouts, 429 and 5xx keep the saved
+          // credentials so the next request can renew again instead of signing the user out while offline.
+          if (isSessionRejection(error) && await deps.clear(previous)) deps.expired(host, previous)
           throw error
         }
       })().finally(() => { flights.delete(key) })

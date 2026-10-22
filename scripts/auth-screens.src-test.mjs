@@ -68,7 +68,7 @@ test('concurrent 401s share one refresh, retry with rotated token, and late 401 
 })
 
 test('refresh failure clears once and signals expiry; forbidden does not renew', async() => {
-  for (const failure of [response(401, { code: 'REVOKED', message: 'Revoked' }), response(200, { accessToken: 'bad' }), new Error('offline')]) {
+  for (const failure of [response(401, { code: 'REVOKED', message: 'Revoked' }), response(200, { accessToken: 'bad' })]) {
     let refreshes = 0
     const env = harness(async url => {
       if (url.endsWith('/refresh')) { refreshes++; await delay(5); if (failure instanceof Error) throw failure; return failure }
@@ -83,6 +83,29 @@ test('refresh failure clears once and signals expiry; forbidden does not renew',
   const denied = harness(async() => response(403, { code: 'FORBIDDEN' }))
   await assert.rejects(denied.client.request('https://server/api/me', null, 'old'), { status: 403 })
   assert.equal(denied.saved.token, 'old')
+})
+
+test('transient refresh failure (offline, 429, 5xx) keeps the session and a later request renews', async() => {
+  for (const failure of [new Error('offline'), response(429, { code: 'RATE_LIMITED' }), response(503, {})]) {
+    let refreshes = 0
+    let online = false
+    const env = harness(async(url, options) => {
+      if (url.endsWith('/refresh')) {
+        refreshes++
+        if (!online) { if (failure instanceof Error) throw failure; return failure }
+        return response(200, { accessToken: 'new', refreshToken: 'r1' })
+      }
+      return options.headers.Authorization === 'Bearer new' ? response(200, { ok: true }) : response(401, {})
+    })
+    await assert.rejects(env.client.request('https://server/api/me', null, 'old'))
+    assert.equal(env.saved.token, 'old')
+    assert.equal(env.saved.refreshToken, 'r0')
+    assert.deepEqual(env.expired, [])
+    online = true
+    assert.deepEqual(await env.client.request('https://server/api/me', null, 'old'), { ok: true })
+    assert.equal(refreshes, 2)
+    assert.equal(env.saved.refreshToken, 'r1')
+  }
 })
 
 test('retry once only, preserve verb and body; public login never refreshes', async() => {
