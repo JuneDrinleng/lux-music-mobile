@@ -421,10 +421,14 @@ export const playRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
   await playList(LIST_IDS.TEMP, 0)
 }
 
-export const appendRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
+export const appendRecommendationQueue = async(musics: LX.Music.MusicInfo[], isCurrentRadio?: () => boolean) => {
   if (!musics.length) return
   if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
-  await ensureQueueList()
+  // Radio already owns TEMP. Check immediately before mutation, without copying a
+  // newly selected playlist into TEMP if playback changed during the request.
+  if (isCurrentRadio) {
+    if (!isCurrentRadio() || playerState.playInfo.playerListId != LIST_IDS.TEMP) return
+  } else await ensureQueueList()
   await addListMusics(LIST_IDS.TEMP, musics, 'bottom')
 }
 

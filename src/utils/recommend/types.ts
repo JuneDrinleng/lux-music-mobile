@@ -26,6 +26,8 @@ export interface RankOptions {
   exclude?: readonly Song[]
   anchor?: Song
   limit?: number
+  affinityWeight?: number
+  discoveryWeight?: number
   recentPlayMs?: number
   recentRecommendationMs?: number
 }

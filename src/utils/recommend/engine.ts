@@ -64,8 +64,9 @@ export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptio
     const latest = records.reduce((time, record) => Math.max(time, record.startedAt), 0)
     const recency = latest ? 2 / (1 + (opts.now - latest) / (7 * 86_400_000)) : 0
     const overlap = opts.anchor && artists(candidate.song).some(artist => artists(opts.anchor!).includes(artist))
-    const score = Math.log1p(positive) * 3 + completed * 3 - skipped * 6 +
-      Math.max(-6, Math.min(6, artistScore)) + recency + (overlap ? 6 : 0) +
+    const score = (Math.log1p(positive) * 3 + completed * 3 +
+      Math.max(-6, Math.min(6, artistScore)) + recency + (overlap ? 6 : 0)) * (opts.affinityWeight ?? 1) - skipped * 6 +
+      (!positive && artistScore <= 0 && !overlap ? opts.discoveryWeight ?? 0 : 0) +
       seededRandom(`${opts.seed}:${contentKey(candidate.song)}`)() * 4
     const reasons: Recommendation['reasons'] = [candidate.origin]
     if (artistScore > 0 || overlap) reasons.push('artist-affinity')
