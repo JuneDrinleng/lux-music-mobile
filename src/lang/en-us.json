@@ -1544,5 +1544,14 @@
   "radio_added": "Radio addition",
   "radio_dislike": "Dislike",
   "radio_dislike_song": "Dislike {name}",
-  "radio_queue_hint": "— More tracks at the last 3 —"
+  "radio_queue_hint": "— More tracks at the last 3 —",
+  "playlist_dedupe": "Deduplicate",
+  "playlist_dedupe_empty": "No duplicate songs",
+  "playlist_dedupe_rule": "Keep the first occurrence; exact matches only",
+  "playlist_dedupe_group": "Track {num} · Duplicate group",
+  "playlist_dedupe_keep": "Keep",
+  "playlist_dedupe_confirm": "Confirm removal of {num} tracks",
+  "playlist_dedupe_remove_song": "Remove duplicate: {name}",
+  "playlist_dedupe_changed": "Playlist changed. Please review again.",
+  "playlist_dedupe_failed": "Removal failed. Please try again."
 }
