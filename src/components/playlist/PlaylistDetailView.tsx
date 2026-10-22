@@ -33,6 +33,7 @@ import { demoteOpenPlaylistCoverWork, prioritizePlaylistCovers, setPlaylistCover
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { arrShuffle, confirmDialog, createStyle, toast } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
+import { PlaylistDownloadSheet } from '@/components/download/PlaylistDownloadSheet'
 import PlaylistDetailHeader, { PlaylistSelectHeader } from './PlaylistDetailHeader'
 import PlaylistDetailSongItem, { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import PlaylistImportPanel from './PlaylistImportPanel'
@@ -63,6 +64,7 @@ const PlaylistDetailViewInner = ({
   onClose,
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
+  const [downloadOpen, setDownloadOpen] = useState(false)
   const [smartDefinition, setSmartDefinition] = useState<SmartPlaylistDefinition | null>(null)
   const [editingSmart, setEditingSmart] = useState(false)
   useEffect(() => {
@@ -526,6 +528,7 @@ const PlaylistDetailViewInner = ({
         secondaryLabel={detailData.selectedOnlineOrLeaderboard ? t('playlist_transfer_all') : t('play_shuffle_short')}
         actionLabel={detailData.selectedOnlineOrLeaderboard ? null : detailActionLabel}
         actionDisabled={detailActionDisabled}
+        onDownload={!detailData.detailLoading && detailData.detailSongs.length ? () => { setDownloadOpen(true) } : undefined}
         onBack={handleCloseDetail}
         onEditSmartRules={smartDefinition ? () => { setEditingSmart(true) } : undefined}
         onRename={handleShowRenameListModal}
@@ -669,6 +672,7 @@ const PlaylistDetailViewInner = ({
           </View>
           )
         : null}
+      {downloadOpen ? <PlaylistDownloadSheet songs={detailData.detailSongs} playlistId={detailData.selectedDetailCacheKey ?? detailData.detailHeroName} name={detailData.detailHeroName} onClose={() => { setDownloadOpen(false) }} /> : null}
       {editingSmart && smartDefinition ? <SmartPlaylistEditor initial={{ ...smartDefinition, name: detailData.selectedListInfo?.name ?? smartDefinition.name }} onClose={() => { setEditingSmart(false); void loadSmartPlaylistRules().then(definitions => { setSmartDefinition(definitions.find(item => item.playlistId == smartDefinition.playlistId) ?? null) }).catch(() => {}) }} /> : null}
       {detailData.selectedListId && dedupeSongs
         ? <PlaylistDedupeSheet listId={detailData.selectedListId} songs={dedupeSongs}

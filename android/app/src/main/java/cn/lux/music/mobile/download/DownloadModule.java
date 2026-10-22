@@ -99,6 +99,52 @@ public class DownloadModule extends ReactContextBaseJavaModule {
             return DownloadStore.list(context(), space).toString();
         });
     }
+    @ReactMethod public void attachPlaylist(String space, String keysJson, String playlistId, String name, Promise promise) {
+        run(promise, () -> {
+            JSONArray keys = new JSONArray(keysJson);
+            synchronized (DownloadStore.class) {
+                for (int i = 0; i < keys.length(); i++) {
+                    JSONObject item = DownloadStore.read(context(), DownloadStore.id(space, keys.getString(i)));
+                    if (item == null) continue;
+                    JSONObject playlists = item.optJSONObject("playlists");
+                    if (playlists == null) playlists = new JSONObject();
+                    playlists.put(playlistId, name);
+                    item.put("playlists", playlists);
+                    DownloadStore.write(context(), item);
+                }
+            }
+            return DownloadStore.list(context(), space).toString();
+        });
+    }
+    @ReactMethod public void removePlaylist(String space, String playlistId, Promise promise) {
+        run(promise, () -> {
+            JSONArray items = DownloadStore.list(context(), space);
+            for (int i = 0; i < items.length(); i++) {
+                String id = items.getJSONObject(i).getString("id");
+                synchronized (DownloadStore.class) {
+                    JSONObject item = DownloadStore.read(context(), id);
+                    if (item == null) continue;
+                    JSONObject playlists = item.optJSONObject("playlists");
+                    if (playlistId.isEmpty()) {
+                        if (playlists != null && playlists.length() > 0) continue;
+                    } else {
+                        if (playlists == null || !playlists.has(playlistId)) continue;
+                        playlists.remove(playlistId);
+                        if (playlists.length() > 0) { DownloadStore.write(context(), item); continue; }
+                    }
+                    item.put("state", "paused"); DownloadStore.write(context(), item);
+                }
+                WorkManager.getInstance(context()).cancelUniqueWork(DownloadScheduler.name(id)).getResult().get();
+                synchronized (DownloadStore.lock(id)) {
+                    for (String suffix : new String[]{".part", ".audio", ".json", ".json.bak", ".json.new"}) {
+                        java.io.File file = DownloadStore.file(context(), id, suffix);
+                        if (file.exists() && !file.delete()) throw new java.io.IOException("DOWNLOAD_DELETE_FAILED");
+                    }
+                }
+            }
+            emit(); return DownloadStore.list(context(), space).toString();
+        });
+    }
     @ReactMethod public void removeSpace(String space, Promise promise) {
         run(promise, () -> {
             JSONArray items = DownloadStore.list(context(), space);

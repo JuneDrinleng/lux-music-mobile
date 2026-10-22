@@ -8,6 +8,7 @@ export interface DownloadRequest {
   expectedSize?: number
 }
 export interface DownloadItem extends DownloadRequest {
+  playlists?: Record<string, string>
   id: string
   workId: string
   key: string
@@ -24,6 +25,8 @@ export interface DownloadBridge {
   command: (space: string, key: string, action: 'pause' | 'resume' | 'retry') => Promise<string | null>
   offlinePath: (space: string, key: string) => Promise<string | null>
   removeSpace: (space: string) => Promise<void>
+  attachPlaylist: (space: string, keys: string, id: string, name: string) => Promise<string>
+  removePlaylist: (space: string, id: string) => Promise<string>
   availableBytes: () => Promise<number>
   batteryStatus: () => Promise<boolean>
   openBatterySettings: () => Promise<boolean>
@@ -97,6 +100,20 @@ export const createDownloadQueue = (deps: {
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     clear: () => { ++revision; items = []; for (const listener of listeners) listener() },
     sync,
+    availableBytes: async() => deps.bridge.availableBytes(),
+    enqueuePlaylist: async(requests: DownloadRequest[], id: string, name: string) => {
+      const space = deps.space()
+      const pending = requests.filter(request => !items.some(item => item.key == downloadKey(request.musicInfo, request.quality) && ['done', 'running', 'queued'].includes(item.state)))
+      if (pending.length) await enqueueFor(pending, space, false)
+      if (space != deps.space()) return
+      const ticket = ++revision
+      publish(await deps.bridge.attachPlaylist(space, JSON.stringify(requests.map(request => downloadKey(request.musicInfo, request.quality))), id, name), space, ticket)
+    },
+    removePlaylist: async(id: string) => {
+      const space = deps.space()
+      const ticket = ++revision
+      publish(await deps.bridge.removePlaylist(space, id), space, ticket)
+    },
     enqueue: async(requests: DownloadRequest[]) => enqueueFor(requests, deps.space(), false),
     command: async(key: string, action: 'pause' | 'resume' | 'retry') => {
       const item = items.find(item => item.key == key)
