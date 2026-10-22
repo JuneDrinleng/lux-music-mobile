@@ -2,6 +2,7 @@
 
 import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
+import { NativeModules } from 'react-native'
 import { createVolumeFade } from './volumeFade'
 import { playMusic as handlePlayMusic } from './playList'
 import { getTrackCacheKey } from './cache'
@@ -277,7 +278,12 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
 
 export const isNotificationLikeSupported = typeof Capability.Like == 'number'
 
-const createPlayerOptions = (isLiked = false): MetadataOptions => {
+const sleepTimerCapability: number | undefined = NativeModules.TrackPlayerModule?.CAPABILITY_SLEEP_TIMER
+export const isNotificationSleepTimerSupported = typeof sleepTimerCapability == 'number'
+type NotificationOptions = MetadataOptions & { sleepTimerOptions?: { title: string } }
+let notificationLiked = false
+
+const createPlayerOptions = (isLiked = notificationLiked): NotificationOptions => {
   const capabilities = [
     Capability.Play,
     Capability.Pause,
@@ -294,12 +300,13 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
     Capability.SkipToPrevious,
   ]
   const compactCapabilities = [
+    Capability.SkipToPrevious,
     Capability.Play,
     Capability.Pause,
     Capability.SkipToNext,
   ]
 
-  const playerOptions: MetadataOptions = {
+  const playerOptions: NotificationOptions = {
     capabilities,
     notificationCapabilities,
     compactCapabilities,
@@ -312,17 +319,22 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
   if (isNotificationLikeSupported) {
     playerOptions.capabilities = [...capabilities, Capability.Like]
     playerOptions.notificationCapabilities = [...notificationCapabilities, Capability.Like]
-    playerOptions.compactCapabilities = [...compactCapabilities, Capability.Like]
     playerOptions.likeOptions = {
       isActive: isLiked,
-      title: global.i18n.t('collect'),
+      title: global.i18n.t('notification_like'),
     }
   }
 
+  if (isNotificationSleepTimerSupported) {
+    playerOptions.capabilities = [...playerOptions.capabilities!, sleepTimerCapability!]
+    playerOptions.notificationCapabilities = [...playerOptions.notificationCapabilities!, sleepTimerCapability!]
+    playerOptions.sleepTimerOptions = { title: global.i18n.t('notification_sleep_timer') }
+  }
   return playerOptions
 }
 
 export const updateOptions = async(options?: Partial<MetadataOptions>) => {
+  if (options?.likeOptions?.isActive != null) notificationLiked = options.likeOptions.isActive
   const baseOptions = createPlayerOptions()
   const nextOptions: MetadataOptions = {
     ...baseOptions,

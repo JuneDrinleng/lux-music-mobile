@@ -7,13 +7,13 @@ import { defaultUrl } from '@/config'
 import settingState from '@/store/setting/state'
 import playerState from '@/store/player/state'
 import { getTrackCacheKey } from './cache'
+import { notificationArtwork } from './notificationArtwork'
 import { rememberPlayingCacheSong } from '@/utils/cachedSongInfo'
 
 
 const list: LX.Player.Track[] = []
 
 const defaultUserAgent = 'Mozilla/5.0 (Linux; Android 10; Pixel 3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Mobile Safari/537.36'
-const httpRxp = /^(https?:\/\/.+|\/.+)/
 
 export const state = {
   isPlaying: false,
@@ -49,7 +49,7 @@ const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Track['url'
   const track = [] as LX.Player.Track[]
   const isShowNotificationImage = settingState.setting['player.isShowNotificationImage']
   const album = mInfo.album || undefined
-  const artwork = isShowNotificationImage && mInfo.pic && httpRxp.test(mInfo.pic) ? mInfo.pic : undefined
+  const artwork = isShowNotificationImage ? notificationArtwork(mInfo.pic) : undefined
   const cacheKey = getTrackCacheKey(musicInfo)
   const lyric = getCurrentFullLyric(mInfo.id)
   if (url) {
@@ -89,7 +89,7 @@ const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Track['url'
 //   const mInfo = formatMusicInfo(musicInfo)
 //   const isShowNotificationImage = settingState.setting['player.isShowNotificationImage']
 //   const album = mInfo.album || undefined
-//   const artwork = isShowNotificationImage && mInfo.pic && httpRxp.test(mInfo.pic) ? mInfo.pic : undefined
+//   const artwork = isShowNotificationImage ? notificationArtwork(mInfo.pic) : undefined
 //   return url
 //     ? {
 //         id: `${mInfo.id}__//${Math.random()}__//${url}`,
@@ -202,6 +202,7 @@ export const playMusic = (musicInfo: LX.Player.PlayMusic, url: string, time: num
 // let musicId = null
 // let duration = 0
 let prevArtwork: string | undefined
+let prevArtworkMusicId: string | null | undefined
 const updateMetaInfo = async(mInfo: LX.Player.MusicInfo) => {
   const isShowNotificationImage = settingState.setting['player.isShowNotificationImage']
   // const mInfo = formatMusicInfo(musicInfo)
@@ -217,7 +218,9 @@ const updateMetaInfo = async(mInfo: LX.Player.MusicInfo) => {
   // }
   // console.log('+++++updateMetaInfo+++++', mInfo.name)
   state.isPlaying = await TrackPlayer.getState() == State.Playing
-  let artwork = isShowNotificationImage ? mInfo.pic ?? prevArtwork : undefined
+  if (prevArtworkMusicId != mInfo.id) prevArtwork = undefined
+  prevArtworkMusicId = mInfo.id
+  let artwork = isShowNotificationImage ? notificationArtwork(mInfo.pic ?? prevArtwork) : undefined
   if (mInfo.pic) prevArtwork = mInfo.pic
   let title: string
   let artist: string

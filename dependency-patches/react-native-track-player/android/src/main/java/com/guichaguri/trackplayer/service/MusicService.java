@@ -96,11 +96,12 @@ public class MusicService extends HeadlessJsTaskService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(intent != null && Utils.ACTION_LIKE.equals(intent.getAction())) {
+        if(intent != null && (Utils.ACTION_LIKE.equals(intent.getAction())
+                || Utils.ACTION_SLEEP_TIMER.equals(intent.getAction()))) {
             onStartForeground();
 
             if(manager != null) {
-                emit("remote-like", null);
+                emit(Utils.ACTION_LIKE.equals(intent.getAction()) ? "remote-like" : "remote-sleep-timer", null);
             }
 
             return START_NOT_STICKY;

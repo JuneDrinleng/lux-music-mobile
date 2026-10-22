@@ -68,7 +68,7 @@ public class MetadataManager {
     private Uri prevArtwork = null;
     private Bitmap prevArtResource = null;
 
-    private Action previousAction, rewindAction, playAction, pauseAction, stopAction, forwardAction, nextAction, likeAction;
+    private Action previousAction, rewindAction, playAction, pauseAction, stopAction, forwardAction, nextAction, likeAction, sleepTimerAction;
 
     @SuppressLint("UnspecifiedImmutableFlag")
     public MetadataManager(MusicService service, MusicManager manager) {
@@ -80,7 +80,14 @@ public class MetadataManager {
         this.session = new MediaSessionCompat(service, "TrackPlayer", null, null);
 
         session.setFlags(MediaSessionCompat.FLAG_HANDLES_QUEUE_COMMANDS);
-        session.setCallback(new ButtonEvents(service, manager));
+        session.setCallback(new ButtonEvents(service, manager) {
+            @Override
+            public void onCustomAction(String action, Bundle extras) {
+                if (Utils.ACTION_LIKE.equals(action)) service.emit("remote-like", null);
+                else if (Utils.ACTION_SLEEP_TIMER.equals(action)) service.emit("remote-sleep-timer", null);
+                else super.onCustomAction(action, extras);
+            }
+        });
 
         Context context = service.getApplicationContext();
         String packageName = context.getPackageName();
@@ -131,7 +138,7 @@ public class MetadataManager {
         if(capabilities != null) {
             // Create the actions mask
             for(int cap : capabilities) {
-                if(cap == Utils.CAPABILITY_LIKE) continue;
+                if(cap == Utils.CAPABILITY_LIKE || cap == Utils.CAPABILITY_SLEEP_TIMER) continue;
                 actions |= cap;
             }
 
@@ -155,11 +162,12 @@ public class MetadataManager {
             nextAction = createAction(notification, PlaybackStateCompat.ACTION_SKIP_TO_NEXT, "Next",
                     getIcon(options, "nextIcon", R.drawable.next));
             likeAction = createLikeAction(notification, options);
+            sleepTimerAction = createSleepTimerAction(notification, options);
 
             // Update the action mask for the compact view
             if(compact != null) {
                 for(int cap : compact) {
-                    if(cap == Utils.CAPABILITY_LIKE) continue;
+                    if(cap == Utils.CAPABILITY_LIKE || cap == Utils.CAPABILITY_SLEEP_TIMER) continue;
                     compactActions |= cap;
                 }
             }
@@ -235,6 +243,7 @@ public class MetadataManager {
 
         if(track.artwork == null) {
             prevArtwork = null;
+            prevArtResource = null;
             builder.setLargeIcon((Bitmap) null);
         } else if (track.artwork.equals(prevArtwork) && prevArtResource != null) {
             metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, prevArtResource);
@@ -242,14 +251,16 @@ public class MetadataManager {
         } else {
             prevArtwork = track.artwork;
             prevArtResource = null;
+            builder.setLargeIcon((Bitmap) null);
 
             artworkTarget = rm.asBitmap()
                 .load(track.artwork)
-                .override(512, 512)
+                .override(1024, 1024)
                 .centerCrop()
                 .into(new CustomTarget<Bitmap>() {
                     @Override
                     public void onResourceReady(@NonNull Bitmap resource, Transition<? super Bitmap> transition) {
+                        if (!track.artwork.equals(prevArtwork)) return;
                         prevArtResource = resource;
 
                         metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, resource);
@@ -305,6 +316,7 @@ public class MetadataManager {
 
         // Adds the media buttons to the notification
 
+        addCustomAction(likeAction, Utils.CAPABILITY_LIKE, compact);
         addAction(previousAction, PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS, compact);
         addAction(rewindAction, PlaybackStateCompat.ACTION_REWIND, compact);
 
@@ -314,10 +326,11 @@ public class MetadataManager {
             addAction(playAction, PlaybackStateCompat.ACTION_PLAY, compact);
         }
 
-        addAction(stopAction, PlaybackStateCompat.ACTION_STOP, compact);
         addAction(forwardAction, PlaybackStateCompat.ACTION_FAST_FORWARD, compact);
         addAction(nextAction, PlaybackStateCompat.ACTION_SKIP_TO_NEXT, compact);
-        addCustomAction(likeAction, Utils.CAPABILITY_LIKE, compact);
+        addCustomAction(sleepTimerAction, Utils.CAPABILITY_SLEEP_TIMER, compact);
+        // Keep stop available after the five primary preview controls.
+        addAction(stopAction, PlaybackStateCompat.ACTION_STOP, compact);
 
         // Prevent the media style from being used in older Huawei devices that don't support custom styles
         if(!Build.MANUFACTURER.toLowerCase().contains("huawei") || Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -338,9 +351,9 @@ public class MetadataManager {
 
             // Updates the compact media buttons for the notification
             if (!compact.isEmpty()) {
-                int[] compactIndexes = new int[compact.size()];
+                int[] compactIndexes = new int[Math.min(3, compact.size())];
 
-                for (int i = 0; i < compact.size(); i++) compactIndexes[i] = compact.get(i);
+                for (int i = 0; i < compactIndexes.length; i++) compactIndexes[i] = compact.get(i);
 
                 style.setShowActionsInCompactView(compactIndexes);
             }
@@ -369,10 +382,19 @@ public class MetadataManager {
         // Updates the media session state
         PlaybackStateCompat.Builder pb = new PlaybackStateCompat.Builder();
         pb.setActions(actions);
+        // Android 13+ derives media controls from the session, not notification actions.
+        addSessionCustomAction(pb, likeAction, Utils.ACTION_LIKE);
+        addSessionCustomAction(pb, sleepTimerAction, Utils.ACTION_SLEEP_TIMER);
         pb.setState(playback.getState(), playback.getPosition(), playback.getRate());
         pb.setBufferedPosition(playback.getBufferedPosition());
 
         session.setPlaybackState(pb.build());
+    }
+
+    private void addSessionCustomAction(PlaybackStateCompat.Builder pb, Action action, String id) {
+        if (action == null) return;
+        pb.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                id, action.title, action.getIconCompat().getResId()).build());
     }
 
     public void setActive(boolean active) {
@@ -437,6 +459,18 @@ public class MetadataManager {
         PendingIntent pendingIntent = PendingIntent.getService(service, 1001, intent, flags);
         int icon = isActive ? R.drawable.trackplayer_like_active : R.drawable.trackplayer_like;
         return new Action(icon, title, pendingIntent);
+    }
+
+    private Action createSleepTimerAction(List<Integer> caps, Bundle options) {
+        if (caps == null || !caps.contains(Utils.CAPABILITY_SLEEP_TIMER)) return null;
+        Bundle timer = options.getBundle("sleepTimerOptions");
+        String title = timer != null ? timer.getString("title") : null;
+        if (title == null || title.trim().isEmpty()) title = "Sleep timer";
+        Intent intent = new Intent(service, MusicService.class).setAction(Utils.ACTION_SLEEP_TIMER);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return new Action(R.drawable.trackplayer_sleep_timer, title,
+                PendingIntent.getService(service, 1002, intent, flags));
     }
 
     @SuppressLint("RestrictedApi")

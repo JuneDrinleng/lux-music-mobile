@@ -5,7 +5,7 @@ import settingState from '@/store/setting/state'
 import { getDuration, getPosition, restoreSleepTimerVolume, setPause, setSleepTimerGain } from '@/plugins/player/utils'
 import { fadeGain, songRemainingSeconds } from '@/plugins/player/volumeFade'
 
-import { sleepTimerFadeSeconds } from './sleepTimerOptions'
+import { sleepTimerFadeSeconds, SLEEP_TIMER_MINUTES } from './sleepTimerOptions'
 
 type Hook = (time: number, isPlayedStop: boolean) => void
 
@@ -128,6 +128,15 @@ export const stopTimeoutExit = () => {
   global.lx.isPlayedStop = false
   timeoutTools.clearTimeout()
   void restoreVolume().catch(console.log)
+}
+
+// Reuse the sheet's timer engine and presets without launching an activity over the lock screen.
+export const cycleNotificationSleepTimer = () => {
+  const running = timeoutTools.time >= 0 || global.lx.isPlayedStop
+  const currentMinutes = timeoutTools.time / 60
+  const next = running ? SLEEP_TIMER_MINUTES.find(minutes => minutes > currentMinutes) : SLEEP_TIMER_MINUTES[0]
+  if (next == null || global.lx.isPlayedStop) cancelTimeoutExit()
+  else startTimeoutExit(next * 60)
 }
 
 export const getTimeoutExitTime = () => {

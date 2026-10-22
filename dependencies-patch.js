@@ -107,6 +107,11 @@ const copyPatchs = [
   ],
 ]
 
+copyPatchs.push([
+  path.join(trackPlayerPatchBasePath, 'android/src/main/res/drawable/trackplayer_sleep_timer.xml'),
+  path.join(rootPath, 'node_modules/react-native-track-player/android/src/main/res/drawable/trackplayer_sleep_timer.xml'),
+])
+
 const patchs = [
   [
     imageColorsGradlePath,
