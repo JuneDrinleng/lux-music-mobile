@@ -1,4 +1,5 @@
 import { useRef, useImperativeHandle, forwardRef, useState } from 'react'
+import { SimilarSongsSheet } from '@/components/recommend/SimilarSongsSheet'
 import { useI18n } from '@/lang'
 import Menu, { type Menus, type MenuType, type Position } from '@/components/common/Menu'
 import { hasDislike } from '@/core/dislikeList'
@@ -34,6 +35,7 @@ export type {
 
 export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, ref) => {
   const t = useI18n()
+  const [similarSong, setSimilarSong] = useState<LX.Music.MusicInfoOnline | null>(null)
   const [visible, setVisible] = useState(false)
   const menuRef = useRef<MenuType>(null)
   const selectInfoRef = useRef<SelectInfo>(initSelectInfo as SelectInfo)
@@ -64,6 +66,7 @@ export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, re
       { action: 'musicSourceDetail', label: t('music_source_detail') },
       { action: 'removeCache', disabled: !has_url_cache, label: t('list_remove_cache') },
       { action: 'dislike', label: t('dislike'), disabled: hasDislike(musicInfo) },
+      { action: 'similar', label: t('recommend_similar') },
     ]
     setMenus(menu)
     void hasUrlCache(musicInfo).then((_has_url_cache) => {
@@ -81,6 +84,9 @@ export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, re
   const handleMenuPress = ({ action }: typeof menus[number]) => {
     const selectInfo = selectInfoRef.current
     switch (action) {
+      case 'similar':
+        setSimilarSong(selectInfo.musicInfo)
+        break
       case 'play':
         props.onPlay(selectInfo)
         break
@@ -108,8 +114,9 @@ export default forwardRef<ListMenuType, ListMenuProps>((props: ListMenuProps, re
   }
 
   return (
-    visible
-      ? <Menu ref={menuRef} menus={menus} onPress={handleMenuPress} />
-      : null
+    <>
+      {visible ? <Menu ref={menuRef} menus={menus} onPress={handleMenuPress} /> : null}
+      {similarSong ? <SimilarSongsSheet musicInfo={similarSong} onClose={() => { setSimilarSong(null) }} /> : null}
+    </>
   )
 })

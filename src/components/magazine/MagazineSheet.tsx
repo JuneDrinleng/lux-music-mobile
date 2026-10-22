@@ -353,28 +353,33 @@ export const MagazineSheet = memo(({
                   </View>
                   )
                 : null}
-            <View style={[styles.toolRule, importLayout || lyricLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
-            {toolExtra
-              ? <View style={styles.toolExtra}>{toolExtra}</View>
+            {!recommendationLayout
+              ? (
+                <>
+                  <View style={[styles.toolRule, importLayout || lyricLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
+                  {toolExtra
+                    ? <View style={styles.toolExtra}>{toolExtra}</View>
+                    : null}
+                  <View style={styles.toolRow}>
+                    <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
+                    {headerAction
+                      ? (
+                        <TextButton
+                          compact={importLayout || lyricLayout}
+                          labelSize={timerLayout || lyricLayout ? 13 : undefined}
+                          label={headerAction.text}
+                          danger={headerAction.tone === 'danger'}
+                          muted={headerAction.disabled}
+                          disabled={headerAction.disabled}
+                          onPress={headerAction.onPress}
+                        />
+                        )
+                      : null}
+                  </View>
+                  <Hairline />
+                </>
+                )
               : null}
-            <View style={styles.toolRow}>
-              <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
-              {headerAction
-                ? (
-                  <TextButton
-                    compact={importLayout || lyricLayout}
-                    labelSize={timerLayout || lyricLayout ? 13 : undefined}
-                    label={headerAction.text}
-                    danger={headerAction.tone === 'danger'}
-                    muted={headerAction.disabled}
-                    disabled={headerAction.disabled}
-                    onPress={headerAction.onPress}
-                  />
-                  )
-                : null}
-            </View>
-            <Hairline />
-            </> : null}
           </View>
           {sectionLabel
             ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.sectionLabel}>{sectionLabel}</Text>

@@ -29,7 +29,7 @@ export const DailyStrip = () => {
         <Text size={22} color={r.display} style={{ fontWeight: '800' }}>{t('recommend_daily')}</Text>
         <Text size={12} color={r.muted} style={{ fontWeight: '600', flexShrink: 1 }}>{t('recommend_daily_meta', { count: items.length })}</Text>
       </View>
-      <RecommendationStatus loading={loading} failed={failed} failures={batch?.failures.length ?? 0} empty={!items.length} reload={() => { void reload() }} />
+      <RecommendationStatus loading={loading} failed={failed} failures={batch?.failures.length ?? 0} empty={!items.length} reload={() => { void reload(true) }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip} contentContainerStyle={styles.stripContent}>
         {items.map(item => (
           <TouchableOpacity key={item.key} style={styles.card} disabled={pending || loading} accessibilityRole="button"

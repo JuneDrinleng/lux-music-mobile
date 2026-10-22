@@ -49,10 +49,10 @@ export const SimilarSongsSheet = ({ musicInfo, onClose }: { musicInfo: LX.Music.
           <TextTabs items={tabs} value={tab} onChange={id => { setTab(id as SimilarTab) }} scroll tabStyle={{ paddingVertical: 8 }} />
         </View>
         <RecommendationStatus loading={loading} failed={failed} failures={batch?.failures.length ?? 0}
-          empty={!groups[tab].length} reload={() => { void reload() }} />
+          empty={!groups[tab].length} reload={() => { void reload(true) }} />
         <FlatList data={loading ? [] : groups[tab]} keyExtractor={item => item.key} showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <RecommendationSong song={item.song} item={item}
+            <RecommendationSong song={item.song} item={item} disabled={pending || loading}
               onPress={() => { void run(async() => playRecommendations([item])) }}
               trailing={
                 <TouchableOpacity style={styles.add} hitSlop={8} disabled={pending} accessibilityRole="button"

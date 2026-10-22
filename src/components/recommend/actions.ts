@@ -14,7 +14,7 @@ export const startRecommendationRadio = async(seed: Song) => {
   const space = getActiveSpace()
   const queue = await getListMusics(LIST_IDS.TEMP)
   const batch = await getRadioNext(seed, queue.map(item => libraryCandidate(item).song))
-  if (space !== getActiveSpace()) return batch
+  if (space !== getActiveSpace()) throw new Error('Data space changed during radio request')
   await playRecommendations(batch.items)
   return batch
 }

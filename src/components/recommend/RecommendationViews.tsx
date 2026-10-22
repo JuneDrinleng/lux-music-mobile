@@ -32,12 +32,16 @@ export const useRecommendationAction = () => {
 }
 
 export const RecommendationButton = ({ label, onPress, fill = false, disabled = false, grow = false }: {
-  label: string, onPress: () => void, fill?: boolean, disabled?: boolean, grow?: boolean
+  label: string
+  onPress: () => void
+  fill?: boolean
+  disabled?: boolean
+  grow?: boolean
 }) => {
   const styles = useRecommendationStyles()
   const r = magazineRoles(useLuxTheme().colors)
   return (
-    <View style={grow ? { flex: 1 } : null}>
+    <View style={[styles.buttonTarget, grow ? { flex: 1 } : null]}>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
         disabled={disabled} onPress={onPress} activeOpacity={0.7} hitSlop={8}
         style={[styles.button, { borderColor: r.ink, backgroundColor: fill ? r.ink : r.paper, opacity: disabled ? 0.45 : 1 }]}>
@@ -48,7 +52,11 @@ export const RecommendationButton = ({ label, onPress, fill = false, disabled = 
 }
 
 export const RecommendationStatus = ({ loading, failed, failures, empty, reload }: {
-  loading: boolean, failed: boolean, failures: number, empty: boolean, reload: () => void
+  loading: boolean
+  failed: boolean
+  failures: number
+  empty: boolean
+  reload: () => void
 }) => {
   const t = useI18n()
   const styles = useRecommendationStyles()
@@ -62,8 +70,13 @@ export const RecommendationStatus = ({ loading, failed, failures, empty, reload 
   )
 }
 
-export const RecommendationSong = ({ song, item, subject = false, trailing, onPress }: {
-  song: Song, item?: Recommendation, subject?: boolean, trailing?: ReactNode, onPress?: () => void
+export const RecommendationSong = ({ song, item, subject = false, trailing, onPress, disabled = false }: {
+  song: Song
+  item?: Recommendation
+  subject?: boolean
+  trailing?: ReactNode
+  onPress?: () => void
+  disabled?: boolean
 }) => {
   const styles = useRecommendationStyles()
   const t = useI18n()
@@ -72,7 +85,7 @@ export const RecommendationSong = ({ song, item, subject = false, trailing, onPr
     <View style={[styles.song, subject ? styles.subject : null]}>
       <Image url={song.img} style={subject ? styles.seedCover : styles.rowCover} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text size={subject ? 17 : 15} color={r.list} style={styles.bold} numberOfLines={1}>{song.name}</Text>
+        <Text size={subject ? 17 : 15} color={r.list} style={[styles.bold, subject ? { fontWeight: '800' } : null]} numberOfLines={1}>{song.name}</Text>
         <View style={styles.songMeta}>
           <SourceTag source={song.source} label={song.source} />
           <Text size={12} color={r.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -83,7 +96,7 @@ export const RecommendationSong = ({ song, item, subject = false, trailing, onPr
       {trailing}
     </View>
   )
-  return <View>{onPress ? <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button">{body}</TouchableOpacity> : body}{!subject ? <Hairline /> : null}</View>
+  return <View>{onPress ? <TouchableOpacity disabled={disabled} onPress={onPress} activeOpacity={0.7} accessibilityRole="button">{body}</TouchableOpacity> : body}{!subject ? <Hairline /> : null}</View>
 }
 
 export const useRecommendationStyles = sharedLuxStyles(colors => {
@@ -98,7 +111,8 @@ export const useRecommendationStyles = sharedLuxStyles(colors => {
     cover: { width: 120, height: 120, borderRadius: 4, backgroundColor: r.placeholder },
     cardTitle: { fontWeight: '700', marginTop: 6 },
     reason: { marginTop: 2 },
-    actions: { flexDirection: 'row', gap: 8, marginTop: 14, paddingVertical: 8, flexWrap: 'wrap' },
+    actions: { flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' },
+    buttonTarget: { minHeight: 44, justifyContent: 'center' },
     button: { height: 28, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
     status: { paddingVertical: 12, gap: 16, alignItems: 'flex-start' },
     song: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 56, paddingVertical: 8 },
@@ -106,7 +120,7 @@ export const useRecommendationStyles = sharedLuxStyles(colors => {
     songMeta: { flexDirection: 'row', gap: 4, marginTop: 2, alignItems: 'center' },
     rowCover: { width: 40, height: 40, borderRadius: 4, backgroundColor: r.placeholder },
     seedCover: { width: 48, height: 48, borderRadius: 4, backgroundColor: r.placeholder },
-    footer: { marginHorizontal: -22, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 26, borderTopWidth: 2, borderTopColor: r.ink, flexDirection: 'row', gap: 16 },
+    footer: { marginHorizontal: -22, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 26, borderTopWidth: 2, borderTopColor: r.ink, flexDirection: 'row', gap: 16 },
     add: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   })
 })

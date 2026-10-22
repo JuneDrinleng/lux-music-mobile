@@ -9,12 +9,12 @@ export const useRecommendations = (anchor?: Song) => {
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const generation = useRef(0)
-  const reload = useCallback(async() => {
+  const reload = useCallback(async(retryFailedSources = false) => {
     const request = ++generation.current
     setLoading(true)
     setFailed(false)
     try {
-      const next = await (anchor ? getSimilar(anchor) : getDailyRecommendations())
+      const next = await (anchor ? getSimilar(anchor) : getDailyRecommendations({ retryFailedSources }))
       if (request === generation.current) setBatch(next)
     } catch {
       if (request === generation.current) { setFailed(true); setBatch(null) }
@@ -29,7 +29,7 @@ export const useRecommendations = (anchor?: Song) => {
       setBatch(null)
       setLoading(true)
     })
-    const changed = onDataSpaceChanged(reload)
+    const changed = onDataSpaceChanged(() => { void reload() })
     let day = new Date().toDateString()
     const refreshDay = () => {
       const next = new Date().toDateString()
@@ -37,7 +37,8 @@ export const useRecommendations = (anchor?: Song) => {
     }
     const timer = setInterval(refreshDay, 60_000)
     const appState = AppState.addEventListener('change', state => { if (state === 'active') refreshDay() })
-    return () => { generation.current++; invalidate(); changed(); clearInterval(timer); appState.remove() }
+    const cancelRequests = () => { generation.current++ }
+    return () => { cancelRequests(); invalidate(); changed(); clearInterval(timer); appState.remove() }
   }, [anchor, reload])
   return { batch, loading, failed, reload }
 }

@@ -411,3 +411,140 @@ test('similar and radio degrade to local candidates when every catalog source fa
     assert.deepEqual(result.failures, [{ id: 'wy:similar', reason: 'failed' }, { id: 'kg:artist', reason: 'timeout' }])
   }
 })
+
+const { recommendationReasonKey, groupSimilar, dailyStripItems } = moduleLoader()('viewModel')
+test('recommendation reason text translates real scoring provenance in all three locales', () => {
+  const locales = ['zh-cn', 'zh-tw', 'en-us'].map(locale => JSON.parse(readFileSync(join(root, 'src/lang', `${locale}.json`), 'utf8')))
+  const reasons = ['artist-affinity', 'similar', 'artist', 'chart', 'frequent', 'completed', 'history', 'playlist', 'library']
+  for (const reason of reasons) {
+    const key = recommendationReasonKey({ reasons: [reason] })
+    assert.equal(key, `recommend_reason_${reason}`)
+    for (const locale of locales) {
+      assert.equal(typeof locale[key], 'string')
+      assert.ok(locale[key].trim())
+      assert.doesNotMatch(locale[key], /常一起听|常一起聽|co.listen/i)
+    }
+  }
+  assert.equal(recommendationReasonKey({ reasons: ['library', 'chart', 'artist-affinity'] }), 'recommend_reason_artist-affinity')
+  assert.equal(recommendationReasonKey({ reasons: ['artist-affinity', 'chart', 'library'] }), 'recommend_reason_artist-affinity')
+  assert.equal(recommendationReasonKey({ reasons: [] }), 'recommend_reason_library')
+})
+
+test('similar tabs group overlapping provenance, preserve order, and never infer co-listening', () => {
+  const items = [
+    { key: 'a', reasons: ['artist-affinity', 'history', 'similar'] },
+    { key: 'b', reasons: ['artist'] },
+    { key: 'c', reasons: ['frequent', 'completed'] },
+    { key: 'd', reasons: ['chart', 'library'] },
+  ]
+  const before = structuredClone(items)
+  const groups = groupSimilar(items)
+  assert.deepEqual(groups.all, items)
+  assert.notEqual(groups.all, items)
+  assert.deepEqual(groups.artist.map(item => item.key), ['a', 'b'])
+  assert.deepEqual(groups.history.map(item => item.key), ['a', 'c'])
+  assert.deepEqual(groups.similar.map(item => item.key), ['a'])
+  assert.deepEqual(items, before)
+  assert.deepEqual(groupSimilar([]), { all: [], artist: [], history: [], similar: [] })
+})
+
+test('strip renders cached engine order across same-day reloads and rolls over with the engine', async() => {
+  const env = serviceEnv()
+  const first = await env.engine.getDailyRecommendations(dailyOpts)
+  const later = await env.engine.getDailyRecommendations({ ...dailyOpts, now: now + 3600000 })
+  assert.deepEqual(dailyStripItems(first.items), dailyStripItems(later.items))
+  assert.notEqual(dailyStripItems(first.items), first.items)
+  assert.deepEqual(dailyStripItems([]), [])
+  const next = await env.engine.getDailyRecommendations({ ...dailyOpts, now: now + 86400000 })
+  assert.deepEqual(dailyStripItems(next.items), next.items)
+  assert.notDeepEqual(dailyStripItems(first.items), dailyStripItems(next.items))
+})
+
+test('daily failed-source retry recovers without reordering existing cards or retrying healthy cache', async() => {
+  let fail = true
+  let calls = 0
+  const env = serviceEnv(new Map(), {
+    sources: [{
+      id: 'remote',
+      load: async() => {
+        calls++
+        if (fail) throw Error('offline')
+        return [candidate('remote')]
+      },
+    }],
+  })
+  const first = await env.engine.getDailyRecommendations(dailyOpts)
+  assert.equal(first.failures.length, 1)
+  fail = false
+  const recovered = await env.engine.getDailyRecommendations({ ...dailyOpts, retryFailedSources: true })
+  assert.deepEqual(recovered.failures, [])
+  assert.deepEqual(recovered.items.map(item => item.key), first.items.map(item => item.key))
+  assert.equal(calls, 2)
+  await env.engine.getDailyRecommendations({ ...dailyOpts, retryFailedSources: true })
+  assert.equal(calls, 2)
+  const larger = await env.engine.getDailyRecommendations({ ...dailyOpts, limit: 100 })
+  assert.equal(larger.items.at(-1).song.songmid, 'remote')
+})
+
+const actionEnv = () => {
+  const calls = []
+  let activeSpace = 'local'
+  let radioResult = { items: [], failures: [] }
+  let onRadio = () => {}
+  const queue = [{ source: 'wy', meta: { songId: 'queued' }, name: 'Queued', singer: 'A' }]
+  const actions = moduleLoader({
+    '@/config/constant': { LIST_IDS: { TEMP: 'temp' } },
+    '@/utils/listManage': { userLists: [] },
+    '@/core/list': { getListMusics: async id => { assert.equal(id, 'temp'); return queue } },
+    '@/core/player/player': {
+      playRecommendationQueue: async items => { calls.push(['play', items]) },
+      appendRecommendationQueue: async items => { calls.push(['append', items]) },
+    },
+    '@/utils': { toNewMusicInfo: value => ({ converted: true, ...value }) },
+    '@/utils/dataSpace': { getActiveSpace: () => activeSpace },
+    '@/utils/recommend': { getRadioNext: async(seed, history) => { calls.push(['radio', seed, history]); onRadio(); return radioResult } },
+  })('../../components/recommend/actions')
+  return { actions, calls, setRadio: batch => { radioResult = batch }, changeDuringRadio: () => { onRadio = () => { activeSpace = 'other' } } }
+}
+
+test('recommendation playback/enqueue preserve SDK metadata and convert fallback songs', async() => {
+  const env = actionEnv()
+  const musicInfo = { id: 'hash', hash: 'playback-hash', meta: { qualitys: ['flac'] } }
+  const items = [{ song: song('sdk'), musicInfo }, { song: song('fallback') }]
+  await env.actions.playRecommendations(items)
+  await env.actions.enqueueRecommendations(items)
+  assert.equal(env.calls[0][0], 'play')
+  assert.equal(env.calls[1][0], 'append')
+  for (const [, payload] of env.calls) {
+    assert.equal(payload[0], musicInfo)
+    assert.equal(payload[1].converted, true)
+    assert.equal(payload[1].songmid, 'fallback')
+    assert.deepEqual(payload[1].types, [])
+  }
+})
+
+test('radio plays engine candidates with current queue exclusions and rejects space changes', async() => {
+  const env = actionEnv()
+  const seed = song('seed')
+  env.setRadio({ items: [{ song: song('next') }], failures: [] })
+  await env.actions.startRecommendationRadio(seed)
+  assert.equal(env.calls[0][0], 'radio')
+  assert.equal(env.calls[0][1], seed)
+  assert.equal(env.calls[0][2][0].songmid, 'queued')
+  assert.equal(env.calls[1][0], 'play')
+  assert.equal(env.calls[1][1][0].songmid, 'next')
+  env.changeDuringRadio()
+  await assert.rejects(env.actions.startRecommendationRadio(seed), /Data space changed/)
+  assert.equal(env.calls.filter(call => call[0] == 'play').length, 1)
+})
+
+
+test('daily empty-state retry can discover newly added library songs on the same day', async() => {
+  const hooks = { pool: [] }
+  const env = serviceEnv(new Map(), hooks)
+  assert.deepEqual((await env.engine.getDailyRecommendations(dailyOpts)).items, [])
+  hooks.pool = pool
+  const recovered = await env.engine.getDailyRecommendations({ ...dailyOpts, retryFailedSources: true })
+  assert.equal(recovered.items.length, dailyOpts.limit)
+  assert.deepEqual(dailyStripItems(recovered.items), (await env.engine.getDailyRecommendations(dailyOpts)).items)
+})

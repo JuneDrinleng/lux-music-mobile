@@ -4,7 +4,7 @@ import { type Recommendation, type RecommendationReason } from './types'
 export type SimilarTab = 'all' | 'artist' | 'history' | 'similar'
 const priority: RecommendationReason[] = ['artist-affinity', 'similar', 'artist', 'chart', 'frequent', 'completed', 'history', 'playlist', 'library']
 /** Only render provenance the scorer actually supplied; never infer co-listening. */
-export const recommendationReasonKey = (item: Pick<Recommendation, 'reasons'>): string =>
+export const recommendationReasonKey = (item: Pick<Recommendation, 'reasons'>): `recommend_reason_${RecommendationReason}` =>
   `recommend_reason_${priority.find(reason => item.reasons.includes(reason)) ?? 'library'}`
 
 export const groupSimilar = (items: readonly Recommendation[]): Record<SimilarTab, Recommendation[]> => ({
