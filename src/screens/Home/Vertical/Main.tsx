@@ -7,6 +7,7 @@ import commonState from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import { setNavActiveId } from '@/core/common'
 import { type NAV_ID_Type } from '@/config/constant'
+import { DailyRecommendationPage } from '@/components/recommend/DailyRecommendationPage'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
 import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
@@ -36,7 +37,8 @@ const Main = () => {
   const [localSongsVisible, setLocalSongsVisible] = useState(false)
   const [listeningStatsVisible, setListeningStatsVisible] = useState(false)
   const [listenTogetherVisible, setListenTogetherVisible] = useState(false)
-  const detailCovering = playlistDetailVisible || localSongsVisible || listeningStatsVisible || listenTogetherVisible
+  const [dailyRecommendationsVisible, setDailyRecommendationsVisible] = useState(false)
+  const detailCovering = dailyRecommendationsVisible || playlistDetailVisible || localSongsVisible || listeningStatsVisible || listenTogetherVisible
 
   const onPageSelected = useCallback(({ nativeEvent }: PagerViewOnPageSelectedEvent) => {
     activeIndexRef.current = nativeEvent.position
@@ -47,6 +49,7 @@ const Main = () => {
 
   useEffect(() => {
     const handleNavUpdate = (id: NAV_ID_Type) => {
+      setDailyRecommendationsVisible(false)
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       if (localSongsVisible) global.app_event.closeLocalSongs()
       if (listeningStatsVisible) global.app_event.closeListeningStats()
@@ -66,6 +69,7 @@ const Main = () => {
 
   useEffect(() => {
     const handleOpenSearchPage = (payload: Omit<SearchPageRequest, 'token'>) => {
+      setDailyRecommendationsVisible(false)
       if (playlistDetailVisible) global.app_event.closePlaylistDetail()
       if (localSongsVisible) global.app_event.closeLocalSongs()
       if (listeningStatsVisible) global.app_event.closeListeningStats()
@@ -91,6 +95,7 @@ const Main = () => {
 
   useEffect(() => {
     const handleOpen = () => {
+      setDailyRecommendationsVisible(false)
       setPlaylistDetailVisible(true)
       setLocalSongsVisible(false)
       setListeningStatsVisible(false)
@@ -98,12 +103,14 @@ const Main = () => {
     const handleClose = () => { setPlaylistDetailVisible(false) }
 
     const handleOpenLocalSongs = () => {
+      setDailyRecommendationsVisible(false)
       setLocalSongsVisible(true)
       setPlaylistDetailVisible(false)
       setListeningStatsVisible(false)
     }
     const handleCloseLocalSongs = () => { setLocalSongsVisible(false) }
     const handleOpenListeningStats = () => {
+      setDailyRecommendationsVisible(false)
       setListeningStatsVisible(true)
       setPlaylistDetailVisible(false)
       setLocalSongsVisible(false)
@@ -111,12 +118,24 @@ const Main = () => {
     }
     const handleCloseListeningStats = () => { setListeningStatsVisible(false) }
     const handleOpenListenTogether = () => {
+      setDailyRecommendationsVisible(false)
       setListenTogetherVisible(true)
       setPlaylistDetailVisible(false)
       setLocalSongsVisible(false)
       setListeningStatsVisible(false)
     }
     const handleCloseListenTogether = () => { setListenTogetherVisible(false) }
+    const handleOpenDaily = () => {
+      global.app_event.closePlaylistDetail()
+      global.app_event.closeLocalSongs()
+      global.app_event.closeListeningStats()
+      global.app_event.closeListenTogether()
+      setSearchPageVisible(false)
+      setDailyRecommendationsVisible(true)
+    }
+    const handleCloseDaily = () => { setDailyRecommendationsVisible(false) }
+    global.app_event.on('openDailyRecommendations', handleOpenDaily)
+    global.app_event.on('closeDailyRecommendations', handleCloseDaily)
     global.app_event.on('openPlaylistDetail', handleOpen)
     global.app_event.on('closePlaylistDetail', handleClose)
     global.app_event.on('openLocalSongs', handleOpenLocalSongs)
@@ -126,6 +145,8 @@ const Main = () => {
     global.app_event.on('openListenTogether', handleOpenListenTogether)
     global.app_event.on('closeListenTogether', handleCloseListenTogether)
     return () => {
+      global.app_event.off('openDailyRecommendations', handleOpenDaily)
+      global.app_event.off('closeDailyRecommendations', handleCloseDaily)
       global.app_event.off('openPlaylistDetail', handleOpen)
       global.app_event.off('closePlaylistDetail', handleClose)
       global.app_event.off('openLocalSongs', handleOpenLocalSongs)
@@ -179,6 +200,7 @@ const Main = () => {
           <SettingsTab />
         </View>
       </PagerView>
+      {dailyRecommendationsVisible ? <DailyRecommendationPage onClose={() => { global.app_event.closeDailyRecommendations() }} /> : null}
       <SearchPage
         visible={searchPageVisible}
         covered={detailCovering}

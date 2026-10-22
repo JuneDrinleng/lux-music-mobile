@@ -337,6 +337,14 @@ export class AppEvent extends Event {
     this.emit('openWhiteNoise')
   }
 
+  openDailyRecommendations() {
+    this.emit('openDailyRecommendations')
+  }
+
+  closeDailyRecommendations() {
+    this.emit('closeDailyRecommendations')
+  }
+
   closePlaylistDetail() {
     this.emit('closePlaylistDetail')
   }
