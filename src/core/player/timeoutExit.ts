@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import BackgroundTimer from 'react-native-background-timer'
-import { exitApp } from '@/core/common'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { getDuration, getPosition, restoreSleepTimerVolume, setPause, setSleepTimerGain } from '@/plugins/player/utils'
@@ -111,12 +110,6 @@ const timeoutTools = {
 export const finishTimeoutExit = async() => {
   global.lx.isPlayedStop = false
   timeoutTools.clearTimeout()
-  if (settingState.setting['player.timeoutExitApp']) {
-    // Restoring native volume may hang or fail; it must never delay legacy exit.
-    void restoreVolume().catch(console.log)
-    exitApp('Timeout Exit')
-    return
-  }
   const current = generation
   try {
     await setPause()

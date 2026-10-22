@@ -1052,8 +1052,6 @@
   "sleep_timer_title": "定時停止播放",
   "sleep_timer_remaining": "剩餘",
   "sleep_timer_after": "到點後",
-  "sleep_timer_exit_app": "同時退出 App",
-  "sleep_timer_exit_app_hint": "時間到後關閉應用程式（舊版行為）",
   "sleep_timer_minutes": "{num} 分",
   "sleep_timer_custom": "自訂",
   "sleep_timer_finish_song": "播完目前這首再停",
