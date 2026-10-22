@@ -450,6 +450,8 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
               submitting={imprt.importSubmitting}
               bottomInset={modalBottomInset}
               targetListName={detailData.selectedListInfo?.name}
+            targetListId={detailData.selectedListId}
+            onImported={id => { void detailData.loadLocalDetailSongs(id) }}
               items={imprt.importCandidates}
               selectedMap={imprt.importSelectedMap}
               allSelected={imprt.areAllImportSongsSelected}
