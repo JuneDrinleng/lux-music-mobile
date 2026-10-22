@@ -10,6 +10,7 @@ import { magType } from '@/theme/magazineType'
 
 export const TextButton = memo(({
   label,
+  accessibilityLabel,
   style,
   compact = false,
   labelSize,
@@ -20,6 +21,7 @@ export const TextButton = memo(({
   underline = true,
 }: {
   label: string
+  accessibilityLabel?: string
   style?: StyleProp<ViewStyle>
   compact?: boolean
   labelSize?: number
@@ -38,6 +40,7 @@ export const TextButton = memo(({
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       style={[{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }, style]}

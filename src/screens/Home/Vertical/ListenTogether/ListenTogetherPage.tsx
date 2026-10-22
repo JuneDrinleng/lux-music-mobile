@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useCallback, useState } from 'react'
-import { Animated, ScrollView, View, useWindowDimensions } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { Animated, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
@@ -29,6 +29,14 @@ import { useTogetherGateSnapshot } from '@/core/together/useTogetherGateSnapshot
 import { useTogether } from '@/store/together/hook'
 import TogetherDebugPanel from '@/screens/Home/Vertical/ListenTogether/TogetherDebugPanel'
 import InviteSheet from './InviteSheet'
+import RoomFeedView, { performRoomAction } from './RoomFeedView'
+import RequestSheet from './RequestSheet'
+import SearchPage from '../SearchPage'
+import { togetherRoomFeed } from '@/store/together/roomFeed'
+import { useTogetherRoomFeed } from '@/store/together/useRoomFeed'
+import { shouldMountRequestSheet } from '@/core/together/roomUi'
+import { selectRequestQueueModel } from '@/core/together/roomFeed'
+import { togglePlay } from '@/core/player/player'
 import TogetherReadinessPanel from '@/screens/Home/Vertical/ListenTogether/TogetherReadinessPanel'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -82,6 +90,13 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
   const { width } = useWindowDimensions()
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const together = useTogether()
+  const feed = useTogetherRoomFeed()
+  const [requestsOpen, setRequestsOpen] = useState(false)
+  const [pickingSong, setPickingSong] = useState(false)
+  useEffect(() => { setRequestsOpen(false); setPickingSong(false) }, [together.room?.roomId])
+  useEffect(() => {
+    if (!feed.capabilities.requests) { setRequestsOpen(false); setPickingSong(false) }
+  }, [feed.capabilities.requests])
   const showDebugPanel = useShowTogetherDebugPanel()
   const gateSnap = useTogetherGateSnapshot(showDebugPanel)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -93,9 +108,11 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
   }, [animateClose, onClose])
 
   useBackHandler(useCallback(() => {
-    requestClose()
+    if (pickingSong) setPickingSong(false)
+    else if (requestsOpen) setRequestsOpen(false)
+    else requestClose()
     return true
-  }, [requestClose]))
+  }, [requestClose, pickingSong, requestsOpen]))
 
   const handleCreate = useCallback(async() => {
     const result = await createTogetherRoom()
@@ -136,36 +153,25 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
 
   return (
     <Animated.View style={[styles.root, sceneStyle]}>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 72 + bottomPadding }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.topBar}>
-          <BackButton onPress={requestClose} />
-          <View style={{ flex: 1 }} />
-          {together.room && together.connection == 'online' ? <SecondaryButton compact label={t('invite_entry')} onPress={() => { setInviteOpen(true) }} /> : null}
-        </View>
-
-        <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('together_title')}</Text>
-
-        {together.connection == 'offline'
-          ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_offline')}</Text>
-          : null}
-        {together.connection == 'unsupported'
-          ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_unsupported')}</Text>
-          : null}
-        {showDebugPanel && gateSnap
-          ? (
-            <Text size={11} color={r.quiet} style={[styles.hint, { fontVariant: ['tabular-nums'] }]} selectable>
-              {formatTogetherGateHint(gateSnap)}
-            </Text>
-            )
-          : null}
-
-        {room
-          ? (
-            <>
+      {room ? <RoomFeedView key={room.roomId} feed={feed} selfId={together.selfId} hostId={room.hostId} topInset={statusBarHeight} bottomInset={bottomPadding}
+        onRequests={() => { setRequestsOpen(true) }}
+        header={openMembers => <>
+          <View style={styles.topBar}><BackButton onPress={requestClose} /><View style={{ flex: 1 }} />{together.connection == 'online' ? <SecondaryButton compact label={t('invite_entry')} onPress={() => { setInviteOpen(true) }} /> : null}</View>
+          <Text size={11} color={r.eyebrow} style={{ marginTop: 6, letterSpacing: 2, fontWeight: '700' }}>{t('together_room_eyebrow', { code: room.code })}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text size={26} color={r.display} style={{ fontWeight: '800', lineHeight: 38, flexShrink: 1 }}>{t('together_room_name', { name: room.members.find(member => member.memberId == room.hostId)?.displayName ?? t('invite_host') })}</Text>
+            <View style={{ flexDirection: 'row' }}>{room.members.slice(0, 3).map(member => <View key={member.memberId} style={{ width: 26, height: 26, borderRadius: 13, overflow: 'hidden', backgroundColor: r.accentSoft, marginLeft: -6 }}>{member.avatar ? <Image url={member.avatar} style={{ width: 26, height: 26 }} /> : null}</View>)}</View>
+            <TouchableOpacity onPress={openMembers} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('together_members')} style={{ minHeight: 28, justifyContent: 'center' }}><Text size={12} color={r.muted}>{t('together_room_people', { count: room.members.length })}</Text></TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 }}>
+            <Image url={room.playback.musicInfo?.meta.picUrl ?? ''} style={{ width: 48, height: 48, borderRadius: 4, backgroundColor: r.placeholder }} />
+            <View style={{ flex: 1 }}><Text size={17} color={r.ink} style={{ fontWeight: '800' }} numberOfLines={1}>{room.playback.musicInfo?.name ?? t('invite_no_song')}</Text><Text size={12} color={r.muted}>{room.playback.musicInfo?.singer ?? ''} · {Math.floor(room.playback.positionMs / 60000)}:{String(Math.floor(room.playback.positionMs / 1000) % 60).padStart(2, '0')} / {Math.floor(room.playback.durationMs / 60000)}:{String(Math.floor(room.playback.durationMs / 1000) % 60).padStart(2, '0')}</Text></View>
+            <PrimaryButton compact label="" accessibilityLabel={t(room.playback.isPlaying ? 'together_pause' : 'together_play')} icon={room.playback.isPlaying ? 'pause' : 'play'} style={{ width: 44, height: 44, paddingHorizontal: 0 }} disabled={!isHost} onPress={togglePlay} />
+          </View>
+          {together.connection != 'online' ? <Text size={14} color={r.muted} style={styles.hint}>{t(together.connection == 'unsupported' ? 'together_unsupported' : 'together_offline')}</Text> : null}
+          {showDebugPanel && gateSnap ? <Text size={11} color={r.quiet} style={[styles.hint, { fontVariant: ['tabular-nums'] }]} selectable>{formatTogetherGateHint(gateSnap)}</Text> : null}
+        </>}
+        members={<>
               <SectionHeader title={t('together_invite_code')} showRule={false} headGap={18} />
               <View style={styles.codeRow}>
                 <Text size={36} color={r.display} style={styles.codeDigits}>{room.code}</Text>
@@ -209,9 +215,35 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
                   : null}
                 <SecondaryButton label={t('together_leave')} onPress={handleLeave} disabled={together.pending} />
               </View>
-            </>
+        </>}
+      /> : (
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 72 + bottomPadding }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.topBar}>
+          <BackButton onPress={requestClose} />
+          <View style={{ flex: 1 }} />
+          {together.room && together.connection == 'online' ? <SecondaryButton compact label={t('invite_entry')} onPress={() => { setInviteOpen(true) }} /> : null}
+        </View>
+
+        <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('together_title')}</Text>
+
+        {together.connection == 'offline'
+          ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_offline')}</Text>
+          : null}
+        {together.connection == 'unsupported'
+          ? <Text size={14} color={r.muted} style={styles.hint}>{t('together_unsupported')}</Text>
+          : null}
+        {showDebugPanel && gateSnap
+          ? (
+            <Text size={11} color={r.quiet} style={[styles.hint, { fontVariant: ['tabular-nums'] }]} selectable>
+              {formatTogetherGateHint(gateSnap)}
+            </Text>
             )
-          : (
+          : null}
+
             <>
               <Text size={14} color={r.muted} style={[styles.hint, { marginTop: 12 }]}>{t('together_intro')}</Text>
               <TogetherReadinessPanel uiConnection={together.connection} />
@@ -245,8 +277,14 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
                 />
               </View>
             </>
-            )}
-      </ScrollView>
+      </ScrollView>)}
+      {room && shouldMountRequestSheet(requestsOpen, feed.capabilities.requests, feed.roomId) ? <RequestSheet feed={feed} selfId={together.selfId} hostId={room.hostId} bottomInset={bottomPadding} onClose={() => { setRequestsOpen(false) }} onPickSong={() => { setRequestsOpen(false); setPickingSong(true) }} /> : null}
+      {room && pickingSong && feed.capabilities.requests ? <SearchPage visible covered={false} request={null} onClose={() => { setPickingSong(false); setRequestsOpen(true) }} onSelectSong={async(song) => {
+        const model = selectRequestQueueModel(togetherRoomFeed.getSnapshot(), together.selfId, room.hostId)
+        if (!model.canRequest) { toast(t('together_request_limit_reached')); return }
+        const ok = await performRoomAction(async() => togetherRoomFeed.addRequest(song), t('together_action_failed'))
+        if (ok && togetherRoomFeed.getSnapshot().roomId == room.roomId && togetherRoomFeed.getSnapshot().capabilities.requests) { setPickingSong(false); setRequestsOpen(true) }
+      }} /> : null}
       <InviteSheet visible={inviteOpen} onClose={() => { setInviteOpen(false) }} />
       <TogetherDebugPanel visible={showDebugPanel} gateSnap={gateSnap} />
     </Animated.View>

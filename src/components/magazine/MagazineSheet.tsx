@@ -43,6 +43,8 @@ export interface MagazineSheetFooter {
 
 export interface MagazineSheetProps {
   visible: boolean
+  /** Keep room sheets inside the content area so the Dock remains touchable. */
+  inlineBottomInset?: number
   onClose: () => void
   heightRatio?: 0.62 | 0.78 | number
   eyebrow?: string
@@ -217,6 +219,7 @@ const useStyles = sharedLuxStyles((colors) => {
 
 export const MagazineSheet = memo(({
   visible,
+  inlineBottomInset,
   onClose,
   heightRatio = 0.78,
   eyebrow,
@@ -322,13 +325,12 @@ export const MagazineSheet = memo(({
 
   const showEmpty = !loading && !children && empty
 
-  return (
-    <Modal transparent visible animationType="none" onRequestClose={requestClose} statusBarTranslucent>
-      <View style={styles.root}>
+  const content = (
+      <View style={[styles.root, inlineBottomInset != null ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: inlineBottomInset, zIndex: 10 } : null]}>
         <Animated.View style={[styles.mask, { opacity: maskOpacity }, radioLayout ? { backgroundColor: r.ink } : null]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={requestClose} />
         </Animated.View>
-        <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }]}>
+        <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }, inlineBottomInset != null ? { maxHeight: '100%' } : null]}>
           <View style={styles.inkBar} />
           <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
@@ -427,6 +429,6 @@ export const MagazineSheet = memo(({
             : <View style={{ height: 12 }} />)}
         </Animated.View>
       </View>
-    </Modal>
   )
+  return inlineBottomInset != null ? content : <Modal transparent visible animationType="none" onRequestClose={requestClose} statusBarTranslucent>{content}</Modal>
 })
