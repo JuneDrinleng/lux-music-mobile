@@ -16,6 +16,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -96,6 +100,9 @@
           <data android:pathSuffix=".lxmc" tools:targetApi="s" />
         </intent-filter>
       </activity>
+
+      <service android:name="androidx.work.impl.foreground.SystemForegroundService"
+        android:foregroundServiceType="dataSync" tools:node="merge" />
 
       <!-- Define a FileProvider for API24+ -->
       <!-- note this is the authority name used by other modules like rn-fetch-blob, easy to have conflicts -->

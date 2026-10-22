@@ -93,6 +93,7 @@ const createMusicHarness = (mode) => {
     getLyricInfo: async() => ({ lyric: `${kind}:lyric` }),
   })
   const music = loadModule('src/core/music/index.ts', {
+    '@/core/download': { getDownloadedMusicPath: async() => null },
     './online': online,
     './local': fileResolver('local'),
     './download': fileResolver('download'),

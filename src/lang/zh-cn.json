@@ -1810,5 +1810,7 @@
   "audio_effects_preset_rock": "摇滚",
   "audio_effects_preset_vocal": "人声",
   "audio_effects_preset_bass": "低音增强",
-  "audio_effects_preset_classical": "古典"
+  "audio_effects_preset_classical": "古典",
+  "download_notification_channel": "音乐下载",
+  "download_notification_active": "正在下载音乐"
 }
