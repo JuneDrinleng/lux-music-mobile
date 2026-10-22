@@ -93,6 +93,7 @@ export const storageDataPrefix = {
 
   memoriesMilestones: '@memories_milestones_v1',
   recommendations: '@recommendations_v1',
+  smartPlaylistRules: '@smart_playlist_rules_v1',
   playHistory: '@play_history',
   playHistoryDevice: '@play_history_device',
   playHistoryCursor: '@play_history_cursor',

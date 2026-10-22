@@ -91,6 +91,7 @@ const legacy = {
   '@sync_conflict_mode': '"merge_local_remote"',
   '@memories_milestones_v1': '{"version":1,"achieved":{},"ignored":["streak:30"]}',
   '@recommendations_v1': '{"version":1,"days":{}}',
+  '@smart_playlist_rules_v1': '{"version":1,"playlists":[{"playlistId":"mine","name":"Recent","autoRefresh":true,"ruleSet":{"match":"all","rules":[{"field":"playCount","operator":"gte","value":5}],"sort":{"field":"playCount","direction":"desc"},"limit":50}}]}',
   '@dislike_list': '"rule"',
   '@play_info': '{}',
   '@list_scroll_position': '{}',
@@ -1262,4 +1263,26 @@ test('5.7 installed server-only Keychain entries upgrade to their known account 
   assert.equal(await env.secure.getRefreshToken('s'), null)
   await data.migrateStoredLuxCredentials()
   assert.equal(await data.getLuxRefreshToken(a), 'installed-v1-token')
+})
+
+test('smart playlist rules migrate intact and real delete scope removes only the selected account rules', async() => {
+  const env = make(legacy)
+  await env.space.initializeDataSpaces()
+  assert.ok(env.space.perSpaceKeys.includes(keys.smartPlaylistRules))
+  assert.equal(env.disk.get(`${keys.smartPlaylistRules}@local`), legacy[keys.smartPlaylistRules])
+  assert.equal(env.disk.get(keys.smartPlaylistRules), legacy[keys.smartPlaylistRules])
+  const fixture = JSON.parse(legacy[keys.smartPlaylistRules])
+  for (const id of ['lux:s:alice', 'lux:s:bob']) {
+    await env.space.setActiveSpace(id)
+    assert.equal(await env.adapter.getData(keys.smartPlaylistRules), null)
+    await env.adapter.saveData(keys.smartPlaylistRules, { ...fixture, owner: id })
+  }
+  await env.space.setActiveSpace('local')
+  const before = new Map(env.disk)
+  await operationsFor(env).deleteSpaceData('lux:s:alice')
+  assert.equal(env.disk.has(`${keys.smartPlaylistRules}@lux:s:alice`), false)
+  assert.equal(env.disk.get(`${keys.smartPlaylistRules}@lux:s:bob`), before.get(`${keys.smartPlaylistRules}@lux:s:bob`))
+  assert.equal(env.disk.get(`${keys.smartPlaylistRules}@local`), before.get(`${keys.smartPlaylistRules}@local`))
+  assert.equal(env.disk.get(keys.smartPlaylistRules), before.get(keys.smartPlaylistRules))
+  assert.deepEqual(await env.adapter.getData(keys.smartPlaylistRules), fixture)
 })

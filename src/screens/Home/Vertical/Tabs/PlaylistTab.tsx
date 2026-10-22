@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
+import SmartPlaylistEditor, { newSmartPlaylist } from '@/components/playlist/SmartPlaylistEditor'
+import { startSmartPlaylists } from '@/utils/smartPlaylist'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -174,6 +176,8 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
 }
 
 export default () => {
+  const [smartDraft, setSmartDraft] = useState<ReturnType<typeof newSmartPlaylist> | null>(null)
+  useEffect(startSmartPlaylists, [])
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -1750,6 +1754,7 @@ export default () => {
       onPlaylistSortChange={handlePlaylistSortChange}
       onShowCreateListModal={handleShowCreateListModal}
       onPlayPlaylistPress={handlePlayPlaylistPress}
+      onCreateSmartList={() => { setSmartDraft(newSmartPlaylist(t('smart_default_name'))) }}
       onCreateList={handleCreateList}
     />
   )
@@ -1757,6 +1762,7 @@ export default () => {
 
   return (
     <View style={styles.sceneRoot}>
+      {smartDraft ? <SmartPlaylistEditor initial={smartDraft} onClose={() => { setSmartDraft(null) }} /> : null}
       <Animated.View
         pointerEvents={shouldRenderDetailScene ? 'none' : 'auto'}
         renderToHardwareTextureAndroid={isDetailTransitioning}
