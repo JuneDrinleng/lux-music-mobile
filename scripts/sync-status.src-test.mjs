@@ -132,6 +132,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/utils/accountDataDialogs': { showLogoutOptions: asyncNoop },
     '@/screens/Account/AccountPage': { default: 'AccountPage' },
     '@/screens/AiTokenStatus': { default: 'AiTokenStatusPage' },
+    '@/screens/AudioEffects': { default: 'AudioEffectsPage' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Image': { default: 'Image' },
     '@/utils/syncLogout': {},
@@ -360,4 +361,22 @@ test('AI settings entry opens a read-only page and back unmounts its layer', () 
   assert.ok(page)
   page.props.onBack()
   assert.ok(!nodes(h.render()).some(node => node.type === 'AiTokenStatusPage'))
+})
+
+
+test('audio settings entry adds a full-screen page and back unmounts it without moving existing entries', () => {
+  const h = settingsHarness({ status: true })
+  let tree = h.render()
+  for (const key of ['setting_search_source', 'setting_basic_source', 'together_layout']) {
+    assert.ok(nodes(tree).some(node => node.type === 'SettingRow' && node.props.title === translate(key)))
+  }
+  const row = nodes(tree).find(node => node.type === 'SettingRow' && node.props.title === translate('audio_effects_title'))
+  assert.ok(row)
+  assert.ok(!nodes(tree).some(node => node.type === 'AudioEffectsPage'))
+  row.props.onPress()
+  tree = h.render()
+  const page = nodes(tree).find(node => node.type === 'AudioEffectsPage')
+  assert.ok(page)
+  page.props.onBack()
+  assert.ok(!nodes(h.render()).some(node => node.type === 'AudioEffectsPage'))
 })

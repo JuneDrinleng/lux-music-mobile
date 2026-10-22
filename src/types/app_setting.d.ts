@@ -148,6 +148,13 @@ declare global {
        * 播放速率
        */
       'player.playbackRate': number
+      'player.audio.equalizer.enabled': boolean
+      'player.audio.equalizer.preset': 'custom' | 'pop' | 'rock' | 'vocal' | 'bass' | 'classical'
+      'player.audio.equalizer.gains': string
+      'player.audio.loudness.enabled': boolean
+      'player.audio.loudness.target': number
+      'player.audio.loudness.preventClipping': boolean
+      'player.audio.gapless.enabled': boolean
 
       /**
        * 缓存大小设置 unit MB
