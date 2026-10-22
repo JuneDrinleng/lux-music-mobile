@@ -98,13 +98,16 @@ test('backgrounding during clipboard read discards its result', async() => {
   const controller = controllerModule.exports.createInviteController({
     load: async() => null,
     save: async() => {},
-    read: async() => { reads++; return new Promise(done => { resolve = done }) },
+    read: async() => { reads++; return new Promise(_resolve => { resolve = _resolve }) },
     gate: async() => ({ loggedIn: false, connected: false }),
     join: async() => { throw new Error('must not join') },
     changed: value => events.push(value),
   })
   const active = controller.foreground(true)
-  while (!reads) await new Promise(done => setImmediate(done))
+  for (let i = 0; i < 1000; i++) {
+    if (reads > 0) break
+    await new Promise(_resolve => setImmediate(_resolve))
+  }
   await controller.foreground(false)
   resolve(m.formatInviteText(invite))
   await active
