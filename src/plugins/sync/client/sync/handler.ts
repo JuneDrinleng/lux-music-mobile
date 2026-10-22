@@ -35,7 +35,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     negotiateTogether(id!, enableTogether, supportedFeatures)
     if (enableTogether) {
       for (const key of ['together.chat', 'together.reaction', 'together.request'] as const) {
-        if (supportedFeatures[key] == 1) features[key] = true
+        if (supportedFeatures[key] == featureVersion[key]) features[key] = true
       }
     }
     switch (serverType) {

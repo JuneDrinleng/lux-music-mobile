@@ -54,7 +54,7 @@ export interface RoomFeedState {
   historyError?: string
 }
 type Actions = LX.Sync.ServerSyncTogetherActions
-export type RoomFeedCall = <K extends keyof Actions>(method: K, ...args: Parameters<Actions[K]>) => ReturnType<Actions[K]>
+export type RoomFeedCall = <K extends keyof Actions>(method: K, ...args: Parameters<Actions[K]>) => Promise<Awaited<ReturnType<Actions[K]>>>
 const at = (entry: TimelineEntry) => entry.kind == 'chat' ? entry.message.at : entry.at
 const sameSong = (a: LX.Music.MusicInfoOnline, b: LX.Music.MusicInfoOnline) => a.id == b.id && a.source == b.source
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error)
@@ -99,7 +99,7 @@ export const createRoomFeed = (call: RoomFeedCall, options: { limit?: number, no
     update({ entries: [...(older ? confirmed.slice(0, capacity) : capacity ? confirmed.slice(-capacity) : []), ...local] })
   }
   const chat = (message: LX.Sync.Together.ChatMessage, older = false) => {
-    if (message.roomId != state.roomId) return
+    if (!state.capabilities.chat || message.roomId != state.roomId) return
     // Server id is authoritative. clientMsgId ties sender echo/ACK to optimistic work,
     // without assuming canonical senderId equals the credential alias of this device.
     const entries = state.entries.filter(entry => !(entry.kind == 'chat' && entry.delivery != 'sent' && entry.message.clientMsgId == message.clientMsgId))
