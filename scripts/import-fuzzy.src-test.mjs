@@ -76,28 +76,33 @@ test('scores normalize traditional Chinese, full width, artist order, brackets a
 })
 const { matchTracks } = load(join(root, 'src/utils/playlistImport/matcher.ts'))
 const online = (id, source, name = '晴天') => ({ ...song(name), id, source })
-test('matching bounds concurrency, yields, ranks source preference and reports all status buckets', async () => {
+test('matching bounds concurrency, yields, ranks source preference and reports all status buckets', async() => {
   let active = 0; let maximum = 0; let yields = 0
   const progress = []
   const controller = new AbortController()
   const rows = await matchTracks([{ title: '晴天', artist: '周杰伦', original: '晴天' }, { title: 'unknown', artist: '', original: 'unknown' }], {
-    sources: ['tx', 'wy', 'kg'], signal: controller.signal, concurrency: 2,
-    yieldThread: async () => { yields++ },
-    search: async (query, source) => {
+    sources: ['tx', 'wy', 'kg'],
+    signal: controller.signal,
+    concurrency: 2,
+    yieldThread: async() => { yields++ },
+    search: async(query, source) => {
       active++; maximum = Math.max(active, maximum)
       await new Promise(resolve => setTimeout(resolve, 2)); active--
       return query.startsWith('unknown') ? [] : [online(source, source)]
-    }, onProgress: (rows, count) => progress.push(count),
+    },
+    onProgress: (rows, count) => progress.push(count),
   })
   assert.equal(maximum, 2); assert.ok(yields >= 2)
   assert.equal(rows[0].status, 'matched'); assert.equal(rows[0].candidates[0].song.source, 'tx')
   assert.equal(rows[1].status, 'unmatched'); assert.deepEqual(progress, [1, 2])
 })
-test('timeouts retire a hanging provider and failures allow other providers to continue', async () => {
+test('timeouts retire a hanging provider and failures allow other providers to continue', async() => {
   const calls = []
   const rows = await matchTracks(Array.from({ length: 3 }, () => ({ title: '晴天', artist: '周杰伦', original: '' })), {
-    sources: ['tx', 'wy', 'kg'], signal: new AbortController().signal, timeoutMs: 5,
-    search: async (query, source) => {
+    sources: ['tx', 'wy', 'kg'],
+    signal: new AbortController().signal,
+    timeoutMs: 5,
+    search: async(query, source) => {
       calls.push(source)
       if (source === 'tx') return new Promise(() => {})
       if (source === 'wy') throw new Error('offline')
@@ -107,15 +112,18 @@ test('timeouts retire a hanging provider and failures allow other providers to c
   assert.equal(calls.filter(source => source === 'tx').length, 1)
   assert.equal(rows.length, 3); assert.ok(rows.every(row => row.status === 'matched'))
 })
-test('cancellation interrupts a hanging request promptly and suppresses late progress', async () => {
+test('cancellation interrupts a hanging request promptly and suppresses late progress', async() => {
   const controller = new AbortController(); let updates = 0; let finish
   const pending = matchTracks([{ title: '晴天', artist: '', original: '' }], {
-    sources: ['tx'], signal: controller.signal, timeoutMs: 1000,
-    search: async () => new Promise(resolve => { finish = resolve }), onProgress: () => updates++,
+    sources: ['tx'],
+    signal: controller.signal,
+    timeoutMs: 1000,
+    search: async() => new Promise(resolve => { finish = resolve }),
+    onProgress: () => updates++,
   })
   await new Promise(resolve => setTimeout(resolve, 5)); controller.abort()
   await assert.rejects(pending, /IMPORT_CANCELLED/)
   finish([online('late', 'tx')]); await new Promise(resolve => setTimeout(resolve, 1))
   assert.equal(updates, 0)
-  await assert.rejects(matchTracks([], { sources: ['tx'], signal: controller.signal, search: async () => [] }).then(() => { if (controller.signal.aborted) throw new Error('IMPORT_CANCELLED') }), /IMPORT_CANCELLED/)
+  await assert.rejects(matchTracks([], { sources: ['tx'], signal: controller.signal, search: async() => [] }).then(() => { if (controller.signal.aborted) throw new Error('IMPORT_CANCELLED') }), /IMPORT_CANCELLED/)
 })
