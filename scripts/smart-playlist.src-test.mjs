@@ -8,12 +8,14 @@ import test from 'node:test'
 import ts from 'typescript'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const evaluate = (file, deps = {}) => {
+const evaluate = (file, deps = {}, sandbox) => {
   const js = ts.transpileModule(readFileSync(join(root, file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText
   const module = { exports: {} }
-  new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+  const script = new Script(`(function(require,module,exports){${js}\n})`)
+  const run = sandbox ? script.runInNewContext(sandbox) : script.runInThisContext()
+  run(name => {
     assert.ok(name in deps, `Unexpected dependency ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -170,4 +172,87 @@ test('invalid storage is preserved; failed writes do not poison later operations
     await assert.rejects(env.store.saveSmartPlaylistRule(definition('b')), /Invalid/)
     assert.equal(env.disk.get('@smart_playlist_rules_v1@local'), bytes)
   }
+})
+
+const service = evaluate('src/utils/smartPlaylist/service.ts')
+test('materialization preserves evaluator order, removes stale songs and is idempotent', async() => {
+  const a = song('a'); const b = song('b'); const c = song('c')
+  let current = [a, c]
+  let writes = 0
+  const write = async next => { current = next; writes++ }
+  assert.equal(await service.materializeSongs(current, [b, a], write), true)
+  assert.deepEqual(current, [b, a])
+  assert.equal(await service.materializeSongs(current, [b, a], write), false)
+  assert.equal(writes, 1)
+  await service.materializeSongs(current, [], write)
+  assert.deepEqual(current, [])
+})
+test('auto refresh debounces bursts, serializes work and keeps one follow-up while busy', async() => {
+  let calls = 0
+  let release
+  const refresh = service.createSmartRefresh(async() => { calls++; if (calls == 1) await new Promise(resolve => { release = resolve }) }, 5)
+  refresh.trigger(); refresh.trigger(); refresh.trigger()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls, 1)
+  refresh.trigger(); refresh.trigger()
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(calls, 1)
+  release()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls, 2)
+  refresh.trigger(); refresh.stop()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(calls, 2)
+})
+test('async evaluation yields, cancels obsolete work and matches synchronous stable ordering', async() => {
+  const songs = Array.from({ length: 550 }, (_, i) => song(String(i)))
+  const lists = [{ songs }]
+  let ticked = false
+  setTimeout(() => { ticked = true }, 0)
+  const facts = await evaluator.buildSongFactsAsync(lists, [])
+  assert.equal(ticked, true)
+  const spec = rules([], { sort: { field: 'title', direction: 'desc' }, limit: 150 })
+  assert.deepEqual(await evaluator.evaluateRulesAsync(facts, spec, now), evaluateRules(facts, spec, now))
+  let checks = 0
+  await assert.rejects(evaluator.buildSongFactsAsync(lists, [], () => { if (++checks == 3) throw Error('cancelled') }), /cancelled/)
+})
+
+test('runtime history/library events refresh once; own playlist writes never schedule another refresh; disabled rules stay unchanged', async() => {
+  const listeners = new Map()
+  const hub = { on: (event, fn) => listeners.set(event, fn), off: event => listeners.delete(event) }
+  let historyTrigger
+  let writes = 0
+  let current = []
+  const a = song('a')
+  const def = { ...definition('smart'), ruleSet: rules([]) }
+  const deps = {
+    '@/core/list': {
+      getListMusics: async id => id == 'smart' ? current : [a],
+      overwriteListMusics: async(id, songs) => { writes++; current = songs; listeners.get('myListMusicUpdate')?.([id]) },
+    },
+    '@/store/list/state': { default: { allList: [{ id: 'library' }, { id: 'smart' }], userList: [{ id: 'smart' }] } },
+    '@/config/constant': { LIST_IDS: { LOVE: 'love' } },
+    '@/utils/dataSpace': { getActiveSpace: () => 'local', onDataSpaceChanged: () => () => {} },
+    '@/utils/playHistory/store': { getPlayRecords: () => [], subscribePlayHistory: fn => { historyTrigger = fn; return () => {} } },
+    './evaluator': evaluator,
+    './store': { loadSmartPlaylistRules: async() => [def], removeSmartPlaylistRule: async() => {} },
+    './service': { ...service, createSmartRefresh: run => service.createSmartRefresh(run, 5) },
+  }
+  const runtime = evaluate('src/utils/smartPlaylist/index.ts', deps, { global: { app_event: hub, state_event: hub }, setTimeout, clearTimeout })
+  const stop = runtime.startSmartPlaylists()
+  await new Promise(resolve => setTimeout(resolve, 60))
+  assert.equal(writes, 1)
+  await new Promise(resolve => setTimeout(resolve, 30))
+  assert.equal(writes, 1)
+  current = []
+  historyTrigger(); historyTrigger(); listeners.get('myListMusicUpdate')(['library'])
+  await new Promise(resolve => setTimeout(resolve, 60))
+  assert.equal(writes, 2)
+  def.autoRefresh = false
+  current = []
+  historyTrigger()
+  await new Promise(resolve => setTimeout(resolve, 40))
+  assert.equal(writes, 2)
+  stop()
+  assert.equal(listeners.size, 0)
 })

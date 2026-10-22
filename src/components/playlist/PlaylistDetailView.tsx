@@ -1,5 +1,9 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import SmartPlaylistEditor from './SmartPlaylistEditor'
+import { loadSmartPlaylistRules } from '@/utils/smartPlaylist/store'
+import { refreshSmartPlaylists } from '@/utils/smartPlaylist'
+import { type SmartPlaylistDefinition } from '@/utils/smartPlaylist/model'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -59,6 +63,19 @@ const PlaylistDetailViewInner = ({
   onClose,
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
+  const [smartDefinition, setSmartDefinition] = useState<SmartPlaylistDefinition | null>(null)
+  const [editingSmart, setEditingSmart] = useState(false)
+  useEffect(() => {
+    let active = true
+    setSmartDefinition(null)
+    if (detail.type == 'local') {
+      void loadSmartPlaylistRules().then(definitions => {
+        if (active) setSmartDefinition(definitions.find(item => item.playlistId == detail.listId) ?? null)
+      }).catch(() => {})
+      void refreshSmartPlaylists(detail.listId).catch(() => {})
+    }
+    return () => { active = false }
+  }, [detail])
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -510,6 +527,7 @@ const PlaylistDetailViewInner = ({
         actionLabel={detailData.selectedOnlineOrLeaderboard ? null : detailActionLabel}
         actionDisabled={detailActionDisabled}
         onBack={handleCloseDetail}
+        onEditSmartRules={smartDefinition ? () => { setEditingSmart(true) } : undefined}
         onRename={handleShowRenameListModal}
         onRemove={handleShowRemoveListModal}
         onPrimaryPress={() => { void playAllSongs(false) }}
@@ -526,7 +544,7 @@ const PlaylistDetailViewInner = ({
       />
     )
   }, [
-    selecting, selectedCount, selectTabs, selectMode,
+    selecting, selectedCount, selectTabs, selectMode, smartDefinition,
     detailData.detailHeroCover, detailData.detailHeroMetaText, detailData.detailHeroName,
     detailData.canRenameSelectedList, detailData.selectedOnlineOrLeaderboard,
     detailData.selectedListId, detailData.detailLoading, detailData.detailSongs.length,
@@ -651,6 +669,7 @@ const PlaylistDetailViewInner = ({
           </View>
           )
         : null}
+      {editingSmart && smartDefinition ? <SmartPlaylistEditor initial={{ ...smartDefinition, name: detailData.selectedListInfo?.name ?? smartDefinition.name }} onClose={() => { setEditingSmart(false); void loadSmartPlaylistRules().then(definitions => { setSmartDefinition(definitions.find(item => item.playlistId == smartDefinition.playlistId) ?? null) }).catch(() => {}) }} /> : null}
       {detailData.selectedListId && dedupeSongs
         ? <PlaylistDedupeSheet listId={detailData.selectedListId} songs={dedupeSongs}
             onClose={() => { setDedupeSongs(null) }} onChanged={detailData.loadLocalDetailSongs} />

@@ -42,6 +42,7 @@ interface PlaylistDetailHeaderProps {
   onPrimaryPress?: () => void
   onSecondaryPress?: () => void
   onActionPress?: () => void
+  onEditSmartRules?: () => void
   onDedupe?: () => void
   onToggleSelect?: () => void
 }
@@ -68,6 +69,7 @@ export default ({
   onActionPress,
   onToggleSelect,
   onDedupe,
+  onEditSmartRules,
 }: PlaylistDetailHeaderProps) => {
   const moreRef = useRef<View>(null)
   const [menuVisible, setMenuVisible] = useState(false)
@@ -126,8 +128,8 @@ export default ({
       />
 
       <MagMenu visible={menuVisible} onClose={() => { setMenuVisible(false) }} anchor={anchor}
-        items={[{ id: 'dedupe', label: t('playlist_dedupe') }]}
-        onChange={() => { setMenuVisible(false); onDedupe?.() }}
+        items={[{ id: 'dedupe', label: t('playlist_dedupe') }, ...(onEditSmartRules ? [{ id: 'smart', label: t('smart_edit') }] : [])]}
+        onChange={id => { setMenuVisible(false); if (id == 'smart') onEditSmartRules?.(); else onDedupe?.() }}
       />
       <View style={styles.hero}>
         <View style={[styles.cover, { backgroundColor: r.placeholder }]}>

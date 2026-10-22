@@ -34,10 +34,13 @@ const musicKey = (song: LibrarySong): string => songKey(song.source, song.meta.s
  * Each persisted play record represents a counted play (the tracker applies its threshold).
  * addedDates is optional because legacy library songs have no per-song added timestamp.
  */
-export const buildSongFacts = <T extends LibrarySong>(lists: ReadonlyArray<LibraryList<T>>, history: readonly PlayRecord[], addedDates: ReadonlyMap<string, number> = new Map()): Array<SongFacts<T>> => {
+const buildFactsSteps = function * <T extends LibrarySong>(lists: ReadonlyArray<LibraryList<T>>, history: readonly PlayRecord[], addedDates: ReadonlyMap<string, number> = new Map()): Generator<void, Array<SongFacts<T>>, void> {
+  yield
+  let processed = 0
   const facts = new Map<string, SongFacts<T>>()
   for (const list of lists) {
     for (const song of list.songs) {
+      if (++processed % 100 == 0) yield
       const key = musicKey(song)
       const existing = facts.get(key)
       if (existing) { existing.liked ||= !!list.liked; continue }
@@ -59,6 +62,7 @@ export const buildSongFacts = <T extends LibrarySong>(lists: ReadonlyArray<Libra
   }
   const seen = new Set<string>()
   for (const record of history) {
+    if (++processed % 100 == 0) yield
     if (seen.has(record.id) || !Number.isFinite(record.startedAt) || record.startedAt < 0) continue
     seen.add(record.id)
     const fact = facts.get(songKey(record.song.source, record.song.songmid))
@@ -68,6 +72,21 @@ export const buildSongFacts = <T extends LibrarySong>(lists: ReadonlyArray<Libra
   }
   return [...facts.values()]
 }
+const drain = <T>(steps: Generator<void, T, void>): T => {
+  let step = steps.next()
+  while (!step.done) step = steps.next()
+  return step.value
+}
+export const runStepsAsync = async<T>(steps: Generator<void, T, void>, check: () => void = () => {}): Promise<T> => {
+  for (;;) {
+    check()
+    const step = steps.next()
+    if (step.done) return step.value
+    await new Promise<void>(resolve => { setTimeout(resolve, 0) })
+  }
+}
+export const buildSongFacts = <T extends LibrarySong>(...args: Parameters<typeof buildFactsSteps<T>>) => drain(buildFactsSteps(...args))
+export const buildSongFactsAsync = async<T extends LibrarySong>(lists: ReadonlyArray<LibraryList<T>>, history: readonly PlayRecord[], check?: () => void) => runStepsAsync(buildFactsSteps(lists, history), check)
 const normalize = (value: string): string => value.normalize('NFKC').trim().toLowerCase()
 export const matchesRule = (fact: SongFacts, rule: Rule, now: number): boolean => {
   const actual = fact[rule.field]
@@ -99,23 +118,51 @@ export const matchesRule = (fact: SongFacts, rule: Rule, now: number): boolean =
   }
 }
 /** Synchronous pure evaluation for snapshots. A future refresh service must batch/yield its work. */
-export const evaluateRules = <T extends LibrarySong>(facts: ReadonlyArray<SongFacts<T>>, ruleSet: RuleSet, now: number): { songs: T[], matchCount: number } => {
+const evaluateSteps = function * <T extends LibrarySong>(facts: ReadonlyArray<SongFacts<T>>, ruleSet: RuleSet, now: number): Generator<void, { songs: T[], matchCount: number }, void> {
   if (!isRuleSet(ruleSet) || !Number.isFinite(now)) throw new Error('Invalid smart playlist rules or clock')
-  const matches = facts.filter(fact => !ruleSet.rules.length || (ruleSet.match == 'all'
-    ? ruleSet.rules.every(rule => matchesRule(fact, rule, now))
-    : ruleSet.rules.some(rule => matchesRule(fact, rule, now))))
+  yield
+  let matches: Array<SongFacts<T>> = []
+  let processed = 0
+  for (const fact of facts) {
+    if (++processed % 50 == 0) yield
+    if (!ruleSet.rules.length || (ruleSet.match == 'all'
+      ? ruleSet.rules.every(rule => matchesRule(fact, rule, now))
+      : ruleSet.rules.some(rule => matchesRule(fact, rule, now)))) matches.push(fact)
+  }
   const { field, direction } = ruleSet.sort
+  const compare = (a: SongFacts<T>, b: SongFacts<T>) => {
+    const left = a[field as RuleField]
+    const right = b[field as RuleField]
+    if (left == null) return right == null ? 0 : 1
+    if (right == null) return -1
+    const l = typeof left == 'string' ? normalize(left) : left
+    const r = typeof right == 'string' ? normalize(right) : right
+    return (l < r ? -1 : l > r ? 1 : 0) * (direction == 'asc' ? 1 : -1)
+  }
+  // Stable bottom-up merge sort: yield during comparisons, never one giant native sort.
   if (field != 'library') {
-    matches.sort((a, b) => {
-      const left = a[field as RuleField]
-      const right = b[field as RuleField]
-      // Unknown values stay last in both directions; stable sort keeps library order on ties.
-      if (left == null) return right == null ? 0 : 1
-      if (right == null) return -1
-      const l = typeof left == 'string' ? normalize(left) : left
-      const r = typeof right == 'string' ? normalize(right) : right
-      return (l < r ? -1 : l > r ? 1 : 0) * (direction == 'asc' ? 1 : -1)
-    })
-  } else if (direction == 'desc') matches.reverse()
-  return { matchCount: matches.length, songs: matches.slice(0, ruleSet.limit).map(fact => fact.song) }
+    for (let width = 1; width < matches.length; width *= 2) {
+      const sorted: Array<SongFacts<T>> = []
+      for (let start = 0; start < matches.length; start += width * 2) {
+        let a = start
+        let b = Math.min(start + width, matches.length)
+        const endA = b
+        const endB = Math.min(start + width * 2, matches.length)
+        while (a < endA || b < endB) {
+          if (++processed % 100 == 0) yield
+          sorted.push(b >= endB || (a < endA && compare(matches[a], matches[b]) <= 0) ? matches[a++] : matches[b++])
+        }
+      }
+      matches = sorted
+    }
+  }
+  const songs: T[] = []
+  const count = Math.min(matches.length, ruleSet.limit ?? matches.length)
+  for (let i = 0; i < count; i++) {
+    if (++processed % 100 == 0) yield
+    songs.push(matches[field == 'library' && direction == 'desc' ? matches.length - 1 - i : i].song)
+  }
+  return { matchCount: matches.length, songs }
 }
+export const evaluateRules = <T extends LibrarySong>(facts: ReadonlyArray<SongFacts<T>>, rules: RuleSet, now: number) => drain(evaluateSteps(facts, rules, now))
+export const evaluateRulesAsync = async<T extends LibrarySong>(facts: ReadonlyArray<SongFacts<T>>, rules: RuleSet, now: number, check?: () => void) => runStepsAsync(evaluateSteps(facts, rules, now), check)

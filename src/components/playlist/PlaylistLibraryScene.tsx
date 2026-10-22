@@ -67,6 +67,7 @@ export interface PlaylistLibrarySceneProps {
   onPlaylistSortChange: (mode: PlaylistSortMode) => void
   onShowCreateListModal: () => void
   onPlayPlaylistPress: (listId: string | null | undefined) => (event: GestureResponderEvent) => void
+  onCreateSmartList?: () => void
   onCreateList: (value: string) => Promise<boolean>
 }
 
@@ -117,6 +118,7 @@ export default ({
   onPlaylistSortChange,
   onShowCreateListModal,
   onPlayPlaylistPress,
+  onCreateSmartList,
   onCreateList,
 }: PlaylistLibrarySceneProps) => {
   const { colors } = useLuxTheme()
@@ -232,6 +234,7 @@ export default ({
                 {t('library_create_new')}
               </Text>
             </TouchableOpacity>
+            {onCreateSmartList ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('smart_create')} onPress={onCreateSmartList} hitSlop={TOOLBAR_HIT_SLOP} style={{ height: TOOLBAR_VISUAL_H, paddingHorizontal: 8, borderRadius: 999, borderWidth: 1.5, borderColor: r.ink, alignItems: 'center', justifyContent: 'center' }}><Text size={13} color={r.ink} style={{ fontWeight: '800' }}>{t('smart_create')}</Text></TouchableOpacity> : null}
           </View>
 
           <Text
