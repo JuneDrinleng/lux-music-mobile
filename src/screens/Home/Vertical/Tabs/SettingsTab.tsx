@@ -498,7 +498,7 @@ export default () => {
       case 'togetherLayout': return t('together_layout')
       case 'player': return t('setting_custom_source_title')
       case 'sync': return t('setting_sync')
-      case 'resourceCache': return t('setting_cache_management')
+      case 'resourceCache': return t('download_storage_title')
       case 'changelog': return t('version_about_update_title')
       default: return ''
     }
@@ -1086,6 +1086,7 @@ export default () => {
           overScrollMode="never"
         >
           <MagTopBar onBack={handleCloseOptionDetail} />
+          {activeOptionDetail === 'resourceCache' ? <Text size={11} color={r.eyebrow} style={{ marginTop: 6, fontWeight: '700', letterSpacing: 2 }}>{t('download_storage_eyebrow')}</Text> : null}
           <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{optionDetailTitle}</Text>
 
           {activeOptionDetail === 'theme'

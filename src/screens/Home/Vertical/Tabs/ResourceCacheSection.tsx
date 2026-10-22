@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 
+import { DownloadStorageSection } from '@/components/download/DownloadStorageSection'
 import Text from '@/components/common/Text'
 import { SectionHeader, SettingRow } from '@/components/magazine'
 import { updateSetting } from '@/core/common'
@@ -56,9 +57,9 @@ export const useResourceCache = () => {
 
   const handleGetAppCacheSize = useCallback(() => {
     void Promise.all([getAppCacheSize(), getCacheSize(), getImageCacheSize()]).then(([appSize, audioSize, imageSize]) => {
-      setCacheSize(sizeFormate(appSize + audioSize))
-      setAudioCacheLabel(t('setting_cache_audio_size', { size: sizeFormate(audioSize) }))
-      setImageCacheLabel(t('setting_cache_image_size', { size: sizeFormate(imageSize) }))
+      setCacheSize(sizeFormate(Number(appSize) + Number(audioSize)))
+      setAudioCacheLabel(t('setting_cache_audio_size', { size: sizeFormate(Number(audioSize)) }))
+      setImageCacheLabel(t('setting_cache_image_size', { size: sizeFormate(Number(imageSize)) }))
     }).catch(() => {})
   }, [t])
 
@@ -183,7 +184,8 @@ export const ResourceCacheDetail = memo(({
 
   return (
     <View>
-      <SectionHeader title={t('setting_cache_management')} meta="CACHE" showRule={false} />
+      <DownloadStorageSection refreshToken={`${cacheSizeLabel}:${cleaningAudio}:${audioLimit}`} />
+      <SectionHeader title={t('setting_cache_management')} meta="CACHE" />
       <Text size={15} color={r.list} style={{ fontWeight: '700', marginTop: 8, marginBottom: 4 }}>
         {cacheSizeLabel}
       </Text>

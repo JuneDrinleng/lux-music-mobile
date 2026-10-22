@@ -36,6 +36,7 @@ interface PlaylistDetailHeaderProps {
   secondaryLabel: string
   actionLabel?: string | null
   actionDisabled?: boolean
+  onDownload?: () => void
   onBack: () => void
   onRename?: () => void
   onRemove?: () => void
@@ -61,6 +62,7 @@ export default ({
   secondaryLabel,
   actionLabel,
   actionDisabled = false,
+  onDownload,
   onBack,
   onRename,
   onRemove,
@@ -113,7 +115,7 @@ export default ({
                 </>
                 )
               : null}
-            {onDedupe
+            {onDedupe ?? onDownload
               ? <View ref={moreRef} collapsable={false}>
                   <IconButton name="dots-vertical" size={22} accessibilityLabel={t('more_actions')} onPress={() => {
                     moreRef.current?.measureInWindow((x, y, width, height) => {
@@ -128,8 +130,8 @@ export default ({
       />
 
       <MagMenu visible={menuVisible} onClose={() => { setMenuVisible(false) }} anchor={anchor}
-        items={[{ id: 'dedupe', label: t('playlist_dedupe') }, ...(onEditSmartRules ? [{ id: 'smart', label: t('smart_edit') }] : [])]}
-        onChange={id => { setMenuVisible(false); if (id == 'smart') onEditSmartRules?.(); else onDedupe?.() }}
+        items={[...(onDownload ? [{ id: 'download', label: t('download_entire_playlist') }] : []), ...(onDedupe ? [{ id: 'dedupe', label: t('playlist_dedupe') }] : []), ...(onEditSmartRules ? [{ id: 'smart', label: t('smart_edit') }] : [])]}
+        onChange={id => { setMenuVisible(false); if (id == 'download') onDownload?.(); else if (id == 'smart') onEditSmartRules?.(); else onDedupe?.() }}
       />
       <View style={styles.hero}>
         <View style={[styles.cover, { backgroundColor: r.placeholder }]}>

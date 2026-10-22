@@ -68,6 +68,8 @@ export interface MagazineSheetProps {
   lyricLayout?: boolean
   recommendationLayout?: boolean
   radioLayout?: boolean
+  /** Approved 10A download geometry; keep its 34pt close button. */
+  downloadLayout?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -239,6 +241,7 @@ export const MagazineSheet = memo(({
   lyricLayout = false,
   recommendationLayout = false,
   radioLayout = false,
+  downloadLayout = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -320,25 +323,25 @@ export const MagazineSheet = memo(({
   })
   const maskOpacity = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, radioLayout ? 0.42 : 1],
+    outputRange: [0, radioLayout || downloadLayout ? 0.42 : 1],
   })
 
   const showEmpty = !loading && !children && empty
 
   const content = (
       <View style={[styles.root, inlineBottomInset != null ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: inlineBottomInset, zIndex: 10 } : null]}>
-        <Animated.View style={[styles.mask, { opacity: maskOpacity }, radioLayout ? { backgroundColor: r.ink } : null]}>
+        <Animated.View style={[styles.mask, { opacity: maskOpacity }, radioLayout || downloadLayout ? { backgroundColor: r.ink } : null]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={requestClose} />
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }, inlineBottomInset != null ? { maxHeight: '100%' } : null]}>
           <View style={styles.inkBar} />
-          <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
+          <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout || downloadLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
                   ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout || downloadLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout || recommendationLayout || radioLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
@@ -355,10 +358,10 @@ export const MagazineSheet = memo(({
               ? <View style={recommendationLayout ? { marginTop: 12, borderTopWidth: 2, borderTopColor: r.ink, paddingTop: 2 } : { marginTop: 12 }}>{subject}</View>
               : figure
                 ? (
-                  <View style={[styles.figureRow, inviteLayout || importLayout || lyricLayout || radioLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
-                    <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout || lyricLayout || radioLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
+                  <View style={[styles.figureRow, inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout ? { marginTop: 6, marginBottom: 0 } : null]}>
+                    <Text size={magType.sheetFigure.size} color={r.display} style={[styles.figure, timerLayout || lyricLayout || radioLayout || downloadLayout ? { lineHeight: 60, letterSpacing: 0, fontVariant: ['tabular-nums'], color: r.ink } : null]}>{figure.value}</Text>
                     {figure.unit
-                      ? <Text size={lyricLayout || radioLayout ? 15 : 14} color={inviteLayout || importLayout || lyricLayout || radioLayout ? r.ink : r.muted} style={[styles.figureUnit, inviteLayout || importLayout || lyricLayout || radioLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
+                      ? <Text size={lyricLayout || radioLayout || downloadLayout ? 15 : 14} color={inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout ? r.ink : r.muted} style={[styles.figureUnit, inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout ? { fontSize: 15, fontWeight: '700', marginLeft: 6 } : null]}>{figure.unit}</Text>
                       : null}
                   </View>
                   )
@@ -366,18 +369,18 @@ export const MagazineSheet = memo(({
             {!recommendationLayout
               ? (
                 <>
-                  <View style={[styles.toolRule, inviteLayout || importLayout || lyricLayout || radioLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
+                  <View style={[styles.toolRule, inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
                   {toolExtra
                     ? <View style={styles.toolExtra}>{toolExtra}</View>
                     : null}
-                  <View style={[styles.toolRow, inviteLayout || radioLayout ? { height: 40, paddingVertical: 0 } : null]}>
+                  <View style={[styles.toolRow, inviteLayout || radioLayout || downloadLayout ? { height: 40, paddingVertical: 0 } : null]}>
                     <Text size={12} color={r.muted} style={styles.toolMeta} numberOfLines={1}>{meta ?? ' '}</Text>
                     {headerAction
                       ? (
                         <TextButton
-                          style={inviteLayout || radioLayout ? { height: 28, minHeight: 28 } : undefined}
-                          compact={inviteLayout || importLayout || lyricLayout || radioLayout}
-                          labelSize={inviteLayout || timerLayout || lyricLayout || radioLayout ? 13 : undefined}
+                          style={inviteLayout || radioLayout || downloadLayout ? { height: 28, minHeight: 28 } : undefined}
+                          compact={inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout}
+                          labelSize={inviteLayout || timerLayout || lyricLayout || radioLayout || downloadLayout ? 13 : undefined}
                           label={headerAction.text}
                           danger={headerAction.tone === 'danger'}
                           muted={headerAction.disabled}
