@@ -24,7 +24,8 @@ export const seededRandom = (seed: string): (() => number) => {
 }
 
 /** Pure, order-independent ranking. Repeat windows are hard exclusions, even for small pools. */
-export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptions): Recommendation[] => {
+function * rankSteps(candidates: readonly Candidate[], opts: RankOptions): Generator<void, Recommendation[]> {
+  yield
   const history = mergePlayRecords(opts.history).filter(record => record.startedAt <= opts.now)
   const blocked = [...(opts.exclude ?? [])]
   for (const record of history) {
@@ -35,7 +36,9 @@ export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptio
   }
   if (opts.anchor) blocked.push(opts.anchor)
   const affinity = new Map<string, number>()
+  let processed = 0
   for (const record of history) {
+    if (++processed % 100 == 0) yield
     const age = Math.max(0, opts.now - record.startedAt) / 86_400_000
     const weight = (record.skipped ? -2 : record.completed ? 2 : 1) / (1 + age / 30)
     for (const artist of artists(record.song)) affinity.set(artist, (affinity.get(artist) ?? 0) + weight)
@@ -43,20 +46,54 @@ export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptio
   // Stable representative: complete music metadata first, then local provenance, then exact identity.
   const sorted = [...candidates].sort((a, b) => Number(!!b.musicInfo) - Number(!!a.musicInfo) ||
     Number(b.origin == 'library') - Number(a.origin == 'library') || exactKey(a.song).localeCompare(exactKey(b.song)) || a.origin.localeCompare(b.origin))
-  const groups: Candidate[][] = []
-  for (const candidate of sorted) {
-    const matches = groups.filter(group => group.some(item => sameSong(item.song, candidate.song)))
-    if (!matches.length) groups.push([candidate])
-    else {
-      matches[0].push(candidate)
-      for (const group of matches.slice(1)) { matches[0].push(...group); groups.splice(groups.indexOf(group), 1) }
+  // Index both identities. Union roots preserve transitive provider duplicates without
+  // scanning every existing group for every candidate (which blocked Home's JS thread).
+  const identities = new WeakMap<Song, string[]>()
+  const keys = (song: Song) => {
+    let value = identities.get(song)
+    if (!value) { value = [exactKey(song), contentKey(song)]; identities.set(song, value) }
+    return value
+  }
+  const parent = sorted.map((_, index) => index)
+  const root = (index: number): number => {
+    while (parent[index] != index) { parent[index] = parent[parent[index]]; index = parent[index] }
+    return index
+  }
+  const owners = new Map<string, number>()
+  for (const [index, candidate] of sorted.entries()) {
+    if (++processed % 100 == 0) yield
+    for (const key of keys(candidate.song)) {
+      const previous = owners.get(key)
+      if (previous != null) {
+        const a = root(previous)
+        const b = root(index)
+        parent[Math.max(a, b)] = Math.min(a, b)
+      }
+      owners.set(key, index)
+    }
+  }
+  const groups = new Map<number, Candidate[]>()
+  sorted.forEach((candidate, index) => {
+    const id = root(index)
+    const group = groups.get(id) ?? []
+    group.push(candidate)
+    groups.set(id, group)
+  })
+  const blockedKeys = new Set(blocked.flatMap(keys))
+  const recordsByKey = new Map<string, typeof history>()
+  for (const record of history) {
+    for (const key of keys(record.song)) {
+      const records = recordsByKey.get(key) ?? []
+      records.push(record)
+      recordsByKey.set(key, records)
     }
   }
   const result: Recommendation[] = []
-  for (const group of groups) {
-    if (group.some(item => opts.isDisliked(item.song) || blocked.some(song => sameSong(song, item.song)))) continue
+  for (const group of groups.values()) {
+    if (++processed % 50 == 0) yield
+    if (group.some(item => opts.isDisliked(item.song) || keys(item.song).some(key => blockedKeys.has(key)))) continue
     const candidate = group[0]
-    const records = history.filter(record => group.some(item => sameSong(record.song, item.song)))
+    const records = [...new Set(group.flatMap(item => keys(item.song).flatMap(key => recordsByKey.get(key) ?? [])))]
     const completed = records.filter(record => record.completed && !record.skipped).length
     const skipped = records.filter(record => record.skipped).length
     const positive = records.length - skipped
@@ -75,4 +112,21 @@ export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptio
     result.push({ ...candidate, key: contentKey(candidate.song), score, reasons })
   }
   return result.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key)).slice(0, Math.max(0, opts.limit ?? 30))
+}
+
+/** Pure synchronous API for small callers/tests. Mobile loads yield between chunks. */
+export const rankCandidates = (candidates: readonly Candidate[], opts: RankOptions): Recommendation[] => {
+  const steps = rankSteps(candidates, opts)
+  let next = steps.next()
+  while (!next.done) next = steps.next()
+  return next.value
+}
+export const rankCandidatesAsync = async(candidates: readonly Candidate[], opts: RankOptions): Promise<Recommendation[]> => {
+  const steps = rankSteps(candidates, opts)
+  let next = steps.next()
+  while (!next.done) {
+    await new Promise<void>(resolve => { setTimeout(resolve, 0) })
+    next = steps.next()
+  }
+  return next.value
 }
