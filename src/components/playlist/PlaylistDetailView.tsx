@@ -32,6 +32,7 @@ import { getSourceTone } from '@/components/search/sourceTone'
 import PlaylistDetailHeader, { PlaylistSelectHeader } from './PlaylistDetailHeader'
 import PlaylistDetailSongItem, { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import PlaylistImportPanel from './PlaylistImportPanel'
+import PlaylistDedupeSheet from './PlaylistDedupeSheet'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
@@ -113,6 +114,7 @@ const PlaylistDetailViewInner = ({
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
+  const [dedupeSongs, setDedupeSongs] = useState<LX.Music.MusicInfo[] | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selectedMap, setSelectedMap] = useState<Record<string, true>>({})
   const [selectMode, setSelectMode] = useState<'single' | 'range' | 'inverse'>('single')
@@ -137,6 +139,7 @@ const PlaylistDetailViewInner = ({
   }, [detailData.detailSongs])
 
   useEffect(() => {
+    setDedupeSongs(null)
     setSelecting(false)
     setSelectedMap({})
     setSelectMode('single')
@@ -149,6 +152,7 @@ const PlaylistDetailViewInner = ({
     imprt.setImportDrawerVisible(false)
     setSelecting(false)
     setSelectedMap({})
+    setDedupeSongs(null)
     requestClose(() => { onClose?.() })
   }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, requestClose])
 
@@ -517,6 +521,7 @@ const PlaylistDetailViewInner = ({
           void playAllSongs(true)
         }}
         onActionPress={imprt.handleOpenImportDrawer}
+        onDedupe={canSelect ? () => { setDedupeSongs(JSON.parse(JSON.stringify(detailData.detailSongsRef.current)) as LX.Music.MusicInfo[]) } : undefined}
         onToggleSelect={handleToggleSelectMode}
       />
     )
@@ -525,7 +530,7 @@ const PlaylistDetailViewInner = ({
     detailData.detailHeroCover, detailData.detailHeroMetaText, detailData.detailHeroName,
     detailData.canRenameSelectedList, detailData.selectedOnlineOrLeaderboard,
     detailData.selectedListId, detailData.detailLoading, detailData.detailSongs.length,
-    playlistEyebrow, canSelect,
+    playlistEyebrow, canSelect, detailData.detailSongsRef,
     handleCloseDetail, handleShowPlaylistTransferModal, handleShowRemoveListModal,
     handleShowRenameListModal, imprt.handleOpenImportDrawer, handleToggleSelectMode,
     handleCancelSelect, handleSelectAll, handleSelectModeChange, playAllSongs,
@@ -645,6 +650,10 @@ const PlaylistDetailViewInner = ({
             />
           </View>
           )
+        : null}
+      {detailData.selectedListId && dedupeSongs
+        ? <PlaylistDedupeSheet listId={detailData.selectedListId} songs={dedupeSongs}
+            onClose={() => { setDedupeSongs(null) }} onChanged={detailData.loadLocalDetailSongs} />
         : null}
       {detailData.selectedListId
         ? <PlaylistImportPanel

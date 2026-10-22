@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useRef, useState } from 'react'
 import { View } from 'react-native'
 
 import Image from '@/components/common/Image'
@@ -7,6 +8,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import {
   IconButton,
+  MagMenu,
   MagTopBar,
   PrimaryButton,
   SecondaryButton,
@@ -40,6 +42,7 @@ interface PlaylistDetailHeaderProps {
   onPrimaryPress?: () => void
   onSecondaryPress?: () => void
   onActionPress?: () => void
+  onDedupe?: () => void
   onToggleSelect?: () => void
 }
 
@@ -64,7 +67,11 @@ export default ({
   onSecondaryPress,
   onActionPress,
   onToggleSelect,
+  onDedupe,
 }: PlaylistDetailHeaderProps) => {
+  const moreRef = useRef<View>(null)
+  const [menuVisible, setMenuVisible] = useState(false)
+  const [anchor, setAnchor] = useState({ top: 0, left: 0 })
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -104,10 +111,24 @@ export default ({
                 </>
                 )
               : null}
+            {onDedupe
+              ? <View ref={moreRef} collapsable={false}>
+                  <IconButton name="dots-vertical" size={22} accessibilityLabel={t('more_actions')} onPress={() => {
+                    moreRef.current?.measureInWindow((x, y, width, height) => {
+                      setAnchor({ top: y + height + 4, left: Math.max(22, x + width - 180) })
+                      setMenuVisible(true)
+                    })
+                  }} />
+                </View>
+              : null}
           </View>
         }
       />
 
+      <MagMenu visible={menuVisible} onClose={() => { setMenuVisible(false) }} anchor={anchor}
+        items={[{ id: 'dedupe', label: t('playlist_dedupe') }]}
+        onChange={() => { setMenuVisible(false); onDedupe?.() }}
+      />
       <View style={styles.hero}>
         <View style={[styles.cover, { backgroundColor: r.placeholder }]}>
           {cover

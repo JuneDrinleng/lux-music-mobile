@@ -1544,5 +1544,14 @@
   "radio_added": "電台補充",
   "radio_dislike": "不喜歡",
   "radio_dislike_song": "不喜歡 {name}",
-  "radio_queue_hint": "— 播到最後 3 首會繼續補充 —"
+  "radio_queue_hint": "— 播到最後 3 首會繼續補充 —",
+  "playlist_dedupe": "去重",
+  "playlist_dedupe_empty": "沒有重複歌曲",
+  "playlist_dedupe_rule": "預設保留第一首，僅精確比對",
+  "playlist_dedupe_group": "第 {num} 首 · 重複群組",
+  "playlist_dedupe_keep": "保留",
+  "playlist_dedupe_confirm": "確認移除 {num} 首",
+  "playlist_dedupe_remove_song": "移除重複歌曲：{name}",
+  "playlist_dedupe_changed": "歌單已變更，請重新核對",
+  "playlist_dedupe_failed": "移除失敗，請重試"
 }
