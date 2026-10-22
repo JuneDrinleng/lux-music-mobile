@@ -24,6 +24,10 @@ public final class SessionEqualizer implements AnalyticsListener {
     private boolean enabled;
     private double[] gains = new double[10];
 
+    private final GainCoordinator coordinator;
+
+    public SessionEqualizer(GainCoordinator coordinator) { this.coordinator = coordinator; }
+
     public void attach(ExoPlayer next) {
         detach();
         player = next;
@@ -75,10 +79,17 @@ public final class SessionEqualizer implements AnalyticsListener {
     public void set(Context context, boolean nextEnabled, double[] nextGains) {
         try {
             ensureBound(context);
+            coordinator.setEqualizer(nextEnabled, nextGains);
             apply(nextEnabled, nextGains);
             enabled = nextEnabled;
             gains = nextGains.clone();
         } catch (RuntimeException error) {
+            // Restore the headroom budget as well as the previously accepted device EQ.
+            try {
+                coordinator.setEqualizer(enabled, gains);
+            } catch (RuntimeException restoreError) {
+                Log.w(Utils.LOG, "Equalizer headroom restoration failed", restoreError);
+            }
             // Do not retain failed changes. Restore the last accepted config where possible.
             releaseEffect();
             reapply();

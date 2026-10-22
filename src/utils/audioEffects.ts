@@ -75,3 +75,19 @@ export const commitAudioEffect = async(effect: AudioEffect, settings: AudioEffec
 export const restoreEqualizer = async(settings: Partial<AudioEffectSettings>, bridge?: AudioEffectsBridge | null): Promise<boolean> => {
   return commitAudioEffect('equalizer', normalizeAudioEffects(settings), bridge, () => {}).catch(() => false)
 }
+
+/** Mirror of Android GainCoordinator for composition tests. Fixed gain, no track analysis.
+ * Protection reserves a 7 dB combined boost budget; EQ alone is never attenuated.
+ */
+export const composeAudioGain = (settings: Partial<AudioEffectSettings>, volume = 1, multiplier = 1, fade = 1) => {
+  const safe = normalizeAudioEffects(settings)
+  const eq = safe['player.audio.equalizer.enabled'] ? Math.max(0, ...JSON.parse(safe['player.audio.equalizer.gains']) as number[]) : 0
+  const requested = safe['player.audio.loudness.target'] + 18
+  const gain = safe['player.audio.loudness.enabled'] ? safe['player.audio.loudness.preventClipping'] ? Math.min(requested, Math.max(0, 7 - eq)) : requested : 0
+  const clamp = (value: number) => Number.isNaN(value) ? 0 : Math.max(0, Math.min(1, value))
+  return { playerVolume: clamp(volume) * clamp(multiplier) * clamp(fade), loudnessMillibels: Math.round(gain * 100) }
+}
+
+export const restoreLoudness = async(settings: Partial<AudioEffectSettings>, bridge?: AudioEffectsBridge | null): Promise<boolean> => {
+  return commitAudioEffect('loudness', normalizeAudioEffects(settings), bridge, () => {}).catch(() => false)
+}

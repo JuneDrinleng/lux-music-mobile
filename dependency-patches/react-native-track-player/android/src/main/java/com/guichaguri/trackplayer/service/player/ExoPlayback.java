@@ -59,7 +59,6 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     protected int lastKnownWindow = C.INDEX_UNSET;
     protected long lastKnownPosition = C.INDEX_UNSET;
     protected int previousState = PlaybackStateCompat.STATE_NONE;
-    protected float volumeMultiplier = 1.0F;
     protected boolean autoUpdateMetadata;
     private final MusicService fadeService;
 
@@ -97,12 +96,19 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
         if (fadeService != null) fadeService.restoreFadeVolume();
     }
 
+    protected final GainCoordinator gains;
+
     public void setSleepTimerVolume(float volume) {
-        setPlayerVolume(volume * volumeMultiplier);
+        setPlayerVolume(gains.setVolume(volume));
+    }
+
+    public void setSleepTimerGain(float gain) {
+        setPlayerVolume(gains.setFade(gain));
     }
 
     public ExoPlayback(Context context, MusicManager manager, T player, boolean autoUpdateMetadata) {
         this.context = context;
+        this.gains = context instanceof MusicService ? ((MusicService) context).gains : new GainCoordinator();
         this.fadeService = context instanceof MusicService ? (MusicService) context : null;
         this.manager = manager;
         this.player = player;
@@ -267,7 +273,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     }
 
     public float getVolume() {
-        return getPlayerVolume() / volumeMultiplier;
+        return gains.getVolume();
     }
 
     public void setVolume(float volume) {
@@ -276,8 +282,7 @@ public abstract class ExoPlayback<T extends Player> implements Player.Listener, 
     }
 
     public void setVolumeMultiplier(float multiplier) {
-        setPlayerVolume(getVolume() * multiplier);
-        this.volumeMultiplier = multiplier;
+        setPlayerVolume(gains.setMultiplier(multiplier));
     }
 
     public abstract float getPlayerVolume();
