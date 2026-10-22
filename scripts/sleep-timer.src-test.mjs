@@ -20,7 +20,7 @@ const options = load('src/core/player/sleepTimerOptions.ts')
 const math = load('src/plugins/player/volumeFade.ts')
 const flush = async() => { for (let i = 0; i < 40; i++) await Promise.resolve() }
 
-const fixture = async(wait = false) => {
+const fixture = async(wait = false, nativeSupported = false) => {
   let now = 0
   let deadline
   let tick
@@ -33,7 +33,18 @@ const fixture = async(wait = false) => {
   const lx = { isPlayedStop: false }
   const player = { isPlay: true, playRate: 1 }
   const setting = { 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
+  const nativeCalls = []
   const native = {
+    isNativeFadeOutSupported: nativeSupported,
+    startNativeFadeOut: async(durationMs, endAtMs, finishSong, requestId) => {
+      nativeCalls.push({ durationMs, endAtMs, finishSong, requestId })
+      // Stand-in for the service's restore-before-restart contract.
+      await volume.restore()
+    },
+    cancelNativeFadeOut: async() => {
+      events.push('native-cancel')
+      await volume.restore()
+    },
     setSleepTimerGain: volume.setGain,
     restoreSleepTimerVolume: async() => { events.push('restore'); await volume.restore() },
     setPause: async() => { events.push('pause') },
@@ -57,9 +68,10 @@ const fixture = async(wait = false) => {
       case './sleepTimerOptions': return options
       default: throw new Error(name)
     }
-  }, { global: { lx }, performance: { now: () => now } })
+  }, { global: { lx }, performance: { now: () => now }, Date: { now: () => now } })
   return {
     timer,
+    nativeCalls,
     volume,
     native,
     output,
@@ -249,6 +261,124 @@ test('all fade duration choices drive the ramp; invalid persisted durations fall
     f.timer.cancelTimeoutExit()
     await flush()
   }
+})
+
+test('native capability arms the whole countdown immediately and avoids JS gain writes', async() => {
+  const f = await fixture(false, true)
+  f.timer.startTimeoutExit(60)
+  await flush()
+  assert.deepEqual(f.nativeCalls, [{ durationMs: 10000, endAtMs: 60000, finishSong: false, requestId: '1:60000:10000:false' }])
+  await f.advance(55)
+  assert.ok(f.output.every(value => value === 0.8))
+  assert.equal(f.nativeCalls.length, 1)
+  await f.expire()
+  assert.deepEqual(f.events, ['pause', 'native-cancel'])
+})
+
+test('native cancel restores, restart replaces the deadline, and stale completion is ignored', async() => {
+  const f = await fixture(false, true)
+  f.timer.startTimeoutExit(60)
+  await f.volume.setGain(0.5)
+  f.timer.cancelTimeoutExit()
+  await flush()
+  assert.equal(f.output.at(-1), 0.8)
+  f.timer.startTimeoutExit(60)
+  await f.advance(55)
+  await f.volume.setGain(0.5)
+  f.timer.startTimeoutExit(120)
+  await flush()
+  assert.equal(f.output.at(-1), 0.8)
+  assert.deepEqual(f.nativeCalls.at(-1), { durationMs: 10000, endAtMs: 175000, finishSong: false, requestId: '4:175000:10000:false' })
+  f.timer.onNativeFadeEnded('1:60000:10000:false')
+  await flush()
+  assert.equal(f.events.includes('pause'), false)
+  f.timer.onNativeFadeEnded(f.nativeCalls.at(-1).requestId)
+  await flush()
+  assert.equal(f.events.includes('pause'), true)
+})
+
+test('native finish-song mode is armed before expiry; settings changes replace or cancel the envelope', async() => {
+  const f = await fixture(true, true)
+  f.timer.startTimeoutExit(60)
+  await flush()
+  assert.equal(f.nativeCalls[0].finishSong, true)
+  await f.expire()
+  assert.equal(f.lx.isPlayedStop, true)
+  assert.equal(f.nativeCalls.length, 1)
+  f.setting['player.timeoutExitFadeDuration'] = 30
+  await f.advance(61)
+  assert.equal(f.nativeCalls.at(-1).durationMs, 30000)
+  f.setting['player.timeoutExitFade'] = false
+  await f.advance(62)
+  assert.ok(f.events.includes('native-cancel'))
+  f.timer.cancelTimeoutExit()
+})
+
+test('failed native scheduling cancels native work and uses the existing JS ramp', async() => {
+  const f = await fixture(false, true)
+  f.native.startNativeFadeOut = async() => { throw new Error('unavailable service') }
+  f.timer.startTimeoutExit(60)
+  await flush()
+  await f.advance(55)
+  assert.equal(f.output.at(-1), 0.4)
+  f.timer.cancelTimeoutExit()
+  await flush()
+  assert.equal(f.output.at(-1), 0.8)
+})
+
+test('native bridge requires both methods and the capability, and forwards deadline/mode/request identity', async() => {
+  for (const variant of ['supported', 'no-capability', 'no-start', 'no-cancel', 'no-module']) {
+    const calls = []
+    const module = {
+      CAPABILITY_NATIVE_FADE_OUT: variant !== 'no-capability',
+      startFadeOut: async(...args) => { calls.push(args) },
+      cancelFadeOut: async() => { calls.push('cancel') },
+    }
+    if (variant === 'no-start') delete module.startFadeOut
+    if (variant === 'no-cancel') delete module.cancelFadeOut
+    const deps = {
+      'react-native': { NativeModules: { TrackPlayerModule: variant === 'no-module' ? undefined : module } },
+      'react-native-track-player': { __esModule: true, default: {}, Capability: {} },
+      './volumeFade': math,
+    }
+    const utils = load('src/plugins/player/utils.ts', name => deps[name] ?? {})
+    assert.equal(utils.isNativeFadeOutSupported, variant === 'supported')
+    await utils.startNativeFadeOut(30000, 90000, true, 'request-1')
+    await utils.cancelNativeFadeOut()
+    assert.deepEqual(calls, variant === 'supported' ? [[30000, 90000, true, 'request-1'], 'cancel'] : [])
+  }
+})
+
+test('late failure from a replaced native request cannot cancel the new countdown', async() => {
+  const f = await fixture(false, true)
+  let reject
+  const start = f.native.startNativeFadeOut
+  f.native.startNativeFadeOut = () => new Promise((resolve, _reject) => { reject = _reject })
+  f.timer.startTimeoutExit(60)
+  f.native.startNativeFadeOut = start
+  f.timer.startTimeoutExit(120)
+  await flush()
+  const events = [...f.events]
+  reject(new Error('old request failed'))
+  await flush()
+  assert.deepEqual(f.events, events)
+  await f.advance(115)
+  assert.ok(f.output.every(value => value === 0.8))
+  assert.equal(f.nativeCalls.length, 1)
+  f.timer.cancelTimeoutExit()
+})
+
+test('same-deadline restart rejects a previous native completion identity', async() => {
+  const f = await fixture(false, true)
+  f.timer.startTimeoutExit(60)
+  const previous = f.nativeCalls.at(-1).requestId
+  f.timer.startTimeoutExit(60)
+  await flush()
+  assert.notEqual(previous, f.nativeCalls.at(-1).requestId)
+  f.timer.onNativeFadeEnded(previous)
+  await flush()
+  assert.equal(f.events.includes('pause'), false)
+  f.timer.cancelTimeoutExit()
 })
 
 const zh = JSON.parse(readFileSync(join(root, 'src/lang/zh-cn.json'), 'utf8'))

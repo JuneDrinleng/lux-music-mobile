@@ -4,10 +4,10 @@
 import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-track-player'
 // import { store } from '@/store'
 // import { action as playerAction, STATUS } from '@/store/modules/player'
-import { isTempId, isEmpty, isNotificationLikeSupported, isNotificationSleepTimerSupported } from './utils'
+import { isTempId, isEmpty, isNotificationLikeSupported, isNotificationSleepTimerSupported, isNativeFadeOutSupported } from './utils'
 // import { play as lrcPlay, pause as lrcPause } from '@/core/lyric'
 import { exitApp } from '@/core/common'
-import { cycleNotificationSleepTimer, finishTimeoutExit } from '@/core/player/timeoutExit'
+import { cycleNotificationSleepTimer, finishTimeoutExit, onNativeFadeEnded } from '@/core/player/timeoutExit'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
 import { blockTogetherMemberControl } from '@/core/together/control'
@@ -34,6 +34,9 @@ const registerPlaybackService = async() => {
   if (isInitialized) return
 
   console.log('reg services...')
+  if (isNativeFadeOutSupported) {
+    TrackPlayer.addEventListener('sleep-timer-ended' as TPEvent, (event: { requestId: string }) => { onNativeFadeEnded(event.requestId) })
+  }
   TrackPlayer.addEventListener(TPEvent.RemotePlay, () => {
     // console.log('remote-play')
     play()

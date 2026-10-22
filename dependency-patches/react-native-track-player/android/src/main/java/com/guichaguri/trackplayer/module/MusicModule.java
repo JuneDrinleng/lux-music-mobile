@@ -154,6 +154,7 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
         constants.put("CAPABILITY_SET_RATING", PlaybackStateCompat.ACTION_SET_RATING);
         constants.put("CAPABILITY_LIKE", Utils.CAPABILITY_LIKE);
         constants.put("CAPABILITY_SLEEP_TIMER", Utils.CAPABILITY_SLEEP_TIMER);
+        constants.put("CAPABILITY_NATIVE_FADE_OUT", true);
         constants.put("CAPABILITY_JUMP_FORWARD", PlaybackStateCompat.ACTION_FAST_FORWARD);
         constants.put("CAPABILITY_JUMP_BACKWARD", PlaybackStateCompat.ACTION_REWIND);
 
@@ -442,6 +443,28 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
         waitForConnection(() -> {
             long secondsToSkip = Utils.toMillis(seconds);
             binder.getPlayback().seekTo(secondsToSkip);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void startFadeOut(final double durationMs, final double endAtMs,
+                             final boolean finishSong, final String requestId, final Promise callback) {
+        if (Double.isNaN(durationMs) || Double.isInfinite(durationMs) || durationMs <= 0
+                || Double.isNaN(endAtMs) || Double.isInfinite(endAtMs)) {
+            callback.reject("invalid_fade", "Fade duration and deadline must be finite");
+            return;
+        }
+        waitForConnection(() -> {
+            binder.getPlayback().startFadeOut((long) durationMs, (long) endAtMs, finishSong, requestId);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void cancelFadeOut(final Promise callback) {
+        waitForConnection(() -> {
+            binder.getPlayback().cancelFadeOut();
             callback.resolve(null);
         });
     }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import BackgroundTimer from 'react-native-background-timer'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
-import { getDuration, getPosition, restoreSleepTimerVolume, setPause, setSleepTimerGain } from '@/plugins/player/utils'
+import { cancelNativeFadeOut, getDuration, getPosition, isNativeFadeOutSupported, restoreSleepTimerVolume, setPause, setSleepTimerGain, startNativeFadeOut } from '@/plugins/player/utils'
 import { fadeGain, songRemainingSeconds } from '@/plugins/player/volumeFade'
 
 import { sleepTimerFadeSeconds, SLEEP_TIMER_MINUTES } from './sleepTimerOptions'
@@ -12,6 +12,42 @@ type Hook = (time: number, isPlayedStop: boolean) => void
 let generation = 0
 let ticking = false
 let faded = false
+let nativeKey = ''
+let nativeFailed = false
+let deadlineAt = 0
+
+const cancelNativeFade = async() => {
+  if (!nativeKey) return
+  nativeKey = ''
+  await cancelNativeFadeOut()
+}
+
+const syncNativeFade = async() => {
+  const current = generation
+  if (!isNativeFadeOutSupported || nativeFailed) return false
+  if (!settingState.setting['player.timeoutExitFade']) {
+    await cancelNativeFade()
+    return false
+  }
+  const duration = sleepTimerFadeSeconds(settingState.setting['player.timeoutExitFadeDuration']) * 1000
+  const finishSong = settingState.setting['player.timeoutExitPlayed']
+  const key = `${generation}:${deadlineAt}:${duration}:${finishSong}`
+  if (nativeKey !== key) {
+    nativeKey = key
+    try {
+      await startNativeFadeOut(duration, deadlineAt, finishSong, key)
+    } catch (err) {
+      if (current !== generation) return true
+      console.log('Native sleep timer unavailable, using JS fade', err)
+      // The generation check above prevents a replaced request from changing this session.
+      // eslint-disable-next-line require-atomic-updates
+      nativeFailed = true
+      await cancelNativeFade().catch(console.log)
+      return false
+    }
+  }
+  return true
+}
 
 const restoreVolume = async() => {
   if (!faded) return
@@ -51,6 +87,11 @@ const timeoutTools = {
         await restoreVolume()
         return
       }
+      if (await syncNativeFade()) {
+        this.callHooks()
+        return
+      }
+      if (current !== generation) return
       let remaining = Infinity
       if (settingState.setting['player.timeoutExitFade'] && playerState.isPlay) {
         if (global.lx.isPlayedStop) {
@@ -81,8 +122,11 @@ const timeoutTools = {
   start(time: number) {
     this.clearTimeout()
     global.lx.isPlayedStop = false
+    void cancelNativeFade().catch(console.log)
+    nativeFailed = false
     void restoreVolume().catch(console.log)
     this.time = time
+    deadlineAt = Date.now() + time * 1000
     this.startTime = performance.now()
     this.bgTimeout = BackgroundTimer.setTimeout(() => {
       this.bgTimeout = null
@@ -93,6 +137,7 @@ const timeoutTools = {
         void this.tick()
       } else void finishTimeoutExit()
     }, time * 1000)
+    void syncNativeFade().catch(console.log)
     this.timeout = BackgroundTimer.setInterval(() => { void this.tick() }, 250)
     this.callHooks()
   },
@@ -117,9 +162,15 @@ export const finishTimeoutExit = async() => {
     console.log('Sleep timer pause failed', err)
   }
   if (current !== generation) return
+  await cancelNativeFade().catch(console.log)
   await restoreVolume().catch(console.log)
 }
 
+
+// Ignore completion events queued by a cancelled/replaced native countdown.
+export const onNativeFadeEnded = (requestId: string) => {
+  if (nativeKey && requestId === nativeKey) void finishTimeoutExit()
+}
 
 export const startTimeoutExit = (time: number) => {
   timeoutTools.start(time)
@@ -127,6 +178,7 @@ export const startTimeoutExit = (time: number) => {
 export const stopTimeoutExit = () => {
   global.lx.isPlayedStop = false
   timeoutTools.clearTimeout()
+  void cancelNativeFade().catch(console.log)
   void restoreVolume().catch(console.log)
 }
 
