@@ -96,7 +96,7 @@ public final class SessionEqualizer implements AnalyticsListener {
         short[] range = effect.getBandLevelRange();
         if (range.length < 2 || range[0] > range[1]) throw new IllegalStateException("Invalid equalizer level range");
         for (short band = 0; band < count; band++) {
-            check(effect.setBandLevel(band, mapLevel(band, centers, values, range[0], range[1])));
+            effect.setBandLevel(band, mapLevel(band, centers, values, range[0], range[1]));
         }
         check(effect.setEnabled(active));
     }
