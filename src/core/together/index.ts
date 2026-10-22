@@ -14,7 +14,7 @@ import { getSession, isCurrentSession, subscribeSession } from '@/plugins/sync/c
 import { createRoomRevision } from './roomRevision'
 import togetherActions from '@/store/together/action'
 import togetherState from '@/store/together/state'
-import { getSyncMode } from '@/utils/data'
+import { getLuxAuth, getSyncMode } from '@/utils/data'
 import { log } from '@/utils/log'
 import { toast } from '@/utils/tools'
 
@@ -295,18 +295,24 @@ export const createTogetherRoom = async(): Promise<TogetherActionResult> => with
   return { ok: true }
 })
 
-export const joinTogetherRoom = async(input: string): Promise<TogetherActionResult> => {
+export const joinTogetherRoom = async(input: string, expectedServerId?: string, expectedRoomId?: string): Promise<TogetherActionResult> => {
   const code = normalizeInviteCode(input)
   if (!isValidInviteCode(code)) return { ok: false, message: t('together_code_invalid') }
   return withPending(async() => {
     const blocked = await ensureOnline()
     if (blocked) return { ok: false, message: blocked }
     const revision = roomRevision.capture()
+    if (expectedServerId && (await getLuxAuth())?.serverId !== expectedServerId) return { ok: false, message: t('together_offline') }
     const result = await callTogether('together:joinRoom', { code })
     if (revision != roomRevision.capture()) return { ok: false, message: '' }
     if (!result.ok) {
       if (result.code == 'ALREADY_IN_ROOM') await refreshRoom()
       return { ok: false, message: errorMessage(result.code, result.message) }
+    }
+    if (expectedRoomId && result.data.roomId !== expectedRoomId) {
+      // A recycled six-digit code must never start playback in a different room.
+      await callTogether('together:leaveRoom', { roomId: result.data.roomId })
+      return { ok: false, message: t('together_error_room_not_found') }
     }
     applySnapshot(result.data)
     return { ok: true }

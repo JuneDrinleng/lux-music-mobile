@@ -209,7 +209,7 @@ const coreHarness = () => {
     '@/plugins/sync/client/togetherReady': { isTogetherSyncReady: h.session.isSessionTogetherReady },
     '@/plugins/sync/togetherFlag': { isTogetherFeatureEnabled: h.session.isSessionTogetherNegotiated },
     '@/store/together/action': { default: actions },
-    '@/utils/data': { getSyncMode: async() => 'lux' },
+    '@/utils/data': { getSyncMode: async() => 'lux', getLuxAuth: async() => ({ serverId: 'server-a' }) },
     '@/utils/tools': { toast: noop },
     './roomRevision': load('src/core/together/roomRevision.ts'),
     './clock': { startClockSync: noop, stopClockSync: noop },
@@ -380,4 +380,20 @@ test('stale retry callback cannot erase the replacement retry timer reference', 
   await h.client.disconnect()
   assert.equal(h.timers.has(nextId), false)
   assert.equal(h.client.getStatus().retryAt, undefined)
+})
+
+
+test('clipboard joins check authenticated server and reject recycled room codes before applying playback', async() => {
+  const h = coreHarness()
+  const calls = []
+  h.setRpc(async(method, payload) => {
+    calls.push([method, payload])
+    return { ok: true, data: method === 'together:joinRoom' ? room() : null }
+  })
+  assert.equal((await h.core.joinTogetherRoom('123456', 'other-server', 'room')).ok, false)
+  assert.equal(calls.length, 0)
+  assert.equal((await h.core.joinTogetherRoom('123456', 'server-a', 'old-room')).ok, false)
+  assert.deepEqual(calls.map(([method]) => method), ['together:joinRoom', 'together:leaveRoom'])
+  assert.equal(h.state.room, null)
+  assert.equal(h.played.length, 0)
 })
