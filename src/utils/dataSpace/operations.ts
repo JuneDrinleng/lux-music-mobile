@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { NativeModules } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LIST_IDS, storageDataPrefix as keys } from '@/config/constant'
 import { getData, saveData } from '@/plugins/storage'
@@ -55,6 +56,8 @@ const spacePhysicalKeys = async(space: SpaceId): Promise<string[]> => {
 
 export const deleteSpaceData = async(space: SpaceId): Promise<void> => {
   if (space === 'local' || space === getActiveSpace()) throw new Error('Cannot delete active or local space')
+  const downloads = NativeModules.DownloadModule as { removeSpace?: (space: string) => Promise<void> } | undefined
+  await downloads?.removeSpace?.(space)
   await AsyncStorage.multiRemove(await spacePhysicalKeys(space))
   const directory = avatarDirectory(space)
   if (await existsFile(directory)) await unlink(directory)

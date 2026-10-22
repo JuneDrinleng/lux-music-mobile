@@ -1,3 +1,4 @@
+import { initDownloads } from '@/core/download'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { migrateStoredLuxCredentials } from '@/utils/data'
@@ -99,6 +100,7 @@ export default async() => {
 
   setApiSource(setting['common.apiSource'])
   bootLog('Api inited.')
+  await initDownloads().catch(error => { bootLog(`Download init failed: ${String(error)}`) })
 
   registerPlaybackService()
   bootLog('Playback Service Registered.')

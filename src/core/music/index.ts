@@ -1,3 +1,4 @@
+import { getDownloadedMusicPath } from '@/core/download'
 // if (targetSong.key) { // 如果是已下载的歌曲
 //   const filePath = path.join(appSetting['download.savePath'], targetSong.metadata.fileName)
 //   // console.log(filePath)
@@ -37,6 +38,8 @@ export const getMusicUrl = async({
   } else if (musicInfo.source == 'local') {
     return getLocalMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else {
+    const offline = await getDownloadedMusicPath(musicInfo, quality)
+    if (offline) return offline
     return getOnlineMusicUrl({ musicInfo, isRefresh, quality, onToggleSource, allowToggleSource })
   }
 }

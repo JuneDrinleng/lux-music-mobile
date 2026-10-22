@@ -768,6 +768,7 @@ test('401 refresh reads the actual secure backend and persists rotation without 
 
 // 5.7: exercise the production storage adapter, import gate, auth and connection order.
 const operationsFor = env => evaluate('src/utils/dataSpace/operations.ts', {
+  'react-native': { NativeModules: { DownloadModule: { removeSpace: async space => { (env.deletedDownloadSpaces ??= []).push(space) } } } },
   '@react-native-async-storage/async-storage': env.storage,
   '@/config/constant': evaluate('src/config/constant.ts', {}),
   '@/plugins/storage': env.adapter,
@@ -1285,4 +1286,18 @@ test('smart playlist rules migrate intact and real delete scope removes only the
   assert.equal(env.disk.get(`${keys.smartPlaylistRules}@local`), before.get(`${keys.smartPlaylistRules}@local`))
   assert.equal(env.disk.get(keys.smartPlaylistRules), before.get(keys.smartPlaylistRules))
   assert.deepEqual(await env.adapter.getData(keys.smartPlaylistRules), fixture)
+})
+
+
+test('delete-local scope also removes the selected native downloads, preserving active and local spaces', async() => {
+  const env = make()
+  await env.space.initializeDataSpaces()
+  await env.space.setActiveSpace('lux:s:a')
+  await env.space.setActiveSpace('lux:s:b')
+  const operations = operationsFor(env)
+  await operations.deleteSpaceData('lux:s:a')
+  assert.deepEqual(env.deletedDownloadSpaces, ['lux:s:a'])
+  await assert.rejects(operations.deleteSpaceData('lux:s:b'), /Cannot delete/)
+  await assert.rejects(operations.deleteSpaceData('local'), /Cannot delete/)
+  assert.deepEqual(env.deletedDownloadSpaces, ['lux:s:a'])
 })

@@ -24,3 +24,6 @@
   **[] $VALUES;
   public *;
 }
+
+# WorkManager restores this Java worker by class name after process death / reboot.
+-keep class cn.lux.music.mobile.download.DownloadWorker { public <init>(android.content.Context, androidx.work.WorkerParameters); }

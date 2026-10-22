@@ -1810,5 +1810,7 @@
   "audio_effects_preset_rock": "Rock",
   "audio_effects_preset_vocal": "Vocal",
   "audio_effects_preset_bass": "Bass boost",
-  "audio_effects_preset_classical": "Classical"
+  "audio_effects_preset_classical": "Classical",
+  "download_notification_channel": "Downloads",
+  "download_notification_active": "Downloading music"
 }
