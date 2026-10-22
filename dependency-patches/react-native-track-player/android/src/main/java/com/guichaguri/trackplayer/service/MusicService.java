@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 public class MusicService extends HeadlessJsTaskService {
 
     public final com.guichaguri.trackplayer.service.player.NoiseMixer noiseMixer = new com.guichaguri.trackplayer.service.player.NoiseMixer();
-    public final com.guichaguri.trackplayer.service.player.SessionEqualizer equalizer = new com.guichaguri.trackplayer.service.player.SessionEqualizer();
+    public final com.guichaguri.trackplayer.service.player.GainCoordinator gains = new com.guichaguri.trackplayer.service.player.GainCoordinator();
+    public final com.guichaguri.trackplayer.service.player.SessionEqualizer equalizer = new com.guichaguri.trackplayer.service.player.SessionEqualizer(gains);
+    public final com.guichaguri.trackplayer.service.player.SessionLoudness loudness = new com.guichaguri.trackplayer.service.player.SessionLoudness(gains);
     public boolean stopNoiseWithTimer = true;
     MusicManager manager;
     Handler handler;
@@ -45,7 +47,6 @@ public class MusicService extends HeadlessJsTaskService {
     private String fadeRequestId;
     private boolean fadeScheduled;
     private boolean fadeApplied;
-    private float fadeOriginalVolume;
 
     private final Runnable fadeTick = new Runnable() {
         @Override
@@ -67,10 +68,9 @@ public class MusicService extends HeadlessJsTaskService {
             }
             if ((!fadeFinishSong || fadeWaitingForSong) && remaining < fadeDuration) {
                 if (!fadeApplied) {
-                    fadeOriginalVolume = fadePlayback.getVolume();
                     fadeApplied = true;
                 }
-                fadePlayback.setSleepTimerVolume((float) (fadeOriginalVolume * remaining / fadeDuration));
+                fadePlayback.setSleepTimerGain((float) (remaining / fadeDuration));
                 if (stopNoiseWithTimer) noiseMixer.setTimerGain((float) (remaining / fadeDuration));
             } else {
                 restoreFadeVolume();
@@ -115,7 +115,7 @@ public class MusicService extends HeadlessJsTaskService {
         noiseMixer.setTimerGain(1);
         if (fadeApplied && fadePlayback != null) {
             fadeApplied = false;
-            fadePlayback.setSleepTimerVolume(fadeOriginalVolume);
+            fadePlayback.setSleepTimerGain(1);
         }
     }
 
@@ -155,6 +155,7 @@ public class MusicService extends HeadlessJsTaskService {
         fadePlayback = null;
         noiseMixer.release();
         equalizer.detach();
+        loudness.detach();
         if(handler != null) {
             handler.removeMessages(0);
             handler = null;

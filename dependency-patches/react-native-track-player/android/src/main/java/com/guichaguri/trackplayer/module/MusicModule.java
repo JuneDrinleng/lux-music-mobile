@@ -508,6 +508,36 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
     }
 
     @ReactMethod
+    public void setLoudnessNormalization(ReadableMap config, final Promise promise) {
+        final boolean enabled, preventClipping;
+        final int target;
+        try {
+            enabled = config.getBoolean("enabled");
+            preventClipping = config.getBoolean("preventClipping");
+            double value = config.getDouble("target");
+            if (value != -18 && value != -14 && value != -11) {
+                throw new IllegalArgumentException("Expected -18, -14 or -11 LUFS target");
+            }
+            target = (int) value;
+        } catch (RuntimeException error) {
+            promise.reject("invalid_loudness", error);
+            return;
+        }
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) {
+                    throw new IllegalStateException("Loudness requires local playback");
+                }
+                ((LocalPlayback) playback).setLoudnessNormalization(enabled, target, preventClipping);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("loudness_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
     public void setNoise(final String id, final boolean enabled, final double volume, final Promise callback) {
         if (com.guichaguri.trackplayer.service.player.NoiseMixer.index(id) < 0
                 || Double.isNaN(volume) || Double.isInfinite(volume)) {

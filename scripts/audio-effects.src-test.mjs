@@ -124,23 +124,27 @@ test('approved audio surfaces retain all controls, localized unsupported reasons
   assert.equal(languages[0].audio_effects_unsupported, '不支持')
 })
 
-test('equalizer native module capability enables only EQ and a creation failure never persists', async() => {
+test('equalizer-only bridge capability enables only EQ and a creation failure never persists', async() => {
   const bridge = { setEqualizer: async() => { throw Error('Device has no Equalizer') } }
   assert.deepEqual(api.audioEffectCapabilities(bridge), { equalizer: true, loudness: false, gapless: false })
   await assert.rejects(api.commitAudioEffect('equalizer', { ...defaults, 'player.audio.equalizer.enabled': true }, bridge, () => assert.fail('Failed EQ must not persist')), /Device has no Equalizer/)
   const native = read('dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/module/MusicModule.java')
   assert.match(native, /@ReactMethod\s+public void setEqualizer\(ReadableMap config, final Promise promise\)/)
-  assert.doesNotMatch(native, /void setLoudnessNormalization|void setGaplessPlayback/)
+  assert.doesNotMatch(native, /void setGaplessPlayback/)
 })
 
-test('player startup restores saved EQ only after setup and tolerates missing or failing devices', async() => {
+test('player startup restores saved EQ and loudness only after setup and tolerates missing or failing devices', async() => {
   const originalGlobal = global.lx
   try {
     for (const mode of ['supported', 'missing', 'failing']) {
       const events = []
-      const saved = { ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock) }
+      const saved = { ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock), 'player.audio.loudness.enabled': true, 'player.audio.loudness.target': -11 }
       const before = structuredClone(saved)
       const bridge = mode === 'missing' ? {} : {
+        setLoudnessNormalization: async config => {
+          events.push(['loudness', config])
+          if (mode === 'failing') throw Error('Loudness creation failed')
+        },
         setEqualizer: async config => {
           events.push(['eq', config])
           if (mode === 'failing') throw Error('Equalizer creation failed')
@@ -161,6 +165,7 @@ test('player startup restores saved EQ only after setup and tolerates missing or
       const start = player.initial({ volume: 1, playRate: 1, cacheSize: 0, isHandleAudioFocus: true, isEnableAudioOffload: false })
       await new Promise(resolve => setImmediate(resolve))
       assert.equal(events.some(([name]) => name === 'eq'), false)
+      assert.equal(events.some(([name]) => name === 'loudness'), false)
       assert.equal(global.lx.playerStatus.isInitialized, false)
       completeSetup()
       await start
@@ -168,6 +173,8 @@ test('player startup restores saved EQ only after setup and tolerates missing or
       assert.equal(global.lx.playerStatus.isIniting, false)
       assert.deepEqual(saved, before)
       if (mode !== 'missing') {
+        assert.deepEqual(events.find(([name]) => name === 'loudness')[1], { enabled: true, target: -11, preventClipping: true })
+        assert.ok(events.findIndex(([name]) => name === 'eq') < events.findIndex(([name]) => name === 'loudness'))
         assert.deepEqual(events.find(([name]) => name === 'eq')[1], { enabled: true, preset: 'rock', gains: api.PRESET_GAINS.rock })
         assert.ok(events.findIndex(([name]) => name === 'ready') < events.findIndex(([name]) => name === 'eq'))
       }
@@ -177,4 +184,32 @@ test('player startup restores saved EQ only after setup and tolerates missing or
   } finally {
     global.lx = originalGlobal
   }
+})
+
+test('loudness native capability enables loudness and failures never persist', async() => {
+  const bridge = { setEqualizer: async() => {}, setLoudnessNormalization: async() => { throw Error('Loudness creation failed') } }
+  assert.deepEqual(api.audioEffectCapabilities(bridge), { equalizer: true, loudness: true, gapless: false })
+  await assert.rejects(api.commitAudioEffect('loudness', { ...defaults, 'player.audio.loudness.enabled': true }, bridge, () => assert.fail('Failed loudness must not persist')), /Loudness creation failed/)
+  const native = read('dependency-patches/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/module/MusicModule.java')
+  assert.match(native, /@ReactMethod\s+public void setLoudnessNormalization\(ReadableMap config, final Promise promise\)/)
+  assert.doesNotMatch(native, /void setGaplessPlayback/)
+})
+
+test('gain composition keeps targets, EQ headroom, ducking and sleep fade independent', () => {
+  const settings = { ...defaults, 'player.audio.loudness.enabled': true }
+  for (const [target, expected] of [[-18, 0], [-14, 400], [-11, 700]]) {
+    assert.deepEqual(api.composeAudioGain({ ...settings, 'player.audio.loudness.target': target }, 0.8, 0.5, 0.25), { playerVolume: 0.1, loudnessMillibels: expected })
+  }
+  const eq = { ...settings, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.gains': JSON.stringify([5, -12, 0, 0, 0, 0, 0, 0, 0, 0]) }
+  assert.equal(api.composeAudioGain(eq).loudnessMillibels, 200)
+  assert.equal(api.composeAudioGain({ ...eq, 'player.audio.equalizer.enabled': false }).loudnessMillibels, 400)
+  assert.equal(api.composeAudioGain({ ...eq, 'player.audio.loudness.preventClipping': false }).loudnessMillibels, 400)
+  assert.equal(api.composeAudioGain({ ...eq, 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.bass) }).loudnessMillibels, 0)
+  assert.equal(api.composeAudioGain({ ...eq, 'player.audio.loudness.enabled': false }).loudnessMillibels, 0)
+  assert.equal(api.composeAudioGain(eq, 0.8, 0, 0.25).playerVolume, 0)
+  assert.equal(api.composeAudioGain(eq, 0.8, 0.5, 0).playerVolume, 0)
+  assert.equal(api.composeAudioGain(eq, 0.8, 0.5, 1).playerVolume, 0.4)
+  // Updating effects during a fade leaves the envelope untouched; cancellation restores base * duck.
+  assert.equal(api.composeAudioGain(settings, 0.8, 0.5, 0.25).playerVolume, api.composeAudioGain(eq, 0.8, 0.5, 0.25).playerVolume)
+  assert.equal(api.composeAudioGain({ ...eq, 'player.audio.equalizer.gains': JSON.stringify(Array(10).fill(-6)) }).loudnessMillibels, 400)
 })

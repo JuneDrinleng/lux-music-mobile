@@ -51,12 +51,15 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     private DatabaseProvider databaseProvider;
     private boolean prepared = false;
     private final SessionEqualizer equalizer;
+    private final SessionLoudness loudness;
     public LocalPlayback(Context context, MusicManager manager, ExoPlayer player, long maxCacheSize,
                          boolean autoUpdateMetadata) {
         super(context, manager, player, autoUpdateMetadata);
         this.cacheMaxSize = maxCacheSize;
         this.equalizer = context instanceof MusicService
-            ? ((MusicService) context).equalizer : new SessionEqualizer();
+            ? ((MusicService) context).equalizer : new SessionEqualizer(gains);
+        this.loudness = context instanceof MusicService
+            ? ((MusicService) context).loudness : new SessionLoudness(gains);
     }
 
     @Override
@@ -69,6 +72,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
 
         super.initialize();
         equalizer.attach(player);
+        loudness.attach(player);
 
         resetQueue();
     }
@@ -204,6 +208,10 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
             }
         }
         promise.resolve(null);
+    }
+
+    public void setLoudnessNormalization(boolean enabled, int target, boolean preventClipping) {
+        loudness.set(context, enabled, target, preventClipping);
     }
 
     public void setEqualizer(boolean enabled, double[] gains) {
@@ -364,6 +372,7 @@ public class LocalPlayback extends ExoPlayback<ExoPlayer> {
     @Override
     public void destroy() {
         equalizer.detach();
+        loudness.detach();
         super.destroy();
 
         if(cache != null) {
