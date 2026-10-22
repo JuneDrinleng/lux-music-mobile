@@ -42,8 +42,12 @@ test('floating reactions are bounded, deduplicated and expire using local receip
 })
 
 test('closed, unsupported and departed room request sheets never mount', () => {
-  for (const open of [true, false]) for (const supported of [true, false]) for (const roomId of ['room', null]) {
-    assert.equal(ui.shouldMountRequestSheet(open, supported, roomId), Boolean(open && supported && roomId))
+  for (const open of [true, false]) {
+    for (const supported of [true, false]) {
+      for (const roomId of ['room', null]) {
+        assert.equal(ui.shouldMountRequestSheet(open, supported, roomId), Boolean(open && supported && roomId))
+      }
+    }
   }
 })
 
