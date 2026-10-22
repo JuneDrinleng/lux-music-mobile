@@ -29,6 +29,8 @@ import javax.annotation.Nullable;
 @UnstableApi
 public class MusicService extends HeadlessJsTaskService {
 
+    public final com.guichaguri.trackplayer.service.player.NoiseMixer noiseMixer = new com.guichaguri.trackplayer.service.player.NoiseMixer();
+    public boolean stopNoiseWithTimer = true;
     MusicManager manager;
     Handler handler;
 
@@ -62,12 +64,13 @@ public class MusicService extends HeadlessJsTaskService {
                 finishFadeOut();
                 return;
             }
-            if ((!fadeFinishSong || fadeWaitingForSong) && fadePlayback.isPlayRequested() && remaining < fadeDuration) {
+            if ((!fadeFinishSong || fadeWaitingForSong) && remaining < fadeDuration) {
                 if (!fadeApplied) {
                     fadeOriginalVolume = fadePlayback.getVolume();
                     fadeApplied = true;
                 }
                 fadePlayback.setSleepTimerVolume((float) (fadeOriginalVolume * remaining / fadeDuration));
+                if (stopNoiseWithTimer) noiseMixer.setTimerGain((float) (remaining / fadeDuration));
             } else {
                 restoreFadeVolume();
             }
@@ -90,6 +93,7 @@ public class MusicService extends HeadlessJsTaskService {
 
     private void finishFadeOut() {
         // Pause first: restoration must never produce a full-volume burst.
+        if (stopNoiseWithTimer) noiseMixer.stopAll();
         fadePlayback.pause();
         cancelFadeOut();
         Bundle data = new Bundle();
@@ -107,6 +111,7 @@ public class MusicService extends HeadlessJsTaskService {
 
     // Track changes, seeks and user volume changes restore the envelope before restarting it.
     public void restoreFadeVolume() {
+        noiseMixer.setTimerGain(1);
         if (fadeApplied && fadePlayback != null) {
             fadeApplied = false;
             fadePlayback.setSleepTimerVolume(fadeOriginalVolume);
@@ -147,6 +152,7 @@ public class MusicService extends HeadlessJsTaskService {
         if (fadeApplied && fadePlayback != null) fadePlayback.pause();
         cancelFadeOut();
         fadePlayback = null;
+        noiseMixer.release();
         if(handler != null) {
             handler.removeMessages(0);
             handler = null;

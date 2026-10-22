@@ -7,6 +7,7 @@ import Content from './Content'
 import { Dock, DockPlayerSlot, type DockNavItem } from '@/components/magazine'
 import Image from '@/components/common/Image'
 import PlayQueueSheet from './PlayQueueSheet'
+import WhiteNoisePage from './WhiteNoisePage'
 import PlayDetailOverlay from './PlayDetailOverlay'
 import StatusBar from '@/components/common/StatusBar'
 import PlaylistDetailView from '@/components/playlist/PlaylistDetailView'
@@ -75,12 +76,24 @@ export default () => {
   const { keyboardShown } = useKeyboard()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
   const [playlistDetailRequest, setPlaylistDetailRequest] = useState<PlaylistDetailPayload | null>(null)
+  const [whiteNoiseOpen, setWhiteNoiseOpen] = useState(false)
   const [localSongsOpen, setLocalSongsOpen] = useState(false)
   const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
   const [listenTogetherOpen, setListenTogetherOpen] = useState(false)
   const togetherActive = useTogetherActive()
   const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
+
+  useEffect(() => {
+    const open = () => { setWhiteNoiseOpen(true) }
+    const close = () => { setWhiteNoiseOpen(false) }
+    global.app_event.on('openWhiteNoise', open)
+    global.state_event.on('navActiveIdUpdated', close)
+    return () => {
+      global.app_event.off('openWhiteNoise', open)
+      global.state_event.off('navActiveIdUpdated', close)
+    }
+  }, [])
 
   useEffect(() => subscribeHomeBootSplashHidden(() => { setHoldSplashChrome(false) }), [])
 
@@ -172,6 +185,7 @@ export default () => {
   ], [t])
 
   const handleNavPress = useCallback((id: string) => {
+    setWhiteNoiseOpen(false)
     global.app_event.closeVerticalSearchPage()
     if (id === 'nav_search' && activeId === id) {
       global.app_event.closePlaylistDetail()
@@ -233,6 +247,11 @@ export default () => {
               onClose={handleCloseListenTogether}
               bottomPadding={bottomLayerHeight}
             />
+          </View>
+        : null}
+      {whiteNoiseOpen
+        ? <View pointerEvents="box-none" style={[styles.playlistDetailLayer, { bottom: bottomLayerHeight }]}>
+            <WhiteNoisePage onClose={() => { setWhiteNoiseOpen(false) }} bottomPadding={0} />
           </View>
         : null}
       {hideDock

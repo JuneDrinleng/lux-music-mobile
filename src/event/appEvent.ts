@@ -333,6 +333,10 @@ export class AppEvent extends Event {
     this.emit('closeVerticalSearchPage')
   }
 
+  openWhiteNoise() {
+    this.emit('openWhiteNoise')
+  }
+
   closePlaylistDetail() {
     this.emit('closePlaylistDetail')
   }

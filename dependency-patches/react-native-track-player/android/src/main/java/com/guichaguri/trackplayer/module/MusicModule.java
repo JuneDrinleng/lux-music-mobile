@@ -155,6 +155,7 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
         constants.put("CAPABILITY_LIKE", Utils.CAPABILITY_LIKE);
         constants.put("CAPABILITY_SLEEP_TIMER", Utils.CAPABILITY_SLEEP_TIMER);
         constants.put("CAPABILITY_NATIVE_FADE_OUT", true);
+        constants.put("CAPABILITY_WHITE_NOISE", true);
         constants.put("CAPABILITY_JUMP_FORWARD", PlaybackStateCompat.ACTION_FAST_FORWARD);
         constants.put("CAPABILITY_JUMP_BACKWARD", PlaybackStateCompat.ACTION_REWIND);
 
@@ -467,6 +468,33 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
             binder.getPlayback().cancelFadeOut();
             callback.resolve(null);
         });
+    }
+
+    @ReactMethod
+    public void setNoise(final String id, final boolean enabled, final double volume, final Promise callback) {
+        if (com.guichaguri.trackplayer.service.player.NoiseMixer.index(id) < 0
+                || Double.isNaN(volume) || Double.isInfinite(volume)) {
+            callback.reject("invalid_noise", "Invalid sound or volume");
+            return;
+        }
+        waitForConnection(() -> {
+            binder.getPlayback().setNoise(id, enabled, volume);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void stopNoise(final Promise callback) {
+        waitForConnection(() -> { binder.getPlayback().stopNoise(); callback.resolve(null); });
+    }
+
+    @ReactMethod
+    public void setNoiseTimer(final boolean stop, final double gain, final Promise callback) {
+        if (Double.isNaN(gain) || Double.isInfinite(gain)) {
+            callback.reject("invalid_gain", "Gain must be finite");
+            return;
+        }
+        waitForConnection(() -> { binder.getPlayback().setNoiseTimer(stop, (float) gain); callback.resolve(null); });
     }
 
     @ReactMethod

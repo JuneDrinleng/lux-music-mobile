@@ -20,7 +20,7 @@ const options = load('src/core/player/sleepTimerOptions.ts')
 const math = load('src/plugins/player/volumeFade.ts')
 const flush = async() => { for (let i = 0; i < 40; i++) await Promise.resolve() }
 
-const fixture = async(wait = false, nativeSupported = false) => {
+const fixture = async(wait = false, nativeSupported = false, noiseSupported = false) => {
   let now = 0
   let deadline
   let tick
@@ -32,7 +32,8 @@ const fixture = async(wait = false, nativeSupported = false) => {
   await volume.setVolume(0.8)
   const lx = { isPlayedStop: false }
   const player = { isPlay: true, playRate: 1 }
-  const setting = { 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10 }
+  const setting = { 'player.timeoutExitPlayed': wait, 'player.timeoutExitFade': true, 'player.playbackRate': 1, 'player.timeoutExitFadeDuration': 10, 'player.timeoutExitStopNoise': true }
+  const noiseCalls = []
   const nativeCalls = []
   const native = {
     isNativeFadeOutSupported: nativeSupported,
@@ -63,6 +64,8 @@ const fixture = async(wait = false, nativeSupported = false) => {
       case '@/core/common': return { exitApp: reason => { assert.equal(reason, 'Timeout Exit'); events.push('exit') } }
       case '@/store/player/state': return player
       case '@/store/setting/state': return { setting }
+      case '@/plugins/player/noise': return { noise: { supported: noiseSupported, timer: async(stop, gain = 1) => { noiseCalls.push(['gain', stop, gain]) } } }
+      case './whiteNoise': return { stopWhiteNoise: async() => { noiseCalls.push('stop') } }
       case '@/plugins/player/utils': return native
       case '@/plugins/player/volumeFade': return math
       case './sleepTimerOptions': return options
@@ -72,6 +75,7 @@ const fixture = async(wait = false, nativeSupported = false) => {
   return {
     timer,
     nativeCalls,
+    noiseCalls,
     volume,
     native,
     output,
@@ -267,7 +271,7 @@ test('native capability arms the whole countdown immediately and avoids JS gain 
   const f = await fixture(false, true)
   f.timer.startTimeoutExit(60)
   await flush()
-  assert.deepEqual(f.nativeCalls, [{ durationMs: 10000, endAtMs: 60000, finishSong: false, requestId: '1:60000:10000:false' }])
+  assert.deepEqual(f.nativeCalls, [{ durationMs: 10000, endAtMs: 60000, finishSong: false, requestId: '1:60000:10000:false:true' }])
   await f.advance(55)
   assert.ok(f.output.every(value => value === 0.8))
   assert.equal(f.nativeCalls.length, 1)
@@ -288,8 +292,8 @@ test('native cancel restores, restart replaces the deadline, and stale completio
   f.timer.startTimeoutExit(120)
   await flush()
   assert.equal(f.output.at(-1), 0.8)
-  assert.deepEqual(f.nativeCalls.at(-1), { durationMs: 10000, endAtMs: 175000, finishSong: false, requestId: '4:175000:10000:false' })
-  f.timer.onNativeFadeEnded('1:60000:10000:false')
+  assert.deepEqual(f.nativeCalls.at(-1), { durationMs: 10000, endAtMs: 175000, finishSong: false, requestId: '4:175000:10000:false:true' })
+  f.timer.onNativeFadeEnded('1:60000:10000:false:true')
   await flush()
   assert.equal(f.events.includes('pause'), false)
   f.timer.onNativeFadeEnded(f.nativeCalls.at(-1).requestId)
@@ -456,7 +460,7 @@ test('7D chips start/restart, persist selected duration, retain custom input and
   toggle.props.onChange(false)
   assert.equal(f.settings['player.timeoutExitPlayed'], false)
   assert.equal(nodes.some(n => n.props?.accessibilityLabel === '同时退出 App'), false)
-  assert.equal(nodes.some(n => n.props?.children === '到点后同时关闭白噪音'), false)
+  assert.equal(nodes.some(n => n.props?.children === '到点后同时关闭白噪音'), true)
   f.info.time = 1421
   nodes = f.render()
   assert.equal(sheet().figure.value, '23:41')
@@ -704,4 +708,34 @@ test('fresh settings never enable or persist the removed exit preference', async
   assert.deepEqual(result.setting, defaults)
   assert.equal('player.timeoutExitApp' in stored, false)
   assert.equal('player.timeoutExitAppMigrated' in stored, false)
+})
+
+
+test('white noise follows JS timer fade, cancellation restores gain and completion stops noise', async() => {
+  const f = await fixture(false, false, true)
+  f.timer.startTimeoutExit(60)
+  await f.advance(55)
+  assert.deepEqual(f.noiseCalls.at(-1), ['gain', true, 0.5])
+  f.timer.cancelTimeoutExit()
+  await flush()
+  assert.deepEqual(f.noiseCalls.at(-1), ['gain', true, 1])
+  f.timer.startTimeoutExit(60)
+  await f.expire()
+  assert.equal(f.noiseCalls.includes('stop'), true)
+  assert.equal(f.events.includes('pause'), true)
+})
+
+test('native timer stays armed when fade is disabled and includes noise-link changes', async() => {
+  const f = await fixture(false, true, true)
+  f.setting['player.timeoutExitFade'] = false
+  f.timer.startTimeoutExit(60)
+  await flush()
+  assert.equal(f.nativeCalls.at(-1).durationMs, 1)
+  assert.deepEqual(f.noiseCalls.at(-1), ['gain', true, 1])
+  f.setting['player.timeoutExitStopNoise'] = false
+  await f.advance(30)
+  assert.deepEqual(f.noiseCalls.at(-1), ['gain', false, 1])
+  await f.expire()
+  assert.equal(f.noiseCalls.includes('stop'), false)
+  assert.equal(f.events.includes('pause'), true)
 })

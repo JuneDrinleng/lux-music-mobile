@@ -58,6 +58,10 @@ dependencies {
 
 const copyPatchs = [
   [
+    path.join(trackPlayerPatchBasePath, 'android/src/main/java/com/guichaguri/trackplayer/service/player/NoiseMixer.java'),
+    path.join(rootPath, 'node_modules/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/service/player/NoiseMixer.java'),
+  ],
+  [
     path.join(trackPlayerPatchBasePath, 'android/src/main/java/com/guichaguri/trackplayer/service/Utils.java'),
     path.join(rootPath, 'node_modules/react-native-track-player/android/src/main/java/com/guichaguri/trackplayer/service/Utils.java'),
   ],
