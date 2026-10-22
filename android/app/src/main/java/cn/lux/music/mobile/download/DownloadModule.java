@@ -73,13 +73,10 @@ public class DownloadModule extends ReactContextBaseJavaModule {
                 JSONObject item = items.getJSONObject(i);
                 String state = item.optString("state");
                 if (!"running".equals(state) && !"queued".equals(state)) continue;
-                WorkInfo info = item.optString("workId").isEmpty() ? null : WorkManager.getInstance(context()).getWorkInfoById(UUID.fromString(item.getString("workId"))).get();
-                if (info == null || info.getState().isFinished()) {
-                    synchronized (DownloadStore.class) {
-                        JSONObject live = DownloadStore.read(context(), item.getString("id"));
-                        // Completion, pause, or URL failure may have arrived during the DB query.
-                        if (live != null && item.optString("workId").equals(live.optString("workId")) && ("running".equals(live.optString("state")) || "queued".equals(live.optString("state")))) DownloadScheduler.schedule(context(), live);
-                    }
+                synchronized (DownloadStore.class) {
+                    JSONObject live = DownloadStore.read(context(), item.getString("id"));
+                    // Re-read: completion, pause, or URL failure may have landed since the list was taken.
+                    if (live != null && ("running".equals(live.optString("state")) || "queued".equals(live.optString("state")))) DownloadScheduler.ensure(context(), live);
                 }
             }
             return DownloadStore.list(context(), space).toString();

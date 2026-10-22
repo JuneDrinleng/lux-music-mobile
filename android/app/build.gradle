@@ -233,7 +233,9 @@ dependencies {
     // implementation "androidx.javascriptengine:javascriptengine:1.0.0-alpha07"
     // implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation "androidx.work:work-runtime:2.9.1"
-    implementation "com.google.guava:listenablefuture:1.0"
+    // WorkManager APIs (Worker, Operation) expose ListenableFuture; guava is otherwise runtime-only here and
+    // resolves listenablefuture to the 9999.0-empty stub, so put the real class on the compile classpath.
+    implementation "com.google.guava:guava:33.3.1-android"
     implementation 'wang.harlon.quickjs:wrapper-android:2.4.0'
 
   if (hermesEnabled.toBoolean()) {
