@@ -2,13 +2,13 @@
 import { useState, type ReactNode } from 'react'
 import { ScrollView, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
-import Image from '@/components/common/Image'
 import { SectionHeader } from '@/components/magazine'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 import { DailyCover } from './DailyCover'
+import { WeeklyCover } from './WeeklyCover'
 import { useRecommendations } from './useRecommendations'
 import { playRecommendations, startRecommendationRadio } from './actions'
 import { RecommendationButton, RecommendationStatus, useRecommendationAction } from './RecommendationViews'
@@ -36,7 +36,7 @@ export const RecCard = ({ width, gap, kicker, title, label, cover, onPress }: {
 }
 
 export const RecommendationSection = ({ discover, onOpenWeekly, onPlayWeekly }: {
-  discover: { cover: string | null, title: string, sourceListId: string | null }
+  discover: { cover: string | null, title: string, sourceListId: string | null, count?: number | null }
   onOpenWeekly: () => void
   onPlayWeekly: () => void
 }) => {
@@ -70,7 +70,7 @@ export const RecommendationSection = ({ discover, onOpenWeekly, onPlayWeekly }: 
         <RecCard width={cardWidth} gap={gap} kicker={t('recommend_daily_kicker')} title={t('recommend_daily')} label={t('recommend_open_daily')}
           cover={<DailyCover items={items} />} onPress={() => { global.app_event.openDailyRecommendations() }} />
         <RecCard width={cardWidth} gap={0} kicker={t('home_discover_kicker')} title={discover.title} label={t('recommend_open_weekly', { title: discover.title })}
-          cover={<Image url={discover.cover ?? undefined} style={styles.weeklyImage} />} onPress={onOpenWeekly} />
+          cover={<WeeklyCover discover={discover} />} onPress={onOpenWeekly} />
       </ScrollView>
       <View style={styles.actions}>
         <RecommendationButton label={t('recommend_play_radio')} disabled={dailyDisabled} onPress={() => { void run(radio, t('recommend_radio_started')) }} />
@@ -89,7 +89,6 @@ const useStyles = sharedLuxStyles(colors => {
   return createStyle({
     carousel: { marginTop: 12, overflow: 'visible' },
     cover: { borderRadius: 6, overflow: 'hidden', backgroundColor: r.placeholder },
-    weeklyImage: { width: '100%', height: '100%' },
     kicker: { fontWeight: '700', letterSpacing: 2, marginTop: 12, lineHeight: 14 },
     title: { fontWeight: '800', letterSpacing: -0.3, marginTop: 4, lineHeight: 28 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },

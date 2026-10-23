@@ -6,10 +6,14 @@ import { weekdayKey } from '@/components/stats/statsShared'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
+import { useSettingValue } from '@/store/setting/hook'
+import { setSpText, scaleSizeH } from '@/utils/pixelRatio'
+import { FrostedCover } from './FrostedCover'
+import { coveredRecommendations, dayNumberMetrics, recommendationMonths } from './coverModel'
 import { createStyle } from '@/utils/tools'
 import { type Recommendation } from '@/utils/recommend'
 
-export const DailyCover = ({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
+const CompactDailyCover = ({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
   const t = useI18n()
   const r = magazineRoles(useLuxTheme().colors)
   const styles = useStyles()
@@ -19,7 +23,7 @@ export const DailyCover = ({ items, compact = false }: { items: Recommendation[]
   return (
     <View style={[styles.cover, compact ? styles.compact : styles.large]}>
       <Text size={compact ? 9 : 11} color={r.onInk} style={styles.eyebrow} numberOfLines={1}>
-        {t('recommend_cover_today', { month, year: compact ? '' : ` ${date.getFullYear()}` })}
+        {t('recommend_cover_today_compact', { month, year: compact ? '' : ` ${date.getFullYear()}` })}
       </Text>
       <Text size={compact ? 48 : 112} color={r.onInk} style={compact ? styles.smallDay : styles.day}>{date.getDate()}</Text>
       <Text size={compact ? 12 : 15} color={r.onInk} style={styles.weekday} numberOfLines={1}>
@@ -43,6 +47,41 @@ const useStyles = sharedLuxStyles(colors => {
     mark: { position: 'absolute', height: 3, backgroundColor: r.accent },
     largeMark: { left: 16, bottom: 16, width: 28 },
     smallMark: { right: 10, bottom: 12, width: 20 },
+    minis: { position: 'absolute', right: 14, bottom: 14, flexDirection: 'row', gap: 4 },
+    mini: { width: 44, height: 44, borderRadius: 4, backgroundColor: r.placeholder },
+  })
+})
+
+// Keep the detail page's compact cover independent of the home card redesign.
+export const DailyCover = ({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
+  const t = useI18n()
+  const language = useSettingValue('common.langId')
+  const r = magazineRoles(useLuxTheme().colors)
+  const styles = useHomeStyles()
+  const date = new Date()
+  const covered = coveredRecommendations(items)
+  const metrics = dayNumberMetrics(setSpText, scaleSizeH)
+  if (compact) return <CompactDailyCover items={items} compact />
+  const month = language === 'en_us' ? t(recommendationMonths[date.getMonth()]) : date.getMonth() + 1
+  return (
+    <View style={styles.cover}>
+      <FrostedCover uri={covered[0]?.cover} />
+      <Text size={11} color={r.ink} style={styles.eyebrow} numberOfLines={1}>{t('recommend_cover_today', { month, year: date.getFullYear() })}</Text>
+      <Text size={100} color={r.ink} style={[styles.day, { lineHeight: metrics.lineHeight, marginTop: metrics.gap }]}>{date.getDate()}</Text>
+      <Text size={15} color={r.ink} style={styles.weekday} numberOfLines={1}>{t('recommend_cover_count', { weekday: t(weekdayKey[date.getDay()]), count: items.length })}</Text>
+      <View style={styles.mark} />
+      <View style={styles.minis}>{covered.slice(0, 3).map(({ item, cover }) => <Image key={item.key} url={cover} style={styles.mini} />)}</View>
+    </View>
+  )
+}
+const useHomeStyles = sharedLuxStyles(colors => {
+  const r = magazineRoles(colors)
+  return createStyle({
+    cover: { width: '100%', height: '100%', padding: 16, overflow: 'hidden', backgroundColor: r.placeholder },
+    eyebrow: { fontWeight: '700', letterSpacing: 2, lineHeight: 14, opacity: 0.66 },
+    day: { fontWeight: '800', letterSpacing: -5, fontVariant: ['tabular-nums'], includeFontPadding: false },
+    weekday: { fontWeight: '700', lineHeight: 20, marginTop: 4 },
+    mark: { position: 'absolute', left: 16, bottom: 16, width: 28, height: 3, backgroundColor: r.accent },
     minis: { position: 'absolute', right: 14, bottom: 14, flexDirection: 'row', gap: 4 },
     mini: { width: 44, height: 44, borderRadius: 4, backgroundColor: r.placeholder },
   })
