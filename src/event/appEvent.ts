@@ -337,6 +337,14 @@ export class AppEvent extends Event {
     this.emit('openWhiteNoise')
   }
 
+  openAudioEffects() {
+    this.emit('openAudioEffects')
+  }
+
+  closeAudioEffects() {
+    this.emit('closeAudioEffects')
+  }
+
   openDailyRecommendations() {
     this.emit('openDailyRecommendations')
   }

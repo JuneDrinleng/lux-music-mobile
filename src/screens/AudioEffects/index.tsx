@@ -1,10 +1,14 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useRef, useState } from 'react'
-import { Modal, NativeModules, ScrollView, TouchableOpacity, View } from 'react-native'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { Animated, NativeModules, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { MagTopBar, OptionRow, Rule, Toggle } from '@/components/magazine'
+import { DOCK_BASE_HEIGHT, MagTopBar, OptionRow, Rule, Toggle } from '@/components/magazine'
+import { APP_LAYER_INDEX } from '@/config/constant'
+import commonState from '@/store/common/state'
+import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { isHomeScreenActive } from '@/utils/homeBackHandler'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -16,7 +20,7 @@ import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBott
 import { createStyle } from '@/utils/tools'
 import { audioEffectCapabilities, audioEffectStateKey, clampEqGain, commitAudioEffect, EQ_FREQUENCIES, EQ_PRESETS, formatEqGain, formatLoudness, LOUDNESS_TARGETS, normalizeAudioEffects, PRESET_GAINS, type AudioEffect, type AudioEffectSettings, type AudioEffectsBridge } from '@/utils/audioEffects'
 
-/** Full-screen and conditionally mounted by Settings; no retained hidden layer. */
+/** Main-level overlay below the Dock; mounted only while open. */
 export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -28,19 +32,25 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   const bridge = NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined
   const capabilities = audioEffectCapabilities(bridge)
   const [detail, setDetail] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const writing = useRef(false)
   const scroll = useRef<ScrollView>(null)
-  const back = () => { if (detail) { setDetail(false); scroll.current?.scrollTo({ y: 0, animated: false }) } else onBack() }
+  const back = useCallback(() => { if (detail) { setDetail(false); scroll.current?.scrollTo({ y: 0, animated: false }) } else onBack() }, [detail, onBack])
+  useBackHandler(useCallback(() => {
+    if (!isHomeScreenActive(commonState.componentIds)) return false
+    back()
+    return true
+  }, [back]))
   const openDetail = () => { setDetail(true); scroll.current?.scrollTo({ y: 0, animated: false }) }
-  const commit = (effect: AudioEffect, patch: Partial<AudioEffectSettings>) => {
-    if (writing.current || !capabilities[effect]) return
+  const commit = async(effect: AudioEffect, patch: Partial<AudioEffectSettings>) => {
+    if (writing.current || !capabilities[effect]) return Promise.resolve(false)
     writing.current = true
     setBusy(true)
     setFailed(false)
-    void commitAudioEffect(effect, { ...normalizeAudioEffects(settingState.setting), ...patch }, bridge, updateSetting)
-      .catch(() => { setFailed(true) })
+    return commitAudioEffect(effect, { ...normalizeAudioEffects(settingState.setting), ...patch }, bridge, updateSetting)
+      .catch(() => { setFailed(true); return false })
       .finally(() => { writing.current = false; setBusy(false) })
   }
   const supportNote = (effect: AudioEffect) => audioEffectStateKey(capabilities[effect]) ? t(`audio_effects_${effect}_unsupported`) : undefined
@@ -50,21 +60,21 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
       {description ? <Text size={12} color={r.muted} style={styles.subtitle}>{description}</Text> : null}
       {supportNote(effect) ? <Text size={12} color={r.muted} style={styles.subtitle}>{t('audio_effects_unsupported')}{' · '}{supportNote(effect)}</Text> : null}
     </TouchableOpacity>
-    <Toggle compact accessibilityLabel={label} value={capabilities[effect] && setting[key] === true} disabled={!capabilities[effect] || busy} onChange={value => { commit(effect, { [key]: value }) }} />
+    <Toggle compact accessibilityLabel={label} value={capabilities[effect] && setting[key] === true} disabled={!capabilities[effect] || busy} onChange={value => { void commit(effect, { [key]: value }) }} />
   </View>
   const section = (label: string) => <><Rule gapTop={22} style={{ height: 2, opacity: 1 }} /><Text size={22} color={r.ink} style={styles.section}>{label}</Text></>
   const gains = JSON.parse(setting['player.audio.equalizer.gains']) as number[]
   const eqDisabled = !capabilities.equalizer || !setting['player.audio.equalizer.enabled'] || busy
-  return <Modal visible animationType="slide" onRequestClose={back} statusBarTranslucent>
+  return <View style={[styles.root, { backgroundColor: r.paper }]}>
     <StatusBar />
-    <ScrollView ref={scroll} style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: bottom + 28 }]}>
+    <ScrollView ref={scroll} scrollEnabled={!dragging} style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: DOCK_BASE_HEIGHT + bottom + 28 }]}>
       <MagTopBar onBack={back} />
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(detail ? 'audio_effects_detail_eyebrow' : 'audio_effects_eyebrow')}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t(detail ? 'audio_effects_loudness' : 'audio_effects_title')}</Text>
       {detail ? <>
         {row(t('audio_effects_enable'), 'loudness', 'player.audio.loudness.enabled')}
         <Text size={15} color={r.list} style={[styles.bold, styles.target]}>{t('audio_effects_target')}</Text>
-        {LOUDNESS_TARGETS.map((target, index) => <OptionRow key={target} leading label={t((['audio_effects_target_0', 'audio_effects_target_1', 'audio_effects_target_2'] as const)[index], { value: formatLoudness(target) })} selected={setting['player.audio.loudness.target'] === target} disabled={!capabilities.loudness || busy || !setting['player.audio.loudness.enabled']} onPress={() => { commit('loudness', { 'player.audio.loudness.target': target }) }} />)}
+        {LOUDNESS_TARGETS.map((target, index) => <OptionRow key={target} leading label={t((['audio_effects_target_0', 'audio_effects_target_1', 'audio_effects_target_2'] as const)[index], { value: formatLoudness(target) })} selected={setting['player.audio.loudness.target'] === target} disabled={!capabilities.loudness || busy || !setting['player.audio.loudness.enabled']} onPress={() => { void commit('loudness', { 'player.audio.loudness.target': target }) }} />)}
         {row(t('audio_effects_clipping'), 'loudness', 'player.audio.loudness.preventClipping', t('audio_effects_clipping_description'))}
         {section(t('audio_effects_gapless'))}
         {row(t('audio_effects_gapless_enable'), 'gapless', 'player.audio.gapless.enabled', t('audio_effects_gapless_detail'))}
@@ -75,16 +85,16 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presets}>
           {EQ_PRESETS.map(preset => {
             const selected = setting['player.audio.equalizer.preset'] === preset
-            return <TouchableOpacity key={preset} disabled={eqDisabled} activeOpacity={0.7} hitSlop={{ top: 7, bottom: 7 }} accessibilityRole="radio" accessibilityState={{ selected, disabled: eqDisabled }} onPress={() => { commit('equalizer', { 'player.audio.equalizer.preset': preset, 'player.audio.equalizer.gains': JSON.stringify(preset === 'custom' ? gains : PRESET_GAINS[preset]) }) }} style={[styles.preset, { borderColor: r.ink, backgroundColor: selected ? r.ink : 'transparent', opacity: eqDisabled ? 0.4 : 1 }]}>
+            return <TouchableOpacity key={preset} disabled={eqDisabled} activeOpacity={0.7} hitSlop={{ top: 7, bottom: 7 }} accessibilityRole="radio" accessibilityState={{ selected, disabled: eqDisabled }} onPress={() => { void commit('equalizer', { 'player.audio.equalizer.preset': preset, 'player.audio.equalizer.gains': JSON.stringify(preset === 'custom' ? gains : PRESET_GAINS[preset]) }) }} style={[styles.preset, { borderColor: r.ink, backgroundColor: selected ? r.ink : 'transparent', opacity: eqDisabled ? 0.4 : 1 }]}>
               <Text size={13} color={selected ? r.onInk : r.ink} style={styles.bold}>{t(`audio_effects_preset_${preset}`)}</Text>
             </TouchableOpacity>
           })}
         </ScrollView>
         <View style={[styles.eq, { borderColor: r.hairline, opacity: eqDisabled ? 0.4 : 1 }]}>
           <View pointerEvents="none" style={[styles.midline, { backgroundColor: r.hairline }]} />
-          {EQ_FREQUENCIES.map((frequency, index) => <EqBand key={frequency} frequency={frequency} value={gains[index]} disabled={eqDisabled} onChange={value => {
+          {EQ_FREQUENCIES.map((frequency, index) => <EqBand key={frequency} frequency={frequency} value={gains[index]} disabled={eqDisabled} onDraggingChange={setDragging} onChange={async value => {
             const next = [...gains]; next[index] = value
-            commit('equalizer', { 'player.audio.equalizer.preset': 'custom', 'player.audio.equalizer.gains': JSON.stringify(next) })
+            return commit('equalizer', { 'player.audio.equalizer.preset': 'custom', 'player.audio.equalizer.gains': JSON.stringify(next) })
           }} />)}
         </View>
         <View style={styles.frequencies}>{EQ_FREQUENCIES.map(frequency => <Text key={frequency} size={12} color={r.muted}>{frequency}</Text>)}</View>
@@ -94,29 +104,58 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
       </>}
       {failed ? <Text size={12} color={r.muted} accessibilityLiveRegion="polite">{t('audio_effects_failed')}</Text> : null}
     </ScrollView>
-  </Modal>
+  </View>
 }
 
-function EqBand({ frequency, value, disabled, onChange }: { frequency: string, value: number, disabled: boolean, onChange: (value: number) => void }) {
+export function EqBand({ frequency, value, disabled, onChange, onDraggingChange }: { frequency: string, value: number, disabled: boolean, onChange: (value: number) => Promise<boolean>, onDraggingChange: (dragging: boolean) => void }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
   const [draft, setDraft] = useState<number | null>(null)
-  const height = useRef(130)
+  const [height, setHeight] = useState(130)
   const pending = useRef(value)
-  return <View style={styles.band} hitSlop={{ left: 15, right: 15 }} onLayout={event => { height.current = event.nativeEvent.layout.height }} accessibilityRole="adjustable" accessibilityLabel={`${frequency} Hz`} accessibilityState={{ disabled }} accessibilityValue={{ min: -12, max: 12, now: draft ?? value, text: formatEqGain(draft ?? value) }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={event => { if (!disabled) onChange(clampEqGain(value + (event.nativeEvent.actionName === 'increment' ? 1 : -1))) }}
+  const dragging = useRef(false)
+  // Band top in page coordinates, fixed at grant. Android move events can report locationY relative to a
+  // different view than the band, so moves use pageY minus this origin instead.
+  const originPageY = useRef(0)
+  const thumbY = useRef(new Animated.Value(0)).current
+  const live = draft ?? value
+  // A transform updates the native thumb directly, without percentage Yoga relayout.
+  useLayoutEffect(() => { thumbY.setValue((12 - live) / 24 * height) }, [live, height, thumbY])
+  useLayoutEffect(() => {
+    if (!dragging.current && draft === value) setDraft(null)
+  }, [draft, value])
+  const move = (y: number) => {
+    pending.current = clampEqGain(12 - y / height * 24)
+    setDraft(pending.current)
+  }
+  return <View style={styles.band} hitSlop={{ left: 15, right: 15 }} onLayout={event => { if (event.nativeEvent.layout.height > 0) setHeight(event.nativeEvent.layout.height) }} accessibilityRole="adjustable" accessibilityLabel={`${frequency} Hz`} accessibilityState={{ disabled }} accessibilityValue={{ min: -12, max: 12, now: live, text: formatEqGain(live) }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={event => { if (!disabled) void onChange(clampEqGain(value + (event.nativeEvent.actionName === 'increment' ? 1 : -1))) }}
     onStartShouldSetResponder={() => !disabled}
     onMoveShouldSetResponder={() => !disabled}
-    onResponderGrant={event => { pending.current = clampEqGain(12 - event.nativeEvent.locationY / height.current * 24); setDraft(pending.current) }}
-    onResponderMove={event => { pending.current = clampEqGain(12 - event.nativeEvent.locationY / height.current * 24); setDraft(pending.current) }}
-    onResponderRelease={() => { setDraft(null); onChange(pending.current) }}
-    onResponderTerminate={() => { setDraft(null) }}>
+    onResponderTerminationRequest={() => false}
+    onResponderGrant={event => {
+      dragging.current = true
+      onDraggingChange(true)
+      originPageY.current = event.nativeEvent.pageY - event.nativeEvent.locationY
+      move(event.nativeEvent.locationY)
+    }}
+    onResponderMove={event => { if (dragging.current) move(event.nativeEvent.pageY - originPageY.current) }}
+    onResponderRelease={() => {
+      if (!dragging.current) return
+      dragging.current = false
+      onDraggingChange(false)
+      if (pending.current === value) setDraft(null)
+      // Keep the final draft until the setting acknowledges it; never expose the old value in flight.
+      void onChange(pending.current).then(applied => { if (!applied) setDraft(null) }, () => { setDraft(null) })
+    }}
+    onResponderTerminate={() => { dragging.current = false; setDraft(null); onDraggingChange(false) }}>
     <View pointerEvents="none" style={[styles.rail, { backgroundColor: r.hairline }]} />
-    <View pointerEvents="none" style={[styles.thumb, { top: `${(12 - (draft ?? value)) / 24 * 100}%`, backgroundColor: r.accent, borderColor: r.ink }]} />
+    <Animated.View pointerEvents="none" style={[styles.thumb, { top: 0, transform: [{ translateY: thumbY }], backgroundColor: r.accent, borderColor: r.ink }]} />
   </View>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({
+  root: { ...StyleSheet.absoluteFillObject, zIndex: APP_LAYER_INDEX.controls - 1 },
   content: { paddingHorizontal: 22, flexGrow: 1 },
   eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
   title: { fontWeight: '800', lineHeight: 38 },

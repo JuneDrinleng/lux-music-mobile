@@ -14,7 +14,6 @@ import Text from '@/components/common/Text'
 import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
 import AiTokenStatusPage from '@/screens/AiTokenStatus'
-import AudioEffectsPage from '@/screens/AudioEffects'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
@@ -150,7 +149,6 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [audioEffectsVisible, setAudioEffectsVisible] = useState(false)
   const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'togetherLayout' | 'sync' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
   const { layout: memoriesLayout, setLayout: setMemoriesLayout } = useMemoriesLayoutPreference()
@@ -856,7 +854,6 @@ export default () => {
     const onSettings = activeNavId === 'nav_setting'
     if (!onSettings) {
       setActiveOptionDetail(null)
-      setAudioEffectsVisible(false)
       setProfileDetailVisible(false)
       setIsManagingApiSources(false)
       setIsManagingSyncHosts(false)
@@ -956,7 +953,7 @@ export default () => {
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="text-search" iconBg={r.iconWrap.green} title={t('setting_search_source')} subtitle={activeSearchSourceLabel} onPress={handleOpenSearchSourceDetail} />
-              <SettingRow icon="equalizer" iconBg={r.iconWrap.green} title={t('audio_effects_title')} subtitle={t('audio_effects_entry_description')} onPress={() => { setAudioEffectsVisible(true) }} />
+              <SettingRow icon="equalizer" iconBg={r.iconWrap.green} title={t('audio_effects_title')} subtitle={t('audio_effects_entry_description')} onPress={() => { global.app_event.openAudioEffects() }} />
               <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} />
               <SettingRow icon="account-multiple-outline" iconBg={r.iconWrap.green} title={t('together_layout')} subtitle={togetherLayout} onPress={() => { setActiveOptionDetail('togetherLayout') }} last />
             </View>
@@ -1063,7 +1060,6 @@ export default () => {
           : null}
 
       </ScrollView>
-      {audioEffectsVisible ? <AudioEffectsPage onBack={() => { setAudioEffectsVisible(false) }} /> : null}
       {aiTokensVisible ? <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={() => { setAiTokensVisible(false) }} /> : null}
       {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} /> : null}
       <Animated.View
