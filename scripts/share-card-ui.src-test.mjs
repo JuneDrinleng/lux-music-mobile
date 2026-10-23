@@ -310,3 +310,40 @@ test('album save returns native content URI after publishing and rejects an unav
   assert.deepEqual(messages, ['share_card_save_failed'])
   assert.equal(released.length, 2)
 })
+
+
+test('footer buttons share the tall style, default typography and alignment in every locale', () => {
+  const flatten = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    const f = open(locale)
+    const save = f.nodes('SecondaryButton').find(node => node.props.label === f.t('share_card_save'))
+    const share = f.nodes('PrimaryButton')[0]
+    const footer = f.nodes('View').find(node => node.props.children?.includes?.(save))
+    assert.deepEqual(footer.props.children, [save, share])
+    assert.equal(footer.props.style.flexDirection, 'row')
+    assert.equal(footer.props.style.gap, 16)
+    const rendered = [save, share].map(node => {
+      assert.ok(!node.props.compact)
+      assert.equal(node.props.disabled, false)
+      return f.load(join(root, `src/components/magazine/${node.type}.tsx`))[node.type](node.props)
+    })
+    const buttonStyles = rendered.map(node => flatten(node.props.style))
+    assert.equal(buttonStyles[0].height, 46)
+    assert.equal(buttonStyles[1].height, 46)
+    for (const style of buttonStyles) {
+      assert.equal(style.borderRadius, 23)
+      assert.equal(style.justifyContent, 'center')
+      assert.equal(style.alignItems, 'center')
+    }
+    assert.equal(buttonStyles[0].borderWidth, 1.5)
+    assert.equal(buttonStyles[1].backgroundColor, f.roles.ink)
+    assert.equal(buttonStyles[1].flex, 1)
+    const { magType } = f.load(join(root, 'src/theme/magazineType.ts'))
+    for (const button of rendered) {
+      const label = walk(button).find(node => node.type === 'Text')
+      assert.equal(label.props.size, magType.button.size)
+      assert.equal(flatten(label.props.style).fontWeight, magType.button.weight)
+      assert.equal(label.props.numberOfLines, 1)
+    }
+  }
+})

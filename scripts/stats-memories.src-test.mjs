@@ -244,3 +244,75 @@ test('5C annual replay stays available and its monthly button uses the selected 
   f.back()
   assert.equal(f.render().type, 'ListeningStatsMagazine')
 })
+
+
+// Render just the real option-detail JSX branch; unrelated settings services stay outside this fixture.
+test('stats style subgroups use eyebrows and spacing; all five options retain selection and press behavior', () => {
+  const file = join(root, 'src/screens/Home/Vertical/Tabs/SettingsTab.tsx')
+  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let detail
+  const styleProperties = []
+  const visit = node => {
+    if (ts.isConditionalExpression(node) && node.condition.getText(source) === "activeOptionDetail === 'statsPageStyle'") detail = node.whenTrue.getText(source)
+    if (ts.isPropertyAssignment(node) && ['optionLocalNote', 'statsStyleGroup', 'statsStyleGroupLabel', 'statsStyleGroupRule'].includes(node.name.getText(source))) styleProperties.push(node.getText(source))
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(detail)
+  const { magType } = load('../../theme/magazineType')
+  const { STATS_PAGE_STYLES } = load('../playHistory/statsPageStyle')
+  const changes = []
+  const jsx = (type, props) => ({ type, props })
+  const js = ts.transpileModule(`const styles = {${styleProperties.join(',')}}; const render = () => ${detail};`, {
+    compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS },
+  }).outputText
+  for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
+    const messages = JSON.parse(readFileSync(join(root, `src/lang/${locale}.json`), 'utf8'))
+    const context = {
+      exports: {},
+      require: () => ({ jsx, jsxs: jsx }),
+      View: 'View',
+      Text: 'Text',
+      OptionRow: 'OptionRow',
+      Rule: 'Rule',
+      magType,
+      r: { eyebrow: 'theme-eyebrow', muted: 'theme-muted', ink: 'theme-ink' },
+      t: key => { assert.equal(typeof messages[key], 'string'); return messages[key] },
+      MEMORIES_LAYOUTS: layout.MEMORIES_LAYOUTS,
+      STATS_PAGE_STYLES,
+      memoriesLayout: 'cards',
+      statsPageStyle: 'replay',
+      memoriesLayoutLabel: id => id,
+      statsPageStyleLabel: id => id,
+      setMemoriesLayout: id => changes.push(['monthly', id]),
+      setStatsPageStyle: id => changes.push(['stats', id]),
+    }
+    const tree = new Script(`${js}\nrender()`).runInNewContext(context)
+    const [note, ...groups] = tree.props.children
+    assert.equal(note.props.children, messages.setting_stats_page_style_local_only)
+    assert.equal(groups.length, 2)
+    groups.forEach((group, index) => {
+      assert.equal(group.props.style.marginTop, 24)
+      const children = group.props.children.flat()
+      const header = children.find(node => node.type === 'Text')
+      assert.equal(header.props.children, messages[index ? 'setting_stats_details_style' : 'setting_memories_layout'])
+      assert.equal(header.props.size, magType.eyebrow.size)
+      assert.notEqual(header.props.size, magType.rowTitle.size)
+      assert.equal(header.props.color, context.r.eyebrow)
+      assert.equal(header.props.style.fontWeight, '700')
+      assert.equal(header.props.style.letterSpacing, 2)
+      assert.equal(header.props.style.marginBottom, 8)
+      const rows = children.filter(node => node.type === 'OptionRow')
+      assert.deepEqual(Array.from(rows, row => row.props.label), index ? ['magazine', 'replay'] : ['monthly', 'cards', 'timeline'])
+      assert.deepEqual(Array.from(rows, row => row.props.selected), index ? [false, true] : [false, true, false])
+      assert.deepEqual(Array.from(rows, row => row.props.last), index ? [false, true] : [false, false, true])
+      for (const row of rows) row.props.onPress()
+      if (index) {
+        const rule = children.find(node => node.type === 'Rule')
+        assert.equal(rule.props.gapTop, 0)
+        assert.equal(rule.props.style.marginBottom, 12)
+      }
+    })
+  }
+  assert.deepEqual(changes, Array.from({ length: 3 }, () => [['monthly', 'monthly'], ['monthly', 'cards'], ['monthly', 'timeline'], ['stats', 'magazine'], ['stats', 'replay']]).flat())
+})

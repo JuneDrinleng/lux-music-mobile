@@ -17,6 +17,7 @@ export const SecondaryButton = memo(({
   style,
   compact = false,
   labelSize,
+  labelNumberOfLines,
   selected = false,
   danger = false,
 }: {
@@ -27,6 +28,7 @@ export const SecondaryButton = memo(({
   style?: ViewStyle
   compact?: boolean
   labelSize?: number
+  labelNumberOfLines?: number
   selected?: boolean
   danger?: boolean
 }) => {
@@ -55,7 +57,7 @@ export const SecondaryButton = memo(({
       accessibilityState={{ disabled, selected }}
     >
       {icon ? <MdiIcon name={icon} size={20} color={danger ? r.like : r.ink} /> : null}
-      <Text size={labelSize ?? (compact ? 13 : magType.button.size)} color={danger ? r.like : r.ink} style={{ fontWeight: '700' }}>{label}</Text>
+      <Text numberOfLines={labelNumberOfLines} size={labelSize ?? (compact ? 13 : magType.button.size)} color={danger ? r.like : r.ink} style={{ fontWeight: '700' }}>{label}</Text>
     </TouchableOpacity>
   )
 })

@@ -44,7 +44,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
   toggle: { paddingHorizontal: 13 },
   footer: { flexDirection: 'row', gap: 16, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 26 },
   primary: { flex: 1 },
-  save: { height: 46, borderRadius: 23 },
+  footerButton: { height: 46, borderRadius: 23 },
   report: { marginTop: 22, gap: 8 },
   figure: { fontWeight: '800', lineHeight: 60 },
   empty: { paddingVertical: 30 },
@@ -166,8 +166,8 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
         </ScrollView>
         {cardLayout.width > 0 ? <View ref={cardRef} collapsable={false} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.exportCanvas, canvas, { backgroundColor }]}><View style={[styles.card, { width: cardLayout.width, marginTop: 0, backgroundColor, borderTopColor: ink }]}>{cardBody}</View></View> : null}
         <View style={styles.footer}>
-          <SecondaryButton style={styles.save} labelSize={13} label={t('share_card_save')} onPress={() => { void save() }} disabled={!card.canExport || !cardLayout.width || busy} />
-          <PrimaryButton compact style={styles.primary} label={t('share_card_share')} onPress={() => { void share() }} disabled={!card.canExport || !cardLayout.width || busy} />
+          <SecondaryButton style={styles.footerButton} labelNumberOfLines={1} label={t('share_card_save')} onPress={() => { void save() }} disabled={!card.canExport || !cardLayout.width || busy} />
+          <PrimaryButton style={{ ...styles.footerButton, ...styles.primary }} labelNumberOfLines={1} label={t('share_card_share')} onPress={() => { void share() }} disabled={!card.canExport || !cardLayout.width || busy} />
         </View>
       </View>
     </Modal>

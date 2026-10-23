@@ -46,6 +46,7 @@ export const PrimaryButton = memo(({
   style,
   compact = false,
   labelSize,
+  labelNumberOfLines,
   selected = false,
   labelStyle,
   badge,
@@ -61,6 +62,7 @@ export const PrimaryButton = memo(({
   style?: ViewStyle
   compact?: boolean
   labelSize?: number
+  labelNumberOfLines?: number
   selected?: boolean
   labelStyle?: TextStyle
   badge?: number
@@ -81,7 +83,7 @@ export const PrimaryButton = memo(({
       accessibilityState={{ disabled, selected }}
     >
       {icon ? <MdiIcon name={icon} size={iconSize} color={r.onInk} /> : null}
-      <Text size={labelSize ?? (compact ? 16 : magType.button.size)} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null, labelStyle]}>{label}</Text>
+      <Text numberOfLines={labelNumberOfLines} size={labelSize ?? (compact ? 16 : magType.button.size)} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null, labelStyle]}>{label}</Text>
       {badge != null ? <View style={[{ minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 7, backgroundColor: r.accent, justifyContent: 'center', alignItems: 'center' }, badgeStyle]}><Text size={12} color={r.onAccent} style={{ fontWeight: '800' }}>{badge}</Text></View> : null}
     </TouchableOpacity>
   )
