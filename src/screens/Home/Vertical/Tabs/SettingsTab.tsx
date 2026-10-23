@@ -26,6 +26,7 @@ import {
   MagDialog,
   MagTopBar,
   OptionRow,
+  Rule,
   SectionHeader,
   SettingRow,
   UnderlineInput,
@@ -1122,14 +1123,19 @@ export default () => {
             ? (
               <View style={styles.optionList}>
                 <Text size={magType.meta.size} color={r.muted} style={styles.optionLocalNote}>{t('setting_stats_page_style_local_only')}</Text>
-                <Text size={magType.rowTitle.size} color={r.ink}>{t('setting_memories_layout')}</Text>
-                {MEMORIES_LAYOUTS.map((id, index) => (
-                  <OptionRow key={id} label={memoriesLayoutLabel(id)} selected={memoriesLayout === id} onPress={() => { setMemoriesLayout(id) }} last={index === MEMORIES_LAYOUTS.length - 1} />
-                ))}
-                <Text size={magType.rowTitle.size} color={r.ink}>{t('setting_stats_details_style')}</Text>
-                {STATS_PAGE_STYLES.map((id, index) => (
-                  <OptionRow key={id} label={statsPageStyleLabel(id)} selected={statsPageStyle === id} onPress={() => { setStatsPageStyle(id) }} last={index === STATS_PAGE_STYLES.length - 1} />
-                ))}
+                <View style={styles.statsStyleGroup}>
+                  <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.statsStyleGroupLabel}>{t('setting_memories_layout')}</Text>
+                  {MEMORIES_LAYOUTS.map((id, index) => (
+                    <OptionRow key={id} label={memoriesLayoutLabel(id)} selected={memoriesLayout === id} onPress={() => { setMemoriesLayout(id) }} last={index === MEMORIES_LAYOUTS.length - 1} />
+                  ))}
+                </View>
+                <View style={styles.statsStyleGroup}>
+                  <Rule gapTop={0} style={styles.statsStyleGroupRule} />
+                  <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.statsStyleGroupLabel}>{t('setting_stats_details_style')}</Text>
+                  {STATS_PAGE_STYLES.map((id, index) => (
+                    <OptionRow key={id} label={statsPageStyleLabel(id)} selected={statsPageStyle === id} onPress={() => { setStatsPageStyle(id) }} last={index === STATS_PAGE_STYLES.length - 1} />
+                  ))}
+                </View>
               </View>
               )
             : null}
@@ -1456,6 +1462,17 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   },
   optionLocalNote: {
     marginBottom: 8,
+  },
+  statsStyleGroup: {
+    marginTop: 24,
+  },
+  statsStyleGroupLabel: {
+    fontWeight: magType.eyebrow.weight,
+    letterSpacing: magType.eyebrow.letterSpacing,
+    marginBottom: 8,
+  },
+  statsStyleGroupRule: {
+    marginBottom: 12,
   },
   themeOptionRow: {
     minHeight: 58,
