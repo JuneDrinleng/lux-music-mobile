@@ -974,6 +974,7 @@ test('Dock tabs receive presses while the recommendation carousel and its real l
     './actions': {},
     '@/components/magazine': { SectionHeader: 'SectionHeader' },
     './DailyCover': { DailyCover: 'DailyCover' },
+    './WeeklyCover': { WeeklyCover: 'WeeklyCover' },
     './RecommendationViews': { useRecommendationStyles: () => ({}), useRecommendationAction: () => ({ run() {}, pending: false }) },
     './Hairline': { Hairline: 'Hairline' },
     './IconButton': { IconButton: 'IconButton' },

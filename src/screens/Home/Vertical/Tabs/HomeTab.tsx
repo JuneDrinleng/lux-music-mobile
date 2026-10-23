@@ -28,7 +28,7 @@ import { pause, play, playListAsQueue } from '@/core/player/player'
 import { useI18n } from '@/lang'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
-import { useIsPlay, usePlayMusicInfo } from '@/store/player/hook'
+import { useIsPlay } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { createStyle } from '@/utils/tools'
 import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getListMusics, getUserAvatar, getUserName } from '@/utils/data'
@@ -657,7 +657,6 @@ export default memo(() => {
   const statusBarHeight = useStatusbarHeight()
   const activeNavId = useNavActiveId()
   const playlists = useMyList()
-  const playMusicInfo = usePlayMusicInfo()
   const isPlay = useIsPlay()
   const linkedPlaylistId = useLinkedPlaylistId()
   const searchSource = useSettingValue('search.defaultSource')
@@ -1135,15 +1134,9 @@ export default memo(() => {
   const rankedItems = useMemo(() => [...libraryItems], [libraryItems])
   const featuredItem = rankedItems[0] ?? null
   const dailyLists = useMemo(() => rankedItems.slice(0, DAILY_PREVIEW_LIMIT), [rankedItems])
-  const currentMusic = playMusicInfo.musicInfo
-  const currentMusicInfo = currentMusic
-    ? 'metadata' in currentMusic
-      ? currentMusic.metadata.musicInfo
-      : currentMusic
-    : null
   const featuredMeta = featuredItem ? playlistMetaMap[featuredItem.id] : undefined
-  const featuredCover = currentMusicInfo?.meta.picUrl ?? featuredMeta?.cover ?? null
-  const featuredStat = featuredItem ? (featuredMeta ? featuredMeta.count : null) : 0
+  const featuredCover = featuredMeta?.cover ?? null
+  const featuredStat = featuredMeta?.count ?? null
   const isPlaylistCurrent = useCallback((listId: string | null | undefined) => {
     if (!listId || !linkedPlaylistId) return false
     return linkedPlaylistId === listId

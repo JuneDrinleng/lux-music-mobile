@@ -28,16 +28,19 @@ const setup = () => {
   const dependencies = {
     react: host.react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', StyleSheet: { absoluteFillObject: {} } },
+    'react-native': { ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', Image: 'NativeImage', StyleSheet: { absoluteFillObject: {} } },
     '@/components/common/Text': { default: 'Text', __esModule: true },
-    '@/components/common/Image': { default: 'Image', __esModule: true },
+    '@/components/common/Image': { default: 'Image', defaultHeaders: { 'User-Agent': 'test' }, __esModule: true },
     '@/components/magazine': { SectionHeader: 'SectionHeader', MagTopBar: 'MagTopBar', SongRow: 'SongRow', Rule: 'Rule', DOCK_BASE_HEIGHT: 122 },
     '@/components/stats/statsShared': { weekdayKey: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] },
     '@/config/constant': { APP_LAYER_INDEX: { controls: 10 } },
     '@/lang': { useI18n: () => key => key },
     '@/theme/LuxTheme': { sharedLuxStyles: fn => () => fn({}), useLuxTheme: () => ({ colors: {} }) },
-    '@/theme/magazineRoles': { magazineRoles: () => ({ ink: 'ink', quiet: 'quiet' }) },
+    '@/theme/luxColorMath': { rgbaHex: (color, alpha) => `${color}@${alpha}` },
+    '@/theme/magazineRoles': { magazineRoles: () => ({ ink: 'ink', quiet: 'quiet', paper: 'paper', placeholder: 'placeholder' }) },
     '@/theme/magazineType': { PAGE_GUTTER: 22, magType: { h2: { size: 32 } } },
+    '@/store/setting/hook': { useSettingValue: () => 'en_us' },
+    '@/utils/pixelRatio': { setSpText: n => n, scaleSizeH: n => n },
     '@/utils/tools': { createStyle: value => value },
     '@/store/common/state': { default: { componentIds: { home: 'home' } }, __esModule: true },
     '@/store/common/hook': { useStatusbarHeight: () => 24 },
@@ -164,7 +167,7 @@ test('detail renders all daily songs with source, reason, interval; row, play al
 
 test('all new recommendation copy has three-language parity and identical placeholders', () => {
   const locales = ['zh-cn', 'zh-tw', 'en-us'].map(locale => JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8').replace(/^\uFEFF/, '')))
-  const files = ['RecommendationSection', 'DailyCover', 'DailyRecommendationPage'].map(name => readFileSync(new URL(`../src/components/recommend/${name}.tsx`, import.meta.url), 'utf8')).join('\n')
+  const files = ['RecommendationSection', 'DailyCover', 'DailyRecommendationPage', 'WeeklyCover'].map(name => readFileSync(new URL(`../src/components/recommend/${name}.tsx`, import.meta.url), 'utf8')).join('\n')
   const keys = [...files.matchAll(/t\('(recommend_[^']+)'/g)].map(match => match[1])
   keys.push(...Array.from({ length: 12 }, (_, i) => `recommend_month_${i + 1}`))
   for (const key of keys) {
@@ -224,4 +227,98 @@ test('daily detail follows pushed-page navigation, disables pager gestures, clos
     global.app_event = previousApp
     global.state_event = previousState
   }
+})
+
+
+test('daily home cover skips coverless items for both background and the first three mini covers', () => {
+  const env = setup()
+  const { DailyCover } = env.load('../../components/recommend/DailyCover')
+  const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
+  const withCovers = [items[0], { ...items[1], musicInfo: { meta: { picUrl: 'meta-cover' } } },
+    { ...items[2], song: { ...items[2].song, img: 'song-cover' } }, items[3],
+    { ...items[4], song: { ...items[4].song, img: 'third-cover' } },
+    { ...items[5], song: { ...items[5].song, img: 'fourth-cover' } }]
+  const all = nodes(env.host.render(DailyCover, { items: withCovers }))
+  assert.equal(all.find(n => n.type === FrostedCover).props.uri, 'meta-cover')
+  assert.deepEqual(all.filter(n => n.type === 'Image').map(n => n.props.url), ['meta-cover', 'song-cover', 'third-cover'])
+  assert.equal(all.find(n => n.type === 'Text' && n.props.size === 100).props.style[0].includeFontPadding, false)
+  assert.equal(nodes(env.host.render(DailyCover, { items })).find(n => n.type === FrostedCover).props.uri, undefined)
+})
+
+test('weekly cover uses playlist metadata and never the now-playing artwork; keeps count optional', () => {
+  const env = setup()
+  const { WeeklyCover } = env.load('../../components/recommend/WeeklyCover')
+  const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
+  const props = { discover: { cover: 'playlist-cover', count: 30, currentMusicInfo: { meta: { picUrl: 'now-playing' } } } }
+  let all = nodes(env.host.render(WeeklyCover, props))
+  assert.equal(all.find(n => n.type === FrostedCover).props.uri, 'playlist-cover')
+  assert.equal(all.find(n => n.type === 'Image').props.url, 'playlist-cover')
+  assert.equal(all.find(n => n.props.size === 13).props.children, 'recommend_cover_week_count')
+  all = nodes(env.host.render(WeeklyCover, { discover: { cover: null } }))
+  assert.equal(all.find(n => n.type === FrostedCover).props.uri, undefined)
+  assert.equal(all.find(n => n.props.size === 13).props.children, 'recommend_cover_week')
+  const home = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/HomeTab.tsx', import.meta.url), 'utf8')
+  assert.match(home, /const featuredCover = featuredMeta\?\.cover \?\? null/)
+  assert.doesNotMatch(home, /currentMusicInfo\?\.meta.picUrl/)
+})
+
+test('native blur 14 and paper tint fall back to placeholder on missing cover or image error, then recover for new URI', () => {
+  const env = setup()
+  const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
+  const render = uri => env.host.render(FrostedCover, { uri })
+  let tree = render('cover')
+  const image = nodes(tree).find(n => n.type === 'NativeImage')
+  assert.equal(image.props.source.uri, 'cover')
+  assert.equal(image.props.blurRadius, 14)
+  assert.equal(image.props.resizeMode, 'cover')
+  assert.ok(nodes(tree).some(n => n.props.style?.some?.(s => s?.backgroundColor === 'paper@0.66')))
+  image.props.onError()
+  tree = render('cover')
+  assert.equal(nodes(tree).filter(n => n.type === 'NativeImage').length, 0)
+  assert.equal(tree.props.style[1].backgroundColor, 'placeholder')
+  assert.equal(nodes(tree).filter(n => n.type === 'View').length, 1)
+  assert.equal(nodes(render('next-cover')).filter(n => n.type === 'NativeImage').length, 1)
+  assert.equal(nodes(render(undefined)).filter(n => n.type === 'NativeImage').length, 0)
+  for (const name of ['FrostedCover', 'DailyCover', 'WeeklyCover']) {
+    assert.doesNotMatch(readFileSync(new URL(`../src/components/recommend/${name}.tsx`, import.meta.url), 'utf8'), /BlurView/)
+  }
+})
+
+test('date line height scales with Text size and keeps the kicker gap at font scales 1, 1.3, 2', () => {
+  const { dayNumberMetrics } = moduleLoader()('../../components/recommend/coverModel')
+  for (const fontScale of [1, 1.3, 2]) {
+    const metrics = dayNumberMetrics(n => n * fontScale, n => n)
+    assert.equal(metrics.fontSize, 100 * fontScale)
+    assert.equal(metrics.lineHeight, 104 * fontScale)
+    assert.ok(metrics.lineHeight >= metrics.fontSize)
+    assert.ok(metrics.gap >= 10)
+    // Native font scaling also multiplies both the glyph size and line box equally.
+    const native = dayNumberMetrics(n => Math.floor(n / fontScale), n => n)
+    assert.ok(native.lineHeight * fontScale >= native.fontSize * fontScale)
+  }
+})
+
+test('local Monday–Sunday range and ISO week handle year boundaries and DST weeks', () => {
+  const { currentRecommendationWeek } = moduleLoader()('../../components/recommend/coverModel')
+  for (const [date, start, end, expectedWeek] of [
+    [new Date(2026, 9, 23), [9, 19], [9, 25], 43],
+    [new Date(2021, 0, 1), [11, 28], [0, 3], 53],
+    [new Date(2025, 11, 31), [11, 29], [0, 4], 1],
+    [new Date(2026, 2, 8), [2, 2], [2, 8], 10],
+  ]) {
+    const { monday, sunday, week } = currentRecommendationWeek(date)
+    assert.deepEqual([monday.getMonth(), monday.getDate()], start)
+    assert.deepEqual([sunday.getMonth(), sunday.getDate()], end)
+    assert.equal(week, expectedWeek)
+  }
+})
+
+test('card copy localizes Chinese titles, numeric months, and the English preview strings', () => {
+  const langs = ['zh-cn', 'zh-tw', 'en-us'].map(locale => JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8').replace(/^\uFEFF/, '')))
+  assert.deepEqual(langs.map(l => l.home_discover_title), ['本周发现', '本週發現', 'Discover Weekly'])
+  const fill = (s, values) => s.replace(/\{(\w+)\}/g, (_, k) => values[k])
+  assert.equal(fill(langs[0].recommend_cover_today, { month: 10, year: 2026 }), '今日 · 2026 年 10 月')
+  assert.equal(fill(langs[2].recommend_cover_today, { month: langs[2].recommend_month_10, year: 2026 }), 'TODAY · OCT 2026')
+  assert.equal(fill(langs[2].recommend_cover_weekly, { start: 'OCT 19', end: '25' }), 'THIS WEEK · OCT 19 – 25')
+  assert.equal(fill(langs[2].recommend_cover_week_count, { week: 43, count: 30 }), 'Week 43 · 30 songs')
 })
