@@ -8,7 +8,7 @@ import ts from 'typescript'
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const load = (path, require = name => { throw new Error(name) }) => {
   const module = { exports: {} }
-  const js = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText
+  const js = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText
   new Script(`(function(require,module,exports){${js}\n})`, { filename: path }).runInThisContext()(require, module, module.exports)
   return module.exports
 }
@@ -103,11 +103,11 @@ test('audio defaults merge with old settings, persist through existing settings 
 test('approved audio surfaces retain all controls, localized unsupported reasons and conditional mounting', () => {
   const page = read('src/screens/AudioEffects/index.tsx')
   const settings = read('src/screens/Home/Vertical/Tabs/SettingsTab.tsx')
-  assert.match(settings, /audioEffectsVisible \? <AudioEffectsPage/)
-  assert.match(settings, /setAudioEffectsVisible\(false\)/)
+  assert.match(settings, /global\.app_event\.openAudioEffects\(\)/)
+  assert.match(read('src/screens/Home/Vertical/Main.tsx'), /audioEffectsVisible \? <AudioEffectsPage/)
   assert.match(page, /NativeModules\.TrackPlayerModule/)
-  assert.match(page, /<Modal visible/)
-  assert.match(page, /onRequestClose={back}/)
+  assert.doesNotMatch(page, /\bModal\b/)
+  assert.match(page, /useBackHandler/)
   assert.match(page, /<OptionRow[^>]+leading/)
   assert.match(page, /<Toggle compact/)
   assert.match(page, /EQ_PRESETS\.map/)
@@ -219,4 +219,272 @@ test('gain composition keeps targets, EQ headroom, ducking and sleep fade indepe
   // Updating effects during a fade leaves the envelope untouched; cancellation restores base * duck.
   assert.equal(api.composeAudioGain(settings, 0.8, 0.5, 0.25).playerVolume, api.composeAudioGain(eq, 0.8, 0.5, 0.25).playerVolume)
   assert.equal(api.composeAudioGain({ ...eq, 'player.audio.equalizer.gains': JSON.stringify(Array(10).fill(-6)) }).loudnessMillibels, 400)
+})
+
+// Render production JSX with hook/native adapters, following the src-test harness pattern.
+// These test JS events, geometry and setting acknowledgement; native Android layout needs a device.
+const hookHost = () => {
+  const slots = []
+  let cursor = 0
+  let dirty = false
+  let effects = []
+  const state = initial => {
+    const i = cursor++
+    if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
+    return [slots[i], next => {
+      const value = typeof next === 'function' ? next(slots[i]) : next
+      if (!Object.is(value, slots[i])) { slots[i] = value; dirty = true }
+    }]
+  }
+  const effect = (fn, deps) => {
+    const i = cursor++
+    if (slots[i] && deps && deps.every((value, index) => Object.is(value, slots[i].deps[index]))) return
+    effects.push(() => { slots[i]?.cleanup?.(); slots[i] = { deps, cleanup: fn() } })
+  }
+  return {
+    react: {
+      useState: state,
+      useRef: initial => { const i = cursor++; return slots[i] ??= { current: initial } },
+      useCallback: fn => fn,
+      useEffect: effect,
+      useLayoutEffect: effect,
+    },
+    render(component, props = {}) {
+      let tree
+      do {
+        dirty = false; cursor = 0; effects = []
+        tree = component(props)
+        effects.forEach(fn => fn())
+      } while (dirty)
+      return tree
+    },
+    unmount() { slots.forEach(slot => slot?.cleanup?.()) },
+  }
+}
+const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)]
+const jsx = (type, props) => ({ type, props })
+const flush = async() => { for (let i = 0; i < 10; i++) await Promise.resolve() }
+// Band top sits at pageY 1000; locationY is only trusted at grant (Android may report it relative to another view on move).
+const eventAt = (y, locationY = y) => ({ nativeEvent: { locationY, locationX: 500, pageY: 1000 + y } })
+const setupAudio = (setEqualizer = async() => {}) => {
+  let currentHost
+  let back
+  let activeHome = true
+  const state = { setting: { ...defaults, 'player.audio.equalizer.enabled': true } }
+  const writes = []
+  const bridgeCalls = []
+  const common = { navActiveId: 'nav_setting', componentIds: { home: 'home' } }
+  const dependencies = {
+    react: new Proxy({}, { get: (_, name) => (...args) => currentHost.react[name](...args) }),
+    'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
+    'react-native': {
+      View: 'View',
+      ScrollView: 'ScrollView',
+      TouchableOpacity: 'TouchableOpacity',
+      StyleSheet: { absoluteFillObject: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
+      Animated: { View: 'AnimatedView', Value: class { constructor(value) { this.value = value } setValue(value) { this.value = value } } },
+      NativeModules: { TrackPlayerModule: { setEqualizer: config => { bridgeCalls.push(config); return setEqualizer(config) }, setLoudnessNormalization: async() => {}, setGaplessPlayback: async() => {} } },
+    },
+    '@/components/common/Text': { default: 'Text', __esModule: true },
+    '@/components/common/StatusBar': { default: 'StatusBar', __esModule: true },
+    '@/components/magazine': { DOCK_BASE_HEIGHT: 122, MagTopBar: 'MagTopBar', OptionRow: 'OptionRow', Rule: 'Rule', Toggle: 'Toggle' },
+    '@/config/constant': { APP_LAYER_INDEX: { controls: 10 } },
+    '@/core/common': { updateSetting: patch => { writes.push(patch); state.setting = { ...state.setting, ...patch } } },
+    '@/lang': { useI18n: () => key => key },
+    '@/store/common/hook': { useStatusbarHeight: () => 24 },
+    '@/store/common/state': { default: common, __esModule: true },
+    '@/store/setting/hook': { useSetting: () => state.setting },
+    '@/store/setting/state': { default: state, __esModule: true },
+    '@/theme/LuxTheme': { sharedLuxStyles: fn => () => fn({}), useLuxTheme: () => ({ colors: {} }) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({ paper: 'paper', ink: 'ink', accent: 'accent' }) },
+    '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 8, __esModule: true },
+    '@/utils/hooks/useBackHandler': { useBackHandler: fn => { back = fn } },
+    '@/utils/homeBackHandler': { isHomeScreenActive: () => activeHome },
+    '@/utils/tools': { createStyle: value => value },
+    '@/utils/audioEffects': api,
+  }
+  const page = load('src/screens/AudioEffects/index.tsx', name => {
+    assert.ok(name in dependencies, name)
+    return dependencies[name]
+  })
+  return {
+    ...page,
+    dependencies,
+    writes,
+    bridgeCalls,
+    state,
+    common,
+    render(host, component, props) { currentHost = host; return host.render(component, props) },
+    back: () => back(),
+    setActiveHome: value => { activeHome = value },
+  }
+}
+const thumbPosition = band => {
+  const thumb = nodes(band).find(n => n.type === 'AnimatedView')
+  assert.ok(thumb, 'thumb uses a pixel transform instead of percentage relayout')
+  const style = Object.assign({}, ...thumb.props.style)
+  assert.equal(style.top, 0)
+  return style.transform[0].translateY.value
+}
+
+test('EQ grant/move updates native thumb geometry; release writes once, holds draft until setting acknowledgement', async() => {
+  let finish
+  const h = setupAudio(() => new Promise(resolve => { finish = resolve }))
+  const pageHost = hookHost(); const bandHost = hookHost()
+  let page
+  const renderPage = () => { page = h.render(pageHost, h.default, { onBack() {} }); return page }
+  renderPage()
+  const bandProps = () => nodes(page).find(n => n.type === h.EqBand).props
+  const renderBand = () => h.render(bandHost, h.EqBand, bandProps())
+  let band = renderBand()
+  band.props.onLayout({ nativeEvent: { layout: { height: 128 } } })
+  band = renderBand()
+  const original = thumbPosition(band)
+  band.props.onResponderGrant(eventAt(64)); renderPage(); band = renderBand()
+  assert.equal(nodes(page).find(n => n.type === 'ScrollView').props.scrollEnabled, false)
+  assert.equal(thumbPosition(band), 64)
+  band.props.onResponderMove(eventAt(16)); band = renderBand()
+  assert.equal(thumbPosition(band), 16)
+  // Move with a stale/foreign locationY (relative to a child view) still follows the finger via pageY.
+  band.props.onResponderMove(eventAt(48, 3)); band = renderBand()
+  assert.equal(thumbPosition(band), 48)
+  band.props.onResponderMove(eventAt(16, 120)); band = renderBand()
+  assert.equal(thumbPosition(band), 16)
+  assert.notEqual(thumbPosition(band), original)
+  assert.equal(band.props.accessibilityValue.now, 9)
+  assert.equal(h.bridgeCalls.length, 0)
+  assert.equal(band.props.onResponderTerminationRequest(), false)
+  band.props.onResponderRelease(); renderPage(); band = renderBand()
+  assert.equal(thumbPosition(band), 16, 'no old-value frame during native write')
+  assert.equal(h.writes.length, 0)
+  assert.equal(h.bridgeCalls.length, 1)
+  assert.deepEqual(h.bridgeCalls[0].gains, [9, ...JSON.parse(defaults['player.audio.equalizer.gains']).slice(1)])
+  assert.equal(band.props.accessibilityState.disabled, true, 'busy after release only')
+  assert.equal(nodes(page).find(n => n.type === 'ScrollView').props.scrollEnabled, true)
+  finish(); await flush()
+  // The promise can finish before the subscribed setting prop arrives; hold the draft in that gap too.
+  band = renderBand(); assert.equal(thumbPosition(band), 16)
+  renderPage(); band = renderBand()
+  assert.equal(h.writes.length, 1)
+  const saved = JSON.parse(h.state.setting['player.audio.equalizer.gains'])[0]
+  assert.equal(saved, 9)
+  assert.equal(thumbPosition(band), (12 - saved) / 24 * 128)
+  assert.equal(h.state.setting['player.audio.equalizer.preset'], 'custom')
+  // An external preset must be visible after acknowledgement (no retained draft).
+  h.state.setting['player.audio.equalizer.gains'] = JSON.stringify(Array(10).fill(-6))
+  renderPage(); band = renderBand(); assert.equal(thumbPosition(band), 96)
+})
+
+test('EQ termination clears draft without persisting; increments retain 1 dB and bounds; failures revert', async() => {
+  for (const outcome of ['resolveFalse', 'reject']) {
+    const h = setupAudio(); const host = hookHost(); const changes = []; const drags = []
+    let props = { frequency: '31', value: 0, disabled: false, onDraggingChange: value => drags.push(value), onChange: async value => { changes.push(value); if (changes.length === 1 && outcome === 'reject') throw Error('failed'); return false } }
+    const render = () => h.render(host, h.EqBand, props)
+    let band = render()
+    band.props.onLayout({ nativeEvent: { layout: { height: 120 } } }); band = render()
+    band.props.onResponderGrant(eventAt(30)); band = render(); assert.equal(thumbPosition(band), 30)
+    band.props.onResponderTerminate(); band = render()
+    assert.equal(thumbPosition(band), 60)
+    assert.deepEqual(drags, [true, false]); assert.deepEqual(changes, [])
+    band.props.onResponderRelease(); assert.deepEqual(changes, [])
+    band.props.onResponderGrant(eventAt(-100)); band = render(); assert.equal(thumbPosition(band), 0)
+    band.props.onResponderRelease(); await flush(); band = render(); assert.equal(thumbPosition(band), 60)
+    assert.deepEqual(changes, [12])
+    band.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } }); await flush()
+    assert.equal(changes.at(-1), 1)
+    props = { ...props, value: 12 }; band = render()
+    band.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } }); await flush(); assert.equal(changes.at(-1), 12)
+    band.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } }); await flush(); assert.equal(changes.at(-1), 11)
+    // Releasing at the existing saved value must not retain a draft over future presets.
+    props = { ...props, value: 0, onChange: async() => true }; band = render()
+    band.props.onResponderGrant(eventAt(60)); band = render(); band.props.onResponderRelease(); await flush(); band = render()
+    props = { ...props, value: -6 }; band = render(); assert.equal(thumbPosition(band), 90)
+    props = { ...props, disabled: true }; band = render(); const count = changes.length
+    assert.equal(band.props.onStartShouldSetResponder(), false)
+    band.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } }); await flush(); assert.equal(changes.length, count)
+  }
+})
+
+test('audio overlay has Dock clearance, no Modal, and hardware back returns detail → page → close', () => {
+  const h = setupAudio(); const host = hookHost(); let closed = 0
+  const render = () => h.render(host, h.default, { onBack: () => closed++ })
+  let page = render()
+  assert.equal(page.type, 'View')
+  assert.equal(page.props.style[0].zIndex, 9)
+  const scroll = nodes(page).find(n => n.type === 'ScrollView')
+  assert.equal(scroll.props.contentContainerStyle[1].paddingBottom, 122 + 8 + 28)
+  assert.equal(scroll.props.contentContainerStyle[1].paddingTop, 24)
+  const eq = nodes(page).find(n => n.props.style?.[0]?.height === 130)
+  assert.ok(eq, 'EQ keeps its 130 height')
+  nodes(page).find(n => n.props.accessibilityHint === 'audio_effects_detail_hint').props.onPress()
+  page = render(); assert.equal(nodes(page).filter(n => n.type === 'OptionRow').length, 3)
+  h.setActiveHome(false); assert.equal(h.back(), false); assert.equal(closed, 0)
+  h.setActiveHome(true); assert.equal(h.back(), true); page = render()
+  assert.equal(closed, 0); assert.equal(nodes(page).filter(n => n.type === h.EqBand).length, 10)
+  assert.equal(h.back(), true); assert.equal(closed, 1)
+})
+
+test('Main mounts audio above Pager, preserves Dock navigation, and restores swiping on every close path', () => {
+  const previousApp = global.app_event; const previousState = global.state_event
+  const emitter = () => {
+    const handlers = new Map()
+    const bus = {
+      on(name, fn) { if (!handlers.has(name)) handlers.set(name, new Set()); handlers.get(name).add(fn) },
+      off(name, fn) { handlers.get(name)?.delete(fn) },
+      emit(name, value) { handlers.get(name)?.forEach(fn => fn(value)) },
+    }
+    return new Proxy(bus, { get: (target, name) => name in target ? target[name] : value => target.emit(name, value) })
+  }
+  global.app_event = emitter(); global.state_event = emitter()
+  try {
+    const h = setupAudio(); const host = hookHost()
+    const dependencies = {
+      ...h.dependencies,
+      'react-native-pager-view': { default: 'Pager', __esModule: true },
+      '@/screens/AudioEffects': { default: 'AudioEffectsPage', __esModule: true },
+      '@/components/recommend/DailyRecommendationPage': { DailyRecommendationPage: 'DailyRecommendationPage' },
+      './SearchPage': { default: 'SearchPage', __esModule: true },
+      './SharedTopBar': { default: 'SharedTopBar', __esModule: true },
+      './Tabs/HomeTab': { default: 'HomeTab', __esModule: true },
+      './Tabs/PlaylistTab': { default: 'PlaylistTab', __esModule: true },
+      './Tabs/SettingsTab': { default: 'SettingsTab', __esModule: true },
+    }
+    const Main = load('src/screens/Home/Vertical/Main.tsx', name => { assert.ok(name in dependencies, name); return dependencies[name] }).default
+    const render = () => h.render(host, Main)
+    const pager = tree => nodes(tree).find(n => n.type === 'Pager')
+    const audio = tree => nodes(tree).find(n => n.type === 'AudioEffectsPage')
+    let tree = render(); assert.equal(pager(tree).props.scrollEnabled, true); assert.equal(audio(tree), undefined)
+    global.app_event.openAudioEffects(); tree = render()
+    assert.equal(pager(tree).props.scrollEnabled, false); assert.ok(audio(tree))
+    assert.ok(tree.props.children.indexOf(audio(tree)) > tree.props.children.indexOf(pager(tree)), 'overlay is a sibling above Pager')
+    audio(tree).props.onBack(); tree = render(); assert.equal(audio(tree), undefined); assert.equal(pager(tree).props.scrollEnabled, true)
+    global.app_event.openAudioEffects(); tree = render()
+    // Dock emits this existing navigation event; its tab handler remains available above Content.
+    global.state_event.emit('navActiveIdUpdated', 'nav_love'); tree = render()
+    assert.equal(audio(tree), undefined); assert.equal(pager(tree).props.scrollEnabled, true)
+    global.app_event.openAudioEffects(); tree = render(); assert.ok(audio(tree))
+    global.app_event.openDailyRecommendations(); tree = render(); assert.equal(audio(tree), undefined)
+    global.app_event.closeDailyRecommendations(); tree = render(); assert.equal(pager(tree).props.scrollEnabled, true)
+    host.unmount(); global.app_event.openAudioEffects(); tree = render(); assert.equal(audio(tree), undefined, 'event listeners removed on unmount')
+    // Composition contract: the real shell renders Dock after Content with its live navigation/player callbacks.
+    const shell = read('src/screens/Home/Vertical/index.tsx')
+    assert.ok(shell.indexOf('<Content />') < shell.indexOf('<Dock'))
+    assert.match(shell, /onNavPress={handleNavPress}/)
+    assert.match(shell, /<DockPlayerSlot/)
+    assert.match(shell, /style={styles.bottomLayer}[\s\S]*?pointerEvents="box-none"/)
+    assert.match(read('src/screens/AudioEffects/index.tsx'), /zIndex: APP_LAYER_INDEX.controls - 1/)
+  } finally { global.app_event = previousApp; global.state_event = previousState }
+})
+
+test('failed native release preserves saved settings and clears the optimistic thumb', async() => {
+  const h = setupAudio(async() => { throw Error('native failure') })
+  const pageHost = hookHost(); const bandHost = hookHost()
+  let page
+  const renderPage = () => { page = h.render(pageHost, h.default, { onBack() {} }) }
+  const renderBand = () => h.render(bandHost, h.EqBand, nodes(page).find(n => n.type === h.EqBand).props)
+  renderPage(); let band = renderBand(); const original = thumbPosition(band)
+  band.props.onResponderGrant(eventAt(0)); band = renderBand(); assert.equal(thumbPosition(band), 0)
+  band.props.onResponderRelease(); await flush(); renderPage(); band = renderBand()
+  assert.equal(thumbPosition(band), original); assert.equal(h.bridgeCalls.length, 1); assert.equal(h.writes.length, 0)
+  assert.ok(nodes(page).find(n => n.props.accessibilityLiveRegion === 'polite'))
 })

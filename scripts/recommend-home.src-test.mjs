@@ -197,6 +197,7 @@ test('daily detail follows pushed-page navigation, disables pager gestures, clos
     './Tabs/HomeTab': { default: 'HomeTab', __esModule: true },
     './Tabs/PlaylistTab': { default: 'PlaylistTab', __esModule: true },
     './Tabs/SettingsTab': { default: 'SettingsTab', __esModule: true },
+    '@/screens/AudioEffects': { default: 'AudioEffectsPage', __esModule: true },
   })
   const Main = load('../../screens/Home/Vertical/Main').default
   const render = () => nodes(env.host.render(Main, {}))

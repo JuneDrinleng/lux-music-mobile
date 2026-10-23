@@ -364,19 +364,19 @@ test('AI settings entry opens a read-only page and back unmounts its layer', () 
 })
 
 
-test('audio settings entry adds a full-screen page and back unmounts it without moving existing entries', () => {
+test('audio settings entry opens the Main overlay without moving existing entries', () => {
   const h = settingsHarness({ status: true })
-  let tree = h.render()
+  const tree = h.render()
   for (const key of ['setting_search_source', 'setting_basic_source', 'together_layout']) {
     assert.ok(nodes(tree).some(node => node.type === 'SettingRow' && node.props.title === translate(key)))
   }
   const row = nodes(tree).find(node => node.type === 'SettingRow' && node.props.title === translate('audio_effects_title'))
   assert.ok(row)
   assert.ok(!nodes(tree).some(node => node.type === 'AudioEffectsPage'))
-  row.props.onPress()
-  tree = h.render()
-  const page = nodes(tree).find(node => node.type === 'AudioEffectsPage')
-  assert.ok(page)
-  page.props.onBack()
+  const previous = global.app_event
+  let opened = 0
+  global.app_event = { openAudioEffects() { opened++ } }
+  try { row.props.onPress() } finally { global.app_event = previous }
+  assert.equal(opened, 1)
   assert.ok(!nodes(h.render()).some(node => node.type === 'AudioEffectsPage'))
 })
