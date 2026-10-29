@@ -1790,6 +1790,7 @@
   "audio_effects_entry_description": "均衡器、响度均衡与无缝播放",
   "audio_effects_eyebrow": "SETTINGS · 播放",
   "audio_effects_detail_eyebrow": "音效 · 响度",
+  "audio_effects_equalizer_reset": "恢复默认",
   "audio_effects_equalizer": "均衡器",
   "audio_effects_equalizer_enable": "启用均衡器",
   "audio_effects_volume_transition": "音量与衔接",

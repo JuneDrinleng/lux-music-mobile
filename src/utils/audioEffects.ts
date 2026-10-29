@@ -42,6 +42,16 @@ export const normalizeAudioEffects = (settings: Partial<AudioEffectSettings>): A
   }
 }
 
+/** Only these two keys belong to resetting the EQ; keep enablement and other effects. */
+export const equalizerDefaultPatch = () => ({
+  'player.audio.equalizer.preset': AUDIO_EFFECT_DEFAULTS['player.audio.equalizer.preset'],
+  'player.audio.equalizer.gains': AUDIO_EFFECT_DEFAULTS['player.audio.equalizer.gains'],
+})
+export const equalizerResetDisabled = (settings: AudioEffectSettings, disabled: boolean): boolean => disabled || (
+  settings['player.audio.equalizer.preset'] === AUDIO_EFFECT_DEFAULTS['player.audio.equalizer.preset'] &&
+  settings['player.audio.equalizer.gains'] === AUDIO_EFFECT_DEFAULTS['player.audio.equalizer.gains']
+)
+
 /** JS adapter contract for phase 7; absence of a callable bridge always disables the control.
  * No inference from platform, setVolume, setRate, or generic queue support.
  * Each bridge accepts the complete effect configuration and resolves after applying it.
@@ -69,6 +79,46 @@ export const commitAudioEffect = async(effect: AudioEffect, settings: AudioEffec
   }
   persist(safe)
   return true
+}
+
+/** Preview without persistence. Coalesce slow native calls, spacing starts by at least 70 ms.
+ * Cancel drops queued previews and drains the current call before a final full commit.
+ */
+export const createEqualizerPreview = (bridge?: AudioEffectsBridge | null) => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let latest: AudioEffectSettings | undefined
+  let inFlight: Promise<void> | undefined
+  let lastStart = -Infinity
+  let lastGains: string | undefined
+  const schedule = () => {
+    if (!latest || inFlight !== undefined || timer !== undefined) return
+    const delay = Math.max(0, 70 - (Date.now() - lastStart))
+    if (delay > 0) { timer = setTimeout(() => { timer = undefined; schedule() }, delay); return }
+    const settings = latest
+    latest = undefined
+    lastStart = Date.now()
+    inFlight = commitAudioEffect('equalizer', settings, bridge, () => {}).then(() => {}, () => {}).finally(() => {
+      inFlight = undefined
+      schedule()
+    })
+  }
+  return {
+    push(settings: AudioEffectSettings) {
+      if (!settings['player.audio.equalizer.enabled'] || !audioEffectCapabilities(bridge).equalizer) return
+      const safe = normalizeAudioEffects(settings)
+      if (safe['player.audio.equalizer.gains'] === lastGains) return
+      lastGains = safe['player.audio.equalizer.gains']
+      latest = safe
+      schedule()
+    },
+    async cancel() {
+      if (timer !== undefined) clearTimeout(timer)
+      timer = undefined
+      latest = undefined
+      lastGains = undefined
+      return inFlight ?? Promise.resolve()
+    },
+  }
 }
 
 /** Restore after setup without writing settings or blocking playback on unsupported devices. */

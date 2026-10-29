@@ -1790,6 +1790,7 @@
   "audio_effects_entry_description": "Equalizer, loudness and gapless playback",
   "audio_effects_eyebrow": "SETTINGS · PLAYBACK",
   "audio_effects_detail_eyebrow": "AUDIO EFFECTS · LOUDNESS",
+  "audio_effects_equalizer_reset": "Reset",
   "audio_effects_equalizer": "Equalizer",
   "audio_effects_equalizer_enable": "Enable equalizer",
   "audio_effects_volume_transition": "Volume & transitions",

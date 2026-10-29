@@ -1790,6 +1790,7 @@
   "audio_effects_entry_description": "等化器、響度均衡與無縫播放",
   "audio_effects_eyebrow": "SETTINGS · 播放",
   "audio_effects_detail_eyebrow": "音效 · 響度",
+  "audio_effects_equalizer_reset": "恢復預設",
   "audio_effects_equalizer": "等化器",
   "audio_effects_equalizer_enable": "啟用等化器",
   "audio_effects_volume_transition": "音量與銜接",
