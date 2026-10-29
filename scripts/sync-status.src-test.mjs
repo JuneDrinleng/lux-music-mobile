@@ -182,6 +182,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     './VersionChangelogDetail': { default: 'VersionChangelogDetail' },
     '@/components/common/ChoosePath': { default: 'ChoosePath' },
     '@/utils/playHistory/backupIO': {},
+    '@/utils/exportAccess': load('src/utils/exportAccess.ts', { '@/utils/fs': {} }),
     '@/theme/magazineType': { magType: new Proxy({}, { get: () => ({ size: 12 }) }) },
     '@/theme/luxTokens': { LUX_THEME_IDS: [], luxThemeRegistry: {} },
     '@/utils/playHistory/statsPageStyle': {},

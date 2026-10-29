@@ -72,6 +72,7 @@ import { navigations } from '@/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
+import { fileAccessError } from '@/utils/exportAccess'
 import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
@@ -777,6 +778,7 @@ export default () => {
     backupPathRef.current?.show({
       title: t('setting_export_data_pick'),
       dirOnly: true,
+      forExport: true,
       isPersist: true,
     })
   }, [t])
@@ -791,7 +793,7 @@ export default () => {
     if (backupModeRef.current == 'export') {
       void exportLuxBackupFile(path).then(file => {
         toast(t('setting_export_data_success', { path: file }))
-      }).catch(() => { toast(t('setting_export_data_fail')) })
+      }).catch((err: unknown) => { toast(t('setting_export_data_fail_reason', { reason: fileAccessError(err) }), 'long') })
       return
     }
     void importLuxBackupFile(path).then(result => {
