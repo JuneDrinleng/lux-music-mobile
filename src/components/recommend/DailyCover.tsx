@@ -1,4 +1,5 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+import { memo, useMemo } from 'react'
 import { View } from 'react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
@@ -8,18 +9,19 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { useSettingValue } from '@/store/setting/hook'
 import { setSpText, scaleSizeH } from '@/utils/pixelRatio'
+import { useCoverDate } from './useCoverDate'
 import { FrostedCover } from './FrostedCover'
 import { coveredRecommendations, dayNumberMetrics, recommendationMonths } from './coverModel'
 import { createStyle } from '@/utils/tools'
 import { type Recommendation } from '@/utils/recommend'
 
-const CompactDailyCover = ({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
+const CompactDailyCover = memo(({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
   const t = useI18n()
   const r = magazineRoles(useLuxTheme().colors)
   const styles = useStyles()
-  const date = new Date()
-  const months = ['recommend_month_1', 'recommend_month_2', 'recommend_month_3', 'recommend_month_4', 'recommend_month_5', 'recommend_month_6', 'recommend_month_7', 'recommend_month_8', 'recommend_month_9', 'recommend_month_10', 'recommend_month_11', 'recommend_month_12'] as const
-  const month = t(months[date.getMonth()])
+  const day = useCoverDate()
+  const date = useMemo(() => new Date(day), [day])
+  const month = useMemo(() => t(recommendationMonths[date.getMonth()]), [date, t])
   return (
     <View style={[styles.cover, compact ? styles.compact : styles.large]}>
       <Text size={compact ? 9 : 11} color={r.onInk} style={styles.eyebrow} numberOfLines={1}>
@@ -33,7 +35,7 @@ const CompactDailyCover = ({ items, compact = false }: { items: Recommendation[]
       {!compact ? <View style={styles.minis}>{items.slice(0, 3).map(item => <Image key={item.key} url={item.song.img ?? item.musicInfo?.meta.picUrl} style={styles.mini} />)}</View> : null}
     </View>
   )
-}
+})
 const useStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)
   return createStyle({
@@ -53,27 +55,31 @@ const useStyles = sharedLuxStyles(colors => {
 })
 
 // Keep the detail page's compact cover independent of the home card redesign.
-export const DailyCover = ({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
+export const DailyCover = memo(({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
   const t = useI18n()
   const language = useSettingValue('common.langId')
   const r = magazineRoles(useLuxTheme().colors)
   const styles = useHomeStyles()
-  const date = new Date()
-  const covered = coveredRecommendations(items)
+  const day = useCoverDate()
+  const date = useMemo(() => new Date(day), [day])
+  const covered = useMemo(() => coveredRecommendations(items).slice(0, 3), [items])
   const metrics = dayNumberMetrics(setSpText, scaleSizeH)
+  const dayStyle = useMemo(() => [styles.day, { lineHeight: metrics.lineHeight, marginTop: metrics.gap }], [styles.day, metrics.lineHeight, metrics.gap])
+  const month = useMemo(() => language === 'en_us' ? t(recommendationMonths[date.getMonth()]) : date.getMonth() + 1, [date, language, t])
+  const heading = useMemo(() => t('recommend_cover_today', { month, year: date.getFullYear() }), [date, month, t])
+  const countLabel = useMemo(() => t('recommend_cover_count', { weekday: t(weekdayKey[date.getDay()]), count: items.length }), [date, items.length, t])
   if (compact) return <CompactDailyCover items={items} compact />
-  const month = language === 'en_us' ? t(recommendationMonths[date.getMonth()]) : date.getMonth() + 1
   return (
     <View style={styles.cover}>
       <FrostedCover uri={covered[0]?.cover} />
-      <Text size={11} color={r.ink} style={styles.eyebrow} numberOfLines={1}>{t('recommend_cover_today', { month, year: date.getFullYear() })}</Text>
-      <Text size={100} color={r.ink} style={[styles.day, { lineHeight: metrics.lineHeight, marginTop: metrics.gap }]}>{date.getDate()}</Text>
-      <Text size={15} color={r.ink} style={styles.weekday} numberOfLines={1}>{t('recommend_cover_count', { weekday: t(weekdayKey[date.getDay()]), count: items.length })}</Text>
+      <Text size={11} color={r.ink} style={styles.eyebrow} numberOfLines={1}>{heading}</Text>
+      <Text size={100} color={r.ink} style={dayStyle}>{date.getDate()}</Text>
+      <Text size={15} color={r.ink} style={styles.weekday} numberOfLines={1}>{countLabel}</Text>
       <View style={styles.mark} />
-      <View style={styles.minis}>{covered.slice(0, 3).map(({ item, cover }) => <Image key={item.key} url={cover} style={styles.mini} />)}</View>
+      <View style={styles.minis}>{covered.map(({ item, cover }) => <Image key={item.key} url={cover} style={styles.mini} />)}</View>
     </View>
   )
-}
+})
 const useHomeStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)
   return createStyle({
