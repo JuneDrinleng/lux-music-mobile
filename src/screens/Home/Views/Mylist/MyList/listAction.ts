@@ -66,6 +66,7 @@ const exportList = async(listInfo: LX.List.MyListInfo, path: string) => {
     await handleSaveFile(`${path}/lx_list_part_${filterFileName(listInfo.name)}.lxmc`, data)
   } catch (error: any) {
     log.error(error.stack)
+    throw error
   }
 }
 export const handleExport = (listInfo: LX.List.MyListInfo, path: string) => {
@@ -115,7 +116,7 @@ export const buildLocalMusicInfo = (filePath: string, metadata: MusicMetadataFul
     name: metadata.name,
     singer: metadata.singer,
     source: 'local',
-    interval: formatPlayTime2(metadata.interval),
+    interval: formatPlayTime2(metadata.interval as number),
     meta: {
       albumName: metadata.albumName,
       filePath,
@@ -140,10 +141,10 @@ const createLocalMusicInfos = async(filePaths: string[], errorPath: string[]): P
     await Promise.all(tasks.map(async path => readMetadata(path).then(info => ([path, info] as const)))).then((res) => {
       for (const [path, info] of res) {
         if (!info) {
-          errorPath.push(path)
+          errorPath.push(path as string)
           continue
         }
-        list.push(buildLocalMusicInfo(path, info))
+        list.push(buildLocalMusicInfo(path as string, info))
       }
     })
   }
@@ -198,9 +199,9 @@ export const handleImportMediaFile = async(listInfo: LX.List.MyListInfo, path: s
     }, async(listId, errorPath) => {
       return removeListMusics(listId, errorPath)
     }, listInfo.id)
-    await addListMusics(listInfo.id, files.map(buildLocalMusicInfoByFilePath), settingState.setting['list.addMusicLocationType'])
+    await addListMusics(listInfo.id, (files as FileType[]).map(buildLocalMusicInfoByFilePath), settingState.setting['list.addMusicLocationType'])
     toast(global.i18n.t('list_select_local_file_temp_add_tip', { total: files.length }), 'long')
-    await handleUpdateMusics(files.map(f => f.path), throttleUpdateMusics)
+    await handleUpdateMusics((files as FileType[]).map(f => f.path as string), throttleUpdateMusics)
   } else toast(global.i18n.t('list_select_local_file_empty_tip'), 'long')
   setFetchingListStatus(listInfo.id, false)
 }
