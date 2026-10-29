@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, Easing, RefreshControl, ScrollView, View } from 'react-native'
+import { ActivityIndicator, Animated, RefreshControl, ScrollView, View } from 'react-native'
 import Text from '@/components/common/Text'
 import {
   EmptyState,
@@ -15,7 +15,7 @@ import {
   TextButton,
   UnderlineInput,
 } from '@/components/magazine'
-import { APP_LAYER_INDEX } from '@/config/constant'
+import { SettingsPage, useSettingsTransition } from '@/components/common/SettingsPage'
 import {
   adminApi,
   ensureAdminAccess,
@@ -52,7 +52,6 @@ interface Props {
   syncHost: string
   topPadding: number
   bottomDockHeight: number
-  detailSceneWidth: number
 }
 
 export const AdminConsoleLayer = ({
@@ -61,13 +60,14 @@ export const AdminConsoleLayer = ({
   syncHost,
   topPadding,
   bottomDockHeight,
-  detailSceneWidth,
 }: Props) => {
   const t = useI18n()
   const styles = useAdminConsoleStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
-  const slideAnim = useRef(new Animated.Value(0)).current
+  const closePage = useRef<() => void>(() => {})
+  const { style: subpageStyle, requestOpen, requestClose, progress } = useSettingsTransition(false)
+  useEffect(() => { progress.setValue(1) }, [progress])
   const [routeStack, setRouteStack] = useState<AdminRoute[]>([{ name: 'loading' }])
   const routeStackRef = useRef(routeStack)
   routeStackRef.current = routeStack
@@ -94,26 +94,6 @@ export const AdminConsoleLayer = ({
   const [resetPasswordDraft, setResetPasswordDraft] = useState('')
   const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUserView | null>(null)
   const [deleteUserConfirm, setDeleteUserConfirm] = useState('')
-
-  const translateX = useMemo(() => slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneWidth, slideAnim])
-  const opacity = useMemo(() => slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  }), [slideAnim])
-
-  useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 1 : 0,
-      duration: visible ? 248 : 220,
-      easing: visible
-        ? Easing.bezier(0.22, 0.84, 0.22, 1)
-        : Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [visible, slideAnim])
 
   const resetState = useCallback(() => {
     setRouteStack([{ name: 'loading' }])
@@ -153,7 +133,8 @@ export const AdminConsoleLayer = ({
 
   const navigate = useCallback((next: AdminRoute) => {
     setRouteStack(stack => [...stack, next])
-  }, [])
+    requestOpen()
+  }, [requestOpen])
 
   const handleBack = useCallback(() => {
     if (deleteUserTarget) {
@@ -175,11 +156,11 @@ export const AdminConsoleLayer = ({
       return
     }
     if (routeStackRef.current.length > 1) {
-      setRouteStack(stack => stack.slice(0, -1))
+      requestClose(() => { setRouteStack(stack => stack.slice(0, -1)); progress.setValue(1) })
       return
     }
-    onClose()
-  }, [createInviteOpen, createUserOpen, deleteUserTarget, onClose, resetPasswordUser])
+    closePage.current()
+  }, [createInviteOpen, createUserOpen, deleteUserTarget, resetPasswordUser, requestClose, progress])
 
   useBackHandler(useCallback(() => {
     if (!visible) return false
@@ -592,20 +573,13 @@ export const AdminConsoleLayer = ({
 
   return (
     <>
-      <Animated.View
-        pointerEvents={visible ? 'auto' : 'none'}
-        style={[
-          styles.layer,
-          {
-            opacity,
-            transform: [{ translateX }],
-            elevation: visible ? APP_LAYER_INDEX.controls + 6 : 0,
-          },
-        ]}
-      >
+      <SettingsPage visible={visible} onBack={onClose} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => {
+          closePage.current = back
+          return <Animated.View style={[{ flex: 1 }, subpageStyle]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
+          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 }]}
           showsVerticalScrollIndicator={false}
           bounces
           refreshControl={
@@ -618,7 +592,9 @@ export const AdminConsoleLayer = ({
           <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{pageTitle}</Text>
           {body}
         </ScrollView>
-      </Animated.View>
+          </Animated.View>
+        }}
+      </SettingsPage>
 
       <MagDialog visible={createUserOpen} title={t('admin_console_create_user')} onClose={() => { setCreateUserOpen(false) }}>
         <UnderlineInput value={newUsername} onChangeText={setNewUsername} placeholder={t('admin_console_username_placeholder')} />

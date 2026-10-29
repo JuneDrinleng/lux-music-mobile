@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import SyncLogin from '@/screens/SyncLogin'
 import SyncStatusPage, { SyncStatusRow } from '@/screens/SyncStatus'
 import ServerStep from '@/screens/Login/ServerStep'
 import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
@@ -9,7 +10,7 @@ import { expiredAccountUsername, showSessionExpiredDialog } from '@/plugins/sync
 
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
@@ -36,7 +37,7 @@ import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
-import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { SettingsPage } from '@/components/common/SettingsPage'
 import { useSystemGestureInsetBottom } from '@/utils/hooks'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
@@ -100,7 +101,7 @@ const languageOptions = [
 ] as const
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 
-export default () => {
+export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } = {}) => {
   const styles = useLuxStyles()
   const { colors, id: luxThemeId, setLuxTheme, mode: luxColorMode } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -121,13 +122,11 @@ export default () => {
   }
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
-  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
+  const bottomDockHeight = dockHeight ?? BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const topPadding = statusBarHeight
-  const detailSceneWidth = Dimensions.get('window').width
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
   const backupModeRef = useRef<'export' | 'import'>('export')
-  const optionDetailAnim = useRef(new Animated.Value(0)).current
   const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
   const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
   const showTogetherDebugSection = isTogetherDebugPanelBuild()
@@ -179,6 +178,7 @@ export default () => {
   const isSyncEnabled = useSettingValue('sync.enable')
   const syncStatus = useStatus()
   const [now, setNow] = useState(Date.now)
+  const [loginRequest, setLoginRequest] = useState<{ host: string, username?: string } | null>(null)
   const [statusPage, setStatusPage] = useState<SyncStatusModel | null>(null)
   const [checkingAddress, setCheckingAddress] = useState(false)
   const statusModel = mapSyncStatus({ enabled: isSyncEnabled, local: !syncHost.trim(), mode: syncMode, status: syncStatus, now })
@@ -468,7 +468,6 @@ export default () => {
     releaseChannelLabel,
     currentVersionLabel,
   )
-  const showAccountSection = !normalizedSettingsSearchQuery
   const showProfileHero = matchesSettingsSearch(
     nickname,
     signature,
@@ -479,16 +478,7 @@ export default () => {
     showSearchAndPlayerSection ||
     showDataSection ||
     showTogetherDebugSettingsSection ||
-    showAboutSection ||
-    showAccountSection
-  const optionDetailTranslateX = useMemo(() => optionDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneWidth, optionDetailAnim])
-  const optionDetailOpacity = useMemo(() => optionDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  }), [optionDetailAnim])
+    showAboutSection
   const optionDetailTitle = (() => {
     switch (activeOptionDetail) {
       case 'language': return t('setting_basic_lang')
@@ -512,16 +502,6 @@ export default () => {
   }, [avatarUrl, avatarVersion])
 
 
-  useEffect(() => {
-    Animated.timing(optionDetailAnim, {
-      toValue: activeOptionDetail ? 1 : 0,
-      duration: activeOptionDetail ? 248 : 220,
-      easing: activeOptionDetail
-        ? Easing.bezier(0.22, 0.84, 0.22, 1)
-        : Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [activeOptionDetail, optionDetailAnim])
   const handleOpenAdminConsole = useCallback(() => {
     setAdminConsoleVisible(true)
   }, [])
@@ -832,18 +812,6 @@ export default () => {
     setProfileDetailVisible(false)
   }
 
-  useBackHandler(() => {
-    if (activeOptionDetail) {
-      handleCloseOptionDetail()
-      return true
-    }
-    if (isProfileDetailVisible) {
-      handleCloseProfileDetail()
-      return true
-    }
-    return false
-  })
-
   useEffect(() => {
     global.app_event.on('openSettingsProfileDetail', handleOpenProfileDetail)
     return () => {
@@ -858,11 +826,13 @@ export default () => {
     if (!onSettings) {
       setActiveOptionDetail(null)
       setProfileDetailVisible(false)
+      setAiTokensVisible(false)
       setIsManagingApiSources(false)
       setIsManagingSyncHosts(false)
       setAdminConsoleVisible(false)
       setStatusPage(null)
       setCheckingAddress(false)
+      setLoginRequest(null)
       wasOnSettingsRef.current = false
       return
     }
@@ -1015,7 +985,7 @@ export default () => {
               <SectionHeader title={t('setting_debug_section')} meta={t('setting_debug_section_meta')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow
                 icon="speedometer"
-                iconBg={r.iconWrap.amber}
+                iconBg={r.iconWrap.blue}
                 title={t('together_debug_panel_toggle')}
                 subtitle={t('together_debug_panel_toggle_desc')}
                 value={togetherDebugPanelEnabled ? t('together_debug_on') : t('together_debug_off')}
@@ -1023,7 +993,7 @@ export default () => {
               />
               <SettingRow
                 icon="clipboard-text-outline"
-                iconBg={r.iconWrap.amber}
+                iconBg={r.iconWrap.blue}
                 title={t('together_readiness_copy_settings')}
                 subtitle={t('setting_debug_section_meta')}
                 onPress={handleCopyTogetherDiagnostics}
@@ -1044,15 +1014,6 @@ export default () => {
             )
           : null}
 
-        {showAccountSection
-          ? (
-            <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              <SettingRow icon="account-outline" iconBg={r.iconWrap.red} title={t('setting_account')} subtitle={nickname} onPress={handleOpenProfileDetail} last />
-            </View>
-            )
-          : null}
-
         {!hasSettingSearchResults
           ? (
             <EmptyState
@@ -1063,28 +1024,22 @@ export default () => {
           : null}
 
       </ScrollView>
-      {aiTokensVisible ? <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={() => { setAiTokensVisible(false) }} /> : null}
-      {isProfileDetailVisible ? <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={handleCloseProfileDetail} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} /> : null}
-      <Animated.View
-        pointerEvents={activeOptionDetail ? 'auto' : 'none'}
-        style={[
-          styles.optionDetailLayer,
-          {
-            opacity: optionDetailOpacity,
-            transform: [{ translateX: optionDetailTranslateX }],
-            elevation: activeOptionDetail ? APP_LAYER_INDEX.controls + 5 : 0,
-          },
-        ]}
-      >
-        <ScrollView
+      <SettingsPage visible={aiTokensVisible} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
+        {back => <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={back} />}
+      </SettingsPage>
+      <SettingsPage visible={isProfileDetailVisible} onBack={handleCloseProfileDetail} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={back} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} />}
+      </SettingsPage>
+      <SettingsPage visible={activeOptionDetail != null} onBack={handleCloseOptionDetail} bottomInset={bottomDockHeight}>
+        {back => <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
+          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 }]}
           showsVerticalScrollIndicator={false}
           bounces={false}
           alwaysBounceVertical={false}
           overScrollMode="never"
         >
-          <MagTopBar onBack={handleCloseOptionDetail} />
+          <MagTopBar onBack={back} />
           {activeOptionDetail === 'resourceCache' ? <Text size={11} color={r.eyebrow} style={{ marginTop: 6, fontWeight: '700', letterSpacing: 2 }}>{t('download_storage_eyebrow')}</Text> : null}
           <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{optionDetailTitle}</Text>
 
@@ -1286,8 +1241,8 @@ export default () => {
             : null}
 
 
-        </ScrollView>
-      </Animated.View>
+        </ScrollView>}
+      </SettingsPage>
       <MagDialog
         visible={isSyncHostModalVisible}
         onClose={handleCloseSyncHostModal}
@@ -1348,28 +1303,16 @@ export default () => {
         syncHost={syncHost}
         topPadding={topPadding}
         bottomDockHeight={bottomDockHeight}
-        detailSceneWidth={detailSceneWidth}
       />
-      {statusPage != null || checkingAddress ? <Modal transparent visible statusBarTranslucent animationType="slide" onRequestClose={() => {
-        if (checkingAddress) setCheckingAddress(false)
-        else setStatusPage(null)
-      }}><View style={styles.syncStatusLayer}>
-        {checkingAddress ? <ServerStep initialHost={syncHost} showHistory onBack={() => { setCheckingAddress(false) }} onReady={host => {
-          void saveSyncHost(host).then(async() => {
-            setSyncHostLocal(host)
-            await addSyncHostHistory(host)
-            setCheckingAddress(false)
-            setStatusPage(null)
-            await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: host })
-          })
-        }} /> : statusPage ? <SyncStatusPage model={statusModel ?? statusPage} host={syncHost} username={reloginUsername || nickname}
-          onBack={() => { setStatusPage(null) }}
+      <SettingsPage visible={statusPage != null} onBack={() => { setStatusPage(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <SyncStatusPage model={statusModel ?? statusPage!} host={syncHost} username={reloginUsername || nickname}
+          onBack={back}
           onHome={() => { setStatusPage(null); setNavActiveId('nav_search') }}
           onRetry={() => {
             if (!reconnectNow()) void (syncMode === 'lux' ? connectLuxServer(syncHost) : connectServer(syncHost)).catch(() => {})
           }}
           onCheckAddress={() => { setCheckingAddress(true) }}
-          onLogin={() => { setStatusPage(null); void navigations.pushSyncLoginScreen({ onboarding: false, initialHost: syncHost, initialUsername: reloginUsername || undefined }) }}
+          onLogin={() => { setLoginRequest({ host: syncHost, username: reloginUsername || undefined }) }}
           onLocal={() => {
             void enterLocalSpace(t('sync_login_local_user_name')).then(async() => {
               await setSyncMode('lx')
@@ -1378,8 +1321,20 @@ export default () => {
               setNavActiveId('nav_search')
             }).catch(() => { toast(t('account_logout_failed')) })
           }}
-        /> : null}
-      </View></Modal> : null}
+        />}
+      </SettingsPage>
+      <SettingsPage visible={checkingAddress} onBack={() => { setCheckingAddress(false) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <ServerStep initialHost={syncHost} showHistory onBack={back} onReady={host => {
+          void saveSyncHost(host).then(async() => {
+            setSyncHostLocal(host)
+            await addSyncHostHistory(host)
+            setLoginRequest({ host })
+          })
+        }} />}
+      </SettingsPage>
+      <SettingsPage visible={loginRequest != null} onBack={() => { setLoginRequest(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <SyncLogin initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
+      </SettingsPage>
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )

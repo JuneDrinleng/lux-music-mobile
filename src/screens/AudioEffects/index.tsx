@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Animated, NativeModules, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { useSettingsTransition, useSettingsSubpage } from '@/components/common/SettingsPage'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { DOCK_BASE_HEIGHT, MagTopBar, OptionRow, Rule, TextButton, Toggle } from '@/components/magazine'
@@ -21,7 +22,7 @@ import { createStyle } from '@/utils/tools'
 import { audioEffectCapabilities, audioEffectStateKey, clampEqGain, commitAudioEffect, createEqualizerPreview, equalizerDefaultPatch, equalizerResetDisabled, EQ_FREQUENCIES, EQ_PRESETS, formatEqGain, formatLoudness, LOUDNESS_TARGETS, normalizeAudioEffects, PRESET_GAINS, type AudioEffect, type AudioEffectSettings, type AudioEffectsBridge } from '@/utils/audioEffects'
 
 /** Main-level overlay below the Dock; mounted only while open. */
-export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
+export default function AudioEffectsPage({ onBack, bottomInset }: { onBack: () => void, bottomInset?: number }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -31,7 +32,8 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   const setting = normalizeAudioEffects(useSetting())
   const bridge = NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined
   const capabilities = audioEffectCapabilities(bridge)
-  const [detail, setDetail] = useState(false)
+  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const { page: detail, setPage: setDetail, style: detailStyle } = useSettingsSubpage(false)
   const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -40,7 +42,7 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   if (!preview.current) preview.current = createEqualizerPreview(bridge)
   useEffect(() => () => { void preview.current?.cancel() }, [])
   const scroll = useRef<ScrollView>(null)
-  const back = useCallback(() => { if (detail) { setDetail(false); scroll.current?.scrollTo({ y: 0, animated: false }) } else onBack() }, [detail, onBack])
+  const back = useCallback(() => { if (detail) { setDetail(false); scroll.current?.scrollTo({ y: 0, animated: false }) } else requestClose(onBack) }, [detail, onBack, requestClose, setDetail])
   useBackHandler(useCallback(() => {
     if (!isHomeScreenActive(commonState.componentIds)) return false
     back()
@@ -69,9 +71,10 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   const section = (label: string) => <><Rule gapTop={22} style={{ height: 2, opacity: 1 }} /><Text size={22} color={r.ink} style={styles.section}>{label}</Text></>
   const gains = JSON.parse(setting['player.audio.equalizer.gains']) as number[]
   const eqDisabled = !capabilities.equalizer || !setting['player.audio.equalizer.enabled'] || busy
-  return <View style={[styles.root, { backgroundColor: r.paper }]}>
+  return <Animated.View style={[styles.root, { backgroundColor: r.paper, bottom: bottomInset ?? DOCK_BASE_HEIGHT + bottom, overflow: 'hidden' }, pageStyle]}>
+    <Animated.View style={[{ flex: 1 }, detailStyle]}>
     <StatusBar />
-    <ScrollView ref={scroll} scrollEnabled={!dragging} style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: DOCK_BASE_HEIGHT + bottom + 28 }]}>
+    <ScrollView ref={scroll} scrollEnabled={!dragging} style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: 28 }]}>
       <MagTopBar onBack={back} />
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(detail ? 'audio_effects_detail_eyebrow' : 'audio_effects_eyebrow')}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t(detail ? 'audio_effects_loudness' : 'audio_effects_title')}</Text>
@@ -121,7 +124,8 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
       </>}
       {failed ? <Text size={12} color={r.muted} accessibilityLiveRegion="polite">{t('audio_effects_failed')}</Text> : null}
     </ScrollView>
-  </View>
+    </Animated.View>
+  </Animated.View>
 }
 
 export function EqBand({ frequency, value, disabled, onChange, onDraggingChange, onPreview }: { frequency: string, value: number, disabled: boolean, onChange: (value: number) => Promise<boolean>, onPreview?: (value: number) => void, onDraggingChange: (dragging: boolean) => void }) {

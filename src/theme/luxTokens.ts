@@ -229,6 +229,8 @@ export interface LuxColors {
     skip: string
   }
   iconWrap: {
+    /** 开发调试：蓝灰底，与资料 accent.soft 区分 */
+    blue: string
     orange: string
     green: string
     purple: string
@@ -503,6 +505,7 @@ export const limeColors: LuxColors = {
     skip: '#374151',
   },
   iconWrap: {
+    blue: '#e2e8f0',
     orange: '#ffedd5',
     green: '#d1fae5',
     purple: '#ede9fe',
@@ -653,6 +656,7 @@ const themeFromSeed = (id: LuxThemeId, name: string, seed: LuxSeed): LuxTheme =>
 
 export const mistBlueTheme = themeFromSeed('mist_blue', '雾蓝', {
   mode: 'light',
+  iconWrapBlue: '#e2e8f0',
   bgApp: '#eef3f9',
   surface: '#ffffff',
   surfaceMuted: '#f4f8fc',
@@ -680,6 +684,7 @@ export const mistBlueTheme = themeFromSeed('mist_blue', '雾蓝', {
 
 export const sakuraTheme = themeFromSeed('sakura', '樱粉', {
   mode: 'light',
+  iconWrapBlue: '#e2e8f0',
   bgApp: '#faf0f3',
   surface: '#ffffff',
   surfaceMuted: '#fdf6f8',
@@ -707,6 +712,7 @@ export const sakuraTheme = themeFromSeed('sakura', '樱粉', {
 
 export const lavenderTheme = themeFromSeed('lavender', '薰衣草紫', {
   mode: 'light',
+  iconWrapBlue: '#e2e8f0',
   bgApp: '#f3f0fb',
   surface: '#ffffff',
   surfaceMuted: '#f8f6fd',
@@ -734,6 +740,7 @@ export const lavenderTheme = themeFromSeed('lavender', '薰衣草紫', {
 
 export const oatMilkTheme = themeFromSeed('oat_milk', '暖米', {
   mode: 'light',
+  iconWrapBlue: '#e2e8f0',
   bgApp: '#f6f1ea',
   surface: '#ffffff',
   surfaceMuted: '#faf7f2',
@@ -761,6 +768,7 @@ export const oatMilkTheme = themeFromSeed('oat_milk', '暖米', {
 
 export const inkNightTheme = themeFromSeed('ink_night', '墨夜', {
   mode: 'dark',
+  iconWrapBlue: '#33465f',
   bgApp: '#12141c',
   surface: '#1c1f2a',
   surfaceMuted: '#252836',

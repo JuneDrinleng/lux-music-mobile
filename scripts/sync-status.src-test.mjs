@@ -80,7 +80,7 @@ test('countdown uses the existing backoff deadline, rounds up, caps at zero and 
   assert.equal(map({ message: 'failure' }).seconds, null)
 })
 
-const jsx = (type, props) => ({ type, props })
+const jsx = (type, props) => typeof type === 'function' ? type(props) : ({ type, props })
 const nodes = tree => !tree || typeof tree !== 'object' ? [] : [tree, ...[tree.props?.children].flat(Infinity).flatMap(nodes)]
 const settle = async() => { for (let i = 0; i < 20; i++) await Promise.resolve() }
 const hookHarness = () => {
@@ -98,6 +98,7 @@ const hookHarness = () => {
 const magazine = Object.fromEntries(['BackButton', 'PrimaryButton', 'SecondaryButton', 'DOCK_BASE_HEIGHT', 'EmptyState', 'Hairline', 'IconButton', 'MagDialog', 'MagTopBar', 'OptionRow', 'SectionHeader', 'SettingRow', 'UnderlineInput'].map(key => [key, key]))
 magazine.DOCK_BASE_HEIGHT = 122
 const commonDeps = h => ({
+  '@/components/common/SettingsPage': { SettingsPage: ({ visible, children, onBack }) => visible ? children(onBack) : null },
   react: h.react,
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'react-native': { View: 'View', Modal: 'Modal', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', BackHandler: { addEventListener: () => ({ remove() {} }) } },
@@ -124,6 +125,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
   deps['@/utils/tools'].toast = value => { events.push(['toast', value]) }
   const noop = () => {}; const asyncNoop = async() => {}
   Object.assign(deps, {
+    '@/screens/SyncLogin': { default: 'SyncLogin' },
     '@/screens/SyncStatus': { default: 'SyncStatusPage', SyncStatusRow: 'SyncStatusRow' },
     '@/screens/Login/ServerStep': { default: 'ServerStep' },
     '@/plugins/sync/client/client': { reconnectNow: () => { events.push(['retry']); return hasSocket } },
@@ -325,8 +327,10 @@ test('synced row shows one action and exact name/host/relative text; expired rel
   h.find('SyncStatusRow').onPress(); h.render()
   assert.equal(h.find('SyncStatusPage').username, 'june')
   h.find('SyncStatusPage').onLogin(); await settle(); h.render()
-  assert.equal(h.find('SyncStatusPage'), undefined)
-  assert.deepEqual(h.events.at(-1), ['login', { onboarding: false, initialHost: 'https://server', initialUsername: 'june' }])
+  assert.ok(h.find('SyncStatusPage'), 'status remains underneath login for hierarchical back')
+  h.render()
+  assert.equal(h.find('SyncLogin').initialHost, 'https://server')
+  assert.equal(h.find('SyncLogin').initialUsername, 'june')
 })
 
 

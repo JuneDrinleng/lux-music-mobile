@@ -34,7 +34,7 @@
 
 同一色值有多个令牌时按角色取，不因为色值相同就共用。例如 `#111827` 同时是 `ink.strong`（标题，深色主题里会变浅）和 `ink.onAccent`（黄绿按钮上的字，应留深色）。设置弹窗输入框仍使用上游 `theme['c-primary-background']`。
 
-另外 5 套主题补齐了全部 227 个槽位。`themes.json` 里有的角色直接采用，其余按同色系推导。黄绿不走推导，仍是下面的盘点表。
+新增开发调试 `iconWrap.blue` 后共 228 个槽位；另外 5 套主题补齐了全部槽位。`themes.json` 里有的角色直接采用，其余按同色系推导。黄绿不走推导，仍是下面的盘点表。
 
 下表是替换前的盘点。出现次数按当时的字面量统计，试点两处也算在里面。
 
@@ -174,6 +174,7 @@
 | `control.play` | `#111827` | 66 | `src/components/ChangelogView.tsx`、`src/components/common/Dialog.tsx`、`src/components/common/PromptDialog.tsx`、`src/components/player/PlayerBar/index.tsx`、`src/components/playlist/PlaylistDetailHeader.tsx`、`src/components/playlist/PlaylistDetailSongItem.tsx`、`src/components/playlist/PlaylistImportPanel.tsx`、`src/components/playlist/PlaylistLibraryScene.tsx`、`src/components/playlist/PlaylistSearchScene.tsx`、`src/components/playlist/PlaylistSongDragOverlay.tsx`、`src/components/search/SearchMusicResultRow.tsx`、`src/components/search/SearchSonglistResultRow.tsx`、`src/components/search/sourceTone.ts`、`src/screens/Home/Vertical/PlayQueueSheet.tsx`、`src/screens/Home/Vertical/Tabs/PlaylistTab.tsx`、`src/screens/Home/Vertical/Tabs/SettingsTab.tsx`、`src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`、`src/screens/PlayDetail/Vertical/Lyric.tsx`、`src/screens/PlayDetail/Vertical/Pic.tsx` | 同值另有 `ink.strong`、`ink.onAccent`、`control.playShadow`、`shadow.dialog`、`source.unknown.text`、`source.queueUnknown.text` |
 | `control.playShadow` | `#111827` | 66 | `src/components/ChangelogView.tsx`、`src/components/common/Dialog.tsx`、`src/components/common/PromptDialog.tsx`、`src/components/player/PlayerBar/index.tsx`、`src/components/playlist/PlaylistDetailHeader.tsx`、`src/components/playlist/PlaylistDetailSongItem.tsx`、`src/components/playlist/PlaylistImportPanel.tsx`、`src/components/playlist/PlaylistLibraryScene.tsx`、`src/components/playlist/PlaylistSearchScene.tsx`、`src/components/playlist/PlaylistSongDragOverlay.tsx`、`src/components/search/SearchMusicResultRow.tsx`、`src/components/search/SearchSonglistResultRow.tsx`、`src/components/search/sourceTone.ts`、`src/screens/Home/Vertical/PlayQueueSheet.tsx`、`src/screens/Home/Vertical/Tabs/PlaylistTab.tsx`、`src/screens/Home/Vertical/Tabs/SettingsTab.tsx`、`src/screens/Home/Vertical/Tabs/VersionChangelogDetail.tsx`、`src/screens/PlayDetail/Vertical/Lyric.tsx`、`src/screens/PlayDetail/Vertical/Pic.tsx` | 同值另有 `ink.strong`、`ink.onAccent`、`control.play`、`shadow.dialog`、`source.unknown.text`、`source.queueUnknown.text` |
 | `control.skip` | `#374151` | 5 | `src/components/ChangelogView.tsx`、`src/screens/PlayDetail/Vertical/Pic.tsx` | 同值另有 `ink.compact` |
+| `iconWrap.blue` | `#e2e8f0` | 1 | `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` | 开发调试；墨夜 `#33465f` |
 | `iconWrap.orange` | `#ffedd5` | 1 | `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` |  |
 | `iconWrap.green` | `#d1fae5` | 1 | `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` |  |
 | `iconWrap.purple` | `#ede9fe` | 1 | `src/screens/Home/Vertical/Tabs/SettingsTab.tsx` |  |
@@ -408,6 +409,7 @@
 | control.play | #111827 | #0f172a | #1c1216 | #16131f | #1c1712 | #f3f4f8 |
 | control.playShadow | #111827 | #0f172a | #1c1216 | #16131f | #1c1712 | #9e9fa1 |
 | control.skip | #374151 | #141d30 | #22171b | #1b1826 | #211b16 | #e5e7ef |
+| iconWrap.blue | #e2e8f0 | #e2e8f0 | #e2e8f0 | #e2e8f0 | #e2e8f0 | #33465f |
 | iconWrap.orange | #ffedd5 | #fdeed3 | #fdeed3 | #fdeed3 | #fdeed3 | #6e4f1e |
 | iconWrap.green | #d1fae5 | #d4f2e8 | #d4f2e8 | #d4f2e8 | #d4f2e8 | #175a4b |
 | iconWrap.purple | #ede9fe | #eae2fd | #eae2fd | #eae2fd | #eae2fd | #463678 |

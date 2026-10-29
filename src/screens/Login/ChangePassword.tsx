@@ -1,7 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, StyleSheet, ScrollView, View } from 'react-native'
+import { useSettingsBack } from '@/components/common/SettingsPage'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { BackButton, PrimaryButton, Toggle, UnderlineInput } from '@/components/magazine'
@@ -34,6 +35,7 @@ export default function ChangePassword({ host, session, onBack }: { host: string
   const [wrongCurrent, setWrongCurrent] = useState(false)
   const [message, setMessage] = useState('')
   const back = () => { if (!submitting.current) onBack() }
+  useSettingsBack(back)
   useEffect(() => {
     let active = true
     void service.count(host, session).then(value => { if (active) setCount(value) }).catch(() => {})
@@ -82,7 +84,7 @@ export default function ChangePassword({ host, session, onBack }: { host: string
     {hint ? <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text> : null}
   </View>
   const subtitle = sessionCountMessage(count)
-  return <Modal visible animationType="slide" statusBarTranslucent onRequestClose={back}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <View style={StyleSheet.absoluteFillObject}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
@@ -103,7 +105,7 @@ export default function ChangePassword({ host, session, onBack }: { host: string
     <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
       <PrimaryButton compact label={t('password_submit')} onPress={() => { void submit() }} disabled={busy || invalid} />
     </View>
-  </KeyboardAvoidingView></Modal>
+  </KeyboardAvoidingView></View>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({

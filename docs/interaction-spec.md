@@ -1,0 +1,102 @@
+<!-- Lux Proprietary: repository-original documentation. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. -->
+
+# 软件交互规范
+
+本文件是交互规则的维护入口。新增或修改交互时，先核对实际代码，同时更新本文与相应 `scripts/*.src-test.mjs`。视觉令牌、排版与颜色仍遵循 [design-system.md](design-system.md)。本文记录当前实现；尚未统一的地方明确标记为「待统一」，不代表已经具备该能力。
+
+## 导航层级
+
+- 一级：Home 主壳的首页 / 歌单 / 设置。竖屏为 `Home/Vertical/Main.tsx` 的三页 Pager + Dock；横屏 `Home/Horizontal/Main.tsx` 复用三 Tab，使用侧栏与 PlayerBar。
+- 二级：设置选项、音效、AI 助手、账号、管理员控制台、同步状态。使用 Home 内的内容层，不创建独立原生窗口，不用原生 Modal 充当页面，也不调用 `Navigation.setRoot` 打开设置子页。
+- 更深一级：音效详情、账号编辑/设备/数据空间/密码、管理员的用户/邀请/歌单/服务、同步地址检查/登录/注册/忘记密码。打开后只返回上一层，不能越级关闭整个设置。
+- 弹层：地址/授权码/登录凭据输入、创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
+- 外部入口：GitHub Releases / 更新日志内 GitHub / 自定义源帮助交给 `openUrl`；图库裁切与系统文件授权由平台接管。它们不适用 App 内页面的固定过渡参数。
+
+完整设置页面清单（名字对应状态/路由，便于代码检索）：
+
+| 入口 | 页面 / 下级 | 挂载与实现 |
+| --- | --- | --- |
+| 语言 | `language` | SettingsTab → SettingsPage |
+| 主题 | `theme`（六套本机主题） | 同上 |
+| 回忆/统计样式 | `statsPageStyle`（布局和统计风格均为页内选项） | 同上 |
+| 默认搜索源 | `searchSource` | 同上 |
+| 自定义音源 | `player`；源管理为页内编辑模式 | 同上，Source 以 embedded 挂载；导入为文件选择弹层 |
+| 一起听布局 | `togetherLayout` | 同上 |
+| 同步地址与格式 | `sync`；地址历史管理为页内模式 | 同上；输入地址、LX 授权码、Lux 凭据为 MagDialog |
+| 缓存/下载与数据管理 | `resourceCache` | 同上，ResourceCacheDetail |
+| 关于 → 当前版本 | `changelog` | 同上，VersionChangelogDetail；没有独立「关于」整页 |
+| AI 助手 | AiTokenStatusPage | SettingsTab → SettingsPage → 普通 View |
+| 资料 hero（头像；重复账户列表行已移除） | AccountPage → `edit` / `devices` / `spaces` / `password` | SettingsPage + useSettingsSubpage；ChangePassword 在账号的子页过渡面内 |
+| 音效/均衡器 | AudioEffectsPage → 响度与无缝播放详情 | 横竖屏 Main 的应用内层；useSettingsTransition + useSettingsSubpage |
+| 管理员控制台（按条件显示） | dashboard → users / invites / playlists / service | AdminConsoleLayer → SettingsPage；内部 useSettingsTransition；loading / denied 是权限状态，不另算导航 |
+| 同步状态行（按状态显示） | SyncStatusPage → ServerStep / SyncLogin | SettingsTab 的三个持久 SettingsPage host；返回逐层恢复 |
+| 同步登录内部 | 服务器地址 → Lux AuthFlow / LX LegacySyncLogin；Lux → register / forgot | Settings 下以 onBack 回调嵌入，useSettingsSubpage；AuthFlow 通过 settings 标志启用同一规则。独立启动/首次引导保留自己的顶层流程 |
+
+导出/导入备份直接打开 ChoosePath；检查更新触发现有更新流程；清除冲突策略、调试开关、复制诊断是动作，不产生二级页面。
+
+## 设置页面过渡（唯一共用实现）
+
+入口：`src/components/common/SettingsPage.tsx`。底层复用 `components/common/overlaySlideTransition.ts`，仅设置使用 `symmetric: true`，其他模块原有参数不受影响。
+
+| 参数 | 打开 | 返回 |
+| --- | --- | --- |
+| progress | 0 → 1 | 1 → 0 |
+| translateX | 当前窗口宽度 → 0，从右侧进入 | 0 → 当前窗口宽度，向右侧退出 |
+| opacity | 0.92 → 1 | 1 → 0.92 |
+| duration | 248ms | 248ms |
+| easing | `Easing.bezier(0.22, 0.84, 0.22, 1)` | 同一个 easing 实例 |
+| driver | native | native |
+
+这是多数设置页面原有的打开模式；此次把返回也改成同参数的反向插值。不要复制 `Animated.timing` 到各页面，或再加独立的 fade / native slide。
+
+使用方式：
+
+- 独立二级页：持久渲染 `<SettingsPage visible={...} onBack={...} bottomInset={...}>`，其 children 为接收 `back` 的函数。页内返回必须调用这个 `back`；组件保留退出内容，在动画完成后调用 onBack 并卸载。父层主动设置 visible=false 时也保留最后一帧内容到退出结束。
+- 已有独立挂载的页面（音效）：`useSettingsTransition()` 提供 `style` 与 `requestClose`；用 `requestClose(onBack)`，完成后才通知 host 卸载。
+- 内部状态子页：`useSettingsSubpage(root)` 提供 page / setPage / style。前进时右侧进入，退回 root 时先完整退出当前内容，再恢复父页。重复设置当前页不触发动画。管理员的栈回退通过同一 `useSettingsTransition(false)` 实现。
+- 已有自己的返回拦截的内容传 `hardwareBack={false}`，由内容把按钮和硬件返回汇入同一个回调。无自定义逻辑时使用 SettingsPage 默认硬件返回处理。
+- 重复返回合并；再次打开会使旧的退出回调失效；卸载时停止动画并使未完成的回调失效。
+
+## 返回与手势
+
+Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPress` 调用与页面按钮相同的返回函数。未实现随手指进度交互的页面边缘拖回，不能把 Android 系统返回等同于 App 的拖页手势。
+
+最上层弹窗先处理 `onRequestClose`；普通页面按「最深子页 → 父页 → 设置主页」返回。账号保存、修改密码提交以及登录/本地空间切换中的阻塞状态沿用原有保护：按钮和硬件返回均不能中断正在提交的任务。Settings 的稳定 listener 不因父组件重渲染夺取更深层页面的返回优先级；当独立原生屏幕位于 Home 上方时，`isHomeScreenActive` 返回 false，设置共享 handler 不消费返回。
+
+点击 Dock 切换一级 Tab 属于切换导航，不是 back：设置详情状态清空，再进入设置回到主页并滚动至顶部；EQ 的 Main host 同样清空。退出账号、完成登录/切换数据空间等导致应用重置的操作保留原有流程。
+
+## Dock 与播放器
+
+竖屏所有设置二级/更深页保持播放条和三图标 Dock 可见、可点。`DOCK_BASE_HEIGHT = 122`（64 + 58），加系统底部手势 inset。SettingsPage 的 bottomInset 和 EQ 根层 bottom 将内容及命中区域裁切在 Dock 上沿；裁切后的子页不再重复追加一份 Dock 高度。设置主页仍保留相同高度的滚动底部让位。
+
+横屏 Main 已在 Header 和 PlayerBar 之间布局，SettingsTab / EQ 的 bottomInset 传 0；侧栏和 PlayerBar 留在主壳，不套用竖屏 122 的 Dock 空洞。
+
+现有全局例外：键盘出现且 `common.autoHidePlayBar` 开启、没有 `keepPlayBarOnKeyboard` 覆盖时，竖屏主壳会隐藏 Dock（`Home/Vertical/index.tsx`）。**待统一**：是否让设置表单强制保留键盘上方 Dock 尚未落地；当前文档不声称键盘期间始终显示。临时原生 Modal / 系统选图等也会在视觉上遮住底栏，它们属于弹层/平台任务。
+
+## 点击与按压
+
+- 小型返回控件可见直径约 28，四侧 hitSlop=8，形成约 44 的触达区域；`BackButton` 非 compact 为 40，hitSlop=4。实际数字仍经过仓库的缩放规则，不应把视觉图标放大来凑触达面积。
+- `IconButton` 默认 44 触达容器，内部图标默认 24；设置列表 `SettingRow` 的基本行高 62、`OptionRow` 58。新增图标按钮必须有 accessibilityLabel，状态按钮提供 disabled / selected。
+- SettingRow、OptionRow、BackButton、IconButton 的 activeOpacity=0.7；Dock 播放键=0.85。按压反馈不改页面布局。
+- **待统一**：资料 hero 的 activeOpacity=0.82（SettingsTab）；部分历史 TextButton、EQ 预设仅垂直 hitSlop、其他遗留工具按钮尚未逐个验证最小触达区域（AudioEffects、Home/Views）。不在本次导航修改中重写控件。
+
+## 拖动与滑块
+
+- `components/magazine/MagSlider.tsx`：按下在轨道定位，拖动时 thumb 连续跟手；预览使用 dragRatio，松手吸附最近档位并调用 onCommit；终止清掉拖动态。轨道捕获 responder，拒绝中途转移；点刻度直接提交。
+- `Tabs/CacheLimitSlider.tsx` 复用 MagSlider。**待统一**：外层容量 StatusChip 仍读持久 value，未跟随 dragRatio 预览；定位在 CacheLimitSlider 的 chipLabel。
+- `AudioEffects/index.tsx` 的 EqBand：10 段、−12～+12dB、1dB 步进，纵向原生 transform 更新 thumb，pageY 固定基点保证跟手；拖动时禁止父 ScrollView，松手才调用 bridge 并成功后持久化，失败回滚；中止不写入。预览指当前 thumb / 数字，**待统一**：音频引擎的拖动实时预听尚未实现（commitAudioEffect 在 release 后）；独立分支的 reset/live 变更不包含在此规范的当前事实内。
+- Dock 进度、歌单拖排等各有手势与提交协议，不能机械套用设置滑块的档位规则；歌单拖排在 `playlistDragState.ts` 保持原来 1.02 缩放与不改 zIndex 的约定。
+
+## 抽屉、面板与对话框
+
+`MagazineSheet.tsx` 已有公共协议：底部 panelH → 0 打开、反向关闭，220ms，`Easing.out(Easing.cubic)`，mask 同步渐变；关闭保留内容到动画结束；点遮罩、关闭按钮和原生 Modal 的系统返回都调用 requestClose。它没有实现下拉跟手关闭。inlineBottomInset 模式使用应用内 View，不自动注册 Modal 返回，调用方负责。
+
+`MagDialog.tsx` 使用原生 Modal 的 fade，按钮/遮罩关闭与 onRequestClose 汇入 onClose，动画时长/曲线由平台控制，没有应用内统一参数。输入键盘相关让位保留组件现状。
+
+**待统一**：`common/Modal.tsx`、ChoosePath 和自定义源导入弹层等历史组件仍有各自的 fade、返回与文件授权处理；未迁移为 MagazineSheet。原生选择器/图片裁切由系统决定过渡。它们不应作为新整页的实现范本。
+
+## 维护与验证
+
+`settings-navigation.src-test.mjs` 审核设置入口清单，检查全部选项 renderer 位于 SettingsPage，屏幕挂载与下级页引用公共 helper，横竖屏均衡器 host 均存在；新增入口或绕过 helper 应让测试失败，更新审计后才能修改清单。该文件还用真实 helper 和可控动画时钟验证按钮/硬件返回的参数、延迟卸载、重复返回、重新打开取消旧回调及子页恢复。
+
+每次改导航后运行 `node scripts/run-src-unit-tests.mjs`、改动文件 eslint、TypeScript 基线差异检查。静态与模拟时钟不替代真机：仍需 Android 按钮/手势返回、快速连点、键盘、旋转、长内容及 Dock 点击的设备验证。

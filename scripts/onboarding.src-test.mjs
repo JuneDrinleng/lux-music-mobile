@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -242,9 +243,10 @@ test('legacy login adapter prefills checked URL and completes only after success
     './LocalAction': { default: 'LocalAction' },
     '../Login/AuthFlow': { default: 'AuthFlow' },
     '../Login/ServerStep': { default: 'ServerStep' },
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    'react-native': { View: 'View', ScrollView: 'ScrollView', BackHandler: { addEventListener: () => ({ remove: noOp }) } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, View: 'View', ScrollView: 'ScrollView', BackHandler: { addEventListener: () => ({ remove: noOp }) } },
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/Text': { default: 'Text' },

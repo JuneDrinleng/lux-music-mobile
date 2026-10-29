@@ -55,7 +55,7 @@
 | 细线 `hairline` | `#e1e6ef` | `line.divider` |
 | 强调 `accent` | `#c8e600` | `accent.primary` |
 | 弱强调底 | `#dbeb92` | `accent.soft` |
-| 设置图标底（分组） | 橙 `#ffedd5`、绿 `#d1fae5`、紫 `#ede9fe`、琥珀 `#fef9c3`、红 `#fee2e2` | `iconWrap.*` |
+| 设置图标底（分组） | 橙 `#ffedd5`、绿 `#d1fae5`、紫 `#ede9fe`、琥珀 `#fef9c3`、蓝灰 `#e2e8f0`、红 `#fee2e2` | `iconWrap.*` |
 | 危险 / 喜欢 | `#ef4444` / `#FA5252` | `danger` / `like` |
 | 封面占位 | `#e8eaef` | `surface.placeholder` |
 
@@ -124,14 +124,14 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 - MagTopBar masthead + 可选设置内搜索行。
 - H1「设置」。
 - 可选 **资料 hero 行**（头像 + 名 + 签名 + chevron），不是旧版独立「资料」分组 eyebrow。
-- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观、搜索与播放、数据与同步、关于、账号（退出登录 `danger`）。
+- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
 - 子页：`MagTopBar` + `BackButton` + H2；单选用 **`OptionRow`**（选中 10×10 accent 圆点，浅色主题带墨边）。
 
 弹窗 / 输入：杂志组件 `MagDialog`、`UnderlineInput`、`PrimaryButton`（墨底）等；缓存 **`ResourceCacheSection`** 为 Section + SettingRow + `CacheLimitSlider`，**无**整页白卡片容器。
 
 ### 设置子页动效
 
-资料 / 选项子层仍从右侧滑入（opacity + translateX，`SettingsTab` Animated.View），层级在 `APP_LAYER_INDEX.controls` 之上。
+设置子页统一使用 `components/common/SettingsPage.tsx` 的应用内右侧过渡，保留 Dock / 播放条。页面动效、返回与触达规则以 [软件交互规范](interaction-spec.md) 为唯一维护入口。
 
 ### 同步登录
 
@@ -172,7 +172,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 ## 动效与交互
 
 - 按压：`SettingRow` / `OptionRow` 约 **0.7**；Dock 播放 **0.85**；BackButton **0.7**。
-- 设置子页滑入：约 248ms / 220ms（见 `SettingsTab`）。
+- 设置子页打开 / 返回：复用共享 SettingsPage，参数见 [软件交互规范](interaction-spec.md)。
 - 歌单长按缩放 **1.02**，不改 `zIndex`（见 `playlistDragState.ts`）。
 
 ## 文案风格
