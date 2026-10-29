@@ -6,6 +6,7 @@ import { type LuxColors, type LuxHeroCard, type LuxHomeCard, type LuxSourceTone,
 /** themes.json 里的角色。没有单独槽位的颜色由这些角色推导。 */
 export interface LuxSeed {
   mode: LuxThemeMode
+  iconWrapBlue: string
   bgApp: string
   surface: string
   surfaceMuted: string
@@ -210,6 +211,7 @@ export const buildLuxColors = (seed: LuxSeed): LuxColors => {
       skip,
     },
     iconWrap: {
+      blue: seed.iconWrapBlue,
       orange: iconWrap('#f59e0b'),
       green: iconWrap('#10b981'),
       purple: iconWrap('#8b5cf6'),

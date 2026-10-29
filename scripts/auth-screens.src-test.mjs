@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -180,9 +181,10 @@ const renderScreen = (client, host, connect) => {
     '@/utils/syncLoginCredentialPersistence': { clearSavedSyncLoginCredentialsForMode: async() => {} },
     '@/plugins/sync/client/credentials': { canReuseLuxSession: () => false },
     '@/plugins/sync/constants': { SYNC_CODE: {} },
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/magazine': Object.fromEntries(['BackButton', 'OptionRow', 'PrimaryButton', 'TextButton', 'UnderlineInput'].map(key => [key, key])),

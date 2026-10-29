@@ -15,12 +15,12 @@ export const OVERLAY_SLIDE_OPEN_OPACITY = 0.92
  * Entry: full width from the right; exit: reverse. Back callers should run
  * `requestClose` then unmount on the finished callback (no edge swipe).
  */
-export const useOverlaySlideTransition = (width: number) => {
+export const useOverlaySlideTransition = (width: number, { symmetric = false, autoOpen = true }: { symmetric?: boolean, autoOpen?: boolean } = {}) => {
   const progress = useRef(new Animated.Value(0)).current
   const closingRef = useRef(false)
   const tokenRef = useRef(0)
 
-  useEffect(() => {
+  const requestOpen = useCallback(() => {
     closingRef.current = false
     tokenRef.current += 1
     progress.stopAnimation()
@@ -33,6 +33,14 @@ export const useOverlaySlideTransition = (width: number) => {
     }).start()
   }, [progress])
 
+  useEffect(() => {
+    if (autoOpen) requestOpen()
+    return () => {
+      tokenRef.current += 1
+      progress.stopAnimation()
+    }
+  }, [autoOpen, progress, requestOpen])
+
   const requestClose = useCallback((onClosed?: () => void) => {
     if (closingRef.current) return
     closingRef.current = true
@@ -40,14 +48,14 @@ export const useOverlaySlideTransition = (width: number) => {
     progress.stopAnimation()
     Animated.timing(progress, {
       toValue: 0,
-      duration: OVERLAY_SLIDE_CLOSE_MS,
-      easing: OVERLAY_SLIDE_CLOSE_EASING,
+      duration: symmetric ? OVERLAY_SLIDE_OPEN_MS : OVERLAY_SLIDE_CLOSE_MS,
+      easing: symmetric ? OVERLAY_SLIDE_OPEN_EASING : OVERLAY_SLIDE_CLOSE_EASING,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (token != tokenRef.current) return
       if (finished) onClosed?.()
     })
-  }, [progress])
+  }, [progress, symmetric])
 
   const style = useMemo(() => ({
     opacity: progress.interpolate({
@@ -62,5 +70,5 @@ export const useOverlaySlideTransition = (width: number) => {
     }],
   }), [progress, width])
 
-  return { style, requestClose, progress }
+  return { style, requestClose, requestOpen, progress }
 }

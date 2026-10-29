@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { resolveSyncLoginEntry, syncLoginExitTarget } from '@/utils/syncLoginRouting'
 import SyncLoginLocalAction from './LocalAction'
@@ -7,7 +8,7 @@ import AuthFlow from '../Login/AuthFlow'
 import ServerStep from '../Login/ServerStep'
 import { getPreferredSyncHost, addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { memo, useCallback, useEffect, useState } from 'react'
-import { BackHandler, ScrollView, View } from 'react-native'
+import { Animated, BackHandler, ScrollView, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import StatusBar from '@/components/common/StatusBar'
 import Text from '@/components/common/Text'
@@ -385,10 +386,10 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 
-export default function SyncLogin({ onboarding = false, initialHost = '', initialUsername }: { onboarding?: boolean, initialHost?: string, initialUsername?: string }) {
+export default function SyncLogin({ onboarding = false, initialHost = '', initialUsername, onBack }: { onboarding?: boolean, initialHost?: string, initialUsername?: string, onBack?: () => void }) {
   const t = useI18n()
-  const [host, setHost] = useState(initialHost)
-  const [legacy, setLegacy] = useState(false)
+  const { page: host, setPage: setHost, style: hostStyle } = useSettingsSubpage('', onBack != null, initialHost)
+  const { page: legacy, setPage: setLegacy, style: legacyStyle } = useSettingsSubpage(false, onBack != null)
   const [localBusy, setLocalBusy] = useState(false)
   const [ready, setReady] = useState(onboarding)
   useEffect(() => {
@@ -405,21 +406,25 @@ export default function SyncLogin({ onboarding = false, initialHost = '', initia
     void load()
     global.app_event.on('syncLoginPresented', load)
     return () => { active = false; global.app_event.off('syncLoginPresented', load) }
-  }, [initialHost, initialUsername, onboarding])
+  }, [initialHost, initialUsername, onboarding, setHost, setLegacy])
   const exit = () => {
     if (localBusy) return
+    if (onBack) { onBack(); return }
     if (syncLoginExitTarget(onboarding) === 'onboarding') void navigations.pushLoginScreen()
     else void navigations.pushHomeScreen()
   }
+  const wrap = (content: React.ReactNode) => onBack
+    ? <Animated.View style={[{ flex: 1 }, hostStyle]}><Animated.View style={[{ flex: 1 }, legacyStyle]}>{content}</Animated.View></Animated.View>
+    : content
   if (!ready) return null
-  if (legacy && !onboarding) return <LegacySyncLogin initialHost={initialHost} initialMode="lx" onLux={() => { setLegacy(false); setHost('') }} onBack={exit} />
+  if (legacy && !onboarding) return wrap(<LegacySyncLogin initialHost={initialHost} initialMode="lx" onLux={() => { setLegacy(false); setHost('') }} onBack={exit} />)
   if (!host) {
-    return <ServerStep onBack={exit} onReady={setHost} showHistory={!onboarding} disabled={localBusy}>
+    return wrap(<ServerStep onBack={exit} onReady={setHost} showHistory={!onboarding} disabled={localBusy}>
       {!onboarding ? <>
         <TextButton compact style={{ minHeight: 28 }} label={t('sync_login_use_lx')} disabled={localBusy} onPress={() => { setLegacy(true) }} />
         <SyncLoginLocalAction onBusyChange={setLocalBusy} />
       </> : null}
-    </ServerStep>
+    </ServerStep>)
   }
-  return <AuthFlow key={host} initialUsername={initialUsername} host={host} onboarding={onboarding} onBack={() => { setHost('') }} />
+  return wrap(<AuthFlow key={host} initialUsername={initialUsername} host={host} onboarding={onboarding} settings={onBack != null} onBack={() => { setHost('') }} />)
 }

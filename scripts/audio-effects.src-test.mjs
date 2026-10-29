@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -303,6 +304,7 @@ const setupAudio = (setEqualizer = async() => {}) => {
     '@/utils/tools': { createStyle: value => value },
     '@/utils/audioEffects': api,
   }
+  dependencies['@/components/common/SettingsPage'] = settingsTransitionMock(dependencies.react)
   const page = load('src/screens/AudioEffects/index.tsx', name => {
     assert.ok(name in dependencies, name)
     return dependencies[name]
@@ -412,11 +414,12 @@ test('audio overlay has Dock clearance, no Modal, and hardware back returns deta
   const h = setupAudio(); const host = hookHost(); let closed = 0
   const render = () => h.render(host, h.default, { onBack: () => closed++ })
   let page = render()
-  assert.equal(page.type, 'View')
+  assert.equal(page.type, 'AnimatedView')
   assert.equal(page.props.style[0].zIndex, 9)
   const scroll = nodes(page).find(n => n.type === 'ScrollView')
-  assert.equal(scroll.props.contentContainerStyle[1].paddingBottom, 122 + 8 + 28)
+  assert.equal(scroll.props.contentContainerStyle[1].paddingBottom, 28)
   assert.equal(scroll.props.contentContainerStyle[1].paddingTop, 24)
+  assert.equal(page.props.style[1].bottom, 130)
   const eq = nodes(page).find(n => n.props.style?.[0]?.height === 130)
   assert.ok(eq, 'EQ keeps its 130 height')
   nodes(page).find(n => n.props.accessibilityHint === 'audio_effects_detail_hint').props.onPress()

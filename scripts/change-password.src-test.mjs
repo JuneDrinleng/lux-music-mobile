@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -66,10 +67,12 @@ const renderScreen = env => {
   }
   const jsx = (type, props) => ({ type, props })
   const events = []
+  let hardwareBack
   const screen = load('src/screens/Login/ChangePassword.tsx', {
+    '@/components/common/SettingsPage': { ...settingsTransitionMock(hooks), useSettingsBack: handler => { hardwareBack = handler } },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/magazine': Object.fromEntries(['BackButton', 'PrimaryButton', 'Toggle', 'UnderlineInput'].map(key => [key, key])),
@@ -96,6 +99,7 @@ const renderScreen = env => {
     find,
     events,
     nodes: () => nodes(tree),
+    hardwareBack: () => hardwareBack(),
     fill: (form = valid) => {
       for (const [label, key] of [['当前密码', 'oldPassword'], ['新密码', 'password'], ['再输一次', 'confirm']]) find('UnderlineInput', label).props.onChangeText(form[key])
       render()
@@ -187,13 +191,13 @@ test('refresh before password change preserves replacement tokens and account ch
   assert.equal(raced.saved.user.id, 'bob'); assert.equal(raced.writes.length, 0)
 })
 
-test('pending submit blocks modal back and duplicate actions', async() => {
+test('pending submit blocks hardware back and duplicate actions', async() => {
   let finish
   const env = harness(async url => url.endsWith('/sessions') ? {} : await new Promise(resolve => { finish = resolve }))
   const view = renderScreen(env); view.fill(); view.find('PrimaryButton').props.onPress(); await flush(); view.render()
   assert.equal(view.find('PrimaryButton').props.disabled, true)
   assert.equal(view.find('Toggle').props.disabled, true)
-  view.find('BackButton').props.onPress(); view.find('Modal').props.onRequestClose()
+  view.find('BackButton').props.onPress(); view.hardwareBack()
   assert.deepEqual(view.events, [])
   finish(response); await flush()
   assert.deepEqual(view.events, [['toast', '密码已修改'], ['back']])

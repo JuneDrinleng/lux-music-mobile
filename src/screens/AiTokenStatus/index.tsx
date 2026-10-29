@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { useEffect, useState } from 'react'
-import { Modal, ScrollView, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { MagTopBar, Rule, SecondaryButton } from '@/components/magazine'
@@ -47,7 +47,7 @@ export default function AiTokenStatusPage({ host, lux, onBack }: { host: string,
     const value = aiOperationTime(at, now)
     return `${value.day ? t(value.day) : value.date} ${value.time}`
   }
-  return <Modal visible animationType="slide" onRequestClose={onBack} statusBarTranslucent>
+  return <View style={{ flex: 1 }}>
     <StatusBar />
     <ScrollView style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: bottom + 28 }]}>
       <MagTopBar onBack={onBack} />
@@ -73,7 +73,7 @@ export default function AiTokenStatusPage({ host, lux, onBack }: { host: string,
       </View>}
       <Text size={12} color={r.muted} style={styles.hint}>{t('ai_tokens_management_hint')}</Text>
     </ScrollView>
-  </Modal>
+  </View>
 }
 const useStyles = sharedLuxStyles(() => createStyle({
   content: { paddingHorizontal: 22, flexGrow: 1 },

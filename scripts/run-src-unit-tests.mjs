@@ -31,6 +31,7 @@ import './sync-status.src-test.mjs'
 import './sleep-timer.src-test.mjs'
 import './white-noise.src-test.mjs'
 import './audio-effects.src-test.mjs'
+import './settings-navigation.src-test.mjs'
 import './download.src-test.mjs'
 import './download-ui.src-test.mjs'
 import './gapless.src-test.mjs'
@@ -395,7 +396,7 @@ test('default lime theme keeps the current screen literals', () => {
   assert.notEqual(colors.source.unknown.background, colors.source.queueUnknown.background)
 
   const leaves = lux.listLuxColorValues()
-  assert.equal(leaves.length, 227)
+  assert.equal(leaves.length, 228)
   const unique = [...new Set(leaves)].sort()
   assert.deepEqual(unique, LIME_COLOR_LITERALS)
   assert.equal(unique.includes('#eef3f9'), false)
@@ -415,6 +416,15 @@ test('shared style cache refreshes on theme change and keeps one slot', () => {
   assert.equal(read(lux.limeColors), limeAgain)
 })
 
+test('debug iconWrap.blue is distinct and keeps icon contrast in all six themes', () => {
+  for (const id of lux.LUX_THEME_IDS) {
+    const colors = lux.luxThemeRegistry[id].colors
+    const backgrounds = [...Object.values(colors.iconWrap), colors.accent.soft].map(value => value.toLowerCase())
+    assert.equal(new Set(backgrounds).size, backgrounds.length, id + ' group colors')
+    assert.ok(colorMath.contrastRatio(colors.ink.strong, colors.iconWrap.blue) >= 4.5, id + ' debug icon')
+  }
+})
+
 test('the other five themes fill every slot and stay readable', () => {
   const seeds = {
     mist_blue: { bg: '#eef3f9', accent: '#2563eb', on: '#ffffff', secondary: '#556274', strong: '#0f172a', mode: 'light' },
@@ -427,14 +437,14 @@ test('the other five themes fill every slot and stay readable', () => {
     ['bg', 'app'], ['bg', 'plain'],
     ['surface', 'card'], ['surface', 'muted'], ['surface', 'placeholder'], ['surface', 'search'], ['surface', 'cancel'], ['surface', 'neutral'],
     ['line', 'divider'],
-    ['iconWrap', 'orange'], ['iconWrap', 'green'], ['iconWrap', 'purple'], ['iconWrap', 'amber'], ['iconWrap', 'red'],
+    ['iconWrap', 'blue'], ['iconWrap', 'orange'], ['iconWrap', 'green'], ['iconWrap', 'purple'], ['iconWrap', 'amber'], ['iconWrap', 'red'],
     ['queue', 'current'], ['queue', 'close'],
     ['coverFallback', 'top'], ['coverFallback', 'middle'], ['coverFallback', 'glow'], ['coverFallback', 'bottom'],
   ]
   for (const id of lux.LUX_THEME_IDS) {
     const theme = lux.luxThemeRegistry[id]
     assert.equal(theme.id, id)
-    assert.equal(lux.listLuxColorValues(theme.colors).length, 227)
+    assert.equal(lux.listLuxColorValues(theme.colors).length, 228)
     if (id === 'lime') continue
     const seed = seeds[id]
     const colors = theme.colors

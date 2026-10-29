@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -61,9 +62,10 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
     setSyncLoginCompleted: async() => {},
   }
   const deps = {
+    '@/components/common/SettingsPage': settingsTransitionMock(react),
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { View: 'View', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'android' }, BackHandler: { addEventListener: (_, fn) => { hardware = fn; return { remove() { if (hardware === fn) hardware = null } } } } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, View: 'View', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'android' }, BackHandler: { addEventListener: (_, fn) => { hardware = fn; return { remove() { if (hardware === fn) hardware = null } } } } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
@@ -297,4 +299,25 @@ test('relogin username takes precedence over an old login draft', async() => {
   const props = { host: 'https://server', onboarding: false, initialUsername: 'june', onBack() {} }
   h.render(props); await settle(); h.render(props)
   assert.equal(h.find('UnderlineInput').value, 'june')
+})
+
+
+test('embedded Settings login backs through server and LX without replacing the native Home root', async() => {
+  const h = harness('src/screens/SyncLogin/index.tsx', { savedHost: 'https://saved' })
+  let closed = 0
+  const props = { initialHost: 'https://saved', onBack: () => { closed++ } }
+  h.render(props); await settle(); h.render(props)
+  assert.equal(h.find('AuthFlow').settings, true)
+  h.find('AuthFlow').onBack(); h.render(props)
+  assert.ok(h.find('ServerStep'))
+  h.find('TextButton', 'sync_login_use_lx').onPress(); h.render(props)
+  // Legacy is a real component reference in this harness, so use its props from the tree.
+  const findLegacy = node => {
+    if (!node || typeof node !== 'object') return null
+    if (node.type === h.Legacy) return node.props
+    return [node.props?.children].flat(Infinity).map(findLegacy).find(Boolean)
+  }
+  findLegacy(h.render(props)).onBack()
+  assert.equal(closed, 1)
+  assert.deepEqual(h.events, [])
 })

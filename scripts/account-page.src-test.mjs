@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -114,9 +115,10 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
   }
   const jsx = (type, props) => ({ type, props })
   const screen = load('src/screens/Account/AccountPage.tsx', {
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView', 'TouchableOpacity'].map(key => [key, key])), Platform: { OS: 'android' } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView', 'TouchableOpacity'].map(key => [key, key])), Platform: { OS: 'android' } },
     'react-native-image-crop-picker': { default: { openPicker: async() => ({ data: 'new', mime: 'image/png' }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/Image': { default: 'Image' },
@@ -298,9 +300,10 @@ const renderDataDialog = kind => {
   }
   const jsx = (type, props) => ({ type, props })
   const component = load('src/navigation/components/AccountDataDialog.tsx', {
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
     '@/components/common/Text': { default: 'Text' },
     '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),
     '@/lang': { useI18n: () => t },
