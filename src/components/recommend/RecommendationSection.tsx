@@ -1,5 +1,5 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-import { useState, type ReactNode } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import { ScrollView, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
 import { SectionHeader } from '@/components/magazine'
@@ -12,6 +12,8 @@ import { WeeklyCover } from './WeeklyCover'
 import { useRecommendations } from './useRecommendations'
 import { playRecommendations, startRecommendationRadio } from './actions'
 import { RecommendationButton, RecommendationStatus, useRecommendationAction } from './RecommendationViews'
+
+const EMPTY_ITEMS: NonNullable<ReturnType<typeof useRecommendations>['batch']>['items'] = []
 
 const CARD_RATIO = 300 / 349
 
@@ -35,13 +37,13 @@ export const RecCard = ({ width, gap, kicker, title, label, cover, onPress }: {
   )
 }
 
-export const RecommendationSection = ({ discover, onOpenWeekly, onPlayWeekly }: {
+export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekly }: {
   discover: { cover: string | null, title: string, sourceListId: string | null, count?: number | null }
   onOpenWeekly: () => void
   onPlayWeekly: () => void
 }) => {
   const { batch, loading, failed, reload } = useRecommendations()
-  const items = batch?.items ?? []
+  const items = batch?.items ?? EMPTY_ITEMS
   const [contentWidth, setContentWidth] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
   const t = useI18n()
@@ -70,7 +72,7 @@ export const RecommendationSection = ({ discover, onOpenWeekly, onPlayWeekly }: 
         <RecCard width={cardWidth} gap={gap} kicker={t('recommend_daily_kicker')} title={t('recommend_daily')} label={t('recommend_open_daily')}
           cover={<DailyCover items={items} />} onPress={() => { global.app_event.openDailyRecommendations() }} />
         <RecCard width={cardWidth} gap={0} kicker={t('home_discover_kicker')} title={discover.title} label={t('recommend_open_weekly', { title: discover.title })}
-          cover={<WeeklyCover discover={discover} />} onPress={onOpenWeekly} />
+          cover={<WeeklyCover cover={discover.cover} count={discover.count} />} onPress={onOpenWeekly} />
       </ScrollView>
       <View style={styles.actions}>
         <RecommendationButton label={t('recommend_play_radio')} disabled={dailyDisabled} onPress={() => { void run(radio, t('recommend_radio_started')) }} />
@@ -83,7 +85,7 @@ export const RecommendationSection = ({ discover, onOpenWeekly, onPlayWeekly }: 
       <RecommendationStatus compact loading={loading} failed={failed} failures={batch?.failures.length ?? 0} empty={!items.length} reload={() => { void reload(true) }} />
     </View>
   )
-}
+})
 const useStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)
   return createStyle({

@@ -17,7 +17,7 @@ const nodes = root => {
   return result
 }
 const items = Array.from({ length: 30 }, (_, i) => ({ key: `s${i}`, song: { source: 'kw', songmid: String(i), name: `Song ${i}`, interval: '03:41' }, reasons: ['library'] }))
-const setup = () => {
+const setup = (overrides = {}) => {
   const host = hookHost()
   const played = []
   const seeds = []
@@ -28,7 +28,7 @@ const setup = () => {
   const dependencies = {
     react: host.react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', Image: 'NativeImage', StyleSheet: { absoluteFillObject: {} } },
+    'react-native': { ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', Image: 'NativeImage', StyleSheet: { absoluteFillObject: {}, create: value => value }, AppState: { addEventListener: () => ({ remove() {} }) } },
     '@/components/common/Text': { default: 'Text', __esModule: true },
     '@/components/common/Image': { default: 'Image', defaultHeaders: { 'User-Agent': 'test' }, __esModule: true },
     '@/components/magazine': { SectionHeader: 'SectionHeader', MagTopBar: 'MagTopBar', SongRow: 'SongRow', Rule: 'Rule', DOCK_BASE_HEIGHT: 122 },
@@ -46,6 +46,8 @@ const setup = () => {
     '@/store/common/hook': { useStatusbarHeight: () => 24 },
     '@/utils/hooks/useBackHandler': { useBackHandler() {} },
     '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 0, __esModule: true },
+    '@/utils/imageCache': { peekCachedImageUri: () => null, cacheImageUri: async() => null },
+    './useCoverDate': { useCoverDate: () => new Date(2026, 9, 23).getTime() },
     './DailyCover': { DailyCover: 'DailyCover' },
     './useRecommendations': { useRecommendations: () => state },
     './actions': { playRecommendations: async value => { played.push(value) }, startRecommendationRadio: async value => { seeds.push(value); return { items } } },
@@ -55,6 +57,7 @@ const setup = () => {
       useRecommendationAction: () => ({ pending: false, run: async(fn, success) => { await fn(); if (success) successes.push(success) } }),
     },
   }
+  Object.assign(dependencies, overrides)
   const load = moduleLoader(dependencies)
   return { host, played, seeds, successes, state, dependencies, retries: () => retries, load }
 }
@@ -249,12 +252,12 @@ test('weekly cover uses playlist metadata and never the now-playing artwork; kee
   const env = setup()
   const { WeeklyCover } = env.load('../../components/recommend/WeeklyCover')
   const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
-  const props = { discover: { cover: 'playlist-cover', count: 30, currentMusicInfo: { meta: { picUrl: 'now-playing' } } } }
+  const props = { cover: 'playlist-cover', count: 30 }
   let all = nodes(env.host.render(WeeklyCover, props))
   assert.equal(all.find(n => n.type === FrostedCover).props.uri, 'playlist-cover')
   assert.equal(all.find(n => n.type === 'Image').props.url, 'playlist-cover')
   assert.equal(all.find(n => n.props.size === 13).props.children, 'recommend_cover_week_count')
-  all = nodes(env.host.render(WeeklyCover, { discover: { cover: null } }))
+  all = nodes(env.host.render(WeeklyCover, { cover: null }))
   assert.equal(all.find(n => n.type === FrostedCover).props.uri, undefined)
   assert.equal(all.find(n => n.props.size === 13).props.children, 'recommend_cover_week')
   const home = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/HomeTab.tsx', import.meta.url), 'utf8')
@@ -271,11 +274,12 @@ test('native blur 14 and paper tint fall back to placeholder on missing cover or
   assert.equal(image.props.source.uri, 'cover')
   assert.equal(image.props.blurRadius, 14)
   assert.equal(image.props.resizeMode, 'cover')
-  assert.ok(nodes(tree).some(n => n.props.style?.some?.(s => s?.backgroundColor === 'paper@0.66')))
+  assert.equal(image.props.resizeMethod, 'resize')
+  assert.ok(nodes(tree).some(n => n.props.style?.backgroundColor === 'paper@0.66'))
   image.props.onError()
   tree = render('cover')
   assert.equal(nodes(tree).filter(n => n.type === 'NativeImage').length, 0)
-  assert.equal(tree.props.style[1].backgroundColor, 'placeholder')
+  assert.equal(tree.props.style.backgroundColor, 'placeholder')
   assert.equal(nodes(tree).filter(n => n.type === 'View').length, 1)
   assert.equal(nodes(render('next-cover')).filter(n => n.type === 'NativeImage').length, 1)
   assert.equal(nodes(render(undefined)).filter(n => n.type === 'NativeImage').length, 0)
@@ -321,4 +325,138 @@ test('card copy localizes Chinese titles, numeric months, and the English previe
   assert.equal(fill(langs[2].recommend_cover_today, { month: langs[2].recommend_month_10, year: 2026 }), 'TODAY · OCT 2026')
   assert.equal(fill(langs[2].recommend_cover_weekly, { start: 'OCT 19', end: '25' }), 'THIS WEEK · OCT 19 – 25')
   assert.equal(fill(langs[2].recommend_cover_week_count, { week: 43, count: 30 }), 'Week 43 · 30 songs')
+})
+
+test('blurred background waits for the shared cache, handles URI races, cache failure and unmount', async() => {
+  const requests = new Map()
+  const hits = new Map([['https://cover/hit', 'file:///shared-hit']])
+  const env = setup({
+    '@/utils/imageCache': {
+      peekCachedImageUri: uri => hits.get(uri) ?? null,
+      cacheImageUri: uri => new Promise((resolve, reject) => { requests.set(uri, { resolve, reject }) }),
+    },
+  })
+  const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
+  const render = uri => env.host.render(FrostedCover, { uri })
+  const native = tree => nodes(tree).find(n => n.type === 'NativeImage')
+  const flush = () => new Promise(resolve => setImmediate(resolve))
+  const hit = native(render('https://cover/hit'))
+  assert.equal(hit.props.source.uri, 'file:///shared-hit')
+  assert.equal(native(render('https://cover/first')), undefined)
+  assert.equal(native(render('https://cover/second')), undefined)
+  requests.get('https://cover/first').resolve('file:///old')
+  await flush()
+  assert.equal(native(render('https://cover/second')), undefined)
+  requests.get('https://cover/second').resolve('file:///shared-second')
+  await flush()
+  const loaded = native(render('https://cover/second'))
+  assert.equal(loaded.props.source.uri, 'file:///shared-second')
+  assert.equal(native(render('https://cover/second')).props.source, loaded.props.source)
+  loaded.props.onError()
+  assert.equal(native(render('https://cover/second')), undefined)
+  render('https://cover/rejected')
+  requests.get('https://cover/rejected').reject(Error('offline'))
+  await flush()
+  assert.equal(native(render('https://cover/rejected')), undefined)
+  render('https://cover/missing')
+  requests.get('https://cover/missing').resolve(null)
+  await flush()
+  assert.equal(native(render('https://cover/missing')), undefined)
+  render('https://cover/unmounted')
+  env.host.dispose()
+  requests.get('https://cover/unmounted').resolve('file:///too-late')
+  await flush()
+  assert.equal(native(render('https://cover/unmounted')), undefined)
+  env.host.dispose()
+})
+
+test('recommendation memo boundaries and stable playback callbacks keep current playback state', () => {
+  const source = name => readFileSync(new URL(`../src/components/recommend/${name}.tsx`, import.meta.url), 'utf8')
+  for (const name of ['RecommendationSection', 'DailyCover', 'WeeklyCover', 'FrostedCover']) {
+    assert.match(source(name), new RegExp(`export const ${name} = memo\\(`))
+  }
+  assert.match(source('DailyCover'), /useMemo\(\(\) => coveredRecommendations\(items\)\.slice\(0, 3\), \[items\]\)/)
+  assert.match(source('RecommendationSection'), /<WeeklyCover cover=\{discover.cover\} count=\{discover.count\}/)
+  const home = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/HomeTab.tsx', import.meta.url), 'utf8')
+  assert.match(home, /handlePlayPlaylist=\{handlePlayPlaylist\}/)
+  assert.match(home, /const onOpenWeekly = useCallback\([\s\S]*?\[discover.sourceListId\]\)/)
+  assert.match(home, /const onPlayWeekly = useCallback\([\s\S]*?\[discover.sourceListId, handlePlayPlaylist\]\)/)
+  assert.match(home, /onOpenWeekly=\{onOpenWeekly\}/)
+  assert.match(home, /onPlayWeekly=\{onPlayWeekly\}/)
+  assert.match(home, /playbackRef.current = \{ isPlay, isPlaylistCurrent \}/)
+  assert.match(home, /const handlePlayPlaylist = useCallback\(async[\s\S]*?playbackRef.current.isPlaylistCurrent\(listId\)[\s\S]*?playbackRef.current.isPlay[\s\S]*?\}, \[\]\)/)
+  const cache = readFileSync(new URL('../src/utils/imageCache.ts', import.meta.url), 'utf8')
+  assert.match(cache, /inflightTaskMap.get\(uri\)/)
+  assert.match(source('FrostedCover'), /import \{ cacheImageUri, peekCachedImageUri \} from '@\/utils\/imageCache'/)
+})
+
+test('memoized card date hook refreshes at midnight and resume, and cleans up timers/listeners', () => {
+  const OriginalDate = global.Date
+  const originalTimeout = global.setTimeout
+  const originalClear = global.clearTimeout
+  let now = new OriginalDate(2026, 9, 23, 23, 59).getTime()
+  let timer
+  let listener
+  let removed = false
+  class ClockDate extends OriginalDate {
+    constructor(...args) { super(...(args.length ? args : [now])) }
+  }
+  const env = setup({
+    'react-native': {
+      AppState: {
+        addEventListener: (event, callback) => {
+          assert.equal(event, 'change')
+          listener = callback
+          return { remove: () => { removed = true } }
+        },
+      },
+    },
+  })
+  try {
+    global.Date = ClockDate
+    global.setTimeout = (callback, delay) => { timer = { callback, delay }; return timer }
+    global.clearTimeout = () => { timer = undefined }
+    const { useCoverDate } = env.load('../../components/recommend/useCoverDate')
+    const render = () => env.host.render(useCoverDate)
+    assert.equal(render(), new OriginalDate(2026, 9, 23).getTime())
+    assert.equal(timer.delay, 60_000)
+    now += 60_000
+    timer.callback()
+    assert.equal(render(), new OriginalDate(2026, 9, 24).getTime())
+    now = new OriginalDate(2026, 9, 26, 10).getTime()
+    listener('active')
+    assert.equal(render(), new OriginalDate(2026, 9, 26).getTime())
+    env.host.dispose()
+    assert.equal(timer, undefined)
+    assert.equal(removed, true)
+  } finally {
+    global.Date = OriginalDate
+    global.setTimeout = originalTimeout
+    global.clearTimeout = originalClear
+  }
+})
+
+test('cover date labels and colors respond to date, language and theme changes through memo', () => {
+  let day = new Date(2026, 9, 23).getTime()
+  let language = 'en_us'
+  let ink = 'light-ink'
+  const t = (key, values) => `${key}:${JSON.stringify(values)}`
+  const env = setup({
+    './useCoverDate': { useCoverDate: () => day },
+    '@/lang': { useI18n: () => t },
+    '@/store/setting/hook': { useSettingValue: () => language },
+    '@/theme/magazineRoles': { magazineRoles: () => ({ ink }) },
+  })
+  const { DailyCover } = env.load('../../components/recommend/DailyCover')
+  const render = () => nodes(env.host.render(DailyCover, { items }))
+  assert.match(render().find(n => n.props.size === 11).props.children, /recommend_month_10/)
+  language = 'zh_cn'
+  assert.match(render().find(n => n.props.size === 11).props.children, /"month":10/)
+  day = new Date(2026, 10, 1).getTime()
+  ink = 'dark-ink'
+  const changed = render()
+  assert.match(changed.find(n => n.props.size === 11).props.children, /"month":11/)
+  assert.equal(changed.find(n => n.props.size === 100).props.children, 1)
+  assert.equal(changed.find(n => n.props.size === 100).props.color, 'dark-ink')
+  env.host.dispose()
 })

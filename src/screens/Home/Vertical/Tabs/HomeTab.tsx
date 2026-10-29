@@ -342,11 +342,14 @@ const AllContent = memo(({
   const r = magazineRoles(colors)
   const t = useI18n()
 
+  const onOpenWeekly = useCallback(() => { openPlaylistDetail(discover.sourceListId) }, [discover.sourceListId])
+  const onPlayWeekly = useCallback(() => { handlePlayPlaylist(discover.sourceListId) }, [discover.sourceListId, handlePlayPlaylist])
+
   return (
     <View>
       <RecommendationSection discover={discover}
-        onOpenWeekly={() => { openPlaylistDetail(discover.sourceListId) }}
-        onPlayWeekly={() => { handlePlayPlaylist(discover.sourceListId) }} />
+        onOpenWeekly={onOpenWeekly}
+        onPlayWeekly={onPlayWeekly} />
 
       <SectionHeader
         title={t('home_section_daily')}
@@ -1152,15 +1155,17 @@ export default memo(() => {
     cover: featuredCover,
   }), [featuredCover, featuredItem?.id, featuredItem?.tag, featuredStat, t])
 
+  const playbackRef = useRef({ isPlay, isPlaylistCurrent })
+  playbackRef.current = { isPlay, isPlaylistCurrent }
   const handlePlayPlaylist = useCallback(async(listId: string | null | undefined) => {
     if (!listId) return
-    if (isPlaylistCurrent(listId)) {
-      if (isPlay) await pause()
+    if (playbackRef.current.isPlaylistCurrent(listId)) {
+      if (playbackRef.current.isPlay) await pause()
       else play()
       return
     }
     await playListAsQueue(listId, 0)
-  }, [isPlay, isPlaylistCurrent])
+  }, [])
   const handlePlayPlaylistPress = useCallback((listId: string | null | undefined) => (event: GestureResponderEvent) => {
     event.stopPropagation()
     void handlePlayPlaylist(listId)
@@ -1280,7 +1285,7 @@ export default memo(() => {
                 playlistMetaMap={playlistMetaMap}
                 isPlay={isPlay}
                 isPlaylistCurrent={isPlaylistCurrent}
-                handlePlayPlaylist={(listId) => { void handlePlayPlaylist(listId) }}
+                handlePlayPlaylist={handlePlayPlaylist}
                 handlePlayPlaylistPress={handlePlayPlaylistPress}
               />
             </ContentReveal>
