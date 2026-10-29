@@ -263,7 +263,7 @@ const hookHost = () => {
 }
 const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)]
 const jsx = (type, props) => ({ type, props })
-const flush = async() => { for (let i = 0; i < 10; i++) await Promise.resolve() }
+const flush = async() => { for (let i = 0; i < 30; i++) await Promise.resolve() }
 // Band top sits at pageY 1000; locationY is only trusted at grant (Android may report it relative to another view on move).
 const eventAt = (y, locationY = y) => ({ nativeEvent: { locationY, locationX: 500, pageY: 1000 + y } })
 const setupAudio = (setEqualizer = async() => {}) => {
@@ -287,7 +287,7 @@ const setupAudio = (setEqualizer = async() => {}) => {
     },
     '@/components/common/Text': { default: 'Text', __esModule: true },
     '@/components/common/StatusBar': { default: 'StatusBar', __esModule: true },
-    '@/components/magazine': { DOCK_BASE_HEIGHT: 122, MagTopBar: 'MagTopBar', OptionRow: 'OptionRow', Rule: 'Rule', Toggle: 'Toggle' },
+    '@/components/magazine': { DOCK_BASE_HEIGHT: 122, MagTopBar: 'MagTopBar', OptionRow: 'OptionRow', Rule: 'Rule', TextButton: 'TextButton', Toggle: 'Toggle' },
     '@/config/constant': { APP_LAYER_INDEX: { controls: 10 } },
     '@/core/common': { updateSetting: patch => { writes.push(patch); state.setting = { ...state.setting, ...patch } } },
     '@/lang': { useI18n: () => key => key },
@@ -352,13 +352,16 @@ test('EQ grant/move updates native thumb geometry; release writes once, holds dr
   assert.equal(thumbPosition(band), 16)
   assert.notEqual(thumbPosition(band), original)
   assert.equal(band.props.accessibilityValue.now, 9)
-  assert.equal(h.bridgeCalls.length, 0)
+  assert.equal(h.bridgeCalls.length, 1)
+  assert.equal(h.writes.length, 0)
   assert.equal(band.props.onResponderTerminationRequest(), false)
   band.props.onResponderRelease(); renderPage(); band = renderBand()
   assert.equal(thumbPosition(band), 16, 'no old-value frame during native write')
   assert.equal(h.writes.length, 0)
   assert.equal(h.bridgeCalls.length, 1)
-  assert.deepEqual(h.bridgeCalls[0].gains, [9, ...JSON.parse(defaults['player.audio.equalizer.gains']).slice(1)])
+  finish(); await flush()
+  assert.equal(h.bridgeCalls.length, 2)
+  assert.deepEqual(h.bridgeCalls[1].gains, [9, ...JSON.parse(defaults['player.audio.equalizer.gains']).slice(1)])
   assert.equal(band.props.accessibilityState.disabled, true, 'busy after release only')
   assert.equal(nodes(page).find(n => n.type === 'ScrollView').props.scrollEnabled, true)
   finish(); await flush()
@@ -375,7 +378,7 @@ test('EQ grant/move updates native thumb geometry; release writes once, holds dr
   renderPage(); band = renderBand(); assert.equal(thumbPosition(band), 96)
 })
 
-test('EQ termination clears draft without persisting; increments retain 1 dB and bounds; failures revert', async() => {
+test('EQ termination commits final draft; increments retain 1 dB and bounds; failures revert', async() => {
   for (const outcome of ['resolveFalse', 'reject']) {
     const h = setupAudio(); const host = hookHost(); const changes = []; const drags = []
     let props = { frequency: '31', value: 0, disabled: false, onDraggingChange: value => drags.push(value), onChange: async value => { changes.push(value); if (changes.length === 1 && outcome === 'reject') throw Error('failed'); return false } }
@@ -383,13 +386,13 @@ test('EQ termination clears draft without persisting; increments retain 1 dB and
     let band = render()
     band.props.onLayout({ nativeEvent: { layout: { height: 120 } } }); band = render()
     band.props.onResponderGrant(eventAt(30)); band = render(); assert.equal(thumbPosition(band), 30)
-    band.props.onResponderTerminate(); band = render()
+    band.props.onResponderTerminate(); await flush(); band = render()
     assert.equal(thumbPosition(band), 60)
-    assert.deepEqual(drags, [true, false]); assert.deepEqual(changes, [])
-    band.props.onResponderRelease(); assert.deepEqual(changes, [])
+    assert.deepEqual(drags, [true, false]); assert.deepEqual(changes, [6])
+    band.props.onResponderRelease(); assert.deepEqual(changes, [6])
     band.props.onResponderGrant(eventAt(-100)); band = render(); assert.equal(thumbPosition(band), 0)
     band.props.onResponderRelease(); await flush(); band = render(); assert.equal(thumbPosition(band), 60)
-    assert.deepEqual(changes, [12])
+    assert.deepEqual(changes, [6, 12])
     band.props.onAccessibilityAction({ nativeEvent: { actionName: 'increment' } }); await flush()
     assert.equal(changes.at(-1), 1)
     props = { ...props, value: 12 }; band = render()
@@ -485,6 +488,105 @@ test('failed native release preserves saved settings and clears the optimistic t
   renderPage(); let band = renderBand(); const original = thumbPosition(band)
   band.props.onResponderGrant(eventAt(0)); band = renderBand(); assert.equal(thumbPosition(band), 0)
   band.props.onResponderRelease(); await flush(); renderPage(); band = renderBand()
-  assert.equal(thumbPosition(band), original); assert.equal(h.bridgeCalls.length, 1); assert.equal(h.writes.length, 0)
+  assert.equal(thumbPosition(band), original); assert.equal(h.bridgeCalls.length, 2); assert.equal(h.writes.length, 0)
   assert.ok(nodes(page).find(n => n.props.accessibilityLiveRegion === 'polite'))
 })
+
+test('EQ reset reads defaults, patches only preset/gains, keeps all other settings and disables correctly', async() => {
+  assert.deepEqual(api.equalizerDefaultPatch(), {
+    'player.audio.equalizer.preset': defaults['player.audio.equalizer.preset'],
+    'player.audio.equalizer.gains': defaults['player.audio.equalizer.gains'],
+  })
+  const h = setupAudio(); const host = hookHost()
+  const render = () => h.render(host, h.default, { onBack() {} })
+  const button = () => nodes(render()).find(n => n.type === 'TextButton')
+  assert.equal(button().props.disabled, true)
+  h.state.setting = { ...h.state.setting, 'player.audio.equalizer.preset': 'rock', 'player.audio.equalizer.gains': JSON.stringify(api.PRESET_GAINS.rock), 'player.audio.loudness.enabled': true, 'player.audio.loudness.target': -11, 'player.audio.loudness.preventClipping': false, 'player.audio.gapless.enabled': true }
+  const before = { ...h.state.setting }
+  assert.equal(button().props.disabled, false)
+  assert.equal(button().props.compact, true)
+  assert.equal(button().props.style[0].minHeight, 28)
+  button().props.onPress()
+  assert.equal(button().props.disabled, true, 'busy disables reset')
+  await flush()
+  assert.equal(h.writes.length, 1)
+  assert.deepEqual(h.state.setting, { ...before, ...api.equalizerDefaultPatch() })
+  assert.equal(h.bridgeCalls.length, 1)
+  assert.deepEqual(h.bridgeCalls[0], { enabled: true, preset: defaults['player.audio.equalizer.preset'], gains: JSON.parse(defaults['player.audio.equalizer.gains']) })
+  assert.equal(button().props.disabled, true)
+  for (const disabled of [false, true]) assert.equal(api.equalizerResetDisabled(defaults, disabled), true)
+  const modified = { ...before, 'player.audio.equalizer.enabled': false }
+  h.state.setting = modified
+  assert.equal(button().props.disabled, true)
+  assert.equal(button().props.style[1].opacity, 0.4)
+  h.state.setting['player.audio.equalizer.enabled'] = true
+  delete h.dependencies['react-native'].NativeModules.TrackPlayerModule.setEqualizer
+  assert.equal(button().props.disabled, true, 'unsupported disables reset')
+  const labels = ['zh-cn', 'zh-tw', 'en-us'].map(lang => JSON.parse(read(`src/lang/${lang}.json`)))
+  assert.deepEqual(labels.map(lang => lang.audio_effects_equalizer_reset), ['恢复默认', '恢復預設', 'Reset'])
+  for (const lang of labels) assert.deepEqual(Object.keys(lang).filter(key => key.startsWith('audio_effects_')).sort(), Object.keys(labels[0]).filter(key => key.startsWith('audio_effects_')).sort())
+})
+
+// Deterministic clock: exercise throttling and cancellation without wall-clock sleeps.
+const withPreviewClock = async run => {
+  const original = { now: Date.now, setTimeout: global.setTimeout, clearTimeout: global.clearTimeout }
+  let now = 0; let id = 0
+  const timers = new Map()
+  Date.now = () => now
+  global.setTimeout = (fn, delay) => { const key = ++id; timers.set(key, { fn, at: now + delay }); return key }
+  global.clearTimeout = key => timers.delete(key)
+  const tick = async ms => {
+    now += ms
+    for (const [key, timer] of timers) if (timer.at <= now) { timers.delete(key); timer.fn() }
+    await flush()
+  }
+  try { await run({ tick, timers }) } finally { Date.now = original.now; global.setTimeout = original.setTimeout; global.clearTimeout = original.clearTimeout }
+}
+const eqSettings = gain => ({ ...defaults, 'player.audio.equalizer.enabled': true, 'player.audio.equalizer.gains': JSON.stringify([gain, ...api.PRESET_GAINS.custom.slice(1)]) })
+
+test('live EQ previews throttle rounded gains, coalesce slow bridge calls and never persist', async() => withPreviewClock(async({ tick, timers }) => {
+  const calls = []; let finish
+  const preview = api.createEqualizerPreview({ setEqualizer: config => { calls.push(config); return new Promise(resolve => { finish = resolve }) } })
+  preview.push(eqSettings(1.1)); preview.push(eqSettings(1.4))
+  assert.equal(calls.length, 1)
+  preview.push(eqSettings(2)); preview.push(eqSettings(3))
+  await tick(200)
+  assert.equal(calls.length, 1, 'only one native call in flight')
+  finish(); await flush()
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].gains[0], 3, 'drop intermediates, keep latest')
+  finish(); await flush()
+  preview.push(eqSettings(4)); preview.push(eqSettings(5))
+  await tick(69); assert.equal(calls.length, 2)
+  await tick(1); assert.equal(calls.length, 3); assert.equal(calls[2].gains[0], 5)
+  finish(); await flush()
+  preview.push(eqSettings(5.1)); await tick(100)
+  assert.equal(calls.length, 3, 'same rounded value does not reapply')
+  await preview.cancel(); assert.equal(timers.size, 0)
+  preview.push(defaults); assert.equal(calls.length, 3, 'disabled EQ never previews')
+  await api.createEqualizerPreview({}).cancel()
+}))
+
+test('release and termination cancel trailing preview and persist final gain exactly once', async() => withPreviewClock(async({ tick, timers }) => {
+  for (const end of ['onResponderRelease', 'onResponderTerminate']) {
+    const h = setupAudio(); const pageHost = hookHost(); const bandHost = hookHost()
+    let page
+    const renderPage = () => { page = h.render(pageHost, h.default, { onBack() {} }) }
+    const renderBand = () => h.render(bandHost, h.EqBand, nodes(page).find(n => n.type === h.EqBand).props)
+    renderPage(); let band = renderBand()
+    band.props.onResponderGrant(eventAt(65)); await flush()
+    assert.equal(h.bridgeCalls.length, 1); assert.equal(h.writes.length, 0)
+    band.props.onResponderMove(eventAt(10)); band = renderBand()
+    assert.equal(timers.size, 1)
+    band.props[end](); await flush(); renderPage(); band = renderBand()
+    assert.equal(timers.size, 0)
+    assert.equal(h.bridgeCalls.length, 2)
+    assert.equal(h.bridgeCalls.at(-1).gains[0], api.clampEqGain(12 - 10 / 130 * 24))
+    assert.equal(h.writes.length, 1)
+    assert.equal(h.state.setting['player.audio.equalizer.gains'], JSON.stringify(h.bridgeCalls.at(-1).gains))
+    band.props.onResponderRelease(); await tick(200)
+    assert.equal(h.bridgeCalls.length, 2, 'no stale timer after release')
+    assert.equal(h.writes.length, 1)
+    pageHost.unmount(); bandHost.unmount()
+  }
+}))

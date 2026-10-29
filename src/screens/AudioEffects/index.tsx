@@ -1,10 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Animated, NativeModules, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { DOCK_BASE_HEIGHT, MagTopBar, OptionRow, Rule, Toggle } from '@/components/magazine'
+import { DOCK_BASE_HEIGHT, MagTopBar, OptionRow, Rule, TextButton, Toggle } from '@/components/magazine'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import commonState from '@/store/common/state'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
@@ -18,7 +18,7 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
-import { audioEffectCapabilities, audioEffectStateKey, clampEqGain, commitAudioEffect, EQ_FREQUENCIES, EQ_PRESETS, formatEqGain, formatLoudness, LOUDNESS_TARGETS, normalizeAudioEffects, PRESET_GAINS, type AudioEffect, type AudioEffectSettings, type AudioEffectsBridge } from '@/utils/audioEffects'
+import { audioEffectCapabilities, audioEffectStateKey, clampEqGain, commitAudioEffect, createEqualizerPreview, equalizerDefaultPatch, equalizerResetDisabled, EQ_FREQUENCIES, EQ_PRESETS, formatEqGain, formatLoudness, LOUDNESS_TARGETS, normalizeAudioEffects, PRESET_GAINS, type AudioEffect, type AudioEffectSettings, type AudioEffectsBridge } from '@/utils/audioEffects'
 
 /** Main-level overlay below the Dock; mounted only while open. */
 export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
@@ -36,6 +36,9 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const writing = useRef(false)
+  const preview = useRef<ReturnType<typeof createEqualizerPreview> | null>(null)
+  if (!preview.current) preview.current = createEqualizerPreview(bridge)
+  useEffect(() => () => { void preview.current?.cancel() }, [])
   const scroll = useRef<ScrollView>(null)
   const back = useCallback(() => { if (detail) { setDetail(false); scroll.current?.scrollTo({ y: 0, animated: false }) } else onBack() }, [detail, onBack])
   useBackHandler(useCallback(() => {
@@ -49,6 +52,7 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
     writing.current = true
     setBusy(true)
     setFailed(false)
+    await preview.current!.cancel()
     return commitAudioEffect(effect, { ...normalizeAudioEffects(settingState.setting), ...patch }, bridge, updateSetting)
       .catch(() => { setFailed(true); return false })
       .finally(() => { writing.current = false; setBusy(false) })
@@ -80,7 +84,13 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
         {row(t('audio_effects_gapless_enable'), 'gapless', 'player.audio.gapless.enabled', t('audio_effects_gapless_detail'))}
         <Text size={12} color={r.muted} style={styles.gaplessNote}>{t('audio_effects_gapless_note')}</Text>
       </> : <>
-        {section(t('audio_effects_equalizer'))}
+        <Rule gapTop={22} style={{ height: 2, opacity: 1 }} />
+        <View style={styles.sectionRow}>
+          <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('audio_effects_equalizer')}</Text>
+          <TextButton compact labelSize={12} label={t('audio_effects_equalizer_reset')} disabled={equalizerResetDisabled(setting, eqDisabled)} style={[styles.reset, { opacity: equalizerResetDisabled(setting, eqDisabled) ? 0.4 : 1 }]} onPress={() => {
+            if (!equalizerResetDisabled(setting, eqDisabled)) void commit('equalizer', equalizerDefaultPatch())
+          }} />
+        </View>
         {row(t('audio_effects_equalizer_enable'), 'equalizer', 'player.audio.equalizer.enabled', undefined, false, false, true)}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presets}>
           {EQ_PRESETS.map(preset => {
@@ -92,7 +102,14 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
         </ScrollView>
         <View style={[styles.eq, { borderColor: r.hairline, opacity: eqDisabled ? 0.4 : 1 }]}>
           <View pointerEvents="none" style={[styles.midline, { backgroundColor: r.hairline }]} />
-          {EQ_FREQUENCIES.map((frequency, index) => <EqBand key={frequency} frequency={frequency} value={gains[index]} disabled={eqDisabled} onDraggingChange={setDragging} onChange={async value => {
+          {EQ_FREQUENCIES.map((frequency, index) => <EqBand key={frequency} frequency={frequency} value={gains[index]} disabled={eqDisabled} onDraggingChange={setDragging} onPreview={value => {
+            if (eqDisabled || writing.current) return
+            const current = normalizeAudioEffects(settingState.setting)
+            if (!current['player.audio.equalizer.enabled']) return
+            const next = JSON.parse(current['player.audio.equalizer.gains']) as number[]; next[index] = value
+            preview.current!.push({ ...current, 'player.audio.equalizer.preset': 'custom', 'player.audio.equalizer.gains': JSON.stringify(next) })
+          }} onChange={async value => {
+            if (eqDisabled) { await preview.current!.cancel(); return false }
             const next = [...gains]; next[index] = value
             return commit('equalizer', { 'player.audio.equalizer.preset': 'custom', 'player.audio.equalizer.gains': JSON.stringify(next) })
           }} />)}
@@ -107,7 +124,7 @@ export default function AudioEffectsPage({ onBack }: { onBack: () => void }) {
   </View>
 }
 
-export function EqBand({ frequency, value, disabled, onChange, onDraggingChange }: { frequency: string, value: number, disabled: boolean, onChange: (value: number) => Promise<boolean>, onDraggingChange: (dragging: boolean) => void }) {
+export function EqBand({ frequency, value, disabled, onChange, onDraggingChange, onPreview }: { frequency: string, value: number, disabled: boolean, onChange: (value: number) => Promise<boolean>, onPreview?: (value: number) => void, onDraggingChange: (dragging: boolean) => void }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -126,29 +143,35 @@ export function EqBand({ frequency, value, disabled, onChange, onDraggingChange 
     if (!dragging.current && draft === value) setDraft(null)
   }, [draft, value])
   const move = (y: number) => {
-    pending.current = clampEqGain(12 - y / height * 24)
-    setDraft(pending.current)
+    if (disabled) return
+    const next = clampEqGain(12 - y / height * 24)
+    if (next !== pending.current) onPreview?.(next)
+    pending.current = next
+    setDraft(next)
+  }
+  const finish = () => {
+    if (!dragging.current) return
+    dragging.current = false
+    onDraggingChange(false)
+    if (pending.current === value) setDraft(null)
+    // Keep the final draft until the setting acknowledges it; never expose the old value in flight.
+    void onChange(pending.current).then(applied => { if (!applied) setDraft(null) }, () => { setDraft(null) })
   }
   return <View style={styles.band} hitSlop={{ left: 15, right: 15 }} onLayout={event => { if (event.nativeEvent.layout.height > 0) setHeight(event.nativeEvent.layout.height) }} accessibilityRole="adjustable" accessibilityLabel={`${frequency} Hz`} accessibilityState={{ disabled }} accessibilityValue={{ min: -12, max: 12, now: live, text: formatEqGain(live) }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={event => { if (!disabled) void onChange(clampEqGain(value + (event.nativeEvent.actionName === 'increment' ? 1 : -1))) }}
     onStartShouldSetResponder={() => !disabled}
     onMoveShouldSetResponder={() => !disabled}
     onResponderTerminationRequest={() => false}
     onResponderGrant={event => {
+      if (disabled) return
+      pending.current = value
       dragging.current = true
       onDraggingChange(true)
       originPageY.current = event.nativeEvent.pageY - event.nativeEvent.locationY
       move(event.nativeEvent.locationY)
     }}
     onResponderMove={event => { if (dragging.current) move(event.nativeEvent.pageY - originPageY.current) }}
-    onResponderRelease={() => {
-      if (!dragging.current) return
-      dragging.current = false
-      onDraggingChange(false)
-      if (pending.current === value) setDraft(null)
-      // Keep the final draft until the setting acknowledges it; never expose the old value in flight.
-      void onChange(pending.current).then(applied => { if (!applied) setDraft(null) }, () => { setDraft(null) })
-    }}
-    onResponderTerminate={() => { dragging.current = false; setDraft(null); onDraggingChange(false) }}>
+    onResponderRelease={finish}
+    onResponderTerminate={finish}>
     <View pointerEvents="none" style={[styles.rail, { backgroundColor: r.hairline }]} />
     <Animated.View pointerEvents="none" style={[styles.thumb, { top: 0, transform: [{ translateY: thumbY }], backgroundColor: r.accent, borderColor: r.ink }]} />
   </View>
@@ -161,6 +184,9 @@ const useStyles = sharedLuxStyles(() => createStyle({
   title: { fontWeight: '800', lineHeight: 38 },
   section: { fontWeight: '800', marginTop: 12 },
   bold: { fontWeight: '700' },
+  sectionTitle: { fontWeight: '800' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  reset: { minHeight: 28 },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   shortRow: { minHeight: 50, paddingVertical: 0 },
   body: { flex: 1, justifyContent: 'center', minHeight: 44 },
