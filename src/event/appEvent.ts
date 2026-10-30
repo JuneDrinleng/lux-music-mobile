@@ -253,6 +253,14 @@ export class AppEvent extends Event {
     this.emit('closeListeningStats')
   }
 
+  openListenTogether() {
+    this.emit('openListenTogether')
+  }
+
+  closeListenTogether() {
+    this.emit('closeListenTogether')
+  }
+
   syncModeUpdated(mode: 'lx' | 'lux') {
     this.emit('syncModeUpdated', mode)
   }
@@ -325,6 +333,26 @@ export class AppEvent extends Event {
     this.emit('closeVerticalSearchPage')
   }
 
+  openWhiteNoise() {
+    this.emit('openWhiteNoise')
+  }
+
+  openAudioEffects() {
+    this.emit('openAudioEffects')
+  }
+
+  closeAudioEffects() {
+    this.emit('closeAudioEffects')
+  }
+
+  openDailyRecommendations() {
+    this.emit('openDailyRecommendations')
+  }
+
+  closeDailyRecommendations() {
+    this.emit('closeDailyRecommendations')
+  }
+
   closePlaylistDetail() {
     this.emit('closePlaylistDetail')
   }
@@ -343,6 +371,10 @@ export class AppEvent extends Event {
 
   permissionPromptResult(requestId: string, action: PermissionPromptAction) {
     this.emit('permissionPromptResult', requestId, action)
+  }
+
+  syncLoginPresented() {
+    this.emit('syncLoginPresented')
   }
 
   showAppDialog(payload: AppDialogPayload) {

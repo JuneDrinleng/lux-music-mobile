@@ -81,11 +81,13 @@ export interface SearchPageRequest extends VerticalSearchPagePayload {
 export default function SearchPage({
   visible,
   covered,
+  onSelectSong,
   request,
   onClose,
 }: {
   visible: boolean
   covered: boolean
+  onSelectSong?: (song: LX.Music.MusicInfoOnline) => Promise<void>
   request: SearchPageRequest | null
   onClose: () => void
 }) {
@@ -495,8 +497,9 @@ export default function SearchPage({
   }, [loadSearchHistoryList, searchHistoryList])
 
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
-    await addMusicToQueueAndPlay(song)
-  }, [])
+    if (onSelectSong) await onSelectSong(song)
+    else await addMusicToQueueAndPlay(song)
+  }, [onSelectSong])
 
   const handleToggleSearchLoved = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     const songId = String(song.id)

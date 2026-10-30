@@ -15,22 +15,32 @@ export const SecondaryButton = memo(({
   disabled = false,
   icon,
   style,
+  compact = false,
+  labelSize,
+  labelNumberOfLines,
+  selected = false,
+  danger = false,
 }: {
   label: string
   onPress?: () => void
   disabled?: boolean
   icon?: string
   style?: ViewStyle
+  compact?: boolean
+  labelSize?: number
+  labelNumberOfLines?: number
+  selected?: boolean
+  danger?: boolean
 }) => {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   return (
     <TouchableOpacity
       style={[{
-        height: 44,
+        height: compact ? 28 : 44,
         borderRadius: 999,
         borderWidth: 1.5,
-        borderColor: r.ink,
+        borderColor: danger ? r.like : r.ink,
         backgroundColor: 'transparent',
         alignItems: 'center',
         justifyContent: 'center',
@@ -39,14 +49,15 @@ export const SecondaryButton = memo(({
         paddingHorizontal: 18,
         opacity: disabled ? 0.4 : 1,
       }, style]}
+      hitSlop={compact ? { top: 8, bottom: 8, left: 0, right: 0 } : undefined}
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
     >
-      {icon ? <MdiIcon name={icon} size={20} color={r.ink} /> : null}
-      <Text size={magType.button.size} color={r.ink} style={{ fontWeight: '700' }}>{label}</Text>
+      {icon ? <MdiIcon name={icon} size={20} color={danger ? r.like : r.ink} /> : null}
+      <Text numberOfLines={labelNumberOfLines} size={labelSize ?? (compact ? 13 : magType.button.size)} color={danger ? r.like : r.ink} style={{ fontWeight: '700' }}>{label}</Text>
     </TouchableOpacity>
   )
 })

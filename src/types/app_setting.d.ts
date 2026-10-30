@@ -148,6 +148,13 @@ declare global {
        * 播放速率
        */
       'player.playbackRate': number
+      'player.audio.equalizer.enabled': boolean
+      'player.audio.equalizer.preset': 'custom' | 'pop' | 'rock' | 'vocal' | 'bass' | 'classical'
+      'player.audio.equalizer.gains': string
+      'player.audio.loudness.enabled': boolean
+      'player.audio.loudness.target': number
+      'player.audio.loudness.preventClipping': boolean
+      'player.audio.gapless.enabled': boolean
 
       /**
        * 缓存大小设置 unit MB
@@ -168,6 +175,11 @@ declare global {
        * 定时暂停播放-是否等待歌曲播放完毕再暂停
        */
       'player.timeoutExitPlayed': boolean
+      /** Fade output over the final 20 seconds of the sleep timer/song. */
+      'player.timeoutExitFade': boolean
+      'player.timeoutExitFadeDuration': number
+      'player.timeoutExitStopNoise': boolean
+      'player.whiteNoise': Partial<Record<'rain' | 'fire' | 'ocean' | 'cafe' | 'fan', { enabled: boolean, volume: number }>>
 
       /**
        * 点击相同列表内的歌曲切歌时是否清空已播放列表（随机模式下列表内所有歌曲会重新参与随机）
@@ -383,6 +395,9 @@ declare global {
        * 是否启用同步
        */
       'sync.enable': boolean
+
+      /** 一起听房间布局（6.16b adds the settings row） */
+      'together.roomLayout': '6A' | '6B'
     }
   }
 }

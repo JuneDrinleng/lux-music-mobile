@@ -28,9 +28,11 @@ export const BackButton = memo(({
   onPress,
   icon = 'chevron-left',
   accessibilityLabel,
+  compact = false,
 }: {
   onPress: () => void
   icon?: 'chevron-left' | 'chevron-down'
+  compact?: boolean
   accessibilityLabel?: string
 }) => {
   const styles = useStyles()
@@ -38,10 +40,10 @@ export const BackButton = memo(({
   const r = magazineRoles(colors)
   return (
     <TouchableOpacity
-      style={styles.back}
+      style={[styles.back, compact ? { width: 28, height: 28, borderRadius: 14 } : null]}
       activeOpacity={0.7}
       onPress={onPress}
-      hitSlop={4}
+      hitSlop={compact ? 8 : 4}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >

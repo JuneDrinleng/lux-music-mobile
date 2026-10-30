@@ -1,3 +1,4 @@
+import { getDownloadedMusicPath } from '@/core/download'
 // if (targetSong.key) { // 如果是已下载的歌曲
 //   const filePath = path.join(appSetting['download.savePath'], targetSong.metadata.fileName)
 //   // console.log(filePath)
@@ -37,6 +38,8 @@ export const getMusicUrl = async({
   } else if (musicInfo.source == 'local') {
     return getLocalMusicUrl({ musicInfo, isRefresh, onToggleSource, allowToggleSource })
   } else {
+    const offline = await getDownloadedMusicPath(musicInfo, quality)
+    if (offline) return offline
     return getOnlineMusicUrl({ musicInfo, isRefresh, quality, onToggleSource, allowToggleSource })
   }
 }
@@ -59,6 +62,16 @@ export const getPicPath = async({
   } else {
     return getOnlinePicUrl({ musicInfo, isRefresh, listId, onToggleSource })
   }
+}
+
+/** Online-song cover lookup for callers that bypass getPicPath (for example the home tab cover prewarm). */
+export const getOnlineSongPicUrl = async(params: {
+  musicInfo: LX.Music.MusicInfoOnline
+  listId?: string | null
+  isRefresh: boolean
+  allowToggleSource?: boolean
+}): Promise<string> => {
+  return getOnlinePicUrl(params)
 }
 
 export const getLyricInfo = async({

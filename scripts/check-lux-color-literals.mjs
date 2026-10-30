@@ -8,6 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** 已经改成 useLuxTheme() 的竖屏表面。新的颜色字面量应加令牌，不要写回这些文件。 */
 export const MIGRATED_LUX_COLOR_FILES = [
+  'src/screens/Home/Vertical/WhiteNoisePage.tsx',
   'src/components/ChangelogView.tsx',
   'src/components/magazine/BackButton.tsx',
   'src/components/magazine/Checkbox.tsx',
@@ -72,6 +73,9 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/components/search/SearchMusicResultRow.tsx',
   'src/components/search/SearchSonglistResultRow.tsx',
   'src/components/search/sourceTone.ts',
+  'src/screens/Account/AccountPage.tsx',
+  'src/screens/Account/AccountSpaces.tsx',
+  'src/navigation/components/AccountDataDialog.tsx',
   'src/screens/Home/Vertical/BottomNav.tsx',
   'src/screens/Home/Vertical/PlayDetailOverlay.tsx',
   'src/screens/Home/Vertical/PlayQueueSheet.tsx',
@@ -91,6 +95,10 @@ export const MIGRATED_LUX_COLOR_FILES = [
   'src/screens/PlayDetail/Vertical/components/SeekBar.tsx',
   'src/screens/PlayDetail/Vertical/coverTheme.ts',
   'src/screens/PlayDetail/Vertical/index.tsx',
+  'src/screens/Login/index.tsx',
+  'src/screens/Login/ServerStep.tsx',
+  'src/screens/Login/AuthFlow.tsx',
+  'src/screens/SyncLogin/index.tsx',
   'src/screens/Comment/index.tsx',
   'src/screens/Comment/components/Header.tsx',
   'src/screens/Comment/components/List.tsx',

@@ -62,6 +62,8 @@ export const MagazineSheetRow = memo(({
   coverUri,
   /** Pass 0 to hide the cover slot (add-to-playlist rows). Default 40. */
   coverSize = 40,
+  radioLayout = false,
+  reviewLayout = false,
   title,
   subtitle,
   trailing,
@@ -73,6 +75,8 @@ export const MagazineSheetRow = memo(({
   leading?: ReactNode
   coverUri?: string | null
   coverSize?: number
+  radioLayout?: boolean
+  reviewLayout?: boolean
   title: string
   subtitle?: ReactNode
   trailing?: ReactNode
@@ -84,17 +88,17 @@ export const MagazineSheetRow = memo(({
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
-  const titleColor = disabled ? r.faint : r.ink
+  const titleColor = disabled ? r.faint : radioLayout || reviewLayout ? r.list : r.ink
   const body = (
     <View style={[styles.wrap, disabled ? styles.faint : null]}>
       {current ? <View style={styles.currentMark} /> : null}
-      <View style={styles.row}>
+      <View style={[styles.row, reviewLayout ? { minHeight: 60, paddingVertical: 10 } : null, radioLayout ? { gap: 12, minHeight: last ? 56 : 55, height: last ? 56 : 55, paddingVertical: 0 } : null]}>
         {leading}
         {coverSize > 0
           ? (
-            <View style={[styles.cover, { width: coverSize, height: coverSize }]}>
+            <View style={[styles.cover, { width: coverSize, height: coverSize, borderRadius: radioLayout || reviewLayout ? 4 : 6 }]}>
               {coverUri
-                ? <Image url={coverUri} style={{ width: coverSize, height: coverSize, borderRadius: 6 }} />
+                ? <Image url={coverUri} style={{ width: coverSize, height: coverSize, borderRadius: radioLayout || reviewLayout ? 4 : 6 }} />
                 : null}
             </View>
             )

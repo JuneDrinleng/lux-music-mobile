@@ -5,10 +5,18 @@
 import { getSyncMode } from '@/utils/data'
 
 import { setPlayHistoryFeatureEnabled } from '../../playHistoryFlag'
+import { getSocketSession, isCurrentSession, negotiateTogether, finishTogether } from '../session'
+import { notifySyncReady } from '../syncReady'
 import { featureVersion } from '../modules'
 
 
 const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'> = {
+  async together_sync_finished(socket) {
+    const id = getSocketSession(socket)?.id
+    if (!isCurrentSession(id)) return
+    finishTogether(id!)
+    if (socket.isReady) setTimeout(() => { if (isCurrentSession(id)) notifySyncReady() }, 0)
+  },
   async getEnabledFeatures(socket, serverType, supportedFeatures) {
   // const userSpace = getUserSpace(socket.userInfo.name)
     const features: LX.Sync.EnabledFeatures = {}
@@ -18,9 +26,18 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
     } catch {
       lux = false
     }
+    const id = getSocketSession(socket)?.id
+    if (!isCurrentSession(id)) return features
     // Old servers omit playHistory. LX connection-code sync must not enable it, so records stay on this device.
     const enablePlayHistory = lux && featureVersion.playHistory == supportedFeatures.playHistory
     setPlayHistoryFeatureEnabled(enablePlayHistory)
+    const enableTogether = lux && featureVersion.together == supportedFeatures.together
+    negotiateTogether(id!, enableTogether, supportedFeatures)
+    if (enableTogether) {
+      for (const key of ['together.chat', 'together.reaction', 'together.request'] as const) {
+        if (supportedFeatures[key] == featureVersion[key]) features[key] = true
+      }
+    }
     switch (serverType) {
       case 'server':
         if (featureVersion.list == supportedFeatures.list) {
@@ -30,6 +47,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
           features.dislike = { skipSnapshot: false }
         }
         if (enablePlayHistory) features.playHistory = true
+        if (enableTogether) features.together = true
         return features
       case 'desktop-app':
       default:
@@ -40,6 +58,7 @@ const handler: Omit<LX.Sync.ClientSyncHandlerActions<LX.Sync.Socket>, 'finished'
           features.dislike = { skipSnapshot: false }
         }
         if (enablePlayHistory) features.playHistory = true
+        if (enableTogether) features.together = true
         return features
     }
   },

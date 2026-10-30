@@ -1,27 +1,28 @@
+import { parseServerInfo, versionAtLeast } from '@/utils/serverCheck'
 import { request, generateRsaKey } from './utils'
+import { LuxRequestError } from './userErrors'
+import { createLuxAuthClient } from '@/utils/luxAuthApi'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
-import { getLuxAuth, setLuxAuth } from '@/utils/data'
+import { getLuxAuth, getLuxRefreshToken, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer } from '@/utils/data'
 import log from '../log'
 import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
 import { SYNC_CODE } from '../constants'
 import { getSyncDeviceId } from '../deviceId'
-import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential } from './credentials'
+import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential, canReuseLuxSession } from './credentials'
 
-export const requestJson = async<T>(url: string, body?: unknown, token?: string): Promise<T> => {
-  const { text, code } = await request(url, {
-    method: body == null ? 'GET' : 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body == null ? undefined : JSON.stringify(body),
-  })
-  const data = text ? JSON.parse(text) as { message?: unknown } : null
-  if (code < 200 || code >= 300) throw new Error(typeof data?.message == 'string' ? data.message : 'Request failed')
-  return data as T
-}
+export const luxAuthApi = createLuxAuthClient({
+  send: request,
+  getRefreshToken: getLuxRefreshToken,
+  find: findLuxAuthForHost,
+  rotate: rotateLuxAuth,
+  clear: clearLuxAuthForServer,
+  expired: (host, previous) => {
+    void import('./sessionExpired').then(async({ showSessionExpiredDialog }) => showSessionExpiredDialog(host, previous))
+  },
+})
+export const requestJson = luxAuthApi.request
 
 const hello = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/hello`)
   .then(({ text }) => {
@@ -32,13 +33,13 @@ const hello = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol
       if (result != null) {
         const servVer = parseInt(result)
         const localVer = parseInt(verRxp.exec(SYNC_CODE.helloMsg)![1])
-        if (servVer > localVer) throw new Error(SYNC_CODE.highServiceVersion)
-        else if (servVer < localVer) throw new Error(SYNC_CODE.lowServiceVersion)
+        if (servVer !== localVer) throw Object.assign(new Error(servVer > localVer ? SYNC_CODE.highServiceVersion : SYNC_CODE.lowServiceVersion), { serverVersion: `v${servVer}`, requiredVersion: `v${localVer}` })
       }
     }
     return false
   })
   .catch((err: any) => {
+    if (err.message === SYNC_CODE.highServiceVersion || err.message === SYNC_CODE.lowServiceVersion) throw err
     log.error('[auth] hello', err.message)
     console.log(err)
     return false
@@ -133,17 +134,35 @@ const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string, clientId?: 
 }
 
 export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
+  username = username?.trim()
   console.log('lux connect: ', urlInfo.href, username)
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
 
   let authInfo = await getLuxAuth(serverId)
-  if (username && password) {
-    authInfo = await requestJson<LX.Sync.LuxAuth>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
+  if (username != null && !password && !canReuseLuxSession(authInfo, username)) {
+    throw new Error(global.i18n.t('setting_sync_lux_login_missing_tip'))
   }
-  if (!authInfo?.token) throw new Error(SYNC_CODE.missingAuthCode)
+  const info = await request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/server-info`).then(({ code, text }) => code === 200 ? parseServerInfo(JSON.parse(text)) : null).catch(() => null)
+  if (info?.minClientVersion && !versionAtLeast(process.versions.app, info.minClientVersion)) {
+    throw Object.assign(new Error(SYNC_CODE.highServiceVersion), { serverVersion: info.version, requiredVersion: info.minClientVersion })
+  }
+  if (username && password) {
+    const loggedIn = await requestJson<LX.Sync.LuxAuth & { accessToken?: string }>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/login`, { username, password })
+    // Prefer the session-bound access token so per-session server actions (e.g. keeping other devices on password change) work.
+    const { accessToken, ...rest } = loggedIn
+    authInfo = { ...rest, token: accessToken ?? loggedIn.token }
+  }
+  if (!authInfo?.token) throw new Error(SYNC_CODE.luxSessionExpired)
   const session = authInfo
+  // A reusable socket key does not prove that its bearer session is still valid.
+  if (!password) {
+    await requestJson(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/me`, undefined, session.token).catch((error: unknown) => {
+      if (error instanceof LuxRequestError && (error.status == 401 || (error.status == 403 && !error.code))) throw new Error(SYNC_CODE.luxSessionExpired)
+      throw error
+    })
+  }
   const accountKey = credentialStorageKey(serverId, 'lux', session.user.id)
   const legacy = await getSyncAuthKey(serverId)
   const { saved, previousClientId: legacyClientId } = selectLuxCredential(await getSyncAuthKey(accountKey), legacy, session.user.id)
@@ -157,11 +176,23 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
       luxUserId: session.user.id,
     }),
     save: async(info) => setSyncAuthKey(accountKey, info),
+  }).catch((error: unknown) => {
+    if (error instanceof LuxRequestError && error.status == 401) throw new Error(SYNC_CODE.luxSessionExpired)
+    throw error
   })
   await setSyncAuthKey(serverId, keyInfo)
   // Commit login state after obtaining the matching key, so a failed account
   // switch cannot leave a new session paired with the previous account's key.
-  await setLuxAuth({ ...session, serverId, serverUrl: urlInfo.href })
+  const committedSession = !password ? await getLuxAuth(serverId) ?? session : session
+  await setLuxAuth({ ...committedSession, serverId, serverUrl: urlInfo.href })
+  // Resolve first-login import BEFORE opening the socket (lists/history can upload
+  // as soon as it connects). No local-space data is exposed without consent.
+  const { offerLocalImport } = await import('@/utils/accountDataDialogs')
+  const importedProfile = await offerLocalImport({ ...committedSession, serverId, serverUrl: urlInfo.href }, requestJson)
+  if (importedProfile) {
+    const { pushLuxProfileToServer } = await import('./profile')
+    await pushLuxProfileToServer()
+  }
   return keyInfo
 }
 

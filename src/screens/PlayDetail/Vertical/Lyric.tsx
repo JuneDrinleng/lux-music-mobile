@@ -1,28 +1,39 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { FlatList, Share, TouchableOpacity, View, type ListRenderItemInfo } from 'react-native'
 import Text from '@/components/common/Text'
+import KaraokeLine from '@/components/lyric/KaraokeLine'
 import { Icon } from '@/components/common/Icon'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
-import { Hairline } from '@/components/magazine'
+import { Hairline, MagSegmented, PrimaryButton, SecondaryButton } from '@/components/magazine'
 import { LIST_IDS, MUSIC_TOGGLE_MODE, MUSIC_TOGGLE_MODE_LIST } from '@/config/constant'
 import { updateSetting } from '@/core/common'
+import { blockTogetherMemberControl } from '@/core/together/control'
 import { getListMusics } from '@/core/list'
-import { collectMusic, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
+import { collectMusic, play, playNext, playPrev, togglePlay, uncollectMusic } from '@/core/player/player'
 import { useI18n } from '@/lang'
-import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
+import { type Line, useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { useIsPlay, usePlayMusicInfo, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
+import { formatPlayTime2 } from '@/utils/common'
 import { createStyle, toast } from '@/utils/tools'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { PlayerTransport, playerTransportControlStyles } from './PlayerTransport'
+import { LyricSelectionSheet } from '@/components/shareCard/LyricSelectionSheet'
+import { ShareCardPage } from '@/components/shareCard/ShareCardPage'
+import { type ShareLine } from '@/utils/shareCard/selection'
+import { onDataSpaceWillChange } from '@/utils/dataSpace'
 
-export default ({ active }: { active: boolean }) => {
+export interface LyricType {
+  dismissSeek: () => void
+}
+
+export default forwardRef<LyricType, { active: boolean }>(({ active }, ref) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -31,18 +42,36 @@ export default ({ active }: { active: boolean }) => {
   const playMusicInfo = usePlayMusicInfo()
   const togglePlayMethod = useSettingValue('player.togglePlayMethod')
   const isPlay = useIsPlay()
+  const showTranslation = useSettingValue('player.isShowLyricTranslation')
+  const showRoma = useSettingValue('player.isShowLyricRoma')
   const { line } = useLrcPlay(active)
   const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress(active)
-  const lyricLines = useLrcSet()
-  const listRef = useRef<FlatList<string>>(null)
+  const lines = useLrcSet()
+  const listRef = useRef<FlatList<Line>>(null)
   const loveCheckId = useRef(0)
   const musicAddModalRef = useRef<MusicAddModalType>(null)
   const [isLoved, setIsLoved] = useState(false)
 
-  const lines = useMemo(() => {
-    if (!lyricLines.length) return [] as string[]
-    return lyricLines.map(item => item.text).filter(Boolean)
-  }, [lyricLines])
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [shareIndex, setShareIndex] = useState<number | null>(null)
+  const [cardLines, setCardLines] = useState<ShareLine[] | null>(null)
+  const shareLines = useMemo(() => lines.map(item => ({ time: item.time, text: item.text, translation: item.translation })), [lines])
+  const shareSource = useMemo(() => JSON.stringify([musicInfo.id, shareLines]), [musicInfo.id, shareLines])
+  useEffect(() => { setShareIndex(null); setCardLines(null) }, [shareSource, active])
+  useEffect(() => onDataSpaceWillChange(() => { setShareIndex(null); setCardLines(null) }), [])
+  const dismissSeek = useCallback(() => { setSelectedIndex(null) }, [])
+  useImperativeHandle(ref, () => ({ dismissSeek }), [dismissSeek])
+
+  // A selection belongs to this lyric set, track and active playback line only.
+  useEffect(dismissSeek, [active, line, lines, musicInfo.id, dismissSeek])
+
+  const confirmSeek = useCallback((item: Line) => {
+    dismissSeek()
+    if (blockTogetherMemberControl()) return
+    // Parser timestamps are milliseconds; the shared player seek event uses seconds.
+    global.app_event.setProgress(item.time / 1000)
+    if (!isPlay) play()
+  }, [dismissSeek, isPlay])
 
   useEffect(() => {
     if (!active || line < 0 || line >= lines.length) return
@@ -137,22 +166,51 @@ export default ({ active }: { active: boolean }) => {
     }
   }, [togglePlayMethod])
 
-  const renderItem = useCallback(({ item, index }: ListRenderItemInfo<string>) => {
+  const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Line>) => {
     const activeLine = index === line
     const past = index < line
+    const selected = selectedIndex === index
     return (
-      <View style={styles.lineWrap}>
+      <View
+        style={[styles.lineWrap, selected ? [styles.selectedLine, { backgroundColor: r.placeholder }] : null]}
+        onTouchEnd={event => { event.stopPropagation() }}
+      >
         {activeLine ? <View style={[styles.lineAccent, { backgroundColor: r.accent }]} /> : null}
-        <Text
-          size={activeLine ? 28 : 18}
-          color={activeLine ? r.display : past ? r.faint : r.muted}
-          style={activeLine ? styles.activeLineText : styles.lineText}
+        <TouchableOpacity
+          style={styles.lineContent}
+          activeOpacity={0.7}
+          onPress={() => { setSelectedIndex(index) }}
+          onLongPress={() => { setSelectedIndex(index) }}
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          accessibilityLabel={item.text || formatPlayTime2(item.time / 1000)}
         >
-          {item}
-        </Text>
+          {activeLine && !selected ? (
+            <KaraokeLine line={item} size={28} style={styles.activeLineText} active={active} />
+          ) : (
+            <Text size={18} color={selected ? r.ink : past ? r.faint : r.muted} style={selected ? styles.selectedLineText : styles.lineText}>{item.text}</Text>
+          )}
+          {item.extendedLyrics.map((text, extraIndex) => <Text key={extraIndex} size={activeLine ? 14 : 12} color={past ? r.faint : r.muted}>{text}</Text>)}
+          {selected ? <Text size={12} color={r.muted}>{t('player_lyric_seek_hint')}</Text> : null}
+        </TouchableOpacity>
+        {selected ? (
+          <View style={styles.selectionActions}>
+            <PrimaryButton
+              compact
+              icon="play"
+              iconSize={13}
+              labelSize={13}
+              labelStyle={styles.seekLabel}
+              style={styles.seekButton}
+              label={t('player_lyric_seek_play', { time: formatPlayTime2(item.time / 1000) })}
+              onPress={() => { confirmSeek(item) }}
+            />
+            {item.text.trim() ? <SecondaryButton compact labelSize={13} label={t('share_card_generate')} onPress={() => { setShareIndex(index) }} /> : null}
+          </View>
+        ) : null}
       </View>
     )
-  }, [line, r.accent, r.display, r.faint, r.muted, styles])
+  }, [active, line, selectedIndex, confirmSeek, r.accent, r.faint, r.ink, r.muted, r.placeholder, styles, t])
 
   const listHeader = (
     <View>
@@ -175,16 +233,30 @@ export default ({ active }: { active: boolean }) => {
         </TouchableOpacity>
       </View>
       <Hairline style={styles.headRule} />
+      <View style={styles.extraControls}>
+        <Text size={12} color={r.muted} style={styles.extraLabel}>{t('player_lyric_extras')}</Text>
+        <MagSegmented compact style={styles.extraSegment} items={[
+          { id: 'none', label: t('player_lyric_none') },
+          { id: 'translation', label: t('player_lyric_translation') },
+          { id: 'roma', label: t('player_lyric_roma') },
+        ]} value={showTranslation ? 'translation' : showRoma ? 'roma' : 'none'} onChange={id => {
+          updateSetting({ 'player.isShowLyricTranslation': id === 'translation', 'player.isShowLyricRoma': id === 'roma' })
+        }} />
+        <SecondaryButton compact labelSize={13} style={styles.shareButton} label={t('player_lyric_share')} disabled={!lines.length} onPress={() => {
+          void Share.share({ message: [musicInfo.name, ...lines.map(item => [item.text, ...item.extendedLyrics].join('\n'))].join('\n') }).catch(() => {})
+        }} />
+      </View>
     </View>
   )
 
   return (
-    <View style={[styles.container, { backgroundColor: r.paper }]}>
+    <View style={[styles.container, { backgroundColor: r.paper }]} onTouchEnd={dismissSeek}>
       <FlatList
         ref={listRef}
         data={lines}
         renderItem={renderItem}
-        keyExtractor={(item, index) => `${index}_${item}`}
+        keyExtractor={(item, index) => `${index}_${item.time}`}
+        extraData={selectedIndex}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={listHeader}
@@ -192,6 +264,9 @@ export default ({ active }: { active: boolean }) => {
           <Text size={15} color={r.faint} style={styles.empty}>{t('player_lyric_empty')}</Text>
         )}
         showsVerticalScrollIndicator={false}
+        onScroll={dismissSeek}
+        onScrollBeginDrag={dismissSeek}
+        scrollEventThrottle={16}
         onScrollToIndexFailed={() => {}}
       />
 
@@ -222,9 +297,11 @@ export default ({ active }: { active: boolean }) => {
         </TouchableOpacity>
       </PlayerTransport>
       <MusicAddModal ref={musicAddModalRef} />
+      {shareIndex != null ? <LyricSelectionSheet key={shareSource} source={shareSource} lines={shareLines} initialIndex={shareIndex} song={musicInfo.name} onClose={() => { setShareIndex(null) }} onGenerate={selected => { setShareIndex(null); setCardLines(selected) }} /> : null}
+      {cardLines ? <ShareCardPage initialTab="lyrics" sources={{ lyrics: { title: musicInfo.name, artist: musicInfo.singer, album: musicInfo.album, cover: musicInfo.pic ?? undefined, lines: cardLines } }} onClose={() => { setCardLines(null) }} /> : null}
     </View>
   )
-}
+})
 
 const useLuxStyles = sharedLuxStyles(() => (createStyle({
   container: {
@@ -260,16 +337,48 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   headRule: {
     marginBottom: 18,
   },
+  extraControls: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 22, minHeight: 44 },
+  extraLabel: { fontWeight: '700' },
+  extraSegment: { borderRadius: 16 },
+  shareButton: { paddingHorizontal: 14, marginLeft: 'auto' },
   lineWrap: {
     position: 'relative',
-    paddingLeft: 14,
+    paddingLeft: 0,
     marginBottom: 16,
     minHeight: 36,
     justifyContent: 'center',
   },
+  lineContent: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  selectedLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: -PAGE_GUTTER,
+    paddingLeft: PAGE_GUTTER,
+    paddingHorizontal: PAGE_GUTTER,
+    paddingVertical: 8,
+  },
+  selectedLineText: {
+    fontWeight: '700',
+  },
+  selectionActions: { gap: 18, alignItems: 'flex-end' },
+  seekButton: {
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    flexShrink: 0,
+  },
+  seekLabel: {
+    fontWeight: '700',
+  },
   lineAccent: {
     position: 'absolute',
-    left: 0,
+    left: -PAGE_GUTTER,
     top: 4,
     bottom: 4,
     width: 3,

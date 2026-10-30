@@ -14,7 +14,7 @@ const logInfo = (eventName: string, success = false) => {
 // }
 const handler: LX.Sync.ClientSyncHandlerDislikeActions<LX.Sync.Socket> = {
   async onDislikeSyncAction(socket, action) {
-    if (!socket.moduleReadys?.dislike) return
+    if (!socket?.moduleReadys?.dislike) return
     await handleRemoteDislikeAction(action)
   },
 
@@ -44,6 +44,7 @@ const handler: LX.Sync.ClientSyncHandlerDislikeActions<LX.Sync.Socket> = {
 
   async dislike_sync_finished(socket) {
     logInfo('dislike:sync:finished')
+    if (!socket?.moduleReadys) return
     socket.moduleReadys.dislike = true
     registerEvent(socket)
     socket.onClose(() => {

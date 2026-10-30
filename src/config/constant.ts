@@ -67,6 +67,7 @@ export const storageDataPrefix = {
   luxAuth: '@lux_auth',
   luxAuthServers: '@lux_auth_servers',
   syncLoginCompleted: '@sync_login_completed',
+  syncLoginDraft: '@sync_login_draft',
   syncConflictMode: '@sync_conflict_mode',
 
   openStoragePath: '@open_storage_path',
@@ -90,12 +91,16 @@ export const storageDataPrefix = {
 
   dislikeList: '@dislike_list',
 
+  memoriesMilestones: '@memories_milestones_v1',
+  recommendations: '@recommendations_v1',
+  smartPlaylistRules: '@smart_playlist_rules_v1',
   playHistory: '@play_history',
   playHistoryDevice: '@play_history_device',
   playHistoryCursor: '@play_history_cursor',
   playHistoryAvatars: '@play_history_avatars',
   statsChartMode: '@stats_chart_mode',
   statsPageStyle: '@stats_page_style',
+  memoriesLayout: '@stats_memories_layout',
 
   userApi: '@user_api__',
   userAvatar: '@user_avatar',

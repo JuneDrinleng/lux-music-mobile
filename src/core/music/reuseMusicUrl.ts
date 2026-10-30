@@ -6,7 +6,9 @@ import { isCached } from '@/plugins/player/utils'
 import { readMusicUrlRecord } from '@/utils/data'
 import { decideMusicUrlReuse, isMusicUrlFresh } from '@/utils/musicUrlCache'
 
-/** Return a saved playback URL when it is still fresh, or when the audio itself is already cached. */
+/**
+ * Return a saved playback URL when it is still fresh, or when the audio itself is already cached.
+ */
 export const readReusableMusicUrl = async(
   musicInfo: LX.Music.MusicInfo,
   quality: LX.Quality,

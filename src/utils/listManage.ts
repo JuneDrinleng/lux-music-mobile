@@ -1,3 +1,4 @@
+import { getActiveSpace, onDataSpaceChanged } from '@/utils/dataSpace'
 import {
   getUserLists as getUserListsFromStore,
   getListMusics as getListMusicsFromStore,
@@ -13,6 +14,10 @@ import { LIST_IDS } from '@/config/constant'
 
 export const userLists: LX.List.UserListInfo[] = []
 export const allMusicList = new Map<string, LX.Music.MusicInfo[]>()
+onDataSpaceChanged(async() => {
+  allMusicList.clear()
+  setUserLists(await getUserListsFromStore())
+})
 
 export const setUserLists = (lists: LX.List.UserListInfo[]) => {
   userLists.splice(0, userLists.length, ...lists)
@@ -208,7 +213,9 @@ export const getListMusicSync = (id: string | null) => {
 export const getListMusics = async(listId: string): Promise<LX.Music.MusicInfo[]> => {
   if (!listId) return []
   if (allMusicList.has(listId)) return allMusicList.get(listId)!
+  const space = getActiveSpace()
   const list = await getListMusicsFromStore(listId)
+  if (space != getActiveSpace()) throw new Error('Data space changed during list read')
   return setMusicList(listId, list)
 }
 

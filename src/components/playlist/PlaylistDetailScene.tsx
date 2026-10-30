@@ -172,6 +172,7 @@ export default ({
             submitting={importSubmitting}
             bottomInset={modalBottomInset}
             targetListName={selectedListInfo?.name}
+            targetListId={selectedListId}
             items={importCandidates}
             selectedMap={importSelectedMap}
             allSelected={areAllImportSongsSelected}

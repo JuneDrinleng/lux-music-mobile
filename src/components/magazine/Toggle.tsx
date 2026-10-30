@@ -11,10 +11,14 @@ export const Toggle = memo(({
   value,
   onChange,
   disabled = false,
+  compact = false,
+  accessibilityLabel,
 }: {
   value: boolean
   onChange: (next: boolean) => void
   disabled?: boolean
+  compact?: boolean
+  accessibilityLabel?: string
 }) => {
   const { colors, mode } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -22,17 +26,19 @@ export const Toggle = memo(({
   return (
     <TouchableOpacity
       activeOpacity={0.7}
+      hitSlop={compact ? { top: 10, bottom: 10, left: 2, right: 2 } : undefined}
+      accessibilityLabel={accessibilityLabel}
       disabled={disabled}
       onPress={() => { onChange(!value) }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       style={{
-        width: 44,
-        height: 26,
+        width: compact ? 40 : 44,
+        height: compact ? 24 : 26,
         borderRadius: 999,
-        borderWidth: 1.5,
-        borderColor: value ? r.ink : r.quiet,
-        backgroundColor: value ? r.ink : 'transparent',
+        borderWidth: compact ? 0 : 1.5,
+        borderColor: value ? r.ink : compact ? r.hairline : r.quiet,
+        backgroundColor: value ? r.ink : compact ? r.hairline : 'transparent',
         justifyContent: 'center',
         paddingHorizontal: 3,
         opacity: disabled ? 0.4 : 1,
@@ -42,9 +48,9 @@ export const Toggle = memo(({
         width: 18,
         height: 18,
         borderRadius: 9,
-        backgroundColor: value ? r.accent : r.quiet,
+        backgroundColor: value ? r.accent : compact ? r.onInk : r.quiet,
         alignSelf: value ? 'flex-end' : 'flex-start',
-        borderWidth: thumbOutline ? 1.5 : 0,
+        borderWidth: thumbOutline && !compact ? 1.5 : 0,
         borderColor: r.ink,
       }} />
     </TouchableOpacity>

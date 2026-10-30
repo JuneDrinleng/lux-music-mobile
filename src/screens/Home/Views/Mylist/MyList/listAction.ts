@@ -66,6 +66,7 @@ const exportList = async(listInfo: LX.List.MyListInfo, path: string) => {
     await handleSaveFile(`${path}/lx_list_part_${filterFileName(listInfo.name)}.lxmc`, data)
   } catch (error: any) {
     log.error(error.stack)
+    throw error
   }
 }
 export const handleExport = (listInfo: LX.List.MyListInfo, path: string) => {

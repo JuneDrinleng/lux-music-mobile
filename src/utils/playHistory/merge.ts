@@ -19,12 +19,16 @@ export const isPlayRecord = (value: unknown): value is PlayRecord => {
     typeof record.startedAt == 'number' && Number.isFinite(record.startedAt) &&
     typeof record.endedAt == 'number' && Number.isFinite(record.endedAt) &&
     typeof record.listenedMs == 'number' && Number.isFinite(record.listenedMs) && record.listenedMs >= 0 &&
+    (record.completed == null || typeof record.completed == 'boolean') &&
+    (record.skipped == null || typeof record.skipped == 'boolean') &&
     isSong(record.song)
 }
 
 const preferRecord = (current: PlayRecord, incoming: PlayRecord): PlayRecord => {
   if (incoming.listenedMs > current.listenedMs) return incoming
   if (incoming.listenedMs == current.listenedMs && incoming.endedAt > current.endedAt) return incoming
+  if (incoming.listenedMs == current.listenedMs && incoming.endedAt == current.endedAt &&
+    (incoming.completed === true || incoming.skipped === true)) return incoming
   return current
 }
 

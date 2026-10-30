@@ -4,11 +4,14 @@
 import TrackPlayer, { State as TPState, Event as TPEvent } from 'react-native-track-player'
 // import { store } from '@/store'
 // import { action as playerAction, STATUS } from '@/store/modules/player'
-import { isTempId, isEmpty, isNotificationLikeSupported } from './utils'
+import { isTempId, isEmpty, isNotificationLikeSupported, isNotificationSleepTimerSupported, isNativeFadeOutSupported } from './utils'
 // import { play as lrcPlay, pause as lrcPause } from '@/core/lyric'
 import { exitApp } from '@/core/common'
+import { cycleNotificationSleepTimer, finishTimeoutExit, onNativeFadeEnded } from '@/core/player/timeoutExit'
 import { getCurrentTrackId } from './playList'
 import { pause, play, playNext, playPrev, syncNotificationLikeState, toggleCollectMusic } from '@/core/player/player'
+import { blockTogetherMemberControl } from '@/core/together/control'
+import { handleGaplessFallback, handleGaplessTransition, isGaplessEnabled } from './gapless'
 import { scheduleImageCacheTrim } from '@/utils/imageCache'
 
 let isInitialized = false
@@ -22,6 +25,7 @@ let isInitialized = false
 
 // 销毁播放器并退出
 const handleExitApp = async(reason: string) => {
+  if (reason === 'Timeout Exit') return finishTimeoutExit()
   global.lx.isPlayedStop = false
   exitApp(reason)
 }
@@ -30,7 +34,17 @@ const handleExitApp = async(reason: string) => {
 const registerPlaybackService = async() => {
   if (isInitialized) return
 
+  TrackPlayer.addEventListener('gapless-transition' as TPEvent, (event: { id: string }) => { void handleGaplessTransition(event.id).catch(() => {}) })
+  TrackPlayer.addEventListener('gapless-fallback' as TPEvent, (event: { id: string }) => { void handleGaplessFallback(event.id).catch(() => {}) })
+  TrackPlayer.addEventListener(TPEvent.PlaybackQueueEnded, () => {
+    if (!isGaplessEnabled() || global.lx.gettingUrlId || isEmpty()) return
+    if (global.lx.isPlayedStop) { void handleExitApp('Timeout Exit'); return }
+    global.app_event.playerEnded()
+  })
   console.log('reg services...')
+  if (isNativeFadeOutSupported) {
+    TrackPlayer.addEventListener('sleep-timer-ended' as TPEvent, (event: { requestId: string }) => { onNativeFadeEnded(event.requestId) })
+  }
   TrackPlayer.addEventListener(TPEvent.RemotePlay, () => {
     // console.log('remote-play')
     play()
@@ -62,6 +76,10 @@ const registerPlaybackService = async() => {
     })
   }
 
+  if (isNotificationSleepTimerSupported) {
+    TrackPlayer.addEventListener('remote-sleep-timer' as TPEvent, cycleNotificationSleepTimer)
+  }
+
   // TrackPlayer.addEventListener(TPEvent.RemoteDuck, async({ permanent, paused, ducking }) => {
   //   console.log('remote-duck')
   //   if (paused) {
@@ -82,6 +100,7 @@ const registerPlaybackService = async() => {
   })
 
   TrackPlayer.addEventListener(TPEvent.RemoteSeek, async({ position }) => {
+    if (blockTogetherMemberControl()) return
     global.app_event.setProgress(position as number)
   })
 
@@ -114,7 +133,6 @@ const registerPlaybackService = async() => {
         // console.log('playback-state', info)
         break
     }
-    if (global.lx.isPlayedStop) return handleExitApp('Timeout Exit')
 
     // console.log('currentIsPlaying', currentIsPlaying, global.lx.playInfo.isPlaying)
     // void updateMetaData(global.lx.store_playMusicInfo.musicInfo, currentIsPlaying)

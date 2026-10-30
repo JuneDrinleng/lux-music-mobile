@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo } from 'react'
-import { TouchableOpacity, type ViewStyle } from 'react-native'
+import { TouchableOpacity, View, type ViewStyle, type TextStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
@@ -37,33 +37,54 @@ const useStyles = sharedLuxStyles((colors) => {
 
 export const PrimaryButton = memo(({
   label,
+  accessibilityLabel,
   onPress,
   disabled = false,
   danger = false,
   icon,
+  iconSize = 20,
   style,
+  compact = false,
+  labelSize,
+  labelNumberOfLines,
+  selected = false,
+  labelStyle,
+  badge,
+  badgeStyle,
 }: {
   label: string
+  accessibilityLabel?: string
   onPress?: () => void
   disabled?: boolean
   danger?: boolean
   icon?: string
+  iconSize?: number
   style?: ViewStyle
+  compact?: boolean
+  labelSize?: number
+  labelNumberOfLines?: number
+  selected?: boolean
+  labelStyle?: TextStyle
+  badge?: number
+  badgeStyle?: ViewStyle
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   return (
     <TouchableOpacity
-      style={[styles.btn, danger ? styles.danger : null, disabled ? styles.disabled : null, style]}
+      style={[styles.btn, danger ? styles.danger : null, disabled ? styles.disabled : null, compact ? { height: 28 } : null, style]}
+      hitSlop={compact ? { top: 8, bottom: 8, left: 0, right: 0 } : undefined}
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
     >
-      {icon ? <MdiIcon name={icon} size={20} color={r.onInk} /> : null}
-      <Text size={magType.button.size} color={r.onInk} style={styles.label}>{label}</Text>
+      {icon ? <MdiIcon name={icon} size={iconSize} color={r.onInk} /> : null}
+      <Text numberOfLines={labelNumberOfLines} size={labelSize ?? (compact ? 16 : magType.button.size)} color={r.onInk} style={[styles.label, compact ? { fontWeight: '800' } : null, labelStyle]}>{label}</Text>
+      {badge != null ? <View style={[{ minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 7, backgroundColor: r.accent, justifyContent: 'center', alignItems: 'center' }, badgeStyle]}><Text size={12} color={r.onAccent} style={{ fontWeight: '800' }}>{badge}</Text></View> : null}
     </TouchableOpacity>
   )
 })

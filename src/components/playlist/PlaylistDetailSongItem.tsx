@@ -6,6 +6,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
+import { SimilarSongsSheet } from '@/components/recommend/SimilarSongsSheet'
 import { Checkbox, Hairline, ICON_BUTTON_SIZE, IconButton, MagMenu, SourceTag } from '@/components/magazine'
 import { createStyle } from '@/utils/tools'
 import { fetchAltCoverUrl } from '@/core/music/utils'
@@ -145,6 +146,7 @@ const PlaylistDetailSongItem = ({
   }, [song, listId])
 
   const moreRef = useRef<View>(null)
+  const [similarVisible, setSimilarVisible] = useState(false)
   const [moreMenuVisible, setMoreMenuVisible] = useState(false)
   const [moreMenuAnchor, setMoreMenuAnchor] = useState({ top: 0, left: 0 })
 
@@ -238,13 +240,15 @@ const PlaylistDetailSongItem = ({
               visible={moreMenuVisible}
               onClose={() => { setMoreMenuVisible(false) }}
               anchor={moreMenuAnchor}
-              items={[{ id: 'remove', label: t('list_remove') }]}
+              items={[{ id: 'remove', label: t('list_remove') }, { id: 'similar', label: t('recommend_similar') }]}
               onChange={(id) => {
                 if (id === 'remove') onRemove()
+                if (id === 'similar') setSimilarVisible(true)
               }}
             />
             )
           : null}
+        {similarVisible ? <SimilarSongsSheet musicInfo={song} onClose={() => { setSimilarVisible(false) }} /> : null}
         {last ? null : <Hairline />}
       </Animated.View>
     </View>

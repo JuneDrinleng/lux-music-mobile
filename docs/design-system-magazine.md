@@ -117,10 +117,10 @@
 | `placeholder` | `surface.placeholder` | 封面加载 / 失败底 |
 | `skeleton` | `surface.skeleton` | 骨架条 |
 | `scrim` | `scrim.import`（底部面板、弹窗统一） | 遮罩 |
-| 设置图标底 | `accent.soft`（资料组）、`iconWrap.orange/green/purple/amber/red` | 见 §5 |
+| 设置图标底 | `accent.soft`（资料组）、`iconWrap.orange/green/purple/amber/blue/red` | 见 §5 |
 | 来源色 | `source.*`（`getSourceTone`） | 来源标签改为**描边小方标**：字色 + 1px 同色边，无底 |
 
-> 角色收敛：现有 227 个槽位里，杂志风页面只需要上表约 20 个。其余（`glass.*`、`homeCards`、`homeHeroes`、`shadow.*`、`surface.searchEmpty` 等）在迁移完成后成为「仅遗留页面使用」，不删除，等旧页面下线再清理。
+> 角色收敛：现有 228 个槽位里，杂志风页面只需要上表约 20 个。其余（`glass.*`、`homeCards`、`homeHeroes`、`shadow.*`、`surface.searchEmpty` 等）在迁移完成后成为「仅遗留页面使用」，不删除，等旧页面下线再清理。
 
 ### 3.2 六套主题的杂志角色色值
 
@@ -284,9 +284,9 @@
 
 ### 4.14 设置行（无卡片）
 - `[图标块 34×34 r8 组色 | 标题 16/700 list + 副标题 12 muted | 右值 13/600 muted（可选） | chevron 18 quiet]`，最小高 62，行间 hairline（从左缘开始，不再让出 72）。
-- 分组：主线 → 区块标题（中文）+ 右侧英文 meta（APPEARANCE / SEARCH & PLAY / DATA & SYNC / ABOUT / PROFILE / ACCOUNT）。
+- 分组：主线 → 区块标题（中文）+ 右侧英文 meta（APPEARANCE / SEARCH & PLAY / DATA & SYNC / DEBUG / ABOUT）。
 - 资料入口提升为分组前的一行「资料头」：56 头像 + 22/800 昵称 + 12 号说明。
-- 危险行（退出登录）：单独成组「账户」，标题 `danger`，图标块 `iconWrap.red`。
+- 设置主页的重复「账户」行及其空分组已移除；资料头仍打开完整 AccountPage，退出登录保留在 AccountPage 内。`iconWrap.red` 危险语义令牌保留。
 
 ### 4.15 弹窗与底部面板
 - **居中弹窗**：左右 22，`paper` 底，圆角 8，**顶部 3px 墨线**（像杂志插页），无阴影；内边距 22 / 22 / 18。结构：眉题 → 22/800 标题 → 14/21 `muted` 说明 → 内容（下划线输入 / 列表）→ 等宽双按钮。遮罩统一 `scrim.import`。
@@ -402,10 +402,12 @@
 | --- | --- | --- |
 | 资料 | `accent.soft` | 头像 `image-outline`、昵称 `card-account-details-outline`、签名 `fountain-pen-tip`、性别 `gender-male-female` |
 | 外观 | `iconWrap.orange` | 语言 `translate`、主题 `palette-outline`、统计页样式 `newspaper-variant-outline` |
-| 搜索与播放 | `iconWrap.green` | 搜索来源 `text-search`、自定义源 `puzzle-outline` |
-| 数据与同步 | `iconWrap.purple` | 同步服务 `server-network`、同步格式 `swap-horizontal`、清除冲突策略 `source-branch-remove`、缓存管理 `broom`、导出 `database-export-outline`、导入 `database-import-outline` |
+| 搜索与播放 | `iconWrap.green` | 搜索来源 `text-search`、音效 `equalizer`、自定义源 `puzzle-outline`、一起听布局 `account-multiple-outline` |
+| 数据与同步 | `iconWrap.purple` | 同步服务 `server-network`、AI / 管理员 `shield-account-outline`、调试开关 `speedometer` / 复制诊断 `clipboard-text-outline`（条件显示的重复入口）、清除冲突策略 `source-branch-remove`、缓存管理 `broom`、导出 `database-export-outline`、导入 `database-import-outline` |
 | 关于 | `iconWrap.amber` | 当前版本 `information-outline`、检查更新 `update`、GitHub `github` |
-| 账户（危险） | `iconWrap.red` | 退出登录 `logout` |
+| 开发调试 | `iconWrap.blue` | 调试开关 `speedometer`、复制诊断 `clipboard-text-outline` |
+
+账户空分组不再列入表；退出登录在 AccountPage 内保持原样。资料是资料页的字段组，设置主页资料头使用头像。数据组内既有调试入口保留紫色，独立开发调试组使用蓝灰色。
 
 4. **全 App 不重复：** 一个图标只对应一个含义。现状需要改的：
    - 资料页「昵称 `menu`」与播放条/队列的 `menu` 撞 → 昵称改 `card-account-details-outline`，队列统一 `playlist-music`。

@@ -1,0 +1,4 @@
+<resources>
+    <string name="download_channel">音乐下载</string>
+    <string name="download_active">正在下载音乐</string>
+</resources>

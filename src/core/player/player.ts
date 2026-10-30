@@ -31,6 +31,7 @@ import { LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics, removeListMusics, setTempList } from '@/core/list'
 import { addDislikeInfo } from '@/core/dislikeList'
 import listState from '@/store/list/state'
+import { blockTogetherMemberControl, isTogetherMemberLocked } from '@/core/together/control'
 
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -303,6 +304,33 @@ const debouncePlay = debounceBackgroundTimer((musicInfo: LX.Player.PlayMusic) =>
   })
 }, 200)
 
+const debounceGaplessDetails = debounceBackgroundTimer((musicInfo: LX.Player.PlayMusic) => {
+  void getPicPath({ musicInfo, listId: playerState.playMusicInfo.listId }).then((url: string) => {
+    if (
+      musicInfo.id != playerState.playMusicInfo.musicInfo?.id ||
+      playerState.musicInfo.pic == url ||
+      playerState.loadErrorPicUrl == url) return
+    setMusicInfo({ pic: url })
+    global.app_event.picUpdated()
+  })
+
+  void getLyricInfo({ musicInfo }).then((lyricInfo) => {
+    if (musicInfo.id != playerState.playMusicInfo.musicInfo?.id) return
+    setMusicInfo({
+      lrc: lyricInfo.lyric,
+      tlrc: lyricInfo.tlyric,
+      lxlrc: lyricInfo.lxlyric,
+      rlrc: lyricInfo.rlyric,
+      rawlrc: lyricInfo.rawlrcInfo.lyric,
+    })
+    global.app_event.lyricUpdated()
+  }).catch((err) => {
+    console.log(err)
+    if (musicInfo.id != playerState.playMusicInfo.musicInfo?.id) return
+    setStatusText(global.i18n.t('lyric__load_error'))
+  })
+}, 200)
+
 // 处理音乐播放
 const handlePlay = async() => {
   if (!isInitialized()) {
@@ -350,6 +378,7 @@ const handlePlay = async() => {
  * @param id 歌曲id
  */
 export const playListById = async(listId: string, id: string) => {
+  if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
   const musicInfo = getList(listId).find(m => m.id == id)
@@ -366,6 +395,7 @@ export const playListById = async(listId: string, id: string) => {
  * @param index 播放的歌曲位置
  */
 export const playList = async(listId: string, index: number) => {
+  if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
   setPlayMusicInfo(listId, getList(listId)[index])
@@ -378,6 +408,7 @@ export const playList = async(listId: string, index: number) => {
  * 将某个歌单完整复制到独立播放队列，再从目标索引播放
  */
 export const playListAsQueue = async(sourceListId: string, index: number) => {
+  if (blockTogetherMemberControl()) return
   const sourceList = await getListMusics(sourceListId)
   if (!sourceList.length) return
   const sourceIndex = normalizeIndex(index, sourceList.length)
@@ -394,6 +425,7 @@ export const playListAsQueue = async(sourceListId: string, index: number) => {
  * 将单曲加入独立播放队列并立即播放，不改动任何歌单内容
  */
 export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
+  if (blockTogetherMemberControl()) return
   const queueList = await ensureQueueList()
   if (!queueList.length) {
     await setTempList(createPlayQueueMetaId(PLAY_QUEUE_SINGLE_SOURCE_ID), [musicInfo])
@@ -406,6 +438,25 @@ export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
   if (!latestQueue.length) return
   const targetIndex = findMusicIndex(latestQueue, musicInfo, latestQueue.length - 1)
   await playList(LIST_IDS.TEMP, targetIndex)
+}
+
+/** Recommendations use the same isolated queue and together-control guard as song actions. */
+export const playRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
+  if (!musics.length) return
+  if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
+  await setTempList(createPlayQueueMetaId('recommendations'), musics)
+  await playList(LIST_IDS.TEMP, 0)
+}
+
+export const appendRecommendationQueue = async(musics: LX.Music.MusicInfo[], isCurrentRadio?: () => boolean) => {
+  if (!musics.length) return
+  if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
+  // Radio already owns TEMP. Check immediately before mutation, without copying a
+  // newly selected playlist into TEMP if playback changed during the request.
+  if (isCurrentRadio) {
+    if (!isCurrentRadio() || playerState.playInfo.playerListId != LIST_IDS.TEMP) return
+  } else await ensureQueueList()
+  await addListMusics(LIST_IDS.TEMP, musics, 'bottom')
 }
 
 const handleToggleStop = async() => {
@@ -512,8 +563,23 @@ export const getNextPlayMusicInfo = async(): Promise<LX.Player.PlayMusicInfo | n
   return nextPlayMusicInfo
 }
 
-const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo) => {
-  setPlayMusicInfo(playMusicInfo.listId, playMusicInfo.musicInfo, playMusicInfo.isTempPlay)
+/** Native has already advanced; use the same state/history/queue events without stopping audio. */
+export const acceptGaplessTrack = async(info: LX.Player.PlayMusicInfo) => {
+  if (!settingState.setting['player.audio.gapless.enabled']) return
+  if (info.isTempPlay) removeTempPlayList(0)
+  setPlayMusicInfo(info.listId, info.musicInfo, info.isTempPlay, 'end')
+  resetRandomNextMusicInfo()
+  clearDelayNextTimeout()
+  clearLoadTimeout()
+  if (settingState.setting['player.togglePlayMethod'] == 'random' && !info.isTempPlay) addPlayedList(info)
+  debounceGaplessDetails(info.musicInfo)
+  global.app_event.playerPlaying()
+  global.app_event.play()
+  await syncNotificationLikeState()
+}
+
+const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo, isAutoToggle = false) => {
+  setPlayMusicInfo(playMusicInfo.listId, playMusicInfo.musicInfo, playMusicInfo.isTempPlay, isAutoToggle ? 'interrupted' : 'switch')
   await handlePlay()
 }
 /**
@@ -522,10 +588,11 @@ const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo) => {
  * @returns
  */
 export const playNext = async(isAutoToggle = false): Promise<void> => {
+  if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   if (playerState.tempPlayList.length) { // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = playerState.tempPlayList[0]
     removeTempPlayList(0)
-    await handlePlayNext(playMusicInfo)
+    await handlePlayNext(playMusicInfo, isAutoToggle)
     return
   }
 
@@ -561,12 +628,12 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
     }
 
     if (index < playedList.length) {
-      await handlePlayNext(playedList[index])
+      await handlePlayNext(playedList[index], isAutoToggle)
       return
     }
   }
   if (randomNextMusicInfo.info) {
-    await handlePlayNext(randomNextMusicInfo.info)
+    await handlePlayNext(randomNextMusicInfo.info, isAutoToggle)
     return
   }
   // const isCheckFile = findNum > 2 // 针对下载列表，如果超过两次都碰到无效歌曲，则过滤整个列表内的无效歌曲
@@ -614,13 +681,14 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**
  * 上一曲
  */
 export const playPrev = async(isAutoToggle = false): Promise<void> => {
+  if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   const playMusicInfo = playerState.playMusicInfo
   if (playMusicInfo.musicInfo == null) return handleToggleStop()
   const playInfo = playerState.playInfo
@@ -651,7 +719,7 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
     }
 
     if (index > -1) {
-      await handlePlayNext(playedList[index])
+      await handlePlayNext(playedList[index], isAutoToggle)
       return
     }
   }
@@ -701,7 +769,7 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
     musicInfo: filteredList[nextIndex],
     listId: currentListId,
     isTempPlay: false,
-  })
+  }, isAutoToggle)
 }
 
 /**

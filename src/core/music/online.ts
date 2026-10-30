@@ -65,7 +65,7 @@ export const getMusicUrl = async({ musicInfo, quality, isRefresh, allowToggleSou
   })
 }
 
-const persistCoverToUserLists = (musicInfo: LX.Music.MusicInfoOnline, excludeListId?: string | null) => {
+export const persistCoverToUserLists = (musicInfo: LX.Music.MusicInfoOnline, excludeListId?: string | null) => {
   const toUpdate: Array<{ id: string, musicInfo: LX.Music.MusicInfo }> = []
   for (const list of listState.allList) {
     if (list.id === excludeListId) continue

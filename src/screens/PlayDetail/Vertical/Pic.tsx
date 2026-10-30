@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, ScrollView, TouchableOpacity, View } from 'react-native'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
+import LyricPreview from '@/components/lyric/LyricPreview'
 import Image from '@/components/common/Image'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import { SourceTag } from '@/components/magazine'
@@ -33,7 +34,7 @@ const COVER_TRANSITION_DURATION = 280
 /** Non-record content above the pinned transport (eyebrow / title / lyrics + min gaps). */
 const PLAYER_RESERVED_ABOVE = 38
 const PLAYER_RESERVED_TITLE = 90
-const PLAYER_RESERVED_LYRIC = 48 + 14
+const PLAYER_RESERVED_LYRIC = 110 + 14
 /** Min flex gaps: after record / title / lyric. */
 const PLAYER_RESERVED_GAPS = 30 + 18 + 14
 const PLAYER_DISC_MIN = 200
@@ -55,7 +56,7 @@ const getMusicSource = (musicInfo: LX.Player.PlayMusicInfo['musicInfo'] | null |
   return musicInfo.source
 }
 
-export default ({ active }: { componentId: string, active: boolean }) => {
+export default ({ active, onLyricPress }: { componentId: string, active: boolean, onLyricPress: () => void }) => {
   const styles = useLuxStyles()
   const { colors, mode } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -484,17 +485,7 @@ export default ({ active }: { componentId: string, active: boolean }) => {
         {hasLyricPreview
           ? (
             <>
-              <View style={styles.lyricPreview}>
-                <View style={[styles.lyricAccent, { backgroundColor: r.accent }]} />
-                <View style={styles.lyricLines}>
-                  {currentLyric
-                    ? <Text size={17} color={r.ink} numberOfLines={1} style={styles.lyricCurrent}>{currentLyric}</Text>
-                    : null}
-                  {nextLyric
-                    ? <Text size={14} color={r.faint} numberOfLines={1} style={styles.lyricNext}>{nextLyric}</Text>
-                    : null}
-                </View>
-              </View>
+              <LyricPreview lines={lyricLines} index={line} active={active} onPress={onLyricPress} />
               <View style={styles.flexGapLyric} />
             </>
             )
@@ -714,26 +705,5 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   metaText: {
     flexShrink: 1,
-  },
-  lyricPreview: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 10,
-    minHeight: 48,
-  },
-  lyricAccent: {
-    width: 3,
-    borderRadius: 1.5,
-  },
-  lyricLines: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: 4,
-  },
-  lyricCurrent: {
-    fontWeight: '800',
-  },
-  lyricNext: {
-    fontWeight: '400',
   },
 })))

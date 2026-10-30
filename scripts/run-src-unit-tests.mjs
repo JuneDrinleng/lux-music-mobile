@@ -8,13 +8,54 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import './export-permission.src-test.mjs'
+import './secure-credentials.src-test.mjs'
+import './data-spaces.src-test.mjs'
 import './search-history.src-test.mjs'
 import './version-update.src-test.mjs'
+import './sync-login-persistence.src-test.mjs'
+import './local-source-routing.src-test.mjs'
+import './together-session.src-test.mjs'
+import './together-room-feed.src-test.mjs'
+import './together-room-ui.src-test.mjs'
+import './invite-code.src-test.mjs'
+import './user-system.src-test.mjs'
+import './onboarding.src-test.mjs'
+import './auth-screens.src-test.mjs'
+import './change-password.src-test.mjs'
+import './ai-token-status.src-test.mjs'
+import './account-page.src-test.mjs'
+import './expired-dialog.src-test.mjs'
+import './sync-login-routing.src-test.mjs'
+import './sync-status.src-test.mjs'
+import './sleep-timer.src-test.mjs'
+import './white-noise.src-test.mjs'
+import './audio-effects.src-test.mjs'
+import './settings-navigation.src-test.mjs'
+import './download.src-test.mjs'
+import './download-ui.src-test.mjs'
+import './gapless.src-test.mjs'
+import './notification.src-test.mjs'
+import './lyric-seek.src-test.mjs'
+import './karaoke.src-test.mjs'
+import './memories.src-test.mjs'
+import './recommend.src-test.mjs'
+import './recommend-home.src-test.mjs'
+import './playlist-dedupe.src-test.mjs'
+import './import-fuzzy.src-test.mjs'
+import './smart-playlist.src-test.mjs'
+import './monthly.src-test.mjs'
+import './stats-memories.src-test.mjs'
+import './play-history-completed.src-test.mjs'
+import './share-card.src-test.mjs'
+import './share-card-ui.src-test.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = mkdtempSync(join(tmpdir(), 'lux-unit-'))
 const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc')
 const files = [
+  'src/utils/shareCard/selection.ts',
+  'src/utils/shareCard/model.ts',
   'src/components/playlist/playlistDragMath.ts',
   'src/components/playlist/playlistDragState.ts',
   'src/components/playlist/songRowKey.ts',
@@ -39,6 +80,10 @@ const files = [
   'src/utils/formatMinutes.ts',
   'src/components/magazine/magSegmentedLayout.ts',
   'src/components/stats/replayPalette.ts',
+  'src/utils/memories/calendar.ts',
+  'src/utils/memories/monthly.ts',
+  'src/utils/memories/onThisDay.ts',
+  'src/utils/memories/milestones.ts',
   'src/utils/playHistory/types.ts',
   'src/utils/playHistory/threshold.ts',
   'src/utils/playHistory/session.ts',
@@ -51,6 +96,9 @@ const files = [
   'src/utils/playHistory/wire.ts',
   'src/plugins/sync/deviceIdentity.ts',
   'src/plugins/sync/client/credentials.ts',
+  'src/core/together/math.ts',
+  'src/plugins/sync/client/moduleReadys.ts',
+  'src/utils/syncLoginSavedSecretField.ts',
 ]
 
 const compiled = spawnSync(process.execPath, [
@@ -137,6 +185,8 @@ const formatMinutesMod = require(join(outDir, 'src/utils/formatMinutes.js'))
 const magSegmentedLayout = require(join(outDir, 'src/components/magazine/magSegmentedLayout.js'))
 const replayPalette = require(join(outDir, 'src/components/stats/replayPalette.js'))
 const playThreshold = require(join(outDir, 'src/utils/playHistory/threshold.js'))
+const togetherMath = require(join(outDir, 'src/core/together/math.js'))
+const syncModuleReadys = require(join(outDir, 'src/plugins/sync/client/moduleReadys.js'))
 const playSession = require(join(outDir, 'src/utils/playHistory/session.js'))
 const playMerge = require(join(outDir, 'src/utils/playHistory/merge.js'))
 const playRange = require(join(outDir, 'src/utils/playHistory/range.js'))
@@ -147,6 +197,7 @@ const playBackup = require(join(outDir, 'src/utils/playHistory/backup.js'))
 const playWire = require(join(outDir, 'src/utils/playHistory/wire.js'))
 const deviceIdentity = require(join(outDir, 'src/plugins/sync/deviceIdentity.js'))
 const syncCredentials = require(join(outDir, 'src/plugins/sync/client/credentials.js'))
+const syncLoginSavedSecretField = require(join(outDir, 'src/utils/syncLoginSavedSecretField.js'))
 
 const box = (x, y, width = 100, height = 80) => ({ x, y, width, height })
 const flags = (overrides = {}) => ({
@@ -345,7 +396,7 @@ test('default lime theme keeps the current screen literals', () => {
   assert.notEqual(colors.source.unknown.background, colors.source.queueUnknown.background)
 
   const leaves = lux.listLuxColorValues()
-  assert.equal(leaves.length, 227)
+  assert.equal(leaves.length, 228)
   const unique = [...new Set(leaves)].sort()
   assert.deepEqual(unique, LIME_COLOR_LITERALS)
   assert.equal(unique.includes('#eef3f9'), false)
@@ -365,6 +416,15 @@ test('shared style cache refreshes on theme change and keeps one slot', () => {
   assert.equal(read(lux.limeColors), limeAgain)
 })
 
+test('debug iconWrap.blue is distinct and keeps icon contrast in all six themes', () => {
+  for (const id of lux.LUX_THEME_IDS) {
+    const colors = lux.luxThemeRegistry[id].colors
+    const backgrounds = [...Object.values(colors.iconWrap), colors.accent.soft].map(value => value.toLowerCase())
+    assert.equal(new Set(backgrounds).size, backgrounds.length, id + ' group colors')
+    assert.ok(colorMath.contrastRatio(colors.ink.strong, colors.iconWrap.blue) >= 4.5, id + ' debug icon')
+  }
+})
+
 test('the other five themes fill every slot and stay readable', () => {
   const seeds = {
     mist_blue: { bg: '#eef3f9', accent: '#2563eb', on: '#ffffff', secondary: '#556274', strong: '#0f172a', mode: 'light' },
@@ -377,14 +437,14 @@ test('the other five themes fill every slot and stay readable', () => {
     ['bg', 'app'], ['bg', 'plain'],
     ['surface', 'card'], ['surface', 'muted'], ['surface', 'placeholder'], ['surface', 'search'], ['surface', 'cancel'], ['surface', 'neutral'],
     ['line', 'divider'],
-    ['iconWrap', 'orange'], ['iconWrap', 'green'], ['iconWrap', 'purple'], ['iconWrap', 'amber'], ['iconWrap', 'red'],
+    ['iconWrap', 'blue'], ['iconWrap', 'orange'], ['iconWrap', 'green'], ['iconWrap', 'purple'], ['iconWrap', 'amber'], ['iconWrap', 'red'],
     ['queue', 'current'], ['queue', 'close'],
     ['coverFallback', 'top'], ['coverFallback', 'middle'], ['coverFallback', 'glow'], ['coverFallback', 'bottom'],
   ]
   for (const id of lux.LUX_THEME_IDS) {
     const theme = lux.luxThemeRegistry[id]
     assert.equal(theme.id, id)
-    assert.equal(lux.listLuxColorValues(theme.colors).length, 227)
+    assert.equal(lux.listLuxColorValues(theme.colors).length, 228)
     if (id === 'lime') continue
     const seed = seeds[id]
     const colors = theme.colors
@@ -695,6 +755,18 @@ test('saved playback urls expire by source unless the file is local or the audio
     isRefresh: false,
     audioCached: false,
   }), 'refresh')
+})
+
+test('upgrading rejects saved server source URLs even while their old expiry is still valid', () => {
+  for (const expiresAt of [0, Date.now() + 60_000, Number.MAX_SAFE_INTEGER]) {
+    assert.equal(musicUrlCache.parseMusicUrlRecord({
+      url: 'https://sync.example/api/source/stream/old-token',
+      savedAt: Date.now(),
+      expiresAt,
+    }), null)
+  }
+  const localRecord = musicUrlCache.serializeMusicUrlRecord('https://music.example/a.mp3', 1_000)
+  assert.deepEqual(musicUrlCache.parseMusicUrlRecord(localRecord), { url: 'https://music.example/a.mp3', savedAt: 1_000 })
 })
 
 test('listen list drops the earliest songs and leaves a short list alone', () => {
@@ -1237,6 +1309,22 @@ test('play history counting, rolling range, merge, and backup', () => {
   assert.equal(overflow[1].length, 1)
 })
 
+test('together math: clock offset, drift, and version gaps', () => {
+  const sample = togetherMath.makeClockSample(1000, 1100, 1150)
+  assert.equal(sample.rtt, 100)
+  assert.equal(sample.offset, 100)
+  assert.equal(togetherMath.pickClockOffset([{ rtt: 200, offset: 1 }, sample]), 100)
+  assert.equal(togetherMath.classifyPushVersion(5, 5), 'stale')
+  assert.equal(togetherMath.classifyPushVersion(5, 6), 'apply')
+  assert.equal(togetherMath.classifyPushVersion(5, 7), 'gap')
+  const expected = togetherMath.expectedPositionMs({ positionMs: 1000, isPlaying: true, updatedAt: 2000, durationMs: 60000 }, 5000)
+  assert.equal(expected, 4000)
+  assert.equal(togetherMath.shouldCorrectDrift(6000, 4000, 0, 10_000), true)
+  assert.equal(togetherMath.shouldCorrectDrift(4200, 4000, 0, 10_000), false)
+  assert.equal(togetherMath.isValidInviteCode('123456'), true)
+  assert.equal(togetherMath.isValidInviteCode('012345'), false)
+})
+
 test('local song covers parse tags first and filenames as 歌手 - 歌名', () => {
   assert.deepEqual(localCover.parseLocalSongIdentity({
     title: '晴天',
@@ -1665,6 +1753,34 @@ test('Lux credential migration reuses only the selected account and reconciles u
       previousClientId: undefined,
     })
   }
+})
+
+test('sync login saved-secret mask is display-only and strips cleanly on edit', () => {
+  const mask = syncLoginSavedSecretField.SYNC_LOGIN_SAVED_SECRET_MASK
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('', true, true),
+    mask,
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('', true, false),
+    '',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretDisplayValue('abc', true, true),
+    'abc',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue(mask, mask),
+    '',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue(`${mask}9`, mask),
+    '9',
+  )
+  assert.equal(
+    syncLoginSavedSecretField.syncLoginSavedSecretInputValue('fresh-code', mask),
+    'fresh-code',
+  )
 })
 
 test('LX credential migration distinguishes automatic reconnects from explicit account selection', () => {
@@ -2224,6 +2340,22 @@ test('replay P2 palette mixes paper/accentSoft/accent and keeps text contrast', 
   assert.deepEqual(bgs, expected)
   assert.equal(replayPalette.buildSeamStops('#f6f1ea', '#f5eade').length, 9)
   assert.equal(replayPalette.seamEase(0.5), 0.5)
+})
+
+test('sync moduleReadys guards undefined socket and together RPC errors', () => {
+  const initial = syncModuleReadys.createInitialModuleReadys()
+  assert.equal(initial.together, false)
+  assert.equal(syncModuleReadys.isSyncModuleReady(undefined, 'together'), false)
+  assert.equal(syncModuleReadys.isSyncModuleReady({ moduleReadys: { ...initial, together: true } }, 'together'), true)
+  syncModuleReadys.setSyncModuleReady(undefined, 'together', true)
+  const socket = { moduleReadys: syncModuleReadys.createInitialModuleReadys() }
+  syncModuleReadys.setSyncModuleReady(socket, 'together', true)
+  assert.equal(socket.moduleReadys.together, true)
+  assert.equal(
+    syncModuleReadys.isTogetherRpcNotReadyError('Cannot read properties of undefined (reading \'moduleReadys\')'),
+    true,
+  )
+  assert.equal(syncModuleReadys.isTogetherRpcNotReadyError('together is not enabled'), true)
 })
 
 test('migrated screens reject new color literals', () => {

@@ -5,6 +5,8 @@ import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
 
 // import { useGetter, useDispatch } from '@/store'
 import List, { type ListType } from './List'
+import { Platform } from 'react-native'
+import { usesScopedDirectoryPicker, pickExportDirectory, fileAccessError } from '@/utils/exportAccess'
 
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import { toast, TEMP_FILE_PATH, checkStoragePermissions, requestStoragePermission, confirmDialog } from '@/utils/tools'
@@ -19,6 +21,7 @@ export interface ReadOptions {
   title: string
   isPersist?: boolean
   dirOnly?: boolean
+  forExport?: boolean
   filter?: string[]
 }
 const initReadOptions = {}
@@ -55,7 +58,15 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
 
   useImperativeHandle(ref, () => ({
     show(options) {
-      if (!settingState.setting['common.useSystemFileSelector'] || options.dirOnly) {
+      if (options.dirOnly && options.forExport && usesScopedDirectoryPicker(Number(Platform.Version), settingState.setting['common.useSystemFileSelector'])) {
+        void pickExportDirectory(options.isPersist).then(path => {
+          if (path && !isUnmounted.current) onConfirm(path)
+        }).catch((err: unknown) => {
+          if (isUnmounted.current) return
+          log.warn('open export directory failed: ' + fileAccessError(err))
+          toast(t('storage_export_directory_failed', { reason: fileAccessError(err) }), 'long')
+        })
+      } else if (!settingState.setting['common.useSystemFileSelector'] || options.dirOnly) {
         // if (options.isPersist) {
         void handleOpenExternalStorage(options)
         // } else {
@@ -71,12 +82,13 @@ export default forwardRef<ChoosePathType, ChoosePathProps>(({
         }).then((file) => {
           // console.log(file)
           if (!file || isUnmounted.current) return
-          if (options.filter && !options.filter.some(ext => file.data.toLowerCase().endsWith('.' + ext))) {
+          const selectedPath = file.data
+          if (options.filter && !options.filter.some(ext => selectedPath.toLowerCase().endsWith('.' + ext))) {
             toast(t('storage_file_no_match'), 'long')
-            void unlink(file.data)
+            void unlink(selectedPath)
             return
           }
-          onConfirm(file.data)
+          onConfirm(selectedPath)
         }).catch(err => {
           if (isUnmounted.current) return
           log.warn('open document failed: ' + err.message)

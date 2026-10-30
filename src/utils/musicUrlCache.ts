@@ -46,16 +46,15 @@ export const parseMusicUrlRecord = (raw: unknown): MusicUrlRecord | null => {
     return { url, savedAt: 0 }
   }
   if (!raw || typeof raw != 'object') return null
+  // Retire cloud-resolved records, including server proxy URLs, after upgrading.
+  if ('expiresAt' in raw) return null
   const record = raw as { url?: unknown, savedAt?: unknown }
   if (typeof record.url != 'string' || !record.url.trim()) return null
   const savedAt = typeof record.savedAt == 'number' && Number.isFinite(record.savedAt) ? record.savedAt : 0
   return { url: record.url.trim(), savedAt }
 }
 
-export const serializeMusicUrlRecord = (url: string, savedAt: number): MusicUrlRecord => ({
-  url,
-  savedAt,
-})
+export const serializeMusicUrlRecord = (url: string, savedAt: number): MusicUrlRecord => ({ url, savedAt })
 
 export const isMusicUrlFresh = (record: MusicUrlRecord, source: string, now: number) => {
   if (isDirectMediaUrl(record.url)) return true

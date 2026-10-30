@@ -2,6 +2,8 @@
 
 import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
+import { NativeModules } from 'react-native'
+import { createVolumeFade } from './volumeFade'
 import { playMusic as handlePlayMusic } from './playList'
 import { getTrackCacheKey } from './cache'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
@@ -170,7 +172,22 @@ export const setLoop = async(loop: boolean) => TrackPlayer.setRepeatMode(loop ? 
 export const setPause = async() => TrackPlayer.pause()
 // export const skipToNext = () => TrackPlayer.skipToNext()
 export const setCurrentTime = async(time: number) => TrackPlayer.seekTo(time)
-export const setVolume = async(num: number) => TrackPlayer.setVolume(num)
+const volumeFade = createVolumeFade(async volume => TrackPlayer.setVolume(volume))
+export const setVolume = volumeFade.setVolume
+const nativeFade = NativeModules.TrackPlayerModule as {
+  CAPABILITY_NATIVE_FADE_OUT?: boolean
+  startFadeOut?: (durationMs: number, endAtMs: number, finishSong: boolean, requestId: string) => Promise<void>
+  cancelFadeOut?: () => Promise<void>
+} | undefined
+export const isNativeFadeOutSupported = nativeFade?.CAPABILITY_NATIVE_FADE_OUT === true && typeof nativeFade.startFadeOut === 'function' && typeof nativeFade.cancelFadeOut === 'function'
+export const startNativeFadeOut = async(durationMs: number, endAtMs: number, finishSong: boolean, requestId: string) => {
+  if (isNativeFadeOutSupported) await nativeFade!.startFadeOut!(durationMs, endAtMs, finishSong, requestId)
+}
+export const cancelNativeFadeOut = async() => {
+  if (isNativeFadeOutSupported) await nativeFade!.cancelFadeOut!()
+}
+export const setSleepTimerGain = volumeFade.setGain
+export const restoreSleepTimerVolume = volumeFade.restore
 export const setPlaybackRate = async(num: number) => TrackPlayer.setRate(num)
 export interface NowPlayingTitles {
   title?: string
@@ -273,7 +290,12 @@ export const onStateChange = async(listener: (state: PlayStatus) => void) => {
 
 export const isNotificationLikeSupported = typeof Capability.Like == 'number'
 
-const createPlayerOptions = (isLiked = false): MetadataOptions => {
+const sleepTimerCapability: number | undefined = NativeModules.TrackPlayerModule?.CAPABILITY_SLEEP_TIMER
+export const isNotificationSleepTimerSupported = typeof sleepTimerCapability == 'number'
+type NotificationOptions = MetadataOptions & { sleepTimerOptions?: { title: string } }
+let notificationLiked = false
+
+const createPlayerOptions = (isLiked = notificationLiked): NotificationOptions => {
   const capabilities = [
     Capability.Play,
     Capability.Pause,
@@ -290,12 +312,13 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
     Capability.SkipToPrevious,
   ]
   const compactCapabilities = [
+    Capability.SkipToPrevious,
     Capability.Play,
     Capability.Pause,
     Capability.SkipToNext,
   ]
 
-  const playerOptions: MetadataOptions = {
+  const playerOptions: NotificationOptions = {
     capabilities,
     notificationCapabilities,
     compactCapabilities,
@@ -308,17 +331,22 @@ const createPlayerOptions = (isLiked = false): MetadataOptions => {
   if (isNotificationLikeSupported) {
     playerOptions.capabilities = [...capabilities, Capability.Like]
     playerOptions.notificationCapabilities = [...notificationCapabilities, Capability.Like]
-    playerOptions.compactCapabilities = [...compactCapabilities, Capability.Like]
     playerOptions.likeOptions = {
       isActive: isLiked,
-      title: global.i18n.t('collect'),
+      title: global.i18n.t('notification_like'),
     }
   }
 
+  if (isNotificationSleepTimerSupported) {
+    playerOptions.capabilities = [...playerOptions.capabilities!, sleepTimerCapability!]
+    playerOptions.notificationCapabilities = [...playerOptions.notificationCapabilities!, sleepTimerCapability!]
+    playerOptions.sleepTimerOptions = { title: global.i18n.t('notification_sleep_timer') }
+  }
   return playerOptions
 }
 
 export const updateOptions = async(options?: Partial<MetadataOptions>) => {
+  if (options?.likeOptions?.isActive != null) notificationLiked = options.likeOptions.isActive
   const baseOptions = createPlayerOptions()
   const nextOptions: MetadataOptions = {
     ...baseOptions,

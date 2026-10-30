@@ -8,6 +8,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import {
   BackButton,
+  SecondaryButton,
   DeltaPill,
   Hairline,
   MagSegmented,
@@ -307,10 +308,12 @@ const ArtistRankList = ({
 
 export const ListeningStatsMagazine = ({
   model,
+  onOpenMonthly,
   onClose,
   bottomPadding,
 }: {
   model: ListeningStatsModel
+  onOpenMonthly: () => void
   onClose: () => void
   bottomPadding: number
 }) => {
@@ -324,8 +327,8 @@ export const ListeningStatsMagazine = ({
   } = model
 
   const rangeTabs = useMemo(
-    () => RANGES.map(id => ({ id, label: t(rangeLabelKey[id]) })),
-    [t],
+    () => (range == 'week' ? ['week' as const, ...RANGES] : RANGES).map(id => ({ id, label: t(rangeLabelKey[id]) })),
+    [range, t],
   )
 
   const kickerText = t('stats_kicker', {
@@ -378,8 +381,9 @@ export const ListeningStatsMagazine = ({
       contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 72 + bottomPadding }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { justifyContent: 'space-between' }]}>
         <BackButton onPress={onClose} />
+        <SecondaryButton compact label={t('monthly_entry')} onPress={onOpenMonthly} />
       </View>
 
       <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('stats_title')}</Text>

@@ -6,6 +6,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -43,8 +44,11 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeArray;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 
 public class UtilsModule extends ReactContextBaseJavaModule {
   private final ReactApplicationContext reactContext;
@@ -401,6 +405,64 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     Objects.requireNonNull(reactContext.getCurrentActivity()).startActivity(Intent.createChooser(shareIntent, shareTitle));
   }
 
+  /** Keep a separate copy: the JS capture may be released while another app reads it. */
+  @ReactMethod
+  public void shareImage(String shareTitle, String imageUri, Promise promise) {
+    new Thread(() -> {
+      File sharedFile = null;
+      try {
+        Uri input = Uri.parse(imageUri);
+        if (!"file".equals(input.getScheme()) || input.getPath() == null) {
+          throw new IllegalArgumentException("Expected a local capture file");
+        }
+        File source = new File(input.getPath()).getCanonicalFile();
+        String internalRoot = reactContext.getCacheDir().getCanonicalPath() + File.separator;
+        File externalCache = reactContext.getExternalCacheDir();
+        String externalRoot = externalCache == null ? null : externalCache.getCanonicalPath() + File.separator;
+        if (!source.getPath().startsWith(internalRoot) &&
+            (externalRoot == null || !source.getPath().startsWith(externalRoot))) {
+          throw new IllegalArgumentException("Capture must be in the app cache");
+        }
+        File directory = new File(reactContext.getCacheDir(), "share-cards");
+        if (!directory.isDirectory() && !directory.mkdirs()) throw new java.io.IOException("Cannot create share cache");
+        File[] previous = directory.listFiles();
+        if (previous != null) {
+          long cutoff = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+          for (File file : previous) {
+            if (file.lastModified() < cutoff) file.delete();
+          }
+        }
+        sharedFile = new File(directory, UUID.randomUUID() + ".png");
+        try (FileInputStream in = new FileInputStream(source); FileOutputStream out = new FileOutputStream(sharedFile)) {
+          byte[] buffer = new byte[8192];
+          int count;
+          while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+        }
+        final File ready = sharedFile;
+        reactContext.runOnUiQueueThread(() -> {
+          try {
+            Activity activity = reactContext.getCurrentActivity();
+            if (activity == null) throw new IllegalStateException("No foreground activity");
+            Uri uri = FileProvider.getUriForFile(reactContext, reactContext.getPackageName() + ".provider", ready);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("image/png");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.setClipData(ClipData.newRawUri("share-card", uri));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            activity.startActivity(Intent.createChooser(intent, shareTitle));
+            promise.resolve(null);
+          } catch (Exception error) {
+            ready.delete();
+            promise.reject("SHARE_IMAGE", error);
+          }
+        });
+      } catch (Exception error) {
+        if (sharedFile != null) sharedFile.delete();
+        promise.reject("SHARE_IMAGE", error);
+      }
+    }).start();
+  }
+
   // https://stackoverflow.com/questions/73463341/in-per-app-language-how-to-get-app-locale-in-api-33-if-system-locale-is-diffe
   @ReactMethod
   public void getSystemLocales(Promise promise) {
@@ -577,4 +639,3 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     promise.resolve(result);
   }
 }
-

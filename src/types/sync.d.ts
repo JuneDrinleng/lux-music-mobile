@@ -3,7 +3,35 @@ declare global {
     namespace Sync {
       type Mode = 'lx' | 'lux'
 
+      /** Per-mode sync login form values (AsyncStorage, app-private). */
+      interface LuxLoginProfile {
+        host: string
+        luxUsername: string
+      }
+
+      interface LxLoginProfile {
+        host: string
+        lxAuthCode: string
+      }
+
+      interface LoginDrafts {
+        lux?: LuxLoginProfile
+        lx?: LxLoginProfile
+      }
+
+      /** @deprecated Migrated to LoginDrafts on read. */
+      interface LoginDraft {
+        host: string
+        mode: Mode
+        luxUsername: string
+        luxPassword: string
+        lxAuthCode: string
+      }
+
       interface LuxAuth {
+        sessionId?: string
+        accessTokenExpiresAt?: string
+        refreshToken?: string
         token: string
         serverId?: string
         serverUrl?: string
@@ -28,6 +56,11 @@ declare global {
       }
 
       interface Status {
+        error?: { message?: string, code?: string, status?: number, serverVersion?: string, requiredVersion?: string }
+        closeCode?: number
+        attempts?: number
+        retryAt?: number
+        lastSyncedAt?: number
         status: boolean
         message: string
       }
@@ -50,6 +83,8 @@ declare global {
         moduleReadys: {
           list: boolean
           dislike: boolean
+          playHistory: boolean
+          together: boolean
         }
 
         onClose: (handler: (err: Error) => (void | Promise<void>)) => () => void
@@ -65,7 +100,7 @@ declare global {
         dislike: LX.Sync.Dislike.SyncMode
       }
 
-      type ModeType = { [K in keyof ModeTypes]: { type: K, mode: ModeTypes[K] } }[keyof ModeTypes]
+      type ModeType = { [K in keyof ModeTypes]: { type: K, mode: ModeTypes[K], remember?: boolean } }[keyof ModeTypes]
 
       interface UrlInfo {
         wsProtocol: string
@@ -86,6 +121,11 @@ declare global {
         dislike?: false | DislikeConfig
         /** Lux only. Omitted for LX connection-code sync and for servers that do not advertise the feature. */
         playHistory?: true
+        /** Lux only. Listen-together rooms; omitted for LX connection-code sync. */
+        together?: true
+        'together.chat'?: true
+        'together.reaction'?: true
+        'together.request'?: true
       }
       type SupportedFeatures = Partial<{ [k in keyof EnabledFeatures]: number }>
     }

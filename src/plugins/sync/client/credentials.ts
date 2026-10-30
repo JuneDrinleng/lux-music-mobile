@@ -4,6 +4,9 @@ export class CredentialRejectedError extends Error {}
 
 export const isKeyRejection = (code: number, text: string, authFailed: string, blockedIp: string): boolean => {
   if (text == blockedIp || code == 429 || code >= 500) return false
+  let errorCode: unknown
+  try { errorCode = JSON.parse(text)?.code } catch {}
+  if (code == 403 && errorCode == 'FORBIDDEN') return false
   return text == authFailed || code == 401 || code == 403
 }
 
@@ -95,3 +98,8 @@ export const createCredentialStore = <T>({ read, write, remove }: CredentialStor
     },
   }
 }
+
+/** Saved sessions can only reconnect the same explicitly entered account. */
+export const canReuseLuxSession = (session: { token?: string, user?: { username?: string } } | null, username: string): boolean => (
+  !!session?.token && session.user?.username === username.trim()
+)

@@ -18,6 +18,8 @@ import { useSettingValue } from '@/store/setting/hook'
 import { resolveImageUri } from '@/utils/imageCache'
 import { LIST_IDS } from '@/config/constant'
 import { useI18n } from '@/lang'
+import { useTogetherActive } from '@/store/together/hook'
+import { StatusChip } from '@/components/magazine'
 import { memoLuxColors, sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { limeColors, type LuxColors } from '@/theme/luxTokens'
 
@@ -77,6 +79,7 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
 }) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
+  const togetherActive = useTogetherActive()
 
   const t = useI18n()
   const { keyboardShown } = useKeyboard()
@@ -228,6 +231,9 @@ export default memo(({ isHome = false, systemGestureInsetBottom = 0, inCard = fa
             </View>
           </View>
           <View style={[styles.center, inCard ? styles.centerInCard : null]}>
+            {togetherActive && !inCard
+              ? <StatusChip label={t('together_badge')} small />
+              : null}
             <Text size={inCard ? 14 : 13} color={colors.ink.strong} numberOfLines={1} style={styles.title}>
               {musicInfo.name || t('player_bar_not_playing')}
             </Text>

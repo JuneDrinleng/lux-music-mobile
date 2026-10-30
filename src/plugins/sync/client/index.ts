@@ -43,6 +43,8 @@ const connectServer = async(host: string, authCode?: string) => {
     sendSyncStatus({
       status: false,
       message: err.message,
+      attempts: 1,
+      error: { message: err.message, status: err.status, code: err.code, serverVersion: err.serverVersion, requiredVersion: err.requiredVersion },
     })
     switch (err.message) {
       case SYNC_CODE.connectServiceFailed:
@@ -65,9 +67,12 @@ const connectLuxServer = async(host: string, username?: string, password?: strin
   const id = connectId
   return handleLuxConnect(host, username, password).catch(async err => {
     if (id != connectId) return
+    if (err.message == SYNC_CODE.authFailed || err.message == SYNC_CODE.missingAuthCode) err = new Error(SYNC_CODE.luxSessionExpired)
     sendSyncStatus({
       status: false,
       message: err.message,
+      attempts: 1,
+      error: { message: err.message, status: err.status, code: err.code, serverVersion: err.serverVersion, requiredVersion: err.requiredVersion },
     })
     log.r_warn(err.message)
     return Promise.reject(err)

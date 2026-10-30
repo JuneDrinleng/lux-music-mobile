@@ -70,6 +70,7 @@ const useStyles = sharedLuxStyles((colors) => {
 const DialogCard = memo(({
   eyebrow,
   eyebrowDanger = false,
+  clipboardLayout = false,
   title,
   message,
   children,
@@ -85,6 +86,7 @@ const DialogCard = memo(({
 }: {
   eyebrow?: string
   eyebrowDanger?: boolean
+  clipboardLayout?: boolean
   title: string
   message?: string
   children?: ReactNode
@@ -102,8 +104,8 @@ const DialogCard = memo(({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   return (
-    <View style={styles.card}>
-      <View style={styles.inkBar} />
+    <View style={[styles.card, clipboardLayout ? { borderRadius: 6, paddingHorizontal: 20, paddingBottom: 20, transform: [{ translateY: -50 }] } : null]}>
+      <View style={[styles.inkBar, clipboardLayout ? { marginHorizontal: -20, marginBottom: 20 } : null]} />
       {eyebrow
         ? (
           <Text
@@ -114,7 +116,7 @@ const DialogCard = memo(({
           )
         : null}
       {title
-        ? <Text size={magType.dialogTitle.size} color={r.display} style={styles.title}>{title}</Text>
+        ? <Text size={clipboardLayout ? 20 : magType.dialogTitle.size} color={clipboardLayout ? r.ink : r.display} style={styles.title}>{title}</Text>
         : null}
       {message
         ? <Text size={14} color={r.muted} style={styles.message}>{message}</Text>
@@ -162,6 +164,7 @@ export const MagDialog = memo(({
   onClose,
   eyebrow,
   eyebrowDanger = false,
+  clipboardLayout = false,
   title,
   message,
   children,
@@ -180,6 +183,7 @@ export const MagDialog = memo(({
   onClose: () => void
   eyebrow?: string
   eyebrowDanger?: boolean
+  clipboardLayout?: boolean
   title: string
   message?: string
   children?: ReactNode
@@ -202,6 +206,7 @@ export const MagDialog = memo(({
     <DialogCard
       eyebrow={eyebrow}
       eyebrowDanger={eyebrowDanger}
+      clipboardLayout={clipboardLayout}
       title={title}
       message={message}
       cancelLabel={cancelLabel}

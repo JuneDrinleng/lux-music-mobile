@@ -22,6 +22,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import {
   BackButton,
+  SecondaryButton,
   DeltaPill,
   Hairline,
   RankNumber,
@@ -369,10 +370,12 @@ const TimeRadial = ({
 
 export const ListeningStatsReplay = ({
   model,
+  onOpenMonthly,
   onClose,
   bottomPadding,
 }: {
   model: ListeningStatsModel
+  onOpenMonthly: () => void
   onClose: () => void
   bottomPadding: number
 }) => {
@@ -721,8 +724,9 @@ export const ListeningStatsReplay = ({
   return (
     <View style={[styles.root, { backgroundColor: r.paper, paddingTop: statusBarHeight, paddingBottom: bottomPadding }]}>
       <View style={styles.chrome}>
-        <View style={styles.topRow}>
+        <View style={[styles.topRow, { justifyContent: 'space-between' }]}>
           <BackButton onPress={onClose} />
+          <SecondaryButton compact label={t('monthly_entry')} onPress={onOpenMonthly} />
         </View>
       </View>
 

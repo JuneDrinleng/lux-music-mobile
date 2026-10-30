@@ -27,6 +27,11 @@ export default () => {
     return true
   }, [emitResult])
 
+  const handleExtra = useCallback(async() => {
+    emitResult('extra')
+    return true
+  }, [emitResult])
+
   const handleHide = useCallback(() => {
     if (!resolvedRef.current) emitResult('cancel')
     payloadRef.current = null
@@ -61,12 +66,14 @@ export default () => {
       eyebrowDanger={payload.eyebrowDanger}
       cancelText={payload.cancelText}
       confirmText={payload.confirmText}
+      extraText={payload.extraText}
       showInput={false}
       showConfirm={payload.showConfirm ?? true}
       confirmDanger={payload.confirmDanger}
       bgHide={payload.bgHide ?? true}
       onCancel={handleCancel}
       onConfirm={handleConfirm}
+      onExtra={payload.extraText ? handleExtra : undefined}
       onHide={handleHide}
     />
   )

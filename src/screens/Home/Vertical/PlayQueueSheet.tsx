@@ -1,9 +1,14 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FlatList, View } from 'react-native'
+import { FlatList, TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
+import { radioSession } from '@/components/recommend/radio'
+import { RadioTasteControl } from '@/components/recommend/RadioTasteControl'
+import { useRecommendationAction } from '@/components/recommend/RecommendationViews'
+import { libraryCandidate } from '@/utils/recommend/local'
+import { sameSong } from '@/utils/recommend/engine'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import {
   IconButton,
@@ -49,6 +54,11 @@ export default memo(
     const [isVisible, setVisible] = useState(false)
     const [playQueue, setPlayQueue] = useState<LX.Music.MusicInfo[]>([])
     void systemGestureInsetBottom
+
+    const [radio, setRadio] = useState(radioSession.getState)
+    const { run, pending } = useRecommendationAction()
+    useEffect(() => radioSession.subscribe(() => { setRadio(radioSession.getState()) }), [])
+    const isRadio = !!radio.seed && playInfo.playerListId == LIST_IDS.TEMP
 
     const isTempQueue = playInfo.playerListId == LIST_IDS.TEMP
 
@@ -207,7 +217,7 @@ export default memo(
       if (listId != LIST_IDS.TEMP) return
       const confirm = await confirmDialog({
         message: t('play_queue_clear_current_confirm'),
-        cancelButtonText: t('cancel_button_text'),
+        cancelButtonText: t('cancel'),
         confirmButtonText: t('confirm_button_text'),
       })
       if (!confirm) return
@@ -227,11 +237,13 @@ export default memo(
     const renderQueueItem = useCallback(
       ({ item, index }: { item: LX.Music.MusicInfo, index: number }) => {
         const isCurrent = index == currentQueueIndex
-        const sourceLabel = item.source !== 'local' ? item.source.toUpperCase() : ''
+        const sourceLabel = item.source !== 'local' ? (isRadio ? item.source : item.source.toUpperCase()) : ''
+        const added = isRadio && radio.added.some(song => sameSong(song, libraryCandidate(item).song))
         return (
           <MagazineSheetRow
             coverUri={pickMusicCover(item)}
             coverSize={36}
+            radioLayout={isRadio}
             title={item.name}
             current={isCurrent}
             last={index >= playQueue.length - 1}
@@ -240,17 +252,17 @@ export default memo(
               <Text
                 size={13}
                 color={r.faint}
-                style={{ width: 28, fontWeight: '700', fontVariant: ['tabular-nums'] }}
+                style={{ width: isRadio ? 20 : 28, fontWeight: '700', fontVariant: ['tabular-nums'] }}
               >
                 {pad2(index + 1)}
               </Text>
             }
             subtitle={
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: isRadio ? 4 : 6 }}>
                 {sourceLabel
-                  ? <SourceTag source={item.source} label={sourceLabel} />
+                  ? <SourceTag source={item.source} label={sourceLabel} neutral={isRadio} />
                   : null}
-                <Text size={12} color={r.muted} numberOfLines={1}>{item.singer || '-'}</Text>
+                <Text size={12} color={r.muted} numberOfLines={1} style={isRadio ? { flexShrink: 1 } : undefined}>{item.singer || '-'}{added ? ` · ${t('radio_added')}` : ''}</Text>
               </View>
             }
             trailing={
@@ -261,12 +273,22 @@ export default memo(
                       <MdiIcon
                         name={isPlay ? 'pause' : 'play'}
                         size={18}
-                        color={r.accentInk}
+                        color={isRadio ? r.muted : r.accentInk}
                       />
                     </View>
                     )
                   : null}
-                {isTempQueue
+                {isRadio && !isCurrent
+                  ? (
+                    <TouchableOpacity accessibilityRole="button" disabled={pending} activeOpacity={0.7} hitSlop={8}
+                      accessibilityLabel={t('radio_dislike_song', { name: item.name })}
+                      onPress={() => { void run(async() => { await radioSession.dislike(libraryCandidate(item).song); await radioSession.replenish() }) }}
+                      style={{ height: 28, justifyContent: 'center' }}>
+                      <Text size={12} color={r.muted}>{t('radio_dislike')} ×</Text>
+                    </TouchableOpacity>
+                    )
+                  : null}
+                {isTempQueue && !isRadio
                   ? (
                     <>
                       <IconButton
@@ -293,6 +315,10 @@ export default memo(
       },
       [
         currentQueueIndex,
+        isRadio,
+        radio.added,
+        pending,
+        run,
         handleShowMusicAddModal,
         handleRemoveQueueMusic,
         handleSelectQueueMusic,
@@ -311,14 +337,15 @@ export default memo(
         <MagazineSheet
           visible={isVisible}
           onClose={hideQueuePanel}
-          heightRatio={QUEUE_PANEL_HEIGHT_RATIO}
-          eyebrow={eyebrow}
-          title={queueTitle}
-          meta={t('me_tracks_count', { num: playQueue.length })}
-          figure={playQueue.length
+          heightRatio={isRadio ? 660 / 844 : QUEUE_PANEL_HEIGHT_RATIO}
+          radioLayout={isRadio}
+          eyebrow={isRadio ? t('radio_queue_eyebrow') : eyebrow}
+          title={isRadio ? t('radio_queue_title', { name: radio.seed?.name ?? '' }) : queueTitle}
+          meta={isRadio ? t('radio_queue_meta', { num: radio.played }) : t('me_tracks_count', { num: playQueue.length })}
+          figure={isRadio ? { value: '∞', unit: t('radio_auto_play') } : playQueue.length
             ? { value: String(playQueue.length), unit: t('library_tracks_unit') }
             : undefined}
-          headerAction={{
+          headerAction={isRadio ? { text: t('radio_stop'), onPress: radioSession.stop } : {
             text: t('play_queue_clear_current_btn'),
             tone: 'danger',
             disabled: !isTempQueue || !playQueue.length,
@@ -326,6 +353,7 @@ export default memo(
           }}
           empty={{ text: t('no_item'), eyebrow: 'EMPTY' }}
         >
+          {isRadio ? <RadioTasteControl taste={radio.taste} /> : null}
           {playQueue.length
             ? (
               <FlatList
@@ -333,6 +361,7 @@ export default memo(
                 data={playQueue}
                 renderItem={renderQueueItem}
                 keyExtractor={(item, index) => `${item.id}_${index}`}
+                ListFooterComponent={isRadio ? <Text size={12} color={r.muted} style={{ textAlign: 'center', marginTop: 8 }}>{t('radio_queue_hint')}</Text> : null}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={20}
                 maxToRenderPerBatch={20}

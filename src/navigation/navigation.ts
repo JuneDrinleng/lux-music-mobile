@@ -95,15 +95,16 @@ export async function pushLoginScreen() {
   })
 }
 
-export async function pushSyncLoginScreen() {
+export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string, initialUsername?: string }) {
   const theme = themeState.theme
 
-  return Navigation.setRoot({
+  await Navigation.setRoot({
     root: {
       stack: {
         children: [{
           component: {
             name: SYNC_LOGIN_SCREEN,
+            passProps: props,
             options: {
               topBar: {
                 visible: false,
@@ -128,6 +129,7 @@ export async function pushSyncLoginScreen() {
       },
     },
   })
+  global.app_event.syncLoginPresented()
 }
 
 export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'cheat-tip') {

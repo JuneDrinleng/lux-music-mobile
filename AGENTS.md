@@ -7,3 +7,5 @@
 删除、隐藏或移动任何已经存在的界面时，在 PR 描述里单独列出每一处被删掉、被藏起来或被挪走的入口、按钮、文案或区域，并写上原因。不要只写在 commit message 里。
 
 界面文案同时写入 `src/lang/zh-cn.json`、`src/lang/zh-tw.json`、`src/lang/en-us.json`。不要在这类改动里修改 `package.json` 的版本号。
+
+新增或修改任何交互时，遵循并同步更新 [docs/interaction-spec.md](docs/interaction-spec.md)（软件交互规范）；页面过渡与返回行为复用其中指定的共享实现。

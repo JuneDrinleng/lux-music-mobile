@@ -1,5 +1,8 @@
+import { initDownloads } from '@/core/download'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { migrateStoredLuxCredentials } from '@/utils/data'
+import { initializeDataSpaces } from '@/utils/dataSpace'
 import { initSetting, showPactModal } from '@/core/common'
 import registerPlaybackService from '@/plugins/player/service'
 import initTheme from './theme'
@@ -9,6 +12,7 @@ import initPlayer from './player'
 import initPlayHistory from './playHistory'
 import dataInit from './dataInit'
 import initSync from './sync'
+import { initTogether } from '@/core/together'
 import initCommonState from './common'
 import { initDeeplink } from './deeplink'
 import { setApiSource } from '@/core/apiSource'
@@ -78,6 +82,8 @@ let isInited = false
 export default async() => {
   if (isInited) return handlePushedHomeScreen
   bootLog('Initing...')
+  await migrateStoredLuxCredentials()
+  await initializeDataSpaces()
   commonActions.setFontSize(global.lx.fontSize)
   bootLog('Font size changed.')
   const setting = await initSetting()
@@ -94,6 +100,7 @@ export default async() => {
 
   setApiSource(setting['common.apiSource'])
   bootLog('Api inited.')
+  await initDownloads().catch(error => { bootLog(`Download init failed: ${String(error)}`) })
 
   registerPlaybackService()
   bootLog('Playback Service Registered.')
@@ -121,6 +128,7 @@ export default async() => {
   initVersionLifecycle()
   bootLog('Version lifecycle inited.')
 
+  initTogether()
   void initSync(setting)
   bootLog('Sync inited.')
 

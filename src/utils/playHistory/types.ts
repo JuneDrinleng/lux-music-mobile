@@ -20,6 +20,9 @@ export interface PlayRecord {
   endedAt: number
   /** Audio actually heard. Pauses and seeks are not included. */
   listenedMs: number
+  /** Absent on records written before plan 6.8. */
+  completed?: boolean
+  skipped?: boolean
   song: PlayHistorySong
 }
 

@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo } from 'react'
-import { TouchableOpacity } from 'react-native'
+import { TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -10,6 +10,10 @@ import { magType } from '@/theme/magazineType'
 
 export const TextButton = memo(({
   label,
+  accessibilityLabel,
+  style,
+  compact = false,
+  labelSize,
   onPress,
   disabled = false,
   muted = false,
@@ -17,6 +21,10 @@ export const TextButton = memo(({
   underline = true,
 }: {
   label: string
+  accessibilityLabel?: string
+  style?: StyleProp<ViewStyle>
+  compact?: boolean
+  labelSize?: number
   onPress?: () => void
   disabled?: boolean
   muted?: boolean
@@ -28,15 +36,17 @@ export const TextButton = memo(({
   const color = danger ? r.danger : muted ? r.muted : disabled ? r.faint : r.ink
   return (
     <TouchableOpacity
+      hitSlop={compact ? { top: 13, bottom: 13, left: 0, right: 0 } : undefined}
       activeOpacity={0.7}
       disabled={disabled}
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={{ opacity: disabled ? 0.55 : 1, minHeight: 44, justifyContent: 'center' }}
+      style={[{ opacity: disabled ? 0.55 : 1, minHeight: compact ? 18 : 44, justifyContent: 'center' }, style]}
     >
       <Text
-        size={magType.textButton.size}
+        size={labelSize ?? (compact ? 14 : magType.textButton.size)}
         color={color}
         style={{
           fontWeight: '700',

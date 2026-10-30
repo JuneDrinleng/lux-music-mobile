@@ -153,6 +153,9 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
         constants.put("CAPABILITY_SKIP_TO_PREVIOUS", PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS);
         constants.put("CAPABILITY_SET_RATING", PlaybackStateCompat.ACTION_SET_RATING);
         constants.put("CAPABILITY_LIKE", Utils.CAPABILITY_LIKE);
+        constants.put("CAPABILITY_SLEEP_TIMER", Utils.CAPABILITY_SLEEP_TIMER);
+        constants.put("CAPABILITY_NATIVE_FADE_OUT", true);
+        constants.put("CAPABILITY_WHITE_NOISE", true);
         constants.put("CAPABILITY_JUMP_FORWARD", PlaybackStateCompat.ACTION_FAST_FORWARD);
         constants.put("CAPABILITY_JUMP_BACKWARD", PlaybackStateCompat.ACTION_REWIND);
 
@@ -443,6 +446,151 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
             binder.getPlayback().seekTo(secondsToSkip);
             callback.resolve(null);
         });
+    }
+
+    @ReactMethod
+    public void startFadeOut(final double durationMs, final double endAtMs,
+                             final boolean finishSong, final String requestId, final Promise callback) {
+        if (Double.isNaN(durationMs) || Double.isInfinite(durationMs) || durationMs <= 0
+                || Double.isNaN(endAtMs) || Double.isInfinite(endAtMs)) {
+            callback.reject("invalid_fade", "Fade duration and deadline must be finite");
+            return;
+        }
+        waitForConnection(() -> {
+            binder.getPlayback().startFadeOut((long) durationMs, (long) endAtMs, finishSong, requestId);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void cancelFadeOut(final Promise callback) {
+        waitForConnection(() -> {
+            binder.getPlayback().cancelFadeOut();
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void setGaplessPlayback(final boolean enabled, final Promise promise) {
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) throw new IllegalStateException("Gapless requires local playback");
+                ((LocalPlayback) playback).setGaplessPlayback(enabled);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("gapless_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setGaplessNext(final String currentId, final ReadableMap item, final Promise promise) {
+        final Bundle data = item == null ? null : Arguments.toBundle(item);
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) { promise.resolve(false); return; }
+                Track next = data == null ? null : new Track(getReactApplicationContext(), data, binder.getRatingType());
+                promise.resolve(((LocalPlayback) playback).setGaplessNext(currentId, next));
+            } catch (RuntimeException error) {
+                promise.reject("gapless_preload_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setEqualizer(ReadableMap config, final Promise promise) {
+        final boolean enabled;
+        final double[] gains = new double[10];
+        try {
+            enabled = config.getBoolean("enabled");
+            String preset = config.getString("preset");
+            if (preset == null) throw new IllegalArgumentException("Missing preset");
+            ReadableArray values = config.getArray("gains");
+            if (values == null || values.size() != gains.length) {
+                throw new IllegalArgumentException("Expected ten equalizer gains");
+            }
+            for (int i = 0; i < gains.length; i++) {
+                double value = values.getDouble(i);
+                if (Double.isNaN(value) || Double.isInfinite(value)) {
+                    throw new IllegalArgumentException("Gain must be finite");
+                }
+                gains[i] = Math.max(-12, Math.min(12, value));
+            }
+        } catch (RuntimeException error) {
+            promise.reject("invalid_equalizer", error);
+            return;
+        }
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) {
+                    throw new IllegalStateException("Equalizer requires local playback");
+                }
+                ((LocalPlayback) playback).setEqualizer(enabled, gains);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("equalizer_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setLoudnessNormalization(ReadableMap config, final Promise promise) {
+        final boolean enabled, preventClipping;
+        final int target;
+        try {
+            enabled = config.getBoolean("enabled");
+            preventClipping = config.getBoolean("preventClipping");
+            double value = config.getDouble("target");
+            if (value != -18 && value != -14 && value != -11) {
+                throw new IllegalArgumentException("Expected -18, -14 or -11 LUFS target");
+            }
+            target = (int) value;
+        } catch (RuntimeException error) {
+            promise.reject("invalid_loudness", error);
+            return;
+        }
+        waitForConnection(() -> {
+            try {
+                ExoPlayback playback = binder.getPlayback();
+                if (!(playback instanceof LocalPlayback)) {
+                    throw new IllegalStateException("Loudness requires local playback");
+                }
+                ((LocalPlayback) playback).setLoudnessNormalization(enabled, target, preventClipping);
+                promise.resolve(null);
+            } catch (RuntimeException error) {
+                promise.reject("loudness_failed", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setNoise(final String id, final boolean enabled, final double volume, final Promise callback) {
+        if (com.guichaguri.trackplayer.service.player.NoiseMixer.index(id) < 0
+                || Double.isNaN(volume) || Double.isInfinite(volume)) {
+            callback.reject("invalid_noise", "Invalid sound or volume");
+            return;
+        }
+        waitForConnection(() -> {
+            binder.getPlayback().setNoise(id, enabled, volume);
+            callback.resolve(null);
+        });
+    }
+
+    @ReactMethod
+    public void stopNoise(final Promise callback) {
+        waitForConnection(() -> { binder.getPlayback().stopNoise(); callback.resolve(null); });
+    }
+
+    @ReactMethod
+    public void setNoiseTimer(final boolean stop, final double gain, final Promise callback) {
+        if (Double.isNaN(gain) || Double.isInfinite(gain)) {
+            callback.reject("invalid_gain", "Gain must be finite");
+            return;
+        }
+        waitForConnection(() -> { binder.getPlayback().setNoiseTimer(stop, (float) gain); callback.resolve(null); });
     }
 
     @ReactMethod

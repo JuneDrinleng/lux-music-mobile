@@ -1,13 +1,24 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import SyncLogin from '@/screens/SyncLogin'
+import SyncStatusPage, { SyncStatusRow } from '@/screens/SyncStatus'
+import ServerStep from '@/screens/Login/ServerStep'
+import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
+import { reconnectNow } from '@/plugins/sync/client/client'
+import { enterLocalSpace } from '@/utils/enterLocalSpace'
+import { expiredAccountUsername, showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
+
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Dimensions, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
+import { showLogoutOptions } from '@/utils/accountDataDialogs'
+import AccountPage from '@/screens/Account/AccountPage'
+import AiTokenStatusPage from '@/screens/AiTokenStatus'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
-import ImagePicker from 'react-native-image-crop-picker'
 import {
+  BackButton,
   DOCK_BASE_HEIGHT,
   EmptyState,
   Hairline,
@@ -15,16 +26,18 @@ import {
   MagDialog,
   MagTopBar,
   OptionRow,
+  Rule,
   SectionHeader,
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { confirmDialog, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { clipboardWriteText, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
-import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { SettingsPage } from '@/components/common/SettingsPage'
 import { useSystemGestureInsetBottom } from '@/utils/hooks'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
@@ -33,28 +46,43 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, getUserAvatar, getUserAvatarDataUrl, getUserGender, getUserName, getUserSignature, saveUserAvatar, saveUserGender, saveUserName, saveUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, setSyncMode, clearLuxAuth, clearSyncAuthKey, clearSyncConflictMode, setSyncLoginCompleted } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserName, getUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
+import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
-import { connectLuxServer, connectServer, disconnectServer, pushLuxProfileToServer, syncLuxProfileOnLogin } from '@/plugins/sync'
+import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
+import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
+import { connectLuxServer, connectServer, disconnectServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { useI18n } from '@/lang'
+import { resolveTogetherLayout } from '@/core/together/roomFeed'
 import { useSettingValue } from '@/store/setting/hook'
-import { setLanguage, updateSetting } from '@/core/common'
+import { setLanguage, setNavActiveId, updateSetting } from '@/core/common'
 import { setApiSource } from '@/core/apiSource'
 import { useVersionDownloadProgressUpdated, useVersionInfo } from '@/store/version/hook'
 import { checkUpdate } from '@/core/version'
 import versionState from '@/store/version/state'
+import {
+  getTogetherDebugPanelEnabled,
+  isTogetherDebugPanelBuild,
+  loadTogetherDebugPanelPreference,
+  setTogetherDebugPanelEnabled,
+  subscribeTogetherDebugPanel,
+} from '@/core/together/debugPanelPreference'
+import { buildTogetherDiagnosticText } from '@/core/together/debugTelemetry'
 import { resolveChannel, upcomingStableVersion } from '@/utils/releaseChannel'
-import { pushSyncLoginScreen } from '@/navigation/navigation'
+import { navigations } from '@/navigation'
 import { ResourceCacheDetail, useResourceCache } from './ResourceCacheSection'
 import VersionChangelogDetail from './VersionChangelogDetail'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
+import { fileAccessError } from '@/utils/exportAccess'
 import { exportLuxBackupFile, importLuxBackupFile } from '@/utils/playHistory/backupIO'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { H1_AFTER_TOP, PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { LUX_THEME_IDS, luxThemeRegistry, type LuxColors, type LuxThemeId } from '@/theme/luxTokens'
 import { STATS_PAGE_STYLES, type StatsPageStyle } from '@/utils/playHistory/statsPageStyle'
-import { useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
+import { MEMORIES_LAYOUTS, type MemoriesLayout } from '@/utils/memories/layout'
+import { useMemoriesLayoutPreference, useStatsPageStylePreference } from '@/components/stats/useListeningStatsModel'
+import { AdminConsoleLayer } from '@/screens/AdminConsole'
 
 /**
  * Settings group-to-group rhythm (design numbers).
@@ -72,9 +100,8 @@ const languageOptions = [
   { locale: 'en_us', label: 'English' },
 ] as const
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
-const genderOptionValues = ['male', 'female', 'unknown'] as const
 
-export default () => {
+export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } = {}) => {
   const styles = useLuxStyles()
   const { colors, id: luxThemeId, setLuxTheme, mode: luxColorMode } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -95,27 +122,22 @@ export default () => {
   }
   const statusBarHeight = useStatusbarHeight()
   const gestureInsetBottom = useSystemGestureInsetBottom()
-  const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
+  const bottomDockHeight = dockHeight ?? BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   const topPadding = statusBarHeight
-  const detailSceneWidth = Dimensions.get('window').width
-  const settingsMasthead = t('settings_masthead', { version: currentVer })
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
   const backupModeRef = useRef<'export' | 'import'>('export')
-  const profileDetailAnim = useRef(new Animated.Value(0)).current
-  const optionDetailAnim = useRef(new Animated.Value(0)).current
+  const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
+  const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
+  const showTogetherDebugSection = isTogetherDebugPanelBuild()
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
-  const [nicknameDraft, setNicknameDraft] = useState(DEFAULT_USER_NAME)
   const [signature, setSignature] = useState('')
-  const [signatureDraft, setSignatureDraft] = useState('')
-  const [gender, setGender] = useState<typeof genderOptionValues[number]>('unknown')
-  const [isNameModalVisible, setNameModalVisible] = useState(false)
-  const [isSignatureModalVisible, setSignatureModalVisible] = useState(false)
   const [settingsSearchQuery, setSettingsSearchQuery] = useState('')
   const [isSettingsSearchOpen, setSettingsSearchOpen] = useState(false)
   const [isProfileDetailVisible, setProfileDetailVisible] = useState(false)
+  const [aiTokensVisible, setAiTokensVisible] = useState(false)
   const [isManagingApiSources, setIsManagingApiSources] = useState(false)
   const [syncHost, setSyncHostLocal] = useState('')
   const [syncHostHistory, setSyncHostHistoryLocal] = useState<string[]>([])
@@ -128,8 +150,10 @@ export default () => {
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
-  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'gender' | 'player' | 'sync' | 'syncFormat' | 'resourceCache' | 'changelog'>(null)
+  const [activeOptionDetail, setActiveOptionDetail] = useState<null | 'language' | 'theme' | 'statsPageStyle' | 'searchSource' | 'player' | 'togetherLayout' | 'sync' | 'resourceCache' | 'changelog'>(null)
   const { style: statsPageStyle, setStyle: setStatsPageStyle } = useStatsPageStylePreference()
+  const { layout: memoriesLayout, setLayout: setMemoriesLayout } = useMemoriesLayoutPreference()
+  const memoriesLayoutLabel = (id: MemoriesLayout) => t(`setting_memories_layout_${id}`)
   const statsPageStyleLabel = (id: StatsPageStyle) => (
     id == 'replay' ? t('setting_stats_page_style_replay') : t('setting_stats_page_style_magazine')
   )
@@ -147,11 +171,27 @@ export default () => {
     handleGetAppCacheSize,
   } = useResourceCache()
   const defaultSignature = t('me_profile_status')
+  const togetherLayout = resolveTogetherLayout(useSettingValue('together.roomLayout'))
   const activeLangId = useSettingValue('common.langId')
   const searchDefaultSource = useSettingValue('search.defaultSource')
   const activeApiSource = useSettingValue('common.apiSource')
   const isSyncEnabled = useSettingValue('sync.enable')
   const syncStatus = useStatus()
+  const [now, setNow] = useState(Date.now)
+  const [loginRequest, setLoginRequest] = useState<{ host: string, username?: string } | null>(null)
+  const [statusPage, setStatusPage] = useState<SyncStatusModel | null>(null)
+  const [checkingAddress, setCheckingAddress] = useState(false)
+  const statusModel = mapSyncStatus({ enabled: isSyncEnabled, local: !syncHost.trim(), mode: syncMode, status: syncStatus, now })
+  useEffect(() => {
+    if (activeNavId !== 'nav_setting' || (!isSyncEnabled && !statusPage)) return
+    // Display clock only; the socket owns every reconnect and retry deadline.
+    setNow(Date.now())
+    const timer = setInterval(() => { setNow(Date.now()) }, 1000)
+    return () => { clearInterval(timer) }
+  }, [isSyncEnabled, statusPage, activeNavId])
+  useEffect(() => {
+    if (syncStatus.status) setStatusPage(null)
+  }, [syncStatus.status])
   const userApiList = useUserApiList()
   const versionInfo = useVersionInfo()
   const releaseChannelSetting = useSettingValue('common.releaseChannel')
@@ -173,21 +213,24 @@ export default () => {
     { value: 'wy', label: t('source_real_wy') },
     { value: 'mg', label: t('source_real_mg') },
   ] as const, [t])
-  const genderOptions = useMemo(() => [
-    { value: 'male', label: t('setting_profile_gender_male') },
-    { value: 'female', label: t('setting_profile_gender_female') },
-    { value: 'unknown', label: t('setting_profile_gender_unknown') },
-  ] as const, [t])
   useEffect(() => {
     void getSyncMode().then(setSyncModeLocal)
+    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
+    const refreshHost = () => { void getSyncHost().then(host => { setSyncHostLocal(host ?? '') }) }
+    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode); refreshHost() }
+    global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
+    global.app_event.on('focus', refreshHost)
+    return () => {
+      global.app_event.off('syncModeUpdated', handleSyncModeUpdated)
+      global.app_event.off('focus', refreshHost)
+    }
   }, [])
+  const reloginUsername = expiredAccountUsername(syncHost) ?? luxUsername
+  const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
   const activeSearchSourceLabel = useMemo(() => {
     return searchSourceOptions.find(item => item.value === (searchDefaultSource ?? 'all'))?.label ?? t('setting_search_source_all')
   }, [searchDefaultSource, searchSourceOptions, t])
-  const activeGenderLabel = useMemo(() => {
-    return genderOptions.find(item => item.value === gender)?.label ?? t('setting_profile_gender_unknown')
-  }, [gender, genderOptions, t])
   const activeApiSourceLabel = useMemo(() => {
     const builtin = apiSourceInfo.find(api => api.id === activeApiSource)
     if (builtin) {
@@ -202,15 +245,17 @@ export default () => {
     if (!isSyncEnabled) return t('sync_status_disabled')
     if (syncStatus.status) return t('setting_sync_status_enabled')
     switch (syncStatus.message) {
+      case SYNC_CODE.luxSessionExpired:
+        return t('sync_lux_session_expired_title')
       case SYNC_CODE.missingAuthCode:
       case SYNC_CODE.authFailed:
-        return t('setting_sync_code_fail')
+        return t(syncMode == 'lux' ? 'sync_lux_session_expired_title' : 'setting_sync_code_fail')
       case SYNC_CODE.msgBlockedIp:
         return t('setting_sync_code_blocked_ip')
       default:
         return syncStatus.message || t('sync_status_disabled')
     }
-  }, [isSyncEnabled, syncStatus, t])
+  }, [isSyncEnabled, syncStatus, syncMode, t])
   const aboutStatusText = versionInfo.waitStable
     ? t('version_wait_stable', {
       current: versionInfo.version,
@@ -269,13 +314,11 @@ export default () => {
       if (isUnmounted) return
       const value = name ?? DEFAULT_USER_NAME
       setNickname(value)
-      setNicknameDraft(value)
     })
 
     const handleNameUpdate = (name: string) => {
       const value = name.trim() ? name : DEFAULT_USER_NAME
       setNickname(value)
-      setNicknameDraft(value)
     }
     global.app_event.on('userNameUpdated', handleNameUpdate)
 
@@ -290,13 +333,11 @@ export default () => {
       if (isUnmounted) return
       const signatureValue = value?.trim() ?? ''
       setSignature(signatureValue)
-      setSignatureDraft(signatureValue || defaultSignature)
     })
 
     const handleSignatureUpdate = (value: string) => {
       const signatureValue = value.trim()
       setSignature(signatureValue)
-      setSignatureDraft(signatureValue || defaultSignature)
     }
     global.app_event.on('userSignatureUpdated', handleSignatureUpdate)
 
@@ -305,23 +346,6 @@ export default () => {
       global.app_event.off('userSignatureUpdated', handleSignatureUpdate)
     }
   }, [defaultSignature])
-  useEffect(() => {
-    let isUnmounted = false
-    void getUserGender().then((value) => {
-      if (isUnmounted) return
-      setGender(value ?? 'unknown')
-    })
-
-    const handleGenderUpdate = (value: typeof genderOptionValues[number]) => {
-      setGender(value)
-    }
-    global.app_event.on('userGenderUpdated', handleGenderUpdate)
-
-    return () => {
-      isUnmounted = true
-      global.app_event.off('userGenderUpdated', handleGenderUpdate)
-    }
-  }, [])
   useEffect(() => {
     const handleSettingsSearchStateUpdated = (payload: { keyword: string }) => {
       setSettingsSearchQuery(payload.keyword)
@@ -374,6 +398,8 @@ export default () => {
     t('setting_lux_theme_lavender'),
     t('setting_lux_theme_oat_milk'),
     t('setting_lux_theme_ink_night'),
+    t('setting_memories_layout'),
+    ...MEMORIES_LAYOUTS.map(memoriesLayoutLabel),
     t('setting_stats_page_style'),
     t('setting_stats_page_style_magazine'),
     t('setting_stats_page_style_replay'),
@@ -386,14 +412,22 @@ export default () => {
     activeSearchSourceLabel,
     ...searchSourceOptions.map((item) => item.label),
     t('setting_player'),
+    t('audio_effects_title'),
+    t('audio_effects_entry_description'),
+    t('together_layout'),
+    t('together_layout_6A'),
+    t('together_layout_6B'),
     t('setting_basic_source'),
     activeApiSourceLabel,
   )
   const showDataSection = matchesSettingsSearch(
+    t('ai_tokens_title'),
+    t('ai_tokens_entry_subtitle'),
     t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
     t('setting_sync_host_title'),
+    t('sync_state_address_format'),
     t('setting_sync_format'),
     t('setting_sync_clear_conflict_mode'),
     t('setting_sync_clear_conflict_mode_desc'),
@@ -406,6 +440,17 @@ export default () => {
     t('setting_export_data_desc'),
     t('setting_import_data'),
     t('setting_import_data_desc'),
+    t('admin_console_entry_title'),
+    t('admin_console_entry_subtitle'),
+    t('together_debug_panel_toggle'),
+    t('together_debug_panel_toggle_desc'),
+    t('together_readiness_copy_settings'),
+    t('setting_debug_section'),
+  )
+  const showTogetherDebugSettingsSection = showTogetherDebugSection && matchesSettingsSearch(
+    t('setting_debug_section'),
+    t('together_debug_panel_toggle'),
+    t('together_debug_panel_toggle_desc'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -423,7 +468,6 @@ export default () => {
     releaseChannelLabel,
     currentVersionLabel,
   )
-  const showAccountSection = !normalizedSettingsSearchQuery
   const showProfileHero = matchesSettingsSearch(
     nickname,
     signature,
@@ -433,35 +477,18 @@ export default () => {
   const hasSettingSearchResults = showAppearanceSection ||
     showSearchAndPlayerSection ||
     showDataSection ||
-    showAboutSection ||
-    showAccountSection
-  const profileDetailTranslateX = useMemo(() => profileDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneWidth, profileDetailAnim])
-  const profileDetailOpacity = useMemo(() => profileDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  }), [profileDetailAnim])
-  const optionDetailTranslateX = useMemo(() => optionDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneWidth, optionDetailAnim])
-  const optionDetailOpacity = useMemo(() => optionDetailAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  }), [optionDetailAnim])
+    showTogetherDebugSettingsSection ||
+    showAboutSection
   const optionDetailTitle = (() => {
     switch (activeOptionDetail) {
       case 'language': return t('setting_basic_lang')
       case 'theme': return t('setting_lux_theme')
       case 'statsPageStyle': return t('setting_stats_page_style')
       case 'searchSource': return t('setting_search_source')
-      case 'gender': return t('setting_profile_gender')
+      case 'togetherLayout': return t('together_layout')
       case 'player': return t('setting_custom_source_title')
       case 'sync': return t('setting_sync')
-      case 'syncFormat': return t('setting_sync_format')
-      case 'resourceCache': return t('setting_cache_management')
+      case 'resourceCache': return t('download_storage_title')
       case 'changelog': return t('version_about_update_title')
       default: return ''
     }
@@ -474,33 +501,55 @@ export default () => {
     return `${avatarUrl}${avatarUrl.includes('?') ? '&' : '?'}v=${avatarVersion}`
   }, [avatarUrl, avatarVersion])
 
+
+  const handleOpenAdminConsole = useCallback(() => {
+    setAdminConsoleVisible(true)
+  }, [])
+  const handleCloseAdminConsole = useCallback(() => {
+    setAdminConsoleVisible(false)
+  }, [])
   useEffect(() => {
-    Animated.timing(profileDetailAnim, {
-      toValue: isProfileDetailVisible ? 1 : 0,
-      duration: isProfileDetailVisible ? 248 : 220,
-      easing: isProfileDetailVisible
-        ? Easing.bezier(0.22, 0.84, 0.22, 1)
-        : Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [isProfileDetailVisible, profileDetailAnim])
-  useEffect(() => {
-    Animated.timing(optionDetailAnim, {
-      toValue: activeOptionDetail ? 1 : 0,
-      duration: activeOptionDetail ? 248 : 220,
-      easing: activeOptionDetail
-        ? Easing.bezier(0.22, 0.84, 0.22, 1)
-        : Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start()
-  }, [activeOptionDetail, optionDetailAnim])
+    void loadTogetherDebugPanelPreference()
+    return subscribeTogetherDebugPanel(setTogetherDebugPanelEnabledState)
+  }, [])
+  const handleToggleTogetherDebugPanel = useCallback(() => {
+    const next = !togetherDebugPanelEnabled
+    void setTogetherDebugPanelEnabled(next).then(() => {
+      toast(next ? t('together_debug_toggle_on') : t('together_debug_toggle_off'), 'long')
+    })
+  }, [togetherDebugPanelEnabled, t])
+  const handleCopyTogetherDiagnostics = useCallback(() => {
+    void buildTogetherDiagnosticText().then((text) => {
+      clipboardWriteText(text)
+      toast(t('together_debug_copied'))
+    })
+  }, [t])
   useEffect(() => {
     if (activeOptionDetail !== 'sync') return
-    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
+    void reloadSyncHostFromStorage().then(host => { setSyncHostLocal(host ?? '') })
     void getSyncHostHistory().then(history => { setSyncHostHistoryLocal([...history]) })
-  }, [activeOptionDetail])
+    void loadSyncLoginFormSnapshot(syncMode).then(snapshot => {
+      if (snapshot.host) setSyncHostLocal(snapshot.host)
+      if (snapshot.luxUsername) setLuxUsername(snapshot.luxUsername)
+      setLuxPassword('')
+      if (snapshot.lxAuthCode) setAuthCode(snapshot.lxAuthCode)
+    })
+  }, [activeOptionDetail, syncMode])
 
   useEffect(() => {
+    const host = syncHost.trim()
+    if (!host) return
+    void findLuxAuthForHost(host).then(auth => {
+      if (auth?.user?.username) setLuxUsername(auth.user.username)
+    })
+  }, [syncHost])
+
+  useEffect(() => {
+    if (statusModel?.kind === 'expired' || syncStatus.message == SYNC_CODE.luxSessionExpired || (syncMode == 'lux' && (syncStatus.message == SYNC_CODE.authFailed || syncStatus.message == SYNC_CODE.missingAuthCode))) {
+      setAuthCodeModalVisible(false)
+      void showSessionExpiredDialog(syncHost)
+      return
+    }
     switch (syncStatus.message) {
       case SYNC_CODE.authFailed:
         toast(t('setting_sync_code_fail'))
@@ -513,13 +562,13 @@ export default () => {
       default:
         break
     }
-  }, [syncStatus.message, t])
+  }, [syncStatus.message, statusModel?.kind, syncMode, syncHost, t])
 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
   }
   const handleOpenSyncHostModal = () => {
-    setSyncHostDraft('')
+    setSyncHostDraft(syncHost)
     setSyncHostModalVisible(true)
   }
   const handleCloseSyncHostModal = () => {
@@ -550,9 +599,13 @@ export default () => {
     setSyncMessage('')
     setAuthCodeModalVisible(false)
   }, [])
-  const handleSetCode = useCallback(() => {
+  const handleSetCode = useCallback(async() => {
+    await rememberSyncLoginForm({
+      host: syncHost,
+      mode: 'lx',
+      lxAuthCode: authCode,
+    })
     void connectServer(syncHost, authCode)
-    setAuthCode('')
     setAuthCodeModalVisible(false)
   }, [syncHost, authCode])
   const handleCloseAuthCodeModal = () => {
@@ -564,17 +617,26 @@ export default () => {
   }
   const handleLuxLogin = useCallback(() => {
     const username = luxUsername.trim()
-    if (!syncHost || !username || !luxPassword) {
-      toast(t('setting_sync_lux_login_missing_tip'), 'long')
-      return
-    }
-    updateSetting({ 'sync.enable': true })
-    void connectLuxServer(syncHost, username, luxPassword).then(() => {
-      void syncLuxProfileOnLogin(syncHost).catch(() => null)
-      setLuxLoginModalVisible(false)
-      setLuxPassword('')
-    }).catch((err: any) => {
-      toast(String(err?.message ?? err), 'long')
+    void findLuxAuthForHost(syncHost).then(savedLux => {
+      const canUseSavedLux = canReuseLuxSession(savedLux, username)
+      if (!syncHost || !username || (!luxPassword && !canUseSavedLux)) {
+        toast(t('setting_sync_lux_login_missing_tip'), 'long')
+        return
+      }
+      updateSetting({ 'sync.enable': true })
+      void connectLuxServer(syncHost, username, luxPassword || undefined).then(async() => {
+        await rememberSyncLoginForm({
+          host: syncHost,
+          mode: 'lux',
+          luxUsername: username,
+        })
+        void syncLuxProfileOnLogin(syncHost).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
+        setLuxLoginModalVisible(false)
+        setLuxPassword('')
+      }).catch((err: any) => {
+        if (err?.message == SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(syncHost)
+        else toast(String(err?.message ?? err), 'long')
+      })
     })
   }, [syncHost, luxUsername, luxPassword, t])
   const handleSelectSyncHost = (host: string) => {
@@ -611,62 +673,6 @@ export default () => {
   const handleToggleSyncManage = () => {
     setIsManagingSyncHosts(prev => !prev)
   }
-  const handlePickAvatar = () => {
-    void ImagePicker.openPicker({
-      width: 400,
-      height: 400,
-      cropping: true,
-      cropperCircleOverlay: true,
-      mediaType: 'photo',
-    }).then(image => {
-      void saveUserAvatar(image.path).then(savedPath => {
-        global.app_event.userAvatarUpdated(savedPath)
-        void getUserAvatarDataUrl().then(async avatar => pushLuxProfileToServer({ avatar })).catch(() => null)
-      })
-    }).catch((err: any) => {
-      if (err?.code !== 'E_PICKER_CANCELLED') toast(String(err?.message ?? err), 'long')
-    })
-  }
-  const handleShowNameModal = () => {
-    setNicknameDraft(nickname)
-    setNameModalVisible(true)
-  }
-  const handleCloseNameModal = () => {
-    setNicknameDraft(nickname)
-    setNameModalVisible(false)
-  }
-  const handleSaveName = () => {
-    const draft = nicknameDraft.trim()
-    const current = nickname.trim()
-    let newName = DEFAULT_USER_NAME
-    if (current) newName = current
-    if (draft) newName = draft
-    void saveUserName(newName).then(() => {
-      setNickname(newName)
-      global.app_event.userNameUpdated(newName)
-      void pushLuxProfileToServer({ displayName: newName }).catch(() => null)
-      setNameModalVisible(false)
-    })
-  }
-  const handleShowSignatureModal = () => {
-    setSignatureDraft(signature || defaultSignature)
-    setSignatureModalVisible(true)
-  }
-  const handleCloseSignatureModal = () => {
-    setSignatureDraft(signature || defaultSignature)
-    setSignatureModalVisible(false)
-  }
-  const handleSaveSignature = () => {
-    const newSignature = signatureDraft.trim().substring(0, 140)
-    const saveValue = newSignature && newSignature != defaultSignature ? newSignature : ''
-    void saveUserSignature(saveValue || null).then(() => {
-      setSignature(saveValue)
-      setSignatureDraft(saveValue || defaultSignature)
-      global.app_event.userSignatureUpdated(saveValue)
-      void pushLuxProfileToServer({ signature: saveValue }).catch(() => null)
-      setSignatureModalVisible(false)
-    })
-  }
   const handleOpenLanguageDetail = () => {
     setActiveOptionDetail('language')
   }
@@ -679,23 +685,16 @@ export default () => {
   const handleOpenSearchSourceDetail = () => {
     setActiveOptionDetail('searchSource')
   }
-  const handleOpenGenderDetail = () => {
-    setActiveOptionDetail('gender')
-  }
   const handleOpenPlayerDetail = () => {
     setActiveOptionDetail('player')
   }
   const handleOpenSyncDetail = () => {
     setActiveOptionDetail('sync')
   }
-  const handleOpenSyncFormatDetail = () => {
-    setActiveOptionDetail('syncFormat')
-  }
   const handleSelectSyncFormat = (value: string) => {
     const mode = value == 'lux' ? 'lux' : 'lx'
     void setSyncMode(mode)
     setSyncModeLocal(mode)
-    setActiveOptionDetail(null)
     if (mode == 'lux' && syncHost) setLuxLoginModalVisible(true)
   }
   const handleSelectApiSource = (id: string) => {
@@ -729,41 +728,17 @@ export default () => {
     updateSetting({ 'search.defaultSource': source })
     setActiveOptionDetail(null)
   }
-  const handleSelectGender = (nextGender: typeof genderOptionValues[number]) => {
-    void saveUserGender(nextGender).then(() => {
-      setGender(nextGender)
-      global.app_event.userGenderUpdated(nextGender)
-      void pushLuxProfileToServer({ gender: nextGender }).catch(() => null)
-      setActiveOptionDetail(null)
-    })
-  }
   const handleLogoutSyncAccount = useCallback(async() => {
-    const confirmed = await confirmDialog({
-      title: t('setting_sync_logout_title'),
-      message: t('setting_sync_logout_message'),
-      cancelButtonText: t('cancel'),
-      confirmButtonText: t('setting_sync_logout_confirm'),
-      eyebrow: t('mag_dialog_eyebrow_account_logout'),
-      eyebrowDanger: true,
-      confirmDanger: true,
+    let loggedOut = false
+    await showLogoutOptions(nickname || luxUsername, syncHost, async(remove) => {
+      await rememberSyncLoginForm({ host: syncHost, mode: syncMode, luxUsername, lxAuthCode: authCode })
+      await applySyncAccountLogout(remove)
+      setLuxPassword('')
+      setAuthCode('')
+      loggedOut = true
     })
-    if (!confirmed) return
-
-    updateSetting({ 'sync.enable': false })
-    await Promise.all([
-      disconnectServer(),
-      clearLuxAuth(),
-      clearSyncAuthKey(),
-      clearSyncConflictMode(),
-      saveSyncHost(''),
-      setSyncLoginCompleted(false),
-    ])
-    setSyncHostLocal('')
-    setLuxUsername('')
-    setLuxPassword('')
-    setAuthCode('')
-    await pushSyncLoginScreen()
-  }, [t])
+    if (loggedOut) await navigations.pushHomeScreen()
+  }, [authCode, luxUsername, nickname, syncHost, syncMode])
   const handleClearSyncConflictMode = useCallback(async() => {
     await clearSyncConflictMode()
     toast(t('setting_sync_clear_conflict_mode_success'))
@@ -783,6 +758,7 @@ export default () => {
     backupPathRef.current?.show({
       title: t('setting_export_data_pick'),
       dirOnly: true,
+      forExport: true,
       isPersist: true,
     })
   }, [t])
@@ -797,7 +773,7 @@ export default () => {
     if (backupModeRef.current == 'export') {
       void exportLuxBackupFile(path).then(file => {
         toast(t('setting_export_data_success', { path: file }))
-      }).catch(() => { toast(t('setting_export_data_fail')) })
+      }).catch((err: unknown) => { toast(t('setting_export_data_fail_reason', { reason: fileAccessError(err) }), 'long') })
       return
     }
     void importLuxBackupFile(path).then(result => {
@@ -836,38 +812,6 @@ export default () => {
     setProfileDetailVisible(false)
   }
 
-  useBackHandler(() => {
-    if (isNameModalVisible) {
-      handleCloseNameModal()
-      return true
-    }
-    if (isSignatureModalVisible) {
-      handleCloseSignatureModal()
-      return true
-    }
-    if (isSyncHostModalVisible) {
-      handleCloseSyncHostModal()
-      return true
-    }
-    if (isAuthCodeModalVisible) {
-      handleCloseAuthCodeModal()
-      return true
-    }
-    if (isLuxLoginModalVisible) {
-      handleCloseLuxLoginModal()
-      return true
-    }
-    if (activeOptionDetail) {
-      handleCloseOptionDetail()
-      return true
-    }
-    if (isProfileDetailVisible) {
-      handleCloseProfileDetail()
-      return true
-    }
-    return false
-  })
-
   useEffect(() => {
     global.app_event.on('openSettingsProfileDetail', handleOpenProfileDetail)
     return () => {
@@ -882,8 +826,13 @@ export default () => {
     if (!onSettings) {
       setActiveOptionDetail(null)
       setProfileDetailVisible(false)
+      setAiTokensVisible(false)
       setIsManagingApiSources(false)
       setIsManagingSyncHosts(false)
+      setAdminConsoleVisible(false)
+      setStatusPage(null)
+      setCheckingAddress(false)
+      setLoginRequest(null)
       wasOnSettingsRef.current = false
       return
     }
@@ -905,7 +854,7 @@ export default () => {
         overScrollMode="never"
       >
         <MagTopBar
-          masthead={settingsMasthead}
+          leading={<BackButton compact onPress={() => { setNavActiveId('nav_search') }} accessibilityLabel={t('back')} />}
           trailing={
             <IconButton
               name="magnify"
@@ -941,7 +890,12 @@ export default () => {
             </View>
             )
           : null}
-        <Text size={magType.h1.size} color={r.display} style={styles.pageTitle}>{t('nav_setting')}</Text>
+        <Text size={11} color={r.eyebrow} style={styles.statusEyebrow}>{t('sync_state_settings_eyebrow')}</Text>
+        <Text size={32} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
+        {statusModel ? <SyncStatusRow model={statusModel} name={nickname} host={syncHost} now={now} onPress={() => {
+          if (statusModel.route === 'sync') handleOpenSyncDetail()
+          else setStatusPage(statusModel)
+        }} /> : null}
 
         {showProfileHero
           ? (
@@ -962,7 +916,7 @@ export default () => {
               <SectionHeader title={t('setting_appearance')} meta={t('settings_meta_appearance')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="translate" iconBg={r.iconWrap.orange} title={t('setting_basic_lang')} subtitle={activeLanguageLabel} onPress={handleOpenLanguageDetail} />
               <SettingRow icon="palette-outline" iconBg={r.iconWrap.orange} title={t('setting_lux_theme')} subtitle={luxThemeLabel(luxThemeId)} onPress={handleOpenThemeDetail} />
-              <SettingRow icon="newspaper-variant-outline" iconBg={r.iconWrap.orange} title={t('setting_stats_page_style')} subtitle={statsPageStyleLabel(statsPageStyle)} onPress={handleOpenStatsPageStyleDetail} last />
+              <SettingRow icon="newspaper-variant-outline" iconBg={r.iconWrap.orange} title={t('setting_stats_page_style')} subtitle={`${memoriesLayoutLabel(memoriesLayout)} · ${statsPageStyleLabel(statsPageStyle)}`} onPress={handleOpenStatsPageStyleDetail} last />
             </View>
             )
           : null}
@@ -972,7 +926,9 @@ export default () => {
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_search_and_play')} meta={t('settings_meta_search_play')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="text-search" iconBg={r.iconWrap.green} title={t('setting_search_source')} subtitle={activeSearchSourceLabel} onPress={handleOpenSearchSourceDetail} />
-              <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} last />
+              <SettingRow icon="equalizer" iconBg={r.iconWrap.green} title={t('audio_effects_title')} subtitle={t('audio_effects_entry_description')} onPress={() => { global.app_event.openAudioEffects() }} />
+              <SettingRow icon="puzzle-outline" iconBg={r.iconWrap.green} title={t('setting_basic_source')} subtitle={activeApiSourceLabel} onPress={handleOpenPlayerDetail} />
+              <SettingRow icon="account-multiple-outline" iconBg={r.iconWrap.green} title={t('together_layout')} subtitle={togetherLayout} onPress={() => { setActiveOptionDetail('togetherLayout') }} last />
             </View>
             )
           : null}
@@ -981,12 +937,68 @@ export default () => {
           ? (
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('setting_sync_host_title')} subtitle={activeSyncStatusLabel} onPress={handleOpenSyncDetail} />
-              <SettingRow icon="swap-horizontal" iconBg={r.iconWrap.purple} title={t('setting_sync_format')} subtitle={syncMode == 'lux' ? 'lux music' : 'lx music'} onPress={handleOpenSyncFormatDetail} />
+              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={handleOpenSyncDetail} />
+              <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
+              {showAdminConsoleEntry
+                ? (
+                  <SettingRow
+                    icon="shield-account-outline"
+                    iconBg={r.iconWrap.purple}
+                    title={t('admin_console_entry_title')}
+                    subtitle={t('admin_console_entry_subtitle')}
+                    onPress={handleOpenAdminConsole}
+                  />
+                  )
+                : null}
+              {showTogetherDebugSection
+                ? (
+                  <>
+                    <SettingRow
+                      icon="speedometer"
+                      iconBg={r.iconWrap.purple}
+                      title={t('together_debug_panel_toggle')}
+                      subtitle={t('together_debug_panel_toggle_desc')}
+                      value={togetherDebugPanelEnabled ? t('together_debug_on') : t('together_debug_off')}
+                      onPress={handleToggleTogetherDebugPanel}
+                    />
+                    <SettingRow
+                      icon="clipboard-text-outline"
+                      iconBg={r.iconWrap.purple}
+                      title={t('together_readiness_copy_settings')}
+                      subtitle={t('setting_debug_section_meta')}
+                      onPress={handleCopyTogetherDiagnostics}
+                    />
+                  </>
+                  )
+                : null}
               <SettingRow icon="source-branch-remove" iconBg={r.iconWrap.purple} title={t('setting_sync_clear_conflict_mode')} subtitle={t('setting_sync_clear_conflict_mode_desc')} onPress={() => { void handleClearSyncConflictMode() }} />
               <SettingRow icon="broom" iconBg={r.iconWrap.purple} title={t('setting_cache_management')} subtitle={resourceCacheSizeLabel} onPress={handleOpenResourceCacheDetail} />
               <SettingRow icon="database-export-outline" iconBg={r.iconWrap.purple} title={t('setting_export_data')} subtitle={t('setting_export_data_desc')} onPress={handleExportData} />
               <SettingRow icon="database-import-outline" iconBg={r.iconWrap.purple} title={t('setting_import_data')} subtitle={t('setting_import_data_desc')} onPress={handleImportData} last />
+            </View>
+            )
+          : null}
+
+        {showTogetherDebugSettingsSection
+          ? (
+            <View style={styles.sectionBlock}>
+              <SectionHeader title={t('setting_debug_section')} meta={t('setting_debug_section_meta')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
+              <SettingRow
+                icon="speedometer"
+                iconBg={r.iconWrap.blue}
+                title={t('together_debug_panel_toggle')}
+                subtitle={t('together_debug_panel_toggle_desc')}
+                value={togetherDebugPanelEnabled ? t('together_debug_on') : t('together_debug_off')}
+                onPress={handleToggleTogetherDebugPanel}
+              />
+              <SettingRow
+                icon="clipboard-text-outline"
+                iconBg={r.iconWrap.blue}
+                title={t('together_readiness_copy_settings')}
+                subtitle={t('setting_debug_section_meta')}
+                onPress={handleCopyTogetherDiagnostics}
+                last
+              />
             </View>
             )
           : null}
@@ -1002,23 +1014,6 @@ export default () => {
             )
           : null}
 
-        {showAccountSection
-          ? (
-            <View style={styles.sectionBlock}>
-              <SectionHeader title={t('setting_account')} meta={t('settings_meta_account')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              <SettingRow
-                icon="logout"
-                iconBg={r.iconWrap.red}
-                title={t('setting_sync_logout_title')}
-                subtitle={t('setting_sync_logout_desc')}
-                onPress={handleLogoutSyncAccount}
-                danger
-                last
-              />
-            </View>
-            )
-          : null}
-
         {!hasSettingSearchResults
           ? (
             <EmptyState
@@ -1029,62 +1024,23 @@ export default () => {
           : null}
 
       </ScrollView>
-      <Animated.View
-        pointerEvents={isProfileDetailVisible ? 'auto' : 'none'}
-        style={[
-          styles.profileDetailLayer,
-          {
-            opacity: profileDetailOpacity,
-            transform: [{ translateX: profileDetailTranslateX }],
-            elevation: isProfileDetailVisible ? APP_LAYER_INDEX.controls + 4 : 0,
-          },
-        ]}
-      >
-        <ScrollView
+      <SettingsPage visible={aiTokensVisible} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
+        {back => <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={back} />}
+      </SettingsPage>
+      <SettingsPage visible={isProfileDetailVisible} onBack={handleCloseProfileDetail} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <AccountPage host={syncHost} lux={syncMode === 'lux'} nickname={nickname} avatar={avatarUrl === DEFAULT_USER_AVATAR ? null : avatarDisplayUrl} onBack={back} onLogout={handleLogoutSyncAccount} onManageData={() => { handleCloseProfileDetail(); handleOpenResourceCacheDetail() }} />}
+      </SettingsPage>
+      <SettingsPage visible={activeOptionDetail != null} onBack={handleCloseOptionDetail} bottomInset={bottomDockHeight}>
+        {back => <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
+          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 }]}
           showsVerticalScrollIndicator={false}
           bounces={false}
           alwaysBounceVertical={false}
           overScrollMode="never"
         >
-          <MagTopBar onBack={handleCloseProfileDetail} />
-          <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{t('setting_profile')}</Text>
-
-          <View style={styles.profileDetailHero}>
-            <Image style={styles.profileDetailAvatar} url={avatarDisplayUrl} resizeMode="contain" />
-            <View style={styles.profileHeroText}>
-              <Text size={22} color={r.display} style={styles.profileDetailName} numberOfLines={1}>{nickname}</Text>
-              <Text size={magType.meta.size} color={r.muted} style={styles.profileDetailSignature} numberOfLines={2}>{signature || defaultSignature}</Text>
-            </View>
-          </View>
-
-          <SettingRow icon="image-outline" iconBg={r.accentSoft} title={t('setting_profile_avatar')} subtitle="JPEG / PNG" onPress={handlePickAvatar} />
-          <SettingRow icon="card-account-details-outline" iconBg={r.accentSoft} title={t('setting_profile_nickname')} subtitle={nickname} onPress={handleShowNameModal} />
-          <SettingRow icon="fountain-pen-tip" iconBg={r.accentSoft} title={t('setting_profile_signature')} subtitle={signature || defaultSignature} onPress={handleShowSignatureModal} />
-          <SettingRow icon="gender-male-female" iconBg={r.accentSoft} title={t('setting_profile_gender')} subtitle={activeGenderLabel} onPress={handleOpenGenderDetail} last />
-        </ScrollView>
-      </Animated.View>
-      <Animated.View
-        pointerEvents={activeOptionDetail ? 'auto' : 'none'}
-        style={[
-          styles.optionDetailLayer,
-          {
-            opacity: optionDetailOpacity,
-            transform: [{ translateX: optionDetailTranslateX }],
-            elevation: activeOptionDetail ? APP_LAYER_INDEX.controls + 5 : 0,
-          },
-        ]}
-      >
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 + bottomDockHeight }]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-        >
-          <MagTopBar onBack={handleCloseOptionDetail} />
+          <MagTopBar onBack={back} />
+          {activeOptionDetail === 'resourceCache' ? <Text size={11} color={r.eyebrow} style={{ marginTop: 6, fontWeight: '700', letterSpacing: 2 }}>{t('download_storage_eyebrow')}</Text> : null}
           <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{optionDetailTitle}</Text>
 
           {activeOptionDetail === 'theme'
@@ -1120,12 +1076,26 @@ export default () => {
             ? (
               <View style={styles.optionList}>
                 <Text size={magType.meta.size} color={r.muted} style={styles.optionLocalNote}>{t('setting_stats_page_style_local_only')}</Text>
-                {STATS_PAGE_STYLES.map((id, index) => (
-                  <OptionRow key={id} label={statsPageStyleLabel(id)} selected={statsPageStyle === id} onPress={() => { setStatsPageStyle(id) }} last={index === STATS_PAGE_STYLES.length - 1} />
-                ))}
+                <View style={styles.statsStyleGroup}>
+                  <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.statsStyleGroupLabel}>{t('setting_memories_layout')}</Text>
+                  {MEMORIES_LAYOUTS.map((id, index) => (
+                    <OptionRow key={id} label={memoriesLayoutLabel(id)} selected={memoriesLayout === id} onPress={() => { setMemoriesLayout(id) }} last={index === MEMORIES_LAYOUTS.length - 1} />
+                  ))}
+                </View>
+                <View style={styles.statsStyleGroup}>
+                  <Rule gapTop={0} style={styles.statsStyleGroupRule} />
+                  <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.statsStyleGroupLabel}>{t('setting_stats_details_style')}</Text>
+                  {STATS_PAGE_STYLES.map((id, index) => (
+                    <OptionRow key={id} label={statsPageStyleLabel(id)} selected={statsPageStyle === id} onPress={() => { setStatsPageStyle(id) }} last={index === STATS_PAGE_STYLES.length - 1} />
+                  ))}
+                </View>
               </View>
               )
             : null}
+
+          {activeOptionDetail === 'togetherLayout' ? <View style={styles.optionList}>
+            {(['6A', '6B'] as const).map((layout, index) => <OptionRow key={layout} label={t(`together_layout_${layout}`)} selected={togetherLayout === layout} onPress={() => { updateSetting({ 'together.roomLayout': layout }) }} last={index === 1} />)}
+          </View> : null}
 
           {activeOptionDetail === 'language'
             ? (
@@ -1153,22 +1123,6 @@ export default () => {
                     selected={(searchDefaultSource ?? 'all') === option.value}
                     onPress={() => { handleSelectSearchSource(option.value) }}
                     last={index === searchSourceOptions.length - 1}
-                  />
-                ))}
-              </View>
-              )
-            : null}
-
-          {activeOptionDetail === 'gender'
-            ? (
-              <View style={styles.optionList}>
-                {genderOptions.map((option, index) => (
-                  <OptionRow
-                    key={option.value}
-                    label={option.label}
-                    selected={gender === option.value}
-                    onPress={() => { handleSelectGender(option.value) }}
-                    last={index === genderOptions.length - 1}
                   />
                 ))}
               </View>
@@ -1251,6 +1205,8 @@ export default () => {
           {activeOptionDetail === 'sync'
             ? (
               <View style={styles.optionList}>
+                <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
+                <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} />
                 {syncHostHistory.map((host, index) => (
                   <View key={host}>
                     <TouchableOpacity style={styles.manageOptionRow} activeOpacity={0.7} onPress={() => { handleSelectSyncHost(host) }} accessibilityRole="button">
@@ -1284,47 +1240,9 @@ export default () => {
               )
             : null}
 
-          {activeOptionDetail === 'syncFormat'
-            ? (
-              <View style={styles.optionList}>
-                <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
-                <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} last />
-              </View>
-              )
-            : null}
 
-        </ScrollView>
-      </Animated.View>
-      <MagDialog
-        visible={isNameModalVisible}
-        onClose={handleCloseNameModal}
-        title={t('setting_profile_nickname_edit')}
-        cancelLabel={t('cancel')}
-        confirmLabel={t('metadata_edit_modal_confirm')}
-        onCancel={handleCloseNameModal}
-        onConfirm={handleSaveName}
-      >
-        <UnderlineInput
-          value={nicknameDraft}
-          onChangeText={setNicknameDraft}
-          placeholder={t('setting_profile_nickname_placeholder')}
-        />
-      </MagDialog>
-      <MagDialog
-        visible={isSignatureModalVisible}
-        onClose={handleCloseSignatureModal}
-        title={t('setting_profile_signature_edit')}
-        cancelLabel={t('cancel')}
-        confirmLabel={t('metadata_edit_modal_confirm')}
-        onCancel={handleCloseSignatureModal}
-        onConfirm={handleSaveSignature}
-      >
-        <UnderlineInput
-          value={signatureDraft}
-          onChangeText={setSignatureDraft}
-          placeholder={t('setting_profile_signature_placeholder')}
-        />
-      </MagDialog>
+        </ScrollView>}
+      </SettingsPage>
       <MagDialog
         visible={isSyncHostModalVisible}
         onClose={handleCloseSyncHostModal}
@@ -1379,6 +1297,44 @@ export default () => {
           secureTextEntry
         />
       </MagDialog>
+      <AdminConsoleLayer
+        visible={isAdminConsoleVisible}
+        onClose={handleCloseAdminConsole}
+        syncHost={syncHost}
+        topPadding={topPadding}
+        bottomDockHeight={bottomDockHeight}
+      />
+      <SettingsPage visible={statusPage != null} onBack={() => { setStatusPage(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <SyncStatusPage model={statusModel ?? statusPage!} host={syncHost} username={reloginUsername || nickname}
+          onBack={back}
+          onHome={() => { setStatusPage(null); setNavActiveId('nav_search') }}
+          onRetry={() => {
+            if (!reconnectNow()) void (syncMode === 'lux' ? connectLuxServer(syncHost) : connectServer(syncHost)).catch(() => {})
+          }}
+          onCheckAddress={() => { setCheckingAddress(true) }}
+          onLogin={() => { setLoginRequest({ host: syncHost, username: reloginUsername || undefined }) }}
+          onLocal={() => {
+            void enterLocalSpace(t('sync_login_local_user_name')).then(async() => {
+              await setSyncMode('lx')
+              setSyncHostLocal('')
+              setStatusPage(null)
+              setNavActiveId('nav_search')
+            }).catch(() => { toast(t('account_logout_failed')) })
+          }}
+        />}
+      </SettingsPage>
+      <SettingsPage visible={checkingAddress} onBack={() => { setCheckingAddress(false) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <ServerStep initialHost={syncHost} showHistory onBack={back} onReady={host => {
+          void saveSyncHost(host).then(async() => {
+            setSyncHostLocal(host)
+            await addSyncHostHistory(host)
+            setLoginRequest({ host })
+          })
+        }} />}
+      </SettingsPage>
+      <SettingsPage visible={loginRequest != null} onBack={() => { setLoginRequest(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
+        {back => <SyncLogin initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
+      </SettingsPage>
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
   )
@@ -1393,6 +1349,14 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     paddingHorizontal: PAGE_GUTTER,
     paddingBottom: 18,
   },
+  syncStatusLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: APP_LAYER_INDEX.controls + 6,
+    elevation: APP_LAYER_INDEX.controls + 6,
+    backgroundColor: colors.bg.app,
+  },
+  statusEyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
+  settingsTitle: { lineHeight: 38, fontWeight: '800' },
   pageTitle: {
     fontWeight: '800',
     letterSpacing: -1,
@@ -1451,6 +1415,17 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   },
   optionLocalNote: {
     marginBottom: 8,
+  },
+  statsStyleGroup: {
+    marginTop: 24,
+  },
+  statsStyleGroupLabel: {
+    fontWeight: magType.eyebrow.weight,
+    letterSpacing: magType.eyebrow.letterSpacing,
+    marginBottom: 8,
+  },
+  statsStyleGroupRule: {
+    marginBottom: 12,
   },
   themeOptionRow: {
     minHeight: 58,

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useRef, useState } from 'react'
 import { View } from 'react-native'
 
 import Image from '@/components/common/Image'
@@ -7,6 +8,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Text from '@/components/common/Text'
 import {
   IconButton,
+  MagMenu,
   MagTopBar,
   PrimaryButton,
   SecondaryButton,
@@ -34,12 +36,15 @@ interface PlaylistDetailHeaderProps {
   secondaryLabel: string
   actionLabel?: string | null
   actionDisabled?: boolean
+  onDownload?: () => void
   onBack: () => void
   onRename?: () => void
   onRemove?: () => void
   onPrimaryPress?: () => void
   onSecondaryPress?: () => void
   onActionPress?: () => void
+  onEditSmartRules?: () => void
+  onDedupe?: () => void
   onToggleSelect?: () => void
 }
 
@@ -57,6 +62,7 @@ export default ({
   secondaryLabel,
   actionLabel,
   actionDisabled = false,
+  onDownload,
   onBack,
   onRename,
   onRemove,
@@ -64,7 +70,12 @@ export default ({
   onSecondaryPress,
   onActionPress,
   onToggleSelect,
+  onDedupe,
+  onEditSmartRules,
 }: PlaylistDetailHeaderProps) => {
+  const moreRef = useRef<View>(null)
+  const [menuVisible, setMenuVisible] = useState(false)
+  const [anchor, setAnchor] = useState({ top: 0, left: 0 })
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -104,10 +115,24 @@ export default ({
                 </>
                 )
               : null}
+            {onDedupe ?? onDownload
+              ? <View ref={moreRef} collapsable={false}>
+                  <IconButton name="dots-vertical" size={22} accessibilityLabel={t('more_actions')} onPress={() => {
+                    moreRef.current?.measureInWindow((x, y, width, height) => {
+                      setAnchor({ top: y + height + 4, left: Math.max(22, x + width - 180) })
+                      setMenuVisible(true)
+                    })
+                  }} />
+                </View>
+              : null}
           </View>
         }
       />
 
+      <MagMenu visible={menuVisible} onClose={() => { setMenuVisible(false) }} anchor={anchor}
+        items={[...(onDownload ? [{ id: 'download', label: t('download_entire_playlist') }] : []), ...(onDedupe ? [{ id: 'dedupe', label: t('playlist_dedupe') }] : []), ...(onEditSmartRules ? [{ id: 'smart', label: t('smart_edit') }] : [])]}
+        onChange={id => { setMenuVisible(false); if (id == 'download') onDownload?.(); else if (id == 'smart') onEditSmartRules?.(); else onDedupe?.() }}
+      />
       <View style={styles.hero}>
         <View style={[styles.cover, { backgroundColor: r.placeholder }]}>
           {cover

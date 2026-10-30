@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react'
 import Lyric, { type Lines } from 'lrc-file-parser'
-// import { getStore, subscribe } from '@/store'
-export type Line = Lines[number]
+import { matchingWords, parseWordLyrics, timedText, type WordSpan } from './lyricWords'
+export type Line = Lines[number] & { words?: WordSpan[], translation?: string, roma?: string }
+type LyricLines = Line[]
 type PlayHook = (line: number, text: string) => void
-type SetLyricHook = (lines: Lines) => void
+type SetLyricHook = (lines: LyricLines) => void
 
 const lrcTools = {
   isInited: false,
   lrc: null as Lyric | null,
   currentLineData: { line: 0, text: '' },
-  currentLines: [] as Lines,
+  currentLines: [] as LyricLines,
   playHooks: [] as PlayHook[],
   setLyricHooks: [] as SetLyricHook[],
   isPlay: false,
   isShowTranslation: false,
   isShowRoma: false,
   lyricText: '',
+  wordText: '',
   translationText: '' as string | null | undefined,
   romaText: '' as string | null | undefined,
   init() {
@@ -24,6 +26,7 @@ const lrcTools = {
     this.lrc = new Lyric({
       onPlay: this.onPlay.bind(this),
       onSetLyric: this.onSetLyric.bind(this),
+      isRemoveBlankLine: false,
       offset: 100, // offset time(ms), default is 150 ms
     })
   },
@@ -34,11 +37,19 @@ const lrcTools = {
     for (const hook of this.playHooks) hook(line, text)
   },
   onSetLyric(lines: Lines) {
-    this.currentLines = lines
+    const words = parseWordLyrics(this.wordText)
+    const translations = new Map(timedText(this.translationText ?? '').map(line => [line.time, line.text]))
+    const romas = new Map(timedText(this.romaText ?? '').map(line => [line.time, line.text]))
+    this.currentLines = lines.map(line => ({
+      ...line,
+      words: matchingWords(line, words.get(line.time)),
+      translation: translations.get(line.time),
+      roma: romas.get(line.time),
+    }))
     this.currentLineData.line = 0
     this.currentLineData.text = ''
     for (const hook of this.playHooks) hook(-1, '')
-    for (const hook of this.setLyricHooks) hook(lines)
+    for (const hook of this.setLyricHooks) hook(this.currentLines)
   },
   addPlayHook(hook: PlayHook) {
     this.playHooks.push(hook)
@@ -67,8 +78,9 @@ export const init = async() => {
   lrcTools.init()
 }
 
-export const setLyric = (lyric: string, translation?: string, romalrc?: string) => {
+export const setLyric = (lyric: string, translation?: string, romalrc?: string, lxlyric?: string | null) => {
   lrcTools.isPlay = false
+  lrcTools.wordText = lxlyric ?? ''
   lrcTools.lyricText = lyric
   lrcTools.translationText = translation
   lrcTools.romaText = romalrc
@@ -123,9 +135,9 @@ export const useLrcPlay = (autoUpdate = true) => {
 
 // on lyric set hook
 export const useLrcSet = () => {
-  const [lines, setLines] = useState<Lines>(lrcTools.currentLines)
+  const [lines, setLines] = useState<LyricLines>(lrcTools.currentLines)
   useEffect(() => {
-    const callback = (lines: Lines) => {
+    const callback = (lines: LyricLines) => {
       setLines(lines)
     }
     lrcTools.addSetLyricHook(callback)
@@ -135,3 +147,6 @@ export const useLrcSet = () => {
   return lines
 }
 
+
+// The same lead/tag offset used by lrc-file-parser's playback clock.
+export const getLyricClockOffset = () => Number(lrcTools.lrc?.tags.offset ?? 0) + 100

@@ -1,5 +1,9 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import SmartPlaylistEditor from './SmartPlaylistEditor'
+import { loadSmartPlaylistRules } from '@/utils/smartPlaylist/store'
+import { refreshSmartPlaylists } from '@/utils/smartPlaylist'
+import { type SmartPlaylistDefinition } from '@/utils/smartPlaylist/model'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -29,9 +33,11 @@ import { demoteOpenPlaylistCoverWork, prioritizePlaylistCovers, setPlaylistCover
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { arrShuffle, confirmDialog, createStyle, toast } from '@/utils/tools'
 import { getSourceTone } from '@/components/search/sourceTone'
+import { PlaylistDownloadSheet } from '@/components/download/PlaylistDownloadSheet'
 import PlaylistDetailHeader, { PlaylistSelectHeader } from './PlaylistDetailHeader'
 import PlaylistDetailSongItem, { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import PlaylistImportPanel from './PlaylistImportPanel'
+import PlaylistDedupeSheet from './PlaylistDedupeSheet'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { usePlaylistDetailData, getOnlinePlaylistDetailKey, getLbCacheKey } from './hooks/usePlaylistDetailData'
 import { useSongDragReorder } from './hooks/useSongDragReorder'
@@ -58,6 +64,20 @@ const PlaylistDetailViewInner = ({
   onClose,
   bottomPadding = 0,
 }: PlaylistDetailViewProps & { detail: PlaylistDetailPayload }) => {
+  const [downloadOpen, setDownloadOpen] = useState(false)
+  const [smartDefinition, setSmartDefinition] = useState<SmartPlaylistDefinition | null>(null)
+  const [editingSmart, setEditingSmart] = useState(false)
+  useEffect(() => {
+    let active = true
+    setSmartDefinition(null)
+    if (detail.type == 'local') {
+      void loadSmartPlaylistRules().then(definitions => {
+        if (active) setSmartDefinition(definitions.find(item => item.playlistId == detail.listId) ?? null)
+      }).catch(() => {})
+      void refreshSmartPlaylists(detail.listId).catch(() => {})
+    }
+    return () => { active = false }
+  }, [detail])
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -113,6 +133,7 @@ const PlaylistDetailViewInner = ({
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
+  const [dedupeSongs, setDedupeSongs] = useState<LX.Music.MusicInfo[] | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selectedMap, setSelectedMap] = useState<Record<string, true>>({})
   const [selectMode, setSelectMode] = useState<'single' | 'range' | 'inverse'>('single')
@@ -137,6 +158,7 @@ const PlaylistDetailViewInner = ({
   }, [detailData.detailSongs])
 
   useEffect(() => {
+    setDedupeSongs(null)
     setSelecting(false)
     setSelectedMap({})
     setSelectMode('single')
@@ -149,6 +171,7 @@ const PlaylistDetailViewInner = ({
     imprt.setImportDrawerVisible(false)
     setSelecting(false)
     setSelectedMap({})
+    setDedupeSongs(null)
     requestClose(() => { onClose?.() })
   }, [onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef, requestClose])
 
@@ -505,7 +528,9 @@ const PlaylistDetailViewInner = ({
         secondaryLabel={detailData.selectedOnlineOrLeaderboard ? t('playlist_transfer_all') : t('play_shuffle_short')}
         actionLabel={detailData.selectedOnlineOrLeaderboard ? null : detailActionLabel}
         actionDisabled={detailActionDisabled}
+        onDownload={!detailData.detailLoading && detailData.detailSongs.length ? () => { setDownloadOpen(true) } : undefined}
         onBack={handleCloseDetail}
+        onEditSmartRules={smartDefinition ? () => { setEditingSmart(true) } : undefined}
         onRename={handleShowRenameListModal}
         onRemove={handleShowRemoveListModal}
         onPrimaryPress={() => { void playAllSongs(false) }}
@@ -517,15 +542,16 @@ const PlaylistDetailViewInner = ({
           void playAllSongs(true)
         }}
         onActionPress={imprt.handleOpenImportDrawer}
+        onDedupe={canSelect ? () => { setDedupeSongs(JSON.parse(JSON.stringify(detailData.detailSongsRef.current)) as LX.Music.MusicInfo[]) } : undefined}
         onToggleSelect={handleToggleSelectMode}
       />
     )
   }, [
-    selecting, selectedCount, selectTabs, selectMode,
+    selecting, selectedCount, selectTabs, selectMode, smartDefinition,
     detailData.detailHeroCover, detailData.detailHeroMetaText, detailData.detailHeroName,
     detailData.canRenameSelectedList, detailData.selectedOnlineOrLeaderboard,
     detailData.selectedListId, detailData.detailLoading, detailData.detailSongs.length,
-    playlistEyebrow, canSelect,
+    playlistEyebrow, canSelect, detailData.detailSongsRef,
     handleCloseDetail, handleShowPlaylistTransferModal, handleShowRemoveListModal,
     handleShowRenameListModal, imprt.handleOpenImportDrawer, handleToggleSelectMode,
     handleCancelSelect, handleSelectAll, handleSelectModeChange, playAllSongs,
@@ -646,6 +672,12 @@ const PlaylistDetailViewInner = ({
           </View>
           )
         : null}
+      {downloadOpen ? <PlaylistDownloadSheet songs={detailData.detailSongs} playlistId={detailData.selectedDetailCacheKey ?? detailData.detailHeroName} name={detailData.detailHeroName} onClose={() => { setDownloadOpen(false) }} /> : null}
+      {editingSmart && smartDefinition ? <SmartPlaylistEditor initial={{ ...smartDefinition, name: detailData.selectedListInfo?.name ?? smartDefinition.name }} onClose={() => { setEditingSmart(false); void loadSmartPlaylistRules().then(definitions => { setSmartDefinition(definitions.find(item => item.playlistId == smartDefinition.playlistId) ?? null) }).catch(() => {}) }} /> : null}
+      {detailData.selectedListId && dedupeSongs
+        ? <PlaylistDedupeSheet listId={detailData.selectedListId} songs={dedupeSongs}
+            onClose={() => { setDedupeSongs(null) }} onChanged={detailData.loadLocalDetailSongs} />
+        : null}
       {detailData.selectedListId
         ? <PlaylistImportPanel
             visible={imprt.isImportDrawerVisible}
@@ -653,6 +685,8 @@ const PlaylistDetailViewInner = ({
             submitting={imprt.importSubmitting}
             bottomInset={modalBottomInset}
             targetListName={detailData.selectedListInfo?.name}
+            targetListId={detailData.selectedListId}
+            onImported={id => { void detailData.loadLocalDetailSongs(id) }}
             items={imprt.importCandidates}
             selectedMap={imprt.importSelectedMap}
             allSelected={imprt.areAllImportSongsSelected}

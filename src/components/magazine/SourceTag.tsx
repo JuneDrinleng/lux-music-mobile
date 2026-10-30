@@ -11,22 +11,24 @@ import { useLuxTheme } from '@/theme/LuxTheme'
 export const SourceTag = memo(({
   source,
   label,
+  neutral = false,
 }: {
   source: string
   label: string
+  neutral?: boolean
 }) => {
   const { colors } = useLuxTheme()
-  const tone = getSourceTone(source, colors)
+  const tone = neutral ? { text: colors.ink.secondary } : getSourceTone(source, colors)
   return (
     <View style={{
       borderWidth: 1,
       borderColor: tone.text,
       borderRadius: 3,
-      paddingHorizontal: 4,
-      paddingVertical: 1,
+      paddingHorizontal: neutral ? 3 : 4,
+      paddingVertical: neutral ? 0 : 1,
       alignSelf: 'flex-start',
     }}>
-      <Text size={10} color={tone.text} style={{ fontWeight: '700', includeFontPadding: false }}>{label}</Text>
+      <Text size={10} color={tone.text} style={{ fontWeight: '700', includeFontPadding: false, lineHeight: neutral ? 14 : undefined }}>{label}</Text>
     </View>
   )
 })

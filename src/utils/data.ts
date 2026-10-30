@@ -2,12 +2,15 @@
 
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
+import { luxSpaceId, setActiveSpace, storageKey, getActiveSpace, avatarDirectory, type SpaceId } from './dataSpace'
 import { throttle } from './common'
-import { existsFile, extname, mkdir, privateStorageDirectoryPath, readFile, unlink, writeFile } from './fs'
+import { existsFile, extname, mkdir, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
 import { parseMusicUrlRecord, serializeMusicUrlRecord } from './musicUrlCache'
 import defaultUserAvatar from '../../assets/img/DefaultAvatar.png'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import secureCredentials, { refreshTokenServerKey } from './secureCredentials'
+import { migrateLuxCredentials, withoutLuxSecrets } from './secureCredentialMigration'
 import { createCredentialStore } from '@/plugins/sync/client/credentials'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
@@ -34,6 +37,7 @@ const syncHostHistoryPrefix = storageDataPrefix.syncHostHistory
 const syncModePrefix = storageDataPrefix.syncMode
 const luxAuthPrefix = storageDataPrefix.luxAuth
 const syncLoginCompletedPrefix = storageDataPrefix.syncLoginCompleted
+const syncLoginDraftPrefix = storageDataPrefix.syncLoginDraft
 const syncConflictModePrefix = storageDataPrefix.syncConflictMode
 const listPrefix = storageDataPrefix.list
 const dislikeListPrefix = storageDataPrefix.dislikeList
@@ -45,8 +49,7 @@ const userGenderPrefix = storageDataPrefix.userGender
 const openStoragePathPrefix = storageDataPrefix.openStoragePath
 const selectedManagedFolderPrefix = storageDataPrefix.selectedManagedFolder
 
-const userAvatarFileDir = `${privateStorageDirectoryPath}/user`
-const userAvatarFilePrefix = `${userAvatarFileDir}/avatar`
+const userAvatarFilePrefix = (space: SpaceId) => `${avatarDirectory(space)}/avatar`
 const userAvatarLocalExts = ['jpg', 'jpeg', 'png', 'webp', 'bmp'] as const
 const localFileProtocolRxp = /^file:\/\//
 
@@ -55,29 +58,30 @@ export const DEFAULT_USER_NAME = 'Alex Rivera'
 
 const normalizeLocalFilePath = (path: string) => path.replace(localFileProtocolRxp, '')
 const isLocalFilePath = (path: string) => path.startsWith('/') || localFileProtocolRxp.test(path)
-const isPersistedUserAvatarPath = (path: string) => path.startsWith(userAvatarFilePrefix + '.')
-const getPersistedUserAvatarPath = (path: string) => {
+const isPersistedUserAvatarPath = (path: string, space: SpaceId) => path.startsWith(userAvatarFilePrefix(space) + '.')
+const getPersistedUserAvatarPath = (path: string, space: SpaceId) => {
   const targetExt = extname(path).toLowerCase()
-  return `${userAvatarFilePrefix}.${userAvatarLocalExts.includes(targetExt as typeof userAvatarLocalExts[number]) ? targetExt : 'png'}`
+  return `${userAvatarFilePrefix(space)}.${userAvatarLocalExts.includes(targetExt as typeof userAvatarLocalExts[number]) ? targetExt : 'png'}`
 }
-const ensureUserAvatarDir = async() => {
+const ensureUserAvatarDir = async(space: SpaceId) => {
+  const userAvatarFileDir = avatarDirectory(space)
   if (await existsFile(userAvatarFileDir)) return
   await mkdir(userAvatarFileDir)
 }
-const clearPersistedUserAvatarFiles = async(excludePath?: string) => {
+const clearPersistedUserAvatarFiles = async(space: SpaceId, excludePath?: string) => {
   await Promise.all(userAvatarLocalExts.map(async(ext) => {
-    const path = `${userAvatarFilePrefix}.${ext}`
+    const path = `${userAvatarFilePrefix(space)}.${ext}`
     if (path == excludePath || !await existsFile(path)) return
     await unlink(path).catch(() => {})
   }))
 }
-const persistUserAvatarPath = async(path: string) => {
+const persistUserAvatarPath = async(path: string, space: SpaceId) => {
   const sourcePath = normalizeLocalFilePath(path)
-  const targetPath = getPersistedUserAvatarPath(sourcePath)
-  await ensureUserAvatarDir()
-  const avatarData = await readFile(sourcePath, 'base64')
+  const targetPath = getPersistedUserAvatarPath(sourcePath, space)
+  await ensureUserAvatarDir(space)
+  const avatarData = String(await readFile(sourcePath, 'base64'))
   await writeFile(targetPath, avatarData, 'base64')
-  await clearPersistedUserAvatarFiles(targetPath)
+  await clearPersistedUserAvatarFiles(space, targetPath)
   return targetPath
 }
 const getUserAvatarDataUrlMime = (path: string) => {
@@ -101,20 +105,20 @@ const parseUserAvatarDataUrl = (dataUrl: string) => {
   const ext = mime == 'image/jpeg' ? 'jpg' : mime.replace('image/', '')
   return { ext, data: result[2] }
 }
-const resolveUserAvatar = async(path: string | null) => {
+const resolveUserAvatar = async(path: string | null, space: SpaceId, key: string) => {
   if (!path) return null
   if (!isLocalFilePath(path)) return path
 
   const sourcePath = normalizeLocalFilePath(path)
   if (!await existsFile(sourcePath)) {
-    await removeData(userAvatarPrefix)
+    await removeData(key)
     return null
   }
-  if (isPersistedUserAvatarPath(sourcePath)) return sourcePath
+  if (isPersistedUserAvatarPath(sourcePath, space)) return sourcePath
 
   try {
-    const persistedPath = await persistUserAvatarPath(sourcePath)
-    await saveData(userAvatarPrefix, persistedPath)
+    const persistedPath = await persistUserAvatarPath(sourcePath, space)
+    await saveData(key, persistedPath)
     return persistedPath
   } catch (error: any) {
     log.warn('persist user avatar failed:', error?.message ?? error)
@@ -125,18 +129,11 @@ const resolveUserAvatar = async(path: string | null) => {
 // const defaultListKey = listPrefix + 'default'
 // const loveListKey = listPrefix + 'love'
 
-let listPosition: LX.List.ListPositionInfo
-let listPrevSelectId: string
-let listUpdateInfo: LX.List.ListUpdateInfo
-
 let searchSetting: typeof DEFAULT_SETTING['search']
 let songListSetting: typeof DEFAULT_SETTING['songList']
 let leaderboardSetting: typeof DEFAULT_SETTING['leaderboard']
 let searchHistoryList: string[]
 
-const saveListPositionThrottle = throttle(() => {
-  void saveData(listScrollPositionKey, listPosition)
-}, 1000)
 const saveSearchSettingThrottle = throttle(() => {
   void saveData(searchSettingKey, searchSetting)
 }, 1000)
@@ -164,97 +161,53 @@ export const saveUserTheme = async(themes: LX.Theme[]) => {
 }
 
 
-const initPosition = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listPosition ??= await getData(listScrollPositionKey) ?? {}
+// Capture the physical key before awaiting storage; account switches cannot redirect a write.
+const metadataWrites = new Map<string, Promise<void>>()
+const updateListMetadata = async<T>(baseKey: string, fallback: T, update: (value: T) => T) => {
+  const key = storageKey(baseKey)
+  const run = (metadataWrites.get(key) ?? Promise.resolve()).then(async() => {
+    const value = await getData<T>(key) ?? fallback
+    await saveData(key, update(value))
+  })
+  metadataWrites.set(key, run.catch(() => {}))
+  await run
 }
 export const getListPosition = async(id: string): Promise<number> => {
-  await initPosition()
-  return listPosition[id] ?? 0
+  const positions = await getData<LX.List.ListPositionInfo>(listScrollPositionKey) ?? {}
+  return positions[id] ?? 0
 }
 export const saveListPosition = async(id: string, position?: number) => {
-  await initPosition()
-  listPosition[id] = position ?? 0
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => ({ ...value, [id]: position ?? 0 }))
 }
 export const removeListPosition = async(id: string) => {
-  await initPosition()
-  delete listPosition[id]
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => { delete value[id]; return value })
 }
 export const overwriteListPosition = async(ids: string[]) => {
-  await initPosition()
-  const removedIds = []
-  for (const id of Object.keys(listPosition)) {
-    if (ids.includes(id)) continue
-    removedIds.push(id)
-  }
-  for (const id of removedIds) delete listPosition[id]
-  saveListPositionThrottle()
+  await updateListMetadata<LX.List.ListPositionInfo>(listScrollPositionKey, {}, value => Object.fromEntries(Object.entries(value).filter(([id]) => ids.includes(id))))
 }
-
-const saveListPrevSelectIdThrottle = throttle(() => {
-  void saveData(listPrevSelectIdKey, listPrevSelectId)
-}, 200)
 export const getListPrevSelectId = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listPrevSelectId ??= await getData(listPrevSelectIdKey) ?? LIST_IDS.DEFAULT
-  return listPrevSelectId || LIST_IDS.DEFAULT
+  const id = await getData<string>(listPrevSelectIdKey)
+  if (!id) return LIST_IDS.DEFAULT
+  return id
 }
-export const saveListPrevSelectId = (id: string) => {
-  listPrevSelectId = id
-  saveListPrevSelectIdThrottle()
-}
-
-const saveListUpdateInfoThrottle = throttle(() => {
-  void saveData(listUpdateInfoKey, listUpdateInfo)
-}, 1000)
-
-const initListUpdateInfo = async() => {
-  // eslint-disable-next-line require-atomic-updates
-  listUpdateInfo ??= await getData(listUpdateInfoKey) ?? {}
-}
-export const getListUpdateInfo = async() => {
-  await initListUpdateInfo()
-  return listUpdateInfo
-}
-export const saveListUpdateInfo = async(info: LX.List.ListUpdateInfo) => {
-  await initListUpdateInfo()
-  listUpdateInfo = info
-  saveListUpdateInfoThrottle()
-}
+export const saveListPrevSelectId = (id: string) => { void saveData(listPrevSelectIdKey, id) }
+export const getListUpdateInfo = async(): Promise<LX.List.ListUpdateInfo> => await getData(listUpdateInfoKey) ?? {}
+export const saveListUpdateInfo = async(info: LX.List.ListUpdateInfo) => { await saveData(listUpdateInfoKey, info) }
 export const setListAutoUpdate = async(id: string, enable: boolean) => {
-  await initListUpdateInfo()
-  const targetInfo = listUpdateInfo[id] ?? { updateTime: 0, isAutoUpdate: false }
-  targetInfo.isAutoUpdate = enable
-  listUpdateInfo[id] = targetInfo
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => ({
+    ...value, [id]: { ...(value[id] ?? { updateTime: 0 }), isAutoUpdate: enable },
+  }))
 }
 export const setListUpdateTime = async(id: string, time: number) => {
-  await initListUpdateInfo()
-  const targetInfo = listUpdateInfo[id] ?? { updateTime: 0, isAutoUpdate: false }
-  targetInfo.updateTime = time
-  listUpdateInfo[id] = targetInfo
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => ({
+    ...value, [id]: { ...(value[id] ?? { isAutoUpdate: false }), updateTime: time },
+  }))
 }
-// export const setListUpdateInfo = (id, { updateTime, isAutoUpdate }) => {
-//   listUpdateInfo[id] = { updateTime, isAutoUpdate }
-//   saveListUpdateInfo()
-// }
 export const removeListUpdateInfo = async(id: string) => {
-  await initListUpdateInfo()
-  delete listUpdateInfo[id]
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => { delete value[id]; return value })
 }
 export const overwriteListUpdateInfo = async(ids: string[]) => {
-  await initListUpdateInfo()
-  const removedIds = []
-  for (const id of Object.keys(listUpdateInfo)) {
-    if (ids.includes(id)) continue
-    removedIds.push(id)
-  }
-  for (const id of removedIds) delete listUpdateInfo[id]
-  saveListUpdateInfoThrottle()
+  await updateListMetadata<LX.List.ListUpdateInfo>(listUpdateInfoKey, {}, value => Object.fromEntries(Object.entries(value).filter(([id]) => ids.includes(id))))
 }
 
 let ignoreVersionFailTipTime: number | null
@@ -557,12 +510,28 @@ export const setSyncMode = async(mode: LX.Sync.Mode) => {
   await saveData(syncModePrefix, mode)
   global.app_event?.syncModeUpdated(mode)
 }
+let credentialMigration: Promise<void> | undefined
+export const migrateStoredLuxCredentials = async() => {
+  credentialMigration ??= withLuxAuthWrite(async() => migrateLuxCredentials({
+    read: async() => ({ active: await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix), sessions: await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {} }),
+    write: async(active, sessions) => AsyncStorage.multiSet([[luxAuthPrefix, JSON.stringify(active)], [storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]),
+    scrubPasswords: async() => {
+      const raw = await getData(syncLoginDraftPrefix)
+      if (raw) await AsyncStorage.setItem(syncLoginDraftPrefix, JSON.stringify(normalizeSyncLoginDrafts(raw)))
+    },
+    mark: async() => AsyncStorage.setItem('@lux_secure_credentials_v1', '1'),
+    secure: secureCredentials,
+  })).catch(error => { credentialMigration = undefined; throw error })
+  return credentialMigration
+}
 const luxSessions = createCredentialStore<LX.Sync.LuxAuth>({
   read: async() => getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers),
   write: async(sessions) => AsyncStorage.setItem(storageDataPrefix.luxAuthServers, JSON.stringify(sessions)),
   remove: async() => removeData(storageDataPrefix.luxAuthServers),
 })
 export const getLuxAuth = async(serverId?: string) => {
+  await migrateStoredLuxCredentials()
+  await luxAuthWrite
   if (serverId) {
     const session = await luxSessions.get(serverId)
     if (session) return session
@@ -572,13 +541,165 @@ export const getLuxAuth = async(serverId?: string) => {
   if (serverId && active?.serverId && active.serverId != serverId) return null
   return active
 }
+// Serialize all auth mutations, including rotation across different servers.
+let luxAuthWrite: Promise<unknown> = Promise.resolve()
+const withLuxAuthWrite = async <T>(work: () => Promise<T>): Promise<T> => {
+  const next = luxAuthWrite.then(work)
+  luxAuthWrite = next.catch(() => {})
+  return next
+}
 export const setLuxAuth = async(auth: LX.Sync.LuxAuth) => {
-  if (auth.serverId) await luxSessions.set(auth.serverId, auth)
-  await AsyncStorage.setItem(luxAuthPrefix, JSON.stringify(auth))
+  await migrateStoredLuxCredentials()
+  await withLuxAuthWrite(async() => {
+    const input = auth
+    auth = withoutLuxSecrets(auth)
+    const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    const current = sessions[refreshTokenServerKey(auth)] ?? (auth.serverId ? sessions[auth.serverId] : null) ?? active
+    const oldKey = current ? refreshTokenServerKey(current) : null
+    const newKey = refreshTokenServerKey(auth)
+    const rebinding = current?.token === auth.token && current.user.id === auth.user.id && oldKey !== newKey
+    const refreshToken = input.refreshToken ?? (rebinding && oldKey ? await secureCredentials.getRefreshToken(oldKey) : null)
+    if (refreshToken) await secureCredentials.setRefreshToken(newKey, refreshToken)
+    else if (current?.user.id !== auth.user.id || current.token !== auth.token) await secureCredentials.clear(newKey)
+    sessions[newKey] = auth
+    if (auth.serverId) sessions[auth.serverId] = auth
+    await AsyncStorage.multiSet([[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)], [luxAuthPrefix, JSON.stringify(auth)]])
+    if (rebinding && oldKey) await secureCredentials.clear(oldKey)
+  })
+  if (auth.serverId && auth.user?.id) await setActiveSpace(luxSpaceId(auth.serverId, auth.user.id), auth.user.username, auth.serverUrl)
+}
+/** Read under the auth mutation lock so account switches cannot lend another user's refresh token. */
+export const getLuxRefreshToken = async(previous: LX.Sync.LuxAuth) => {
+  await migrateStoredLuxCredentials()
+  return withLuxAuthWrite(async() => {
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
+    if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return null
+    return secureCredentials.getRefreshToken(refreshTokenServerKey(current))
+  })
+}
+export const rotateLuxAuth = async(previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string } & Partial<Pick<LX.Sync.LuxAuth, 'sessionId' | 'accessTokenExpiresAt' | 'user'>>) => {
+  await migrateStoredLuxCredentials()
+  return withLuxAuthWrite(async() => {
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
+    if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return null
+    if (!await secureCredentials.setRefreshToken(refreshTokenServerKey(current), tokens.refreshToken)) return null
+    const next = withoutLuxSecrets({ ...current, ...tokens })
+    sessions[refreshTokenServerKey(next)] = next
+    if (next.serverId && sessions[next.serverId]?.user.id === next.user.id) sessions[next.serverId] = next
+    const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
+    if (active?.token === previous.token && active.user.id === previous.user.id && active.serverId === previous.serverId) writes.push([luxAuthPrefix, JSON.stringify(next)])
+    await AsyncStorage.multiSet(writes)
+    return next
+  })
+}
+export const clearLuxAuthForServer = async(previous: LX.Sync.LuxAuth) => {
+  await migrateStoredLuxCredentials()
+  return withLuxAuthWrite(async() => {
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+    const current = sessions[refreshTokenServerKey(previous)] ?? (previous.serverId ? sessions[previous.serverId] ?? active : active)
+    if (!current || current.token !== previous.token || current.user.id !== previous.user.id || current.serverId !== previous.serverId) return false
+    await secureCredentials.clear(refreshTokenServerKey(current))
+    delete sessions[refreshTokenServerKey(current)]
+    if (previous.serverId && sessions[previous.serverId]?.user.id === previous.user.id) delete sessions[previous.serverId]
+    const writes: Array<[string, string]> = [[storageDataPrefix.luxAuthServers, JSON.stringify(sessions)]]
+    if (active?.token === previous.token && active.serverId === previous.serverId) writes.push([luxAuthPrefix, 'null'])
+    await AsyncStorage.multiSet(writes)
+    return true
+  })
 }
 export const clearLuxAuth = async() => {
-  await Promise.all([removeData(luxAuthPrefix), luxSessions.clear()])
+  await migrateStoredLuxCredentials()
+  return withLuxAuthWrite(async() => {
+    const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers) ?? {}
+    const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+    for (const auth of [...Object.values(sessions), ...(active ? [active] : [])]) await secureCredentials.clear(refreshTokenServerKey(auth))
+    await AsyncStorage.multiRemove([luxAuthPrefix, storageDataPrefix.luxAuthServers])
+  })
 }
+
+export const listLuxAuthSessions = async(): Promise<LX.Sync.LuxAuth[]> => {
+  await migrateStoredLuxCredentials()
+  await luxAuthWrite
+  const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
+  return [...new Map(Object.values(sessions ?? {}).map(auth => [refreshTokenServerKey(auth), auth])).values()]
+}
+
+export const reloadSyncHostFromStorage = async() => {
+  let host = await getData<string>(syncHostPrefix) ?? ''
+  if (typeof host == 'object') host = ''
+  syncHostInfo = host
+  return host
+}
+
+export const getPreferredSyncHost = async() => {
+  const host = (await getSyncHost()).trim()
+  if (host) return host
+  const history = await getSyncHostHistory()
+  return history[0]?.trim() ?? ''
+}
+
+export const hasSavedLxSyncKeys = async() => {
+  const keys = await getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix)
+  if (!keys) return false
+  return Object.values(keys).some(key => !key.luxUserId)
+}
+
+const normalizeSyncHostUrl = (host: string) => host.trim().replace(/\/+$/, '')
+
+export const findLuxAuthForHost = async(host: string): Promise<LX.Sync.LuxAuth | null> => {
+  await migrateStoredLuxCredentials()
+  await luxAuthWrite
+  const normalized = normalizeSyncHostUrl(host)
+  if (!normalized) return null
+  const selected = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  if (selected?.serverUrl && normalizeSyncHostUrl(selected.serverUrl) === normalized) return selected
+  const sessions = await getData<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers)
+  if (sessions) {
+    for (const session of Object.values(sessions)) {
+      if (session.serverUrl && normalizeSyncHostUrl(session.serverUrl) == normalized) return session
+    }
+  }
+  const active = await getData<LX.Sync.LuxAuth | null>(luxAuthPrefix)
+  if (active?.serverUrl && normalizeSyncHostUrl(active.serverUrl) == normalized) return active
+  const storedHost = (await getSyncHost()).trim()
+  if (active?.user?.username && storedHost && normalizeSyncHostUrl(storedHost) == normalized) return active
+  return null
+}
+const normalizeSyncLoginDrafts = (raw: unknown): LX.Sync.LoginDrafts | null => {
+  if (!raw || typeof raw != 'object') return null
+  if ('mode' in raw && 'host' in raw) {
+    const legacy = raw as LX.Sync.LoginDraft
+    if (legacy.mode == 'lux') {
+      return {
+        lux: {
+          host: legacy.host,
+          luxUsername: legacy.luxUsername ?? '',
+        },
+      }
+    }
+    return {
+      lx: {
+        host: legacy.host,
+        lxAuthCode: legacy.lxAuthCode ?? '',
+      },
+    }
+  }
+  const drafts = raw as LX.Sync.LoginDrafts
+  return { ...drafts, ...(drafts.lux ? { lux: { host: drafts.lux.host, luxUsername: drafts.lux.luxUsername } } : {}) }
+}
+
+export const getSyncLoginDrafts = async() => normalizeSyncLoginDrafts(await getData(syncLoginDraftPrefix))
+export const setSyncLoginDrafts = async(drafts: LX.Sync.LoginDrafts) => {
+  await AsyncStorage.setItem(syncLoginDraftPrefix, JSON.stringify(normalizeSyncLoginDrafts(drafts)))
+}
+export const clearSyncLoginDraft = async() => removeData(syncLoginDraftPrefix)
+
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {
   await saveData(syncLoginCompletedPrefix, completed)
@@ -733,35 +854,35 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
   await saveData(userApiPrefix, userApis)
 }
 
-let userAvatar: string | null = ''
+// Capture the space and physical key before any filesystem/storage awaits.
 export const getUserAvatar = async() => {
-  if (userAvatar !== '') return userAvatar
-  // eslint-disable-next-line require-atomic-updates
-  userAvatar = await resolveUserAvatar(await getData<string>(userAvatarPrefix) ?? null)
-  return userAvatar
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
+  return resolveUserAvatar(await getData<string>(key) ?? null, space, key)
 }
 export const saveUserAvatar = async(path: string | null) => {
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
   if (path) {
-    userAvatar = isLocalFilePath(path) ? await persistUserAvatarPath(path) : path
-    await saveData(userAvatarPrefix, userAvatar)
-    return userAvatar
-  } else {
-    userAvatar = null
-    await clearPersistedUserAvatarFiles()
-    await removeData(userAvatarPrefix)
-    return userAvatar
+    const avatar = isLocalFilePath(path) ? await persistUserAvatarPath(path, space) : path
+    await saveData(key, avatar)
+    return avatar
   }
+  await clearPersistedUserAvatarFiles(space)
+  await removeData(key)
+  return null
 }
 export const saveUserAvatarDataUrl = async(dataUrl: string | null) => {
   if (!dataUrl) return saveUserAvatar(null)
   const avatar = parseUserAvatarDataUrl(dataUrl)
   if (!avatar) return saveUserAvatar(dataUrl)
-  await ensureUserAvatarDir()
-  const targetPath = `${userAvatarFilePrefix}.${avatar.ext}`
+  const space = getActiveSpace()
+  const key = storageKey(userAvatarPrefix)
+  await ensureUserAvatarDir(space)
+  const targetPath = `${userAvatarFilePrefix(space)}.${avatar.ext}`
   await writeFile(targetPath, avatar.data, 'base64')
-  await clearPersistedUserAvatarFiles(targetPath)
-  userAvatar = targetPath
-  await saveData(userAvatarPrefix, targetPath)
+  await clearPersistedUserAvatarFiles(space, targetPath)
+  await saveData(key, targetPath)
   return targetPath
 }
 export const getUserAvatarDataUrl = async() => {
@@ -774,53 +895,35 @@ export const getUserAvatarDataUrl = async() => {
   return `data:${getUserAvatarDataUrlMime(sourcePath)};base64,${data}`
 }
 
-let userName: string | null = ''
 export const getUserName = async() => {
-  if (userName !== '') return userName
-  // eslint-disable-next-line require-atomic-updates
-  userName = await getData<string>(userNamePrefix) ?? null
-  return userName
+  return await getData<string>(userNamePrefix) ?? null
 }
 export const saveUserName = async(name: string | null) => {
   if (name?.trim()) {
-    userName = name
     await saveData(userNamePrefix, name)
   } else {
-    userName = null
     await removeData(userNamePrefix)
   }
 }
 
-let userSignature: string | null = ''
 export const getUserSignature = async() => {
-  if (userSignature !== '') return userSignature
-  // eslint-disable-next-line require-atomic-updates
-  userSignature = await getData<string>(userSignaturePrefix) ?? null
-  return userSignature
+  return await getData<string>(userSignaturePrefix) ?? null
 }
 export const saveUserSignature = async(signature: string | null) => {
   if (signature?.trim()) {
-    userSignature = signature
     await saveData(userSignaturePrefix, signature)
   } else {
-    userSignature = null
     await removeData(userSignaturePrefix)
   }
 }
 
-let userGender: 'male' | 'female' | 'unknown' | null | '' = ''
 export const getUserGender = async() => {
-  if (userGender !== '') return userGender ?? 'unknown'
-  // eslint-disable-next-line require-atomic-updates
-  userGender = await getData<'male' | 'female' | 'unknown'>(userGenderPrefix) ?? 'unknown'
-  return userGender
+  return await getData<'male' | 'female' | 'unknown'>(userGenderPrefix) ?? 'unknown'
 }
 export const saveUserGender = async(gender: 'male' | 'female' | 'unknown' | null) => {
   if (gender && ['male', 'female', 'unknown'].includes(gender)) {
-    userGender = gender
     await saveData(userGenderPrefix, gender)
   } else {
-    userGender = 'unknown'
     await saveData(userGenderPrefix, 'unknown')
   }
 }

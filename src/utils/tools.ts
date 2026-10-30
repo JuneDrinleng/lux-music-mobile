@@ -197,6 +197,7 @@ const showAppDialog = async({
   message,
   cancelText,
   confirmText,
+  extraText,
   showConfirm = true,
   bgHide = true,
   eyebrow,
@@ -221,6 +222,7 @@ const showAppDialog = async({
       message,
       cancelText,
       confirmText,
+      extraText,
       showConfirm,
       bgHide,
       eyebrow,
@@ -228,6 +230,41 @@ const showAppDialog = async({
       confirmDanger,
     })
   })
+}
+
+export type SyncLogoutCredentialChoice = 'cancel' | 'keep' | 'clear'
+
+export const syncLogoutCredentialDialog = async({
+  title,
+  message,
+  cancelButtonText,
+  keepButtonText,
+  clearButtonText,
+  eyebrow,
+  eyebrowDanger,
+}: {
+  title: string
+  message: string
+  cancelButtonText: string
+  keepButtonText: string
+  clearButtonText: string
+  eyebrow?: string
+  eyebrowDanger?: boolean
+}): Promise<SyncLogoutCredentialChoice> => {
+  const action = await showAppDialog({
+    title,
+    message,
+    cancelText: cancelButtonText,
+    confirmText: keepButtonText,
+    extraText: clearButtonText,
+    showConfirm: true,
+    bgHide: true,
+    eyebrow,
+    eyebrowDanger,
+  })
+  if (action == 'extra') return 'clear'
+  if (action == 'confirm') return 'keep'
+  return 'cancel'
 }
 
 export const confirmDialog = async({

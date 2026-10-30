@@ -6,6 +6,10 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.SystemClock;
+
+import com.guichaguri.trackplayer.service.player.ExoPlayback;
 
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -25,8 +29,101 @@ import javax.annotation.Nullable;
 @UnstableApi
 public class MusicService extends HeadlessJsTaskService {
 
+    public final com.guichaguri.trackplayer.service.player.NoiseMixer noiseMixer = new com.guichaguri.trackplayer.service.player.NoiseMixer();
+    public final com.guichaguri.trackplayer.service.player.GainCoordinator gains = new com.guichaguri.trackplayer.service.player.GainCoordinator();
+    public final com.guichaguri.trackplayer.service.player.SessionEqualizer equalizer = new com.guichaguri.trackplayer.service.player.SessionEqualizer(gains);
+    public final com.guichaguri.trackplayer.service.player.SessionLoudness loudness = new com.guichaguri.trackplayer.service.player.SessionLoudness(gains);
+    public boolean stopNoiseWithTimer = true;
     MusicManager manager;
     Handler handler;
+
+    // All envelope state and player calls belong to the player's application looper.
+    private Handler fadeHandler;
+    private ExoPlayback fadePlayback;
+    private long fadeDeadline;
+    private long fadeDuration;
+    private boolean fadeFinishSong;
+    private boolean fadeWaitingForSong;
+    private String fadeRequestId;
+    private boolean fadeScheduled;
+    private boolean fadeApplied;
+
+    private final Runnable fadeTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!fadeScheduled || fadePlayback == null) return;
+            double remaining = fadeDeadline - SystemClock.elapsedRealtime();
+            if (fadeFinishSong && remaining <= 0 && !fadeWaitingForSong) {
+                fadeWaitingForSong = fadePlayback.isPlayRequested();
+            }
+            if (fadeWaitingForSong) {
+                long duration = fadePlayback.getDuration();
+                remaining = duration > 0 && fadePlayback.isPlayRequested()
+                        ? Math.max(0, duration - fadePlayback.getPosition()) / fadePlayback.getRate()
+                        : Double.POSITIVE_INFINITY;
+            }
+            if (remaining <= 0) {
+                finishFadeOut();
+                return;
+            }
+            if ((!fadeFinishSong || fadeWaitingForSong) && remaining < fadeDuration) {
+                if (!fadeApplied) {
+                    fadeApplied = true;
+                }
+                fadePlayback.setSleepTimerGain((float) (remaining / fadeDuration));
+                if (stopNoiseWithTimer) noiseMixer.setTimerGain((float) (remaining / fadeDuration));
+            } else {
+                restoreFadeVolume();
+            }
+            fadeHandler.postDelayed(this, (long) Math.min(100, Math.max(1, remaining)));
+        }
+    };
+
+    public void startFadeOut(ExoPlayback playback, long durationMs, long endAtMs, boolean finishSong, String requestId) {
+        cancelFadeOut();
+        fadePlayback = playback;
+        fadeHandler = new Handler(playback.getApplicationLooper());
+        fadeDuration = Math.max(1, durationMs);
+        fadeDeadline = SystemClock.elapsedRealtime() + Math.max(0, endAtMs - System.currentTimeMillis());
+        fadeFinishSong = finishSong;
+        fadeWaitingForSong = false;
+        fadeRequestId = requestId;
+        fadeScheduled = true;
+        fadeTick.run();
+    }
+
+    private void finishFadeOut() {
+        // Pause first: restoration must never produce a full-volume burst.
+        if (stopNoiseWithTimer) noiseMixer.stopAll();
+        fadePlayback.pause();
+        cancelFadeOut();
+        Bundle data = new Bundle();
+        data.putString("requestId", fadeRequestId);
+        emit("sleep-timer-ended", data);
+    }
+
+    public void onFadeTrackChanged() {
+        if (fadeScheduled && fadeFinishSong && SystemClock.elapsedRealtime() >= fadeDeadline) {
+            finishFadeOut();
+        } else {
+            restoreFadeVolume();
+        }
+    }
+
+    // Track changes, seeks and user volume changes restore the envelope before restarting it.
+    public void restoreFadeVolume() {
+        noiseMixer.setTimerGain(1);
+        if (fadeApplied && fadePlayback != null) {
+            fadeApplied = false;
+            fadePlayback.setSleepTimerGain(1);
+        }
+    }
+
+    public void cancelFadeOut() {
+        fadeScheduled = false;
+        if (fadeHandler != null) fadeHandler.removeCallbacks(fadeTick);
+        restoreFadeVolume();
+    }
 
     @Nullable
     @Override
@@ -49,6 +146,16 @@ public class MusicService extends HeadlessJsTaskService {
     }
 
     public void destroy() {
+        if (fadeHandler != null && Looper.myLooper() != fadeHandler.getLooper()) {
+            fadeHandler.post(this::destroy);
+            return;
+        }
+        if (fadeApplied && fadePlayback != null) fadePlayback.pause();
+        cancelFadeOut();
+        fadePlayback = null;
+        noiseMixer.release();
+        equalizer.detach();
+        loudness.detach();
         if(handler != null) {
             handler.removeMessages(0);
             handler = null;
@@ -96,11 +203,12 @@ public class MusicService extends HeadlessJsTaskService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(intent != null && Utils.ACTION_LIKE.equals(intent.getAction())) {
+        if(intent != null && (Utils.ACTION_LIKE.equals(intent.getAction())
+                || Utils.ACTION_SLEEP_TIMER.equals(intent.getAction()))) {
             onStartForeground();
 
             if(manager != null) {
-                emit("remote-like", null);
+                emit(Utils.ACTION_LIKE.equals(intent.getAction()) ? "remote-like" : "remote-sleep-timer", null);
             }
 
             return START_NOT_STICKY;
@@ -117,8 +225,10 @@ public class MusicService extends HeadlessJsTaskService {
             return START_NOT_STICKY;
         }
 
-        manager = new MusicManager(this);
-        handler = new Handler();
+        if (manager == null) {
+            manager = new MusicManager(this);
+        }
+        if (handler == null) handler = new Handler(Looper.getMainLooper());
 
         super.onStartCommand(intent, flags, startId);
         return START_NOT_STICKY;

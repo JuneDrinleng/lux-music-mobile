@@ -52,6 +52,7 @@ export const TextTabs = memo(({
   small = false,
   scroll = false,
   style,
+  tabStyle,
 }: {
   items: readonly MagTabItem[]
   value: string
@@ -59,6 +60,8 @@ export const TextTabs = memo(({
   small?: boolean
   scroll?: boolean
   style?: ViewStyle
+  /** Per-tab spacing for approved page previews; existing tabs keep their defaults. */
+  tabStyle?: ViewStyle
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
@@ -72,7 +75,8 @@ export const TextTabs = memo(({
         return (
           <TouchableOpacity
             key={item.id}
-            style={[styles.tab, on ? styles.tabOn : null]}
+            style={[styles.tab, tabStyle, on ? styles.tabOn : null]}
+            hitSlop={tabStyle ? { top: 8, bottom: 8 } : undefined}
             activeOpacity={0.7}
             onPress={() => { onChange(item.id) }}
             accessibilityRole="tab"

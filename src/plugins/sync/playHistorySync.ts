@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { getActiveSpace } from '@/utils/dataSpace'
 import { AppState } from 'react-native'
 
 import { getLuxAuth, getSyncHost, getSyncMode } from '@/utils/data'
@@ -70,9 +71,10 @@ export const syncPlayHistory = async(): Promise<void> => {
   if (syncing) return syncing
   const socket = getReadySyncSocket()
   if (!socket) return
+  const space = getActiveSpace()
   const run = (async() => {
     const identity = await serverIdentity()
-    if (!identity || !isPlayHistoryFeatureEnabled()) return
+    if (!identity || !isPlayHistoryFeatureEnabled() || space != getActiveSpace()) return
     const saved = getPlayHistoryCursor()
     const sameServer = saved != null && saved.serverKey == identity.serverKey && saved.userId == identity.userId
     let since = sameServer ? saved.cursor : undefined
@@ -80,9 +82,11 @@ export const syncPlayHistory = async(): Promise<void> => {
     try {
       for (let page = 0; page < 200; page += 1) {
         const pulled = parsePull(await socket.remote[PLAY_HISTORY_PULL](since == null ? {} : { since }))
+        if (space != getActiveSpace()) return
         if (!pulled) break
         if (pulled.records.length) {
           await replacePlayRecords(mergePlayRecords(getPlayRecords(), pulled.records))
+          if (space != getActiveSpace()) return
           for (const record of pulled.records) acked.add(record.id)
         }
         const stalled = since != null && pulled.cursor == since
@@ -90,10 +94,12 @@ export const syncPlayHistory = async(): Promise<void> => {
         await rememberCursor(identity, pulled.cursor, acked)
         if (!pulled.hasMore || !pulled.records.length || stalled) break
       }
+      if (space != getActiveSpace()) return
       const openId = getOpenPlaySessionId()
       const pending = getPlayRecords().filter(record => record.id != openId && !acked.has(record.id))
       for (const batch of chunkWireRecords(pending)) {
         await socket.remote[PLAY_HISTORY_PUSH]({ records: batch })
+        if (space != getActiveSpace()) return
         for (const record of batch) acked.add(record.id)
         if (since != null) await rememberCursor(identity, since, acked)
       }
@@ -116,10 +122,12 @@ export const pushPlayRecord = (record: PlayRecord): void => {
   if (!socket) return
   const wire = toWireRecord(record)
   if (!wire) return
+  const space = getActiveSpace()
   void (async() => {
     const identity = await serverIdentity()
-    if (!identity || !isPlayHistoryFeatureEnabled()) return
+    if (!identity || !isPlayHistoryFeatureEnabled() || space != getActiveSpace()) return
     await socket.remote[PLAY_HISTORY_PUSH]({ records: [wire] })
+    if (space != getActiveSpace()) return
     const saved = getPlayHistoryCursor()
     if (!saved || saved.serverKey != identity.serverKey || saved.userId != identity.userId) return
     if (saved.ackedIds.includes(wire.id)) return

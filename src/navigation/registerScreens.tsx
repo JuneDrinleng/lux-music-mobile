@@ -30,6 +30,10 @@ import {
   PACT_MODAL,
   SYNC_MODE_MODAL,
 } from './screenNames'
+import AccountDataDialog from './components/AccountDataDialog'
+import { ACCOUNT_DATA_OVERLAY } from '@/utils/accountDataDialogs'
+import SessionExpiredDialog from './components/SessionExpiredDialog'
+import { SESSION_EXPIRED_OVERLAY } from '@/plugins/sync/client/sessionExpired'
 import VersionModal from './components/VersionModal'
 import PactModal from './components/PactModal'
 import SyncModeModal from './components/SyncModeModal'
@@ -51,6 +55,8 @@ function WrappedComponent(Component: any) {
 }
 
 export default () => {
+  Navigation.registerComponent(ACCOUNT_DATA_OVERLAY, () => WrappedComponent(AccountDataDialog))
+  Navigation.registerComponent(SESSION_EXPIRED_OVERLAY, () => WrappedComponent(SessionExpiredDialog))
   Navigation.registerComponent(LAUNCH_SCREEN, () => WrappedComponent(Launch))
   Navigation.registerComponent(LOGIN_SCREEN, () => WrappedComponent(Login))
   Navigation.registerComponent(SYNC_LOGIN_SCREEN, () => WrappedComponent(SyncLogin))
