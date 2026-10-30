@@ -1,5 +1,5 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useEffect, useState, type ReactNode } from 'react'
 import { ScrollView, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
 import { SectionHeader } from '@/components/magazine'
@@ -7,6 +7,8 @@ import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
+import { setRecommendationBootCovers } from '@/utils/recommendationCoverBoot'
+import { coveredRecommendations, weeklyCover } from './coverModel'
 import { DailyCover } from './DailyCover'
 import { WeeklyCover } from './WeeklyCover'
 import { useRecommendations } from './useRecommendations'
@@ -37,13 +39,17 @@ export const RecCard = ({ width, gap, kicker, title, label, cover, onPress }: {
   )
 }
 
-export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekly }: {
+export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekly, active = true }: {
+  active?: boolean
   discover: { cover: string | null, title: string, sourceListId: string | null, count?: number | null }
   onOpenWeekly: () => void
   onPlayWeekly: () => void
 }) => {
-  const { batch, loading, failed, reload } = useRecommendations()
+  const { batch, loading, failed, reload } = useRecommendations(undefined, active)
   const items = batch?.items ?? EMPTY_ITEMS
+  useEffect(() => {
+    if (!loading) setRecommendationBootCovers([coveredRecommendations(items)[0]?.cover, weeklyCover(discover)])
+  }, [discover, items, loading])
   const [contentWidth, setContentWidth] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
   const t = useI18n()
@@ -64,15 +70,15 @@ export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekl
   }
   const dailyDisabled = !items.length || loading || pending
   return (
-    <View onLayout={({ nativeEvent }) => { setContentWidth(nativeEvent.layout.width) }}>
+    <View onLayout={({ nativeEvent }) => { if (nativeEvent.layout.width > 0) setContentWidth(nativeEvent.layout.width) }}>
       <SectionHeader title={t('recommend_for_you')} meta={t('recommend_swipe_hint')} ruleGap={0} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carousel}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews={false} style={styles.carousel}
         snapToInterval={interval || 1} decelerationRate="fast" snapToAlignment="start" bounces={false}
         onMomentumScrollEnd={onMomentumScrollEnd}>
         <RecCard width={cardWidth} gap={gap} kicker={t('recommend_daily_kicker')} title={t('recommend_daily')} label={t('recommend_open_daily')}
-          cover={<DailyCover items={items} />} onPress={() => { global.app_event.openDailyRecommendations() }} />
+          cover={<DailyCover items={items} active={active} />} onPress={() => { global.app_event.openDailyRecommendations() }} />
         <RecCard width={cardWidth} gap={0} kicker={t('home_discover_kicker')} title={discover.title} label={t('recommend_open_weekly', { title: discover.title })}
-          cover={<WeeklyCover cover={discover.cover} count={discover.count} />} onPress={onOpenWeekly} />
+          cover={<WeeklyCover cover={discover.cover} count={discover.count} active={active} />} onPress={onOpenWeekly} />
       </ScrollView>
       <View style={styles.actions}>
         <RecommendationButton label={t('recommend_play_radio')} disabled={dailyDisabled} onPress={() => { void run(radio, t('recommend_radio_started')) }} />

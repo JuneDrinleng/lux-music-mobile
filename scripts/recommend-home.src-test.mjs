@@ -46,7 +46,7 @@ const setup = (overrides = {}) => {
     '@/store/common/hook': { useStatusbarHeight: () => 24 },
     '@/utils/hooks/useBackHandler': { useBackHandler() {} },
     '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 0, __esModule: true },
-    '@/utils/imageCache': { peekCachedImageUri: () => null, cacheImageUri: async() => null },
+    '@/utils/imageCache': { peekCachedImageUri: () => null, cacheImageUri: async() => null, forgetCachedImageUri() {} },
     './useCoverDate': { useCoverDate: () => new Date(2026, 9, 23).getTime() },
     './DailyCover': { DailyCover: 'DailyCover' },
     './useRecommendations': { useRecommendations: () => state },
@@ -272,6 +272,7 @@ test('native blur 14 and paper tint fall back to placeholder on missing cover or
   const image = nodes(tree).find(n => n.type === 'NativeImage')
   assert.equal(image.props.source.uri, 'cover')
   assert.equal(image.props.blurRadius, 14)
+  assert.equal(image.props.fadeDuration, 0)
   assert.equal(image.props.resizeMode, 'cover')
   assert.equal(image.props.resizeMethod, 'resize')
   assert.ok(nodes(tree).some(n => n.props.style?.backgroundColor === 'paper@0.66'))
@@ -332,6 +333,7 @@ test('blurred background waits for the shared cache, handles URI races, cache fa
   const env = setup({
     '@/utils/imageCache': {
       peekCachedImageUri: uri => hits.get(uri) ?? null,
+      forgetCachedImageUri() {},
       cacheImageUri: uri => new Promise((resolve, reject) => { requests.set(uri, { resolve, reject }) }),
     },
   })
@@ -386,7 +388,7 @@ test('recommendation memo boundaries and stable playback callbacks keep current 
   assert.match(home, /const handlePlayPlaylist = useCallback\(async[\s\S]*?playbackRef.current.isPlaylistCurrent\(listId\)[\s\S]*?playbackRef.current.isPlay[\s\S]*?\}, \[\]\)/)
   const cache = readFileSync(new URL('../src/utils/imageCache.ts', import.meta.url), 'utf8')
   assert.match(cache, /inflightTaskMap.get\(uri\)/)
-  assert.match(source('FrostedCover'), /import \{ cacheImageUri, peekCachedImageUri \} from '@\/utils\/imageCache'/)
+  assert.match(source('FrostedCover'), /import \{ cacheImageUri, forgetCachedImageUri, peekCachedImageUri \} from '@\/utils\/imageCache'/)
 })
 
 test('memoized card date hook refreshes at midnight and resume, and cleans up timers/listeners', () => {

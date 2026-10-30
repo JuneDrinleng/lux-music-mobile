@@ -8,9 +8,10 @@ const localDay = () => {
 }
 
 // Memoized cards still refresh at local midnight and after a suspended app resumes.
-export const useCoverDate = () => {
+export const useCoverDate = (active = true) => {
   const [day, setDay] = useState(localDay)
   useEffect(() => {
+    if (!active) return
     let timer: ReturnType<typeof setTimeout>
     const refresh = () => {
       clearTimeout(timer)
@@ -27,6 +28,6 @@ export const useCoverDate = () => {
       clearTimeout(timer)
       subscription.remove()
     }
-  }, [])
+  }, [active])
   return day
 }

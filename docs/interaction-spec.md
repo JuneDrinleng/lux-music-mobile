@@ -108,3 +108,13 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 `settings-navigation.src-test.mjs` 审核设置入口清单，检查全部选项 renderer 位于 SettingsPage，屏幕挂载与下级页引用公共 helper，横竖屏均衡器 host 均存在；新增入口或绕过 helper 应让测试失败，更新审计后才能修改清单。该文件还用真实 helper 和可控动画时钟验证按钮/硬件返回的参数、延迟卸载、重复返回、重新打开取消旧回调及子页恢复。
 
 每次改导航后运行 `node scripts/run-src-unit-tests.mjs`、改动文件 eslint、TypeScript 基线差异检查。静态与模拟时钟不替代真机：仍需 Android 按钮/手势返回、快速连点、键盘、旋转、长内容及 Dock 点击的设备验证。
+
+## 首页推荐区与封面加载
+
+- `HomeTab.tsx` 的「全部」区域在筛选切换时保持挂载、仅隐藏：透明且绝对定位移出文档流，关闭触摸，以 `accessibilityElementsHidden` / `no-hide-descendants` 隐藏无障碍子树。保持原布局宽度及原生图片、横向 ScrollView 实例，避免 `display:none` 的零尺寸重布局。其他榜单筛选继续按需挂载，不额外常驻。
+- 返回「全部」沿用 `ContentReveal` 的 260ms、`Easing.out(Easing.cubic)`、opacity 0→1 / translateY 8→0；离开时停止动画。切筛选纵向滚动回顶；推荐卡横向位置、页码与对应播放按钮保持原卡片。隐藏或离开首页 Tab 时，暂停推荐自动刷新、跨日检查及封面日期定时器；恢复时校验日期并后台刷新。在途请求允许收尾，数据空间切换仍立即使旧请求失效。
+- 今日推荐重挂载先同步读取内存快照，按当前数据空间、本地日期、可用音源身份校验并过滤不喜欢的歌曲，再后台刷新，不先清空有效结果。每周推荐沿用歌单元数据的同步快照，后台结果更新同一快照；快照按数据空间隔离。
+- `FrostedCover` 显式 `fadeDuration=0`，保留 H1B v5B 的原生 `blurRadius=14`、cover / resize、0.66 纸色蒙层和墨色前景，不改裁切、按压反馈或默认主题色。当前依赖没有独立导出该原生模糊结果的接口；view-shot 是视图截图而非等价的后处理导出，因此采用允许的后备方案：原图缓存到现有 `image-cache`，同步复用 `peekCachedImageUri` 的内存路径/磁盘索引，保留已处理的原生图片实例。不声称产生了持久化预模糊小图；全卸载或内存回收仍可能重新处理模糊。
+- 封面按现有 URL 的 MD5 key 缓存，模糊参数属于保留的原生实例，不新增另一套文件 key。今日封面不额外 pin，服从现有普通图片数量/字节上限、LRU 清理及手动清除；每周封面若已被歌单预热 pin，则沿用歌单封面豁免。加载失败清理失效路径，下次加载可重新下载。无新增依赖、磁盘目录或缓存容量豁免。
+- 开屏预热等待首页挂载后两张实际背景图的 `onLoad`（包括同尺寸原生模糊），而不把原图 `Image.prefetch` 当作模糊就绪。无封面时允许占位；失败/慢请求由既有开屏 deadline 放行。仍使用 `homeBootRevealAt`：原 3500ms 停留、预载 2500ms 预算和最多额外 1500ms，取原有上限；不延长等待。开屏结束清理一次性就绪记录。
+- `scripts/recommend-blur-cache.src-test.mjs`、`recommend-home.src-test.mjs`、`recommend.src-test.mjs` 和 `run-src-unit-tests.mjs` 验证缓存命中、快照隔离、隐藏恢复与原等待上限。闪烁/白边、冷启动时长、实际缓存体积及显存占用仍需 Android release 真机确认。

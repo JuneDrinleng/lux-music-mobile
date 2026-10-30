@@ -969,7 +969,7 @@ test('Dock tabs receive presses while the recommendation carousel and its real l
     '@/theme/magazineRoles': { magazineRoles: () => ({}) },
     '@/theme/magazineType': { PAGE_GUTTER: 22 },
     '@/utils/tools': { createStyle: value => value },
-    '@/utils/recommend': { getDailyRecommendations: opts => env.engine.getDailyRecommendations({ ...dailyOpts, ...opts, timeoutMs: 30 }) },
+    '@/utils/recommend': { peekDailyRecommendations: () => null, getDailyRecommendations: opts => env.engine.getDailyRecommendations({ ...dailyOpts, ...opts, timeoutMs: 30 }) },
     '@/utils/dataSpace': { onDataSpaceWillChange: () => () => {}, onDataSpaceChanged: () => () => {} },
     './actions': {},
     '@/components/magazine': { SectionHeader: 'SectionHeader' },
