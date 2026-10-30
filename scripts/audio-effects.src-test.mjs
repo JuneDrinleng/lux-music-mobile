@@ -450,7 +450,6 @@ test('Main mounts audio above Pager, preserves Dock navigation, and restores swi
       '@/screens/AudioEffects': { default: 'AudioEffectsPage', __esModule: true },
       '@/components/recommend/DailyRecommendationPage': { DailyRecommendationPage: 'DailyRecommendationPage' },
       './SearchPage': { default: 'SearchPage', __esModule: true },
-      './SharedTopBar': { default: 'SharedTopBar', __esModule: true },
       './Tabs/HomeTab': { default: 'HomeTab', __esModule: true },
       './Tabs/PlaylistTab': { default: 'PlaylistTab', __esModule: true },
       './Tabs/SettingsTab': { default: 'SettingsTab', __esModule: true },

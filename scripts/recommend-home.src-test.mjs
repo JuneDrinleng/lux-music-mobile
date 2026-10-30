@@ -199,7 +199,6 @@ test('daily detail follows pushed-page navigation, disables pager gestures, clos
     'react-native-pager-view': { default: 'PagerView', __esModule: true },
     '@/components/recommend/DailyRecommendationPage': { DailyRecommendationPage: 'DailyRecommendationPage' },
     './SearchPage': { default: 'SearchPage', __esModule: true },
-    './SharedTopBar': { default: 'SharedTopBar', __esModule: true },
     './Tabs/HomeTab': { default: 'HomeTab', __esModule: true },
     './Tabs/PlaylistTab': { default: 'PlaylistTab', __esModule: true },
     './Tabs/SettingsTab': { default: 'SettingsTab', __esModule: true },
