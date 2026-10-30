@@ -23,7 +23,7 @@
 | 顶栏 | `src/components/magazine/MagTopBar.tsx`（随内容滚动，不浮动） |
 | 播放详情 | `src/screens/PlayDetail/Vertical/Pic.tsx` |
 
-容器关系见 `src/screens/Home/Vertical/Main.tsx`：Pager 三页为首页、歌单、设置；搜索与设置子页、歌单详情等盖在内容之上。`SharedTopBar` 在 `Main.tsx` 中 **`visible={false}`**，顶栏搜索胶囊已退役；首页 / 歌单 / 设置各自用 `MagTopBar` + 图标入口打开搜索或设置内 `UnderlineInput`。
+容器关系见 `src/screens/Home/Vertical/Main.tsx`：Pager 三页为首页、歌单、设置；搜索与设置子页、歌单详情等盖在内容之上。恒隐藏的 `SharedTopBar` 挂载及其专用 `GlassSearchField` 已删除，顶栏搜索胶囊已退役；首页 / 歌单 / 设置各自用 `MagTopBar` + 图标入口打开搜索或设置内 `UnderlineInput`。
 
 上游遗留表面（横屏 `src/screens/Home/Horizontal/` 仍用玻璃 `PlayerBar`、旧 `BottomNav`；`src/screens/Home/Views/`、`src/components/modern/`）视觉走上游 `useTheme()`。新竖屏页面不要照着它们抄。
 
@@ -159,7 +159,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 
 样式：`sharedLuxStyles` + `createStyle`。文案：`useI18n()`，三语 JSON。
 
-**不要**在新竖屏页复用：`SharedTopBar` 胶囊搜索、`Home/Vertical/BottomNav` 玻璃轨（竖屏未接）、`src/components/modern/*` 主题卡片。
+**不要**在新竖屏页复用：已退役的胶囊搜索、`Home/Vertical/BottomNav` 玻璃轨（竖屏未接）、`src/components/modern/*` 主题卡片。
 
 ## 图标规则
 

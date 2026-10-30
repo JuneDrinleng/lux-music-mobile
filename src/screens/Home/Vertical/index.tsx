@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
 import { setSystemBarIconStyle } from '@/utils/nativeModules/utils'
 import Content from './Content'
-import { Dock, DockPlayerSlot, type DockNavItem } from '@/components/magazine'
+import DockContainer from './DockContainer'
+import { DockPlayerSlot, type DockNavItem } from '@/components/magazine'
 import Image from '@/components/common/Image'
 import PlayQueueSheet from './PlayQueueSheet'
 import WhiteNoisePage from './WhiteNoisePage'
@@ -25,7 +26,7 @@ import { shouldHoldSplashChrome, subscribeHomeBootSplashHidden } from '@/utils/h
 import { setNavActiveId } from '@/core/common'
 import type { InitState } from '@/store/common/state'
 import { useI18n } from '@/lang'
-import { useIsPlay, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { useIsPlay, usePlayerMusicInfo } from '@/store/player/hook'
 import { togglePlay } from '@/core/player/player'
 import { useKeyboard } from '@/utils/hooks'
 import { useSettingValue } from '@/store/setting/hook'
@@ -71,7 +72,6 @@ export default () => {
   const componentIds = useComponentIds()
   const activeId = useNavActiveId()
   const musicInfo = usePlayerMusicInfo()
-  const { progress } = useProgress()
   const isPlay = useIsPlay()
   const { keyboardShown } = useKeyboard()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
@@ -195,13 +195,6 @@ export default () => {
     setNavActiveId(id as TabId)
   }, [activeId])
 
-  const normalizedProgress = useMemo(() => {
-    if (!musicInfo.id || !Number.isFinite(progress)) return 0
-    if (progress <= 0) return 0
-    if (progress >= 1) return 1
-    return progress
-  }, [musicInfo.id, progress])
-
   const showPlayDetail = useCallback(() => {
     if (!musicInfo.id) return
     global.app_event.showPlayDetail()
@@ -262,8 +255,8 @@ export default () => {
             pointerEvents="box-none"
             onLayout={(e: LayoutChangeEvent) => { setBottomLayerHeight(e.nativeEvent.layout.height) }}
           >
-            <Dock
-              progress={normalizedProgress}
+            <DockContainer
+              musicId={musicInfo.id}
               insetBottom={bottomInset}
               navItems={navItems}
               activeNavId={activeId}
