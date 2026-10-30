@@ -1417,7 +1417,7 @@
   "sync_state_relogin": "重新登录",
   "sync_state_local": "切换到本地用户",
   "sync_state_address_format": "同步地址与格式",
-  "sync_state_settings_eyebrow": "SETTINGS",
+  "sync_state_settings_eyebrow": "SETTINGS · LUX MUSIC",
   "player_lyric_translation_pill": "译",
   "player_lyric_roma_pill": "音",
   "player_lyric_enter_hint": "点歌词进入歌词页",
@@ -1894,5 +1894,18 @@
   "recommend_month_9": "SEP",
   "recommend_month_10": "OCT",
   "recommend_month_11": "NOV",
-  "recommend_month_12": "DEC"
+  "recommend_month_12": "DEC",
+  "sync_state_unsynced": "未同步",
+  "sync_state_local_mode": "本地模式",
+  "sync_state_connecting": "连接中",
+  "sync_state_syncing": "同步中",
+  "sync_state_pill_failed": "连接失败",
+  "sync_state_pill_expired": "登录过期",
+  "sync_state_pill_accessibility": "{status}，查看同步详情",
+  "sync_state_connection_info": "连接信息",
+  "sync_state_server": "服务器（点按复制）",
+  "sync_state_username": "账号",
+  "sync_state_connection_status": "连接状态",
+  "sync_state_last_activity": "最近成功同步 / 活跃",
+  "sync_state_no_record": "暂无记录"
 }

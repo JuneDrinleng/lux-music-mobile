@@ -29,10 +29,19 @@
 | 资料 hero（头像；重复账户列表行已移除） | AccountPage → `edit` / `devices` / `spaces` / `password` | SettingsPage + useSettingsSubpage；ChangePassword 在账号的子页过渡面内 |
 | 音效/均衡器 | AudioEffectsPage → 响度与无缝播放详情 | 横竖屏 Main 的应用内层；useSettingsTransition + useSettingsSubpage |
 | 管理员控制台（按条件显示） | dashboard → users / invites / playlists / service | AdminConsoleLayer → SettingsPage；内部 useSettingsTransition；loading / denied 是权限状态，不另算导航 |
-| 同步状态行（按状态显示） | SyncStatusPage → ServerStep / SyncLogin | SettingsTab 的三个持久 SettingsPage host；返回逐层恢复 |
+| 账户签名行同步胶囊（全部状态可见） | 同步服务 editor（成功/未同步/本地/进行中）或 SyncStatusPage（失败/过期/不兼容）→ ServerStep / SyncLogin | SettingsTab 的持久 SettingsPage host；返回逐层恢复 |
 | 同步登录内部 | 服务器地址 → Lux AuthFlow / LX LegacySyncLogin；Lux → register / forgot | Settings 下以 onBack 回调嵌入，useSettingsSubpage；AuthFlow 通过 settings 标志启用同一规则。独立启动/首次引导保留自己的顶层流程 |
 
 导出/导入备份直接打开 ChoosePath；检查更新触发现有更新流程；清除冲突策略、调试开关、复制诊断是动作，不产生二级页面。
+
+## 设置一级页 B 版与同步入口
+
+- 设置是一级 Tab，移除左上切首页的伪返回；二级及更深页按钮和系统返回处理不变，首页仍从 Dock 进入。顶部为 SETTINGS · LUX MUSIC 刊头，H1 与搜索同排。handleToggleSettingsSearch 展开原 UnderlineInput 到标题行之后，正常下推；查询、清除、结果点击逻辑保持。
+- 账户副行是签名与 SyncStatusPill 的独立同级按钮；头像、昵称、签名、箭头进入完整 AccountPage，退出登录在账户内。没有覆盖胶囊的外层 TouchableOpacity 或无障碍按钮；胶囊上下各 8 的空间在父布局内实际预留，最小命中高 44、视觉最小高 28。长昵称/签名优先单行省略，胶囊不截断，极端字体副行可增高。
+- 胶囊读作「状态，查看同步详情」，状态变化 polite 播报。搜索过滤掉资料时、无服务器、本地、关闭同步时均保留胶囊，不依赖 showProfileHero 或模型非空。
+- mapSyncStatus 保留会话/版本/传输错误优先级；本地无服务器显示本地模式，已配置但关闭或断开显示未同步。Connecting... 与 Wait syncing... 仅是连接/握手阶段，显示连接中；status.status=true 显示已同步，不能推断正在传输。模型仅在显式 syncing 任务信号时展示同步中；当前 socket 没有该任务信号，不伪造。连接中、同步中点胶囊只开详情，不触发重连。
+- 成功/未同步/本地/进行中进入原同步服务 editor，保留地址历史、格式及凭据管理；失败/过期/不兼容沿原 SyncStatusPage 分流，保留重试、地址检查、离线、重新登录、本地用户与复制版本提示。两条路径均用 SyncConnectionInfo 展示服务器（可复制）、账号、连接状态及最近成功同步/活跃；没有有效时间戳显示暂无记录，历史时间戳不视为服务器在线证据。
+- 删除独立同步区的主线、标题与整行外形；信息及入口按上述位置迁移。状态刷新不自动打开新页或改变按钮分区，既有成功恢复关闭错误页行为保留。共享 SettingsPage 的 248ms 对称进出、逐层返回及 Dock 行为不变。
 
 ## 设置页面过渡（唯一共用实现）
 
@@ -78,7 +87,7 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - 小型返回控件可见直径约 28，四侧 hitSlop=8，形成约 44 的触达区域；`BackButton` 非 compact 为 40，hitSlop=4。实际数字仍经过仓库的缩放规则，不应把视觉图标放大来凑触达面积。
 - `IconButton` 默认 44 触达容器，内部图标默认 24；设置列表 `SettingRow` 的基本行高 62、`OptionRow` 58。新增图标按钮必须有 accessibilityLabel，状态按钮提供 disabled / selected。
 - SettingRow、OptionRow、BackButton、IconButton 的 activeOpacity=0.7；Dock 播放键=0.85。按压反馈不改页面布局。
-- **待统一**：资料 hero 的 activeOpacity=0.82（SettingsTab）；部分历史 TextButton、EQ 预设仅垂直 hitSlop、其他遗留工具按钮尚未逐个验证最小触达区域（AudioEffects、Home/Views）。不在本次导航修改中重写控件。
+- 资料 hero 的四个账户按钮及同步胶囊均为 activeOpacity=0.7。**待统一**：部分历史 TextButton、EQ 预设仅垂直 hitSlop、其他遗留工具按钮尚未逐个验证最小触达区域（AudioEffects、Home/Views）。不在本次导航修改中重写控件。
 
 ## 拖动与滑块
 

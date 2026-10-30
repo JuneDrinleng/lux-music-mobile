@@ -1417,7 +1417,7 @@
   "sync_state_relogin": "重新登入",
   "sync_state_local": "切換到本機使用者",
   "sync_state_address_format": "同步地址與格式",
-  "sync_state_settings_eyebrow": "SETTINGS",
+  "sync_state_settings_eyebrow": "SETTINGS · LUX MUSIC",
   "player_lyric_translation_pill": "譯",
   "player_lyric_roma_pill": "音",
   "player_lyric_enter_hint": "點歌詞進入歌詞頁",
@@ -1894,5 +1894,18 @@
   "recommend_month_9": "SEP",
   "recommend_month_10": "OCT",
   "recommend_month_11": "NOV",
-  "recommend_month_12": "DEC"
+  "recommend_month_12": "DEC",
+  "sync_state_unsynced": "未同步",
+  "sync_state_local_mode": "本機模式",
+  "sync_state_connecting": "連線中",
+  "sync_state_syncing": "同步中",
+  "sync_state_pill_failed": "連線失敗",
+  "sync_state_pill_expired": "登入過期",
+  "sync_state_pill_accessibility": "{status}，查看同步詳情",
+  "sync_state_connection_info": "連線資訊",
+  "sync_state_server": "伺服器（點按複製）",
+  "sync_state_username": "帳號",
+  "sync_state_connection_status": "連線狀態",
+  "sync_state_last_activity": "最近成功同步 / 活躍",
+  "sync_state_no_record": "暫無記錄"
 }
