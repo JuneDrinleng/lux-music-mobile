@@ -2,7 +2,7 @@
 
 // Lux Proprietary
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, InteractionManager, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { Animated, AppState, Easing, InteractionManager, ScrollView, TouchableOpacity, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 import Text from '@/components/common/Text'
 import { RecommendationSection } from '@/components/recommend/RecommendationSection'
 import { MdiIcon } from '@/components/common/MdiIcon'
@@ -44,6 +44,7 @@ import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@
 import { getHomePlaylistMetaSnapshot, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
 import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getData, saveData } from '@/plugins/storage'
+import { createHomeRankingCacheWriter } from './homeRankingCacheWriter'
 import { getPlayRecords, subscribePlayHistory } from '@/utils/playHistory/store'
 import { previousRangeBounds, recordInBounds } from '@/utils/playHistory/range'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -122,6 +123,9 @@ interface LeaderboardHomeCache {
   lbOtherData?: LbOtherData
   updatedAt: number
 }
+const leaderboardHomeCacheWriter = createHomeRankingCacheWriter<Omit<LeaderboardHomeCache, 'updatedAt'>>(async payload => {
+  await saveData(LEADERBOARD_HOME_CACHE_KEY, { ...payload, updatedAt: Date.now() })
+})
 interface DiscoverCard {
   id: string
   sourceListId: string | null
@@ -764,16 +768,24 @@ export default memo(() => {
 
   useEffect(() => {
     if (!leaderboardHomeCacheReadyRef.current) return
-    const cachedAllData = normalizeCachedLbAllData(lbAllData)
-    const cachedOtherData = normalizeCachedLbOtherData(lbOtherData)
-    if (!Object.keys(cachedAllData).length && !Object.keys(cachedOtherData).length) return
-    const cacheData: LeaderboardHomeCache = {
-      lbAllData: cachedAllData,
-      lbOtherData: cachedOtherData,
-      updatedAt: Date.now(),
-    }
-    void saveData(LEADERBOARD_HOME_CACHE_KEY, cacheData).catch(() => {})
+    leaderboardHomeCacheWriter.enqueue(() => {
+      const cachedAllData = normalizeCachedLbAllData(lbAllData)
+      const cachedOtherData = normalizeCachedLbOtherData(lbOtherData)
+      if (!Object.keys(cachedAllData).length && !Object.keys(cachedOtherData).length) return null
+      return { lbAllData: cachedAllData, lbOtherData: cachedOtherData }
+    })
+    if (AppState.currentState !== 'active') void leaderboardHomeCacheWriter.flush()
   }, [lbAllData, lbOtherData])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', () => {
+      void leaderboardHomeCacheWriter.flush()
+    })
+    return () => {
+      subscription.remove()
+      void leaderboardHomeCacheWriter.flush()
+    }
+  }, [])
 
   const libraryItems = useMemo(() => {
     const lovePlaylist = playlists.find(list => list.id === LIST_IDS.LOVE)
