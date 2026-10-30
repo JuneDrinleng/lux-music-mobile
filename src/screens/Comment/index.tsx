@@ -110,7 +110,7 @@ export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0
     let playerMusic = playerState.playMusicInfo.musicInfo
     if ('progress' in playerMusic) playerMusic = playerMusic.metadata.musicInfo
 
-    if (musicInfo && musicInfo.id != playerMusic.id) {
+    if (musicInfo && (musicInfo.id != playerMusic.id || musicInfo.source != playerMusic.source)) {
       setMusicInfo(playerMusic)
     } else {
       setInternalRefreshKey(k => k + 1)
