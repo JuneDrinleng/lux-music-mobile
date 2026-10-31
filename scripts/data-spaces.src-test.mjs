@@ -1192,7 +1192,7 @@ test('5.7 same-server accounts retain separate sessions and Keychain tokens, swi
 
 test('5.7 space list metadata and switching route local/session/signed-out entries correctly', async context => {
   const previous = global.app_event
-  global.app_event = { syncModeUpdated() {} }
+  global.app_event = { syncModeUpdated() {}, syncHostUpdated() {} }
   context.after(() => { global.app_event = previous })
   const env = make()
   await seedLocalImport(env)

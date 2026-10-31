@@ -634,6 +634,7 @@ export const reloadSyncHostFromStorage = async() => {
   let host = await getData<string>(syncHostPrefix) ?? ''
   if (typeof host == 'object') host = ''
   syncHostInfo = host
+  global.app_event?.syncHostUpdated(host)
   return host
 }
 
@@ -741,6 +742,7 @@ export const setSyncHost = async(host: string) => {
   // hostInfo.port = port
   syncHostInfo = host
   await saveData(syncHostPrefix, syncHostInfo)
+  global.app_event?.syncHostUpdated(host)
 }
 let syncHostHistory: string[]
 export const getSyncHostHistory = async() => {
