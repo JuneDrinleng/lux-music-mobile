@@ -128,3 +128,12 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - 封面按现有 URL 的 MD5 key 缓存，模糊参数属于保留的原生实例，不新增另一套文件 key。今日封面不额外 pin，服从现有普通图片数量/字节上限、LRU 清理及手动清除；每周封面若已被歌单预热 pin，则沿用歌单封面豁免。加载失败清理失效路径，下次加载可重新下载。无新增依赖、磁盘目录或缓存容量豁免。
 - 开屏预热等待首页挂载后两张实际背景图的 `onLoad`（包括同尺寸原生模糊），而不把原图 `Image.prefetch` 当作模糊就绪。无封面时允许占位；失败/慢请求由既有开屏 deadline 放行。仍使用 `homeBootRevealAt`：原 3500ms 停留、预载 2500ms 预算和最多额外 1500ms，取原有上限；不延长等待。开屏结束清理一次性就绪记录。
 - `scripts/recommend-blur-cache.src-test.mjs`、`recommend-home.src-test.mjs`、`recommend.src-test.mjs` 和 `run-src-unit-tests.mjs` 验证缓存命中、快照隔离、隐藏恢复与原等待上限。闪烁/白边、冷启动时长、实际缓存体积及显存占用仍需 Android release 真机确认。
+
+## 异步数量与列表的出现动画
+
+- `components/playlist/LocalSongsDetail.tsx` 首次成功读取前，大数字和全部 / 设备 / 已缓存 Tab 首数用「—」占位，容量行保留现有加载文案；首次读取失败显示三语失败提示，占位不变，不冒充成功空库。只有成功确认为空才显示 0。保留即时进入页面，不等待数据、不延长 `useOverlaySlideTransition` 的 248ms。
+- 数字复用 `components/common/useRollingNumber.ts`：首次数据就绪后由 0 滚至目标，760ms、三次缓出，按进度插值取整，工作量与最终首数无关。大数字与全部 Tab 共用同一显示值，设备 / 缓存各自插值。刷新保留成功数字与容量；新结果从当前显示值滚至新值，相同值不重播。后台补资料、封面和切 Tab 不重播计数。
+- 容量本次直接显示成功结果，不滚动字节或切换中的单位，避免格式抖动；刷新保留原容量。尚未增加跨页面挂载的快照，重新打开从未知态开始。
+- 列表复用 `components/common/useStaggeredAppear.ts`：以 FlatList 首次报告的可见行（最多 12 条）为一批，每条间隔 40ms、单条 320ms，opacity 0→1、translateY 8→0，分段缓出；一个 `useNativeDriver: true` 时钟驱动全部行。初批之外直接显示，滚动、封面补齐、切 Tab、刷新、初次空库后导入均不整列重播。虚拟列表重新挂载行沿用已完成时钟。
+- 数字文本用 JS Animated 时钟（原生驱动不能更新文字内容），每帧只更新页头。`components/common/useReducedMotion.ts` 读取并监听系统「减少动画」：偏好尚未知时保守地直接显示结果；开启或动画中开启时立即到最终值，列表直接显示。卸载停止动画、移除监听，失效读取代次不回写。
+- 以后同类异步计数与列表页面复用以上 common hooks 和 `asyncAppearMath.ts` 的插值 / 时序，不各自复制动画。当前只接入本地歌曲页；纯函数与模拟时钟验证见 `scripts/async-appear.src-test.mjs`，Android 性能与视觉仍需真机确认。

@@ -6,6 +6,9 @@ import { Animated, FlatList, PermissionsAndroid, Platform, View, useWindowDimens
 
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import Text from '@/components/common/Text'
+import { useRollingNumber } from '@/components/common/useRollingNumber'
+import { useReducedMotion } from '@/components/common/useReducedMotion'
+import { useStaggeredAppear } from '@/components/common/useStaggeredAppear'
 import { useOverlaySlideTransition } from '@/components/common/overlaySlideTransition'
 import {
   EmptyState,
@@ -70,6 +73,7 @@ const ensurePlayerCacheReadable = async() => {
   for (let attempt = 0; attempt < 40 && !isInitialized(); attempt += 1) {
     await new Promise<void>(resolve => setTimeout(resolve, 50))
   }
+  if (!isInitialized()) throw new Error('Audio cache initialization timed out')
 }
 
 interface PageRow extends MergedLocalSong {
@@ -113,10 +117,12 @@ type LocalFilter = 'all' | 'device' | 'cache'
 
 interface LocalSongsOverviewProps {
   statusBarHeight: number
-  count: number
+  count: number | null
+  deviceCount: number
+  cacheCount: number
+  reducedMotion: boolean
   storageMeta: string
   filter: LocalFilter
-  filterTabs: Array<{ id: string, label: string }>
   selecting: boolean
   onBack: () => void
   onPlayAll: () => void
@@ -129,9 +135,11 @@ interface LocalSongsOverviewProps {
 const LocalSongsOverview = ({
   statusBarHeight,
   count,
+  deviceCount,
+  cacheCount,
+  reducedMotion,
   storageMeta,
   filter,
-  filterTabs,
   selecting,
   onBack,
   onPlayAll,
@@ -143,6 +151,14 @@ const LocalSongsOverview = ({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const t = useI18n()
+  const rollingCount = useRollingNumber(count, reducedMotion)
+  const rollingDevice = useRollingNumber(count == null ? null : deviceCount, reducedMotion)
+  const rollingCache = useRollingNumber(count == null ? null : cacheCount, reducedMotion)
+  const filterTabs = [
+    { id: 'all', label: t('local_songs_tab_all', { count: rollingCount ?? '—' }) },
+    { id: 'device', label: t('local_songs_tab_device', { count: rollingDevice ?? '—' }) },
+    { id: 'cache', label: t('local_songs_tab_cache', { count: rollingCache ?? '—' }) },
+  ]
   return (
     <View style={{ paddingTop: statusBarHeight }}>
       <MagTopBar
@@ -171,8 +187,8 @@ const LocalSongsOverview = ({
         {t('local_songs_title')}
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 12 }}>
-        <Text size={56} color={r.display} style={{ fontWeight: '800', letterSpacing: -2, fontVariant: ['tabular-nums'], lineHeight: 56 }}>
-          {count}
+        <Text accessibilityState={{ busy: count == null }} accessibilityLabel={count == null ? t('me_loading_songs') : t('local_songs_tab_all', { count })} size={56} color={r.display} style={{ fontWeight: '800', letterSpacing: -2, fontVariant: ['tabular-nums'], lineHeight: 56 }}>
+          {rollingCount ?? '—'}
         </Text>
         {t('library_tracks_unit')
           ? <Text size={18} color={r.muted} style={{ fontWeight: '700', marginLeft: 6, marginBottom: 8 }}>{t('library_tracks_unit')}</Text>
@@ -207,6 +223,12 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const choosePathRef = useRef<ChoosePathType>(null)
   const [rows, setRows] = useState<PageRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const reducedMotion = useReducedMotion()
+  const { reveal, styleFor } = useStaggeredAppear(reducedMotion)
+  const revealRef = useRef(reveal)
+  revealRef.current = reveal
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Record<string, true>>({})
   const [filter, setFilter] = useState<LocalFilter>('all')
@@ -240,11 +262,12 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const reload = useCallback(async() => {
     const generation = ++reloadGeneration.current
     setLoading(true)
+    setLoadFailed(false)
     try {
-      await ensurePlayerCacheReadable().catch(() => {})
+      await ensurePlayerCacheReadable()
       if (generation != reloadGeneration.current) return
       const devices = await collectDeviceSongs()
-      const caches = await listCachedEntries().catch(() => [])
+      const caches = await listCachedEntries()
       const catalog = await loadCachedSongCatalog()
       const deviceById = new Map(devices.map(device => [`${device.musicInfo.source}_${device.musicInfo.id}`, device.musicInfo]))
       const merged = mergeLocalSongRows(
@@ -298,7 +321,10 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
       })
       if (generation != reloadGeneration.current) return
       setRows(pageRows)
+      setHasLoaded(true)
       void hydrateRemoteMeta(pageRows, generation)
+    } catch {
+      if (generation == reloadGeneration.current) setLoadFailed(true)
     } finally {
       if (generation == reloadGeneration.current) setLoading(false)
     }
@@ -306,7 +332,12 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
 
   useEffect(() => {
     void reload()
+    return () => { reloadGeneration.current += 1 }
   }, [reload])
+
+  useEffect(() => {
+    if (hasLoaded && (!rows.length || reducedMotion)) reveal([])
+  }, [hasLoaded, reducedMotion, reveal, rows.length])
 
   const applyFoundCover = useCallback((rowKey: string, url: string) => {
     setRows(current => current.map(item => {
@@ -333,6 +364,9 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   }, [applyFoundCover])
 
   const onCoverViewableItemsChanged = useRef((info: { viewableItems: ViewToken[] }) => {
+    if (info.viewableItems.length) {
+      revealRef.current(info.viewableItems.filter(token => token.isViewable).map(token => (token.item as PageRow).rowKey))
+    }
     const visible: PageRow[] = []
     for (const token of info.viewableItems) {
       const row = token.item as PageRow | null | undefined
@@ -485,11 +519,6 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
   const usage = useMemo(() => summarizeLocalSongUsage(rows), [rows])
   const deviceCount = useMemo(() => rows.filter(row => row.origin == 'device').length, [rows])
   const cacheCount = useMemo(() => rows.filter(row => row.origin == 'cache').length, [rows])
-  const filterTabs = useMemo(() => [
-    { id: 'all', label: t('local_songs_tab_all', { count: rows.length }) },
-    { id: 'device', label: t('local_songs_tab_device', { count: deviceCount }) },
-    { id: 'cache', label: t('local_songs_tab_cache', { count: cacheCount }) },
-  ], [cacheCount, deviceCount, rows.length, t])
 
   const playPage = useCallback(async(shuffle: boolean) => {
     const playable = rowsRef.current.filter(item => item.playable)
@@ -509,36 +538,40 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
 
   const renderItem: ListRenderItem<PageRow> = useCallback(({ item, index }) => {
     return (
-      <PlaylistDetailSongItem
-        song={item.musicInfo}
-        index={index}
-        shiftAnim={shiftAnim}
-        detailNote={noteFor(item)}
-        statusLabel={statusFor(item)}
-        selecting={selecting}
-        selected={Boolean(selected[item.rowKey])}
-        canEdit={!selecting && (item.origin == 'device' || Boolean(item.cacheKey))}
-        last={index >= filteredRows.length - 1}
-        onLayout={() => {}}
-        onPress={() => { void handlePlay(item) }}
-        onRemove={() => { void removeRows([item]) }}
-      />
+      <Animated.View style={styleFor(item.rowKey, index)}>
+        <PlaylistDetailSongItem
+          song={item.musicInfo}
+          index={index}
+          shiftAnim={shiftAnim}
+          detailNote={noteFor(item)}
+          statusLabel={statusFor(item)}
+          selecting={selecting}
+          selected={Boolean(selected[item.rowKey])}
+          canEdit={!selecting && (item.origin == 'device' || Boolean(item.cacheKey))}
+          last={index >= filteredRows.length - 1}
+          onLayout={() => {}}
+          onPress={() => { void handlePlay(item) }}
+          onRemove={() => { void removeRows([item]) }}
+        />
+      </Animated.View>
     )
-  }, [filteredRows.length, handlePlay, noteFor, removeRows, selected, selecting, statusFor])
+  }, [filteredRows.length, handlePlay, noteFor, removeRows, selected, selecting, statusFor, styleFor])
 
   const header = (
     <LocalSongsOverview
       statusBarHeight={statusBarHeight}
-      count={loading ? 0 : usage.count}
-      storageMeta={loading
-        ? t('me_loading_songs')
+      count={hasLoaded ? usage.count : null}
+      deviceCount={deviceCount}
+      cacheCount={cacheCount}
+      reducedMotion={reducedMotion}
+      storageMeta={!hasLoaded
+        ? t(loadFailed ? 'local_songs_load_failed' : 'me_loading_songs')
         : t('local_songs_storage_meta', {
           total: sizeFormate(usage.totalBytes),
           device: sizeFormate(usage.deviceBytes),
           cache: sizeFormate(usage.cacheBytes),
         })}
       filter={filter}
-      filterTabs={filterTabs}
       selecting={selecting}
       onBack={handleClose}
       onPlayAll={() => { void playPage(false) }}
@@ -548,7 +581,7 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
         setSelected({})
       }}
       onScan={() => { void handleScan() }}
-      onFilterChange={(id) => { setFilter(id as LocalFilter) }}
+      onFilterChange={(id) => { reveal([]); setFilter(id as LocalFilter) }}
     />
   )
 
@@ -563,10 +596,11 @@ const LocalSongsDetail = ({ onClose, bottomPadding = 0 }: LocalSongsDetailProps)
         ListHeaderComponent={header}
         ListEmptyComponent={(
           <EmptyState
-            eyebrow={loading ? 'LOADING' : 'EMPTY · 0'}
-            title={loading ? t('me_loading_songs') : t('me_no_songs')}
+            eyebrow={!hasLoaded ? (loading ? 'LOADING' : '—') : 'EMPTY · 0'}
+            title={!hasLoaded ? t(loadFailed ? 'local_songs_load_failed' : 'me_loading_songs') : t('me_no_songs')}
           />
         )}
+        onScrollBeginDrag={() => { reveal([]) }}
         showsVerticalScrollIndicator={false}
         onViewableItemsChanged={onCoverViewableItemsChanged}
         viewabilityConfig={coverViewabilityConfig}
