@@ -1,5 +1,5 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
@@ -23,16 +23,16 @@ import { scoreTrack } from '@/utils/playlistImport/score'
 
 type Song = LX.Music.MusicInfoOnline
 type Row = ReviewRow<Song>
-type InputTab = 'text' | 'csv' | 'platform'
+type InputTab = 'lux' | 'text' | 'csv' | 'platform'
 const defaultSources: ImportSource[] = ['tx', 'wy', 'kg']
 
-export default function PlaylistImportFlow({ initialTab = 'text', targetListId, targetListName, onClose, onImported, onLocalImport }: {
+export default function PlaylistImportFlow({ initialTab, targetListId, targetListName, onClose, onImported, local }: {
   initialTab?: InputTab
   targetListId?: string
   targetListName?: string
   onClose: () => void
   onImported?: (id: string) => void
-  onLocalImport?: () => void
+  local?: { render: (header: ReactElement) => ReactElement, footer: ReactElement, submitting: boolean }
 }) {
   const t = useI18n()
   const styles = useStyles()
@@ -41,7 +41,7 @@ export default function PlaylistImportFlow({ initialTab = 'text', targetListId, 
   const statusBar = useStatusbarHeight()
   const inset = useSystemGestureInsetBottom()
   const [space] = useState(getActiveSpace)
-  const [tab, setTab] = useState<InputTab>(initialTab)
+  const [tab, setTab] = useState<InputTab>(initialTab ?? (local ? 'lux' : 'text'))
   const [text, setText] = useState('')
   const [link, setLink] = useState('')
   const [csv, setCsv] = useState<{ name: string, tracks: ImportTrack[], encoding: string } | null>(null)
@@ -77,7 +77,7 @@ export default function PlaylistImportFlow({ initialTab = 'text', targetListId, 
   }, [targetListId, space, onClose, t])
 
   const close = () => {
-    if (savingRef.current) return
+    if (savingRef.current || local?.submitting) return
     if (manualIndex != null) { manualController.current?.abort(); setManualIndex(null); return }
     if (sourcePicker) { setSourcePicker(false); return }
     controller.current?.abort()
@@ -148,29 +148,30 @@ export default function PlaylistImportFlow({ initialTab = 'text', targetListId, 
 
   const recognizedParts = t('import_recognized', { num: '{count}' }).split('{count}')
   const statusItems = ['all', 'uncertain', 'unmatched', 'matched'].map(id => ({ id, label: t(`import_status_${id}` as 'import_status_all', { num: id === 'all' ? rows?.length ?? 0 : rows?.filter(row => row.status === id).length ?? 0 }) }))
-  return <Modal visible animationType="slide" onRequestClose={close}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.root, { paddingTop: statusBar }]}>
-      <FlatList
-        data={rows?.map((row, index) => ({ row, index })).filter(({ row }) => statusTab === 'all' || row.status === statusTab) ?? []}
-        keyExtractor={item => String(item.index)}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.page}
-        ListHeaderComponent={<>
+  const header = <>
           <MagTopBar onBack={close} trailing={rows ? <TextButton compact label={t('import_accept_all')} disabled={saving} onPress={() => { setRows(previous => previous?.map(row => ({ ...row, selected: row.status !== 'unmatched' && row.candidates.length > 0, skipped: false })) ?? null) }} labelSize={15} style={{ paddingHorizontal: 0 }} /> : undefined} />
           <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{rows ? t('import_review_eyebrow') : targetListName ? t('import_target', { name: targetListName }) : t('import_new_target')}</Text>
-          <Text size={32} color={r.display} style={styles.title}>{rows ? t('import_review_title', { num: rows.length }) : t('import_paste_title')}</Text>
-          <TextTabs items={rows ? statusItems : [{ id: 'text', label: t('import_tab_text') }, { id: 'csv', label: t('import_tab_csv') }, { id: 'platform', label: t('import_tab_platform') }]} value={rows ? statusTab : tab} onChange={value => { if (rows) setStatusTab(value); else if (!busy) { setTab(value as InputTab); setError('') } }} scroll tabStyle={{ paddingTop: 8, paddingBottom: 8 }} style={{ marginTop: 10 }} />
-          {!rows ? <>
+          <Text size={32} color={r.display} style={styles.title}>{rows ? t('import_review_title', { num: rows.length }) : tab === 'lux' ? t('list_import') : t('import_paste_title')}</Text>
+          <TextTabs items={rows ? statusItems : [...(local ? [{ id: 'lux', label: t('import_tab_lux') }] : []), { id: 'text', label: t('import_tab_text') }, { id: 'csv', label: t('import_tab_csv') }, { id: 'platform', label: t('import_tab_platform') }]} value={rows ? statusTab : tab} onChange={value => { if (rows) setStatusTab(value); else if (!busy && !local?.submitting) { Keyboard.dismiss(); setTab(value as InputTab); setError('') } }} scroll tabStyle={{ paddingTop: 8, paddingBottom: 8 }} style={{ marginTop: 10 }} />
+          {!rows && tab !== 'lux' ? <>
             {tab === 'text' ? <UnderlineInput accessibilityLabel={t('import_tab_text')} multiline textAlignVertical="top" value={text} onChangeText={setText} editable={!busy} autoCorrect={false} autoCapitalize="none" placeholder={t('import_text_placeholder')} style={styles.textarea} /> : null}
             {tab === 'csv' ? <View style={styles.fileInput}><SecondaryButton compact label={t('import_choose_csv')} disabled={busy} onPress={() => { choosePath.current?.show({ title: t('import_choose_csv'), filter: ['csv'] }) }} />{csv ? <Text size={12} color={r.muted} style={{ marginTop: 8 }}>{csv.name} · {csv.encoding.toUpperCase()}</Text> : null}</View> : null}
-            {tab === 'platform' ? <View style={{ marginTop: 14 }}><UnderlineInput accessibilityLabel={t('import_tab_platform')} value={link} onChangeText={setLink} editable={!busy} placeholder={t('import_link_placeholder')} autoCapitalize="none" autoCorrect={false} />{onLocalImport ? <TextButton compact label={t('import_from_local')} disabled={busy} onPress={onLocalImport} style={{ alignSelf: 'flex-start', marginTop: 14, paddingHorizontal: 0 }} /> : null}</View> : null}
+            {tab === 'platform' ? <View style={{ marginTop: 14 }}><UnderlineInput accessibilityLabel={t('import_tab_platform')} value={link} onChangeText={setLink} editable={!busy} placeholder={t('import_link_placeholder')} autoCapitalize="none" autoCorrect={false} /></View> : null}
             <Text size={12} color={r.muted} style={{ marginTop: 8 }}>{t(tab === 'platform' ? 'import_link_hint' : 'import_format_hint')}</Text>
             <View style={styles.rule} />
             <TouchableOpacity accessibilityRole="button" disabled={busy} style={styles.settingRow} onPress={() => { setSourcePicker(true) }}><View style={{ flex: 1 }}><Text size={15} color={r.list} style={styles.bold}>{t('import_sources')}</Text><Text size={12} color={r.muted} style={{ marginTop: 2 }}>{sources.join(' → ')}</Text></View><Text color={r.ink}>›</Text></TouchableOpacity>
             <View style={[styles.settingRow, { borderBottomWidth: 0 }]}><Text size={15} color={r.list} style={[styles.bold, { flex: 1 }]}>{t('import_skip_existing')}</Text><Toggle compact accessibilityLabel={t('import_skip_existing')} value={skipExisting} disabled={busy} onChange={setSkipExisting} /></View>
           </> : null}
           {error ? <Text accessibilityRole="alert" size={12} color={r.danger} style={{ marginTop: 8 }}>{error}</Text> : null}
-        </>}
+        </>
+  return <Modal visible animationType="slide" onRequestClose={close}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.root, { paddingTop: statusBar }]}>
+      {tab === 'lux' && local ? local.render(header) : <FlatList
+        data={rows?.map((row, index) => ({ row, index })).filter(({ row }) => statusTab === 'all' || row.status === statusTab) ?? []}
+        keyExtractor={item => String(item.index)}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.page}
+        ListHeaderComponent={header}
         renderItem={({ item: { row, index } }) => {
           const candidate = row.candidates[row.choice]
           const found = !row.skipped && candidate && (row.status !== 'unmatched' || row.choice > 0)
@@ -186,11 +187,11 @@ export default function PlaylistImportFlow({ initialTab = 'text', targetListId, 
             <Hairline />
           </View>
         }}
-      />
-      <View style={[styles.footer, { paddingBottom: inset + 26 }]}>
+      />}
+      {tab === 'lux' && local ? local.footer : <View style={[styles.footer, { paddingBottom: inset + 26 }]}>
         <Text size={12} color={r.muted} style={styles.bold}>{rows ? t('import_will_add', { num: chosenSongs.length }) : tab === 'platform' ? t('import_tab_platform') : <>{recognizedParts[0]}<Text size={18} color={r.ink} style={styles.bold}>{tracks.length}</Text>{recognizedParts[1]}</>}</Text>
         <PrimaryButton compact label={saving ? t('import_saving') : busy ? tab === 'platform' ? t('list_loading') : t('import_progress', { done: progress, total: tracks.length }) : rows ? t('list_import') : t('import_start')} badge={rows ? chosenSongs.length : undefined} labelSize={15} style={{ flex: 1 }} disabled={saving || busy || (rows ? !chosenSongs.length : tab === 'platform' ? !link.trim() : !tracks.length)} onPress={() => { if (rows) void submit(); else void start() }} />
-      </View>
+      </View>}
     </KeyboardAvoidingView>
     <MagazineSheet visible={sourcePicker} onClose={() => { setSourcePicker(false) }} title={t('import_sources')}>
       <ScrollView>{(['tx', 'wy', 'kg', 'kw', 'mg'] as const).map(source => <OptionRow key={source} label={source} description={sources.includes(source) ? String(sources.indexOf(source) + 1) : undefined} selected={sources.includes(source)} onPress={() => { setSources(previous => previous.includes(source) ? previous.length === 1 ? previous : previous.filter(item => item !== source) : [...previous, source]) }} />)}<Text size={12} color={r.muted}>{t('import_sources_hint')}</Text></ScrollView>

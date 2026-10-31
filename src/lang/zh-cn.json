@@ -1908,5 +1908,15 @@
   "sync_state_username": "账号",
   "sync_state_connection_status": "连接状态",
   "sync_state_last_activity": "最近成功同步 / 活跃",
-  "sync_state_no_record": "暂无记录"
+  "sync_state_no_record": "暂无记录",
+  "import_tab_lux": "Lux 歌单",
+  "import_lux_search": "搜索歌单名、歌名或歌手",
+  "import_lux_newest": "最新在前",
+  "import_lux_oldest": "最早在前",
+  "import_lux_select_all": "全选当前结果",
+  "import_lux_clear": "取消当前全选",
+  "import_lux_sort_hint": "按歌单 ID 中的创建时间排序；时间未知的歌单放在末尾。",
+  "import_lux_available": "{num} 首可导入",
+  "import_lux_done": "已导入 {num} 首歌曲",
+  "import_lux_choose": "选择其他歌单"
 }

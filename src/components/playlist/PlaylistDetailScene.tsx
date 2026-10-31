@@ -1,3 +1,4 @@
+import { type ImportCandidate } from '@/utils/playlistImport/local'
 import { type ReactElement, type RefObject } from 'react'
 import { FlatList, View, type Animated, type GestureResponderHandlers, type LayoutChangeEvent, type ListRenderItem, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
 
@@ -9,12 +10,6 @@ import PlaylistImportPanel from './PlaylistImportPanel'
 import PlaylistSongDragOverlay from './PlaylistSongDragOverlay'
 import { SONG_ITEM_HEIGHT } from './PlaylistDetailSongItem'
 import { useLuxTheme } from '@/theme/LuxTheme'
-
-interface ImportCandidate {
-  id: string
-  musicInfo: LX.Music.MusicInfo
-  fromListName: string
-}
 
 export interface PlaylistDetailSceneProps {
   styles: Record<string, any>

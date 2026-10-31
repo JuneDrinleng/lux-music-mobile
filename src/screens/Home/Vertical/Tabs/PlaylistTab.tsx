@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
+import { type ImportCandidate, buildLocalCandidates } from '@/utils/playlistImport/local'
 import SmartPlaylistEditor, { newSmartPlaylist } from '@/components/playlist/SmartPlaylistEditor'
 import { startSmartPlaylists } from '@/utils/smartPlaylist'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -145,11 +146,7 @@ const getPlaylistSortTime = (listInfo: LX.List.UserListInfo): number => {
 
 type SourceMenu = typeof sourceMenus[number]
 type SearchResultItem = LX.Music.MusicInfoOnline
-interface ImportCandidate {
-  id: string
-  musicInfo: LX.Music.MusicInfo
-  fromListName: string
-}
+
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
 }
@@ -1074,26 +1071,12 @@ export default () => {
     setImportLoading(true)
     try {
       const currentSongs = await getListMusics(targetListId)
-      const existingSongIds = new Set(currentSongs.map(song => `${song.source}_${song.id}`))
       const otherLists = playlists.filter(list => list.id !== targetListId && list.id !== LIST_IDS.DEFAULT)
       const listSongs = await Promise.all(otherLists.map(async(list) => {
         const songs = await getListMusics(list.id)
-        return { listName: list.name, songs }
+        return { id: list.id, listName: list.name, songs }
       }))
-      const dedupeMap = new Set<string>()
-      const candidates: ImportCandidate[] = []
-      for (const { listName, songs } of listSongs) {
-        for (const song of songs) {
-          const songKey = `${song.source}_${song.id}`
-          if (existingSongIds.has(songKey) || dedupeMap.has(songKey)) continue
-          dedupeMap.add(songKey)
-          candidates.push({
-            id: songKey,
-            musicInfo: song,
-            fromListName: listName,
-          })
-        }
-      }
+      const candidates = buildLocalCandidates(currentSongs, listSongs)
       if (requestId !== importRequestIdRef.current) return
       setImportCandidates(candidates)
     } finally {
@@ -1598,7 +1581,6 @@ export default () => {
       />
     )
   }
-
 
   const profileHeroCard = (
     <View style={{ marginTop: 18, marginBottom: 22 }}>
