@@ -48,7 +48,7 @@ const options = ['language', 'theme', 'statsPageStyle', 'searchSource', 'player'
 test('every Settings entry is enumerated; every option renderer is inside SettingsPage', () => {
   const ast = parse(settingsFile)
   const nodes = descendants(ast)
-  const reviewedTags = ['AccountPage', 'AdminConsoleLayer', 'AiTokenStatusPage', 'BackButton', 'ChoosePath', 'EmptyState', 'Hairline', 'IconButton', 'Image', 'MagDialog', 'MagTopBar', 'MdiIcon', 'OptionRow', 'ResourceCacheDetail', 'Rule', 'ScrollView', 'SectionHeader', 'ServerStep', 'SettingRow', 'SettingsPage', 'Source', 'SyncLogin', 'SyncStatusPage', 'SyncStatusRow', 'Text', 'TouchableOpacity', 'UnderlineInput', 'VersionChangelogDetail', 'View']
+  const reviewedTags = ['AccountPage', 'AdminConsoleLayer', 'AiTokenStatusPage', 'ChoosePath', 'EmptyState', 'Hairline', 'IconButton', 'Image', 'MagDialog', 'MagTopBar', 'MdiIcon', 'OptionRow', 'ResourceCacheDetail', 'Rule', 'ScrollView', 'SectionHeader', 'ServerStep', 'SettingRow', 'SettingsPage', 'Source', 'SyncLogin', 'SyncStatusPage', 'SyncStatusPill', 'SyncConnectionInfo', 'Text', 'TouchableOpacity', 'UnderlineInput', 'VersionChangelogDetail', 'View']
   assert.deepEqual([...new Set(nodes.map(tag).filter(Boolean))].sort(), reviewedTags.sort(), 'New surface requires audit, including imports outside @/screens')
   const rows = nodes.filter(node => tag(node) === 'SettingRow')
   const seen = new Set()
@@ -100,9 +100,16 @@ test('Settings sections each use their own iconWrap consistently', () => {
 
 test('profile avatar retains the complete AccountPage through shared SettingsPage', () => {
   const nodes = descendants(parse(settingsFile))
-  const hero = nodes.find(node => tag(node) === 'TouchableOpacity' && attribute(node, 'style') === '{styles.profileHeroRow}')
+  const hero = nodes.find(node => tag(node) === 'View' && attribute(node, 'style') === '{styles.profileHeroRow}')
   assert.ok(hero)
-  assert.equal(attribute(hero, 'onPress'), '{handleOpenProfileDetail}')
+  const accountControls = descendants(hero).filter(node => tag(node) === 'TouchableOpacity')
+  assert.equal(accountControls.length, 4)
+  for (const control of accountControls) assert.equal(attribute(control, 'onPress'), '{handleOpenProfileDetail}')
+  const pill = descendants(hero).find(node => tag(node) === 'SyncStatusPill')
+  assert.ok(pill)
+  assert.ok(!under(pill, 'TouchableOpacity'), 'pill must not bubble to an account button')
+  assert.match(attribute(pill, 'onPress'), /statusModel.route === 'sync'.*handleOpenSyncDetail/s)
+  assert.match(attribute(pill, 'onPress'), /else setStatusPage\(statusModel\)/)
   const open = nodes.find(node => ts.isVariableDeclaration(node) && node.name.getText() === 'handleOpenProfileDetail')
   assert.match(open.initializer.getText(), /setProfileDetailVisible\(true\)/)
   const accounts = nodes.filter(node => tag(node) === 'AccountPage')
@@ -122,7 +129,7 @@ test('all imported Settings screens and nested pages use the shared transition, 
   const ast = parse(settingsFile)
   const screenNames = descendants(ast).filter(node => ts.isImportDeclaration(node) && node.moduleSpecifier.text.startsWith('@/screens/'))
     .flatMap(node => descendants(node.importClause).filter(ts.isIdentifier).map(node => node.text))
-  const controls = new Set(['SyncStatusRow', 'Source', 'AdminConsoleLayer'])
+  const controls = new Set(['SyncStatusPill', 'SyncConnectionInfo', 'Source', 'AdminConsoleLayer'])
   for (const node of descendants(ast).filter(node => screenNames.includes(tag(node)) && !controls.has(tag(node)))) {
     assert.ok(under(node, 'SettingsPage'), `Screen bypasses SettingsPage: ${tag(node)}`)
   }
@@ -278,4 +285,27 @@ test('nested Settings routes slide forward, reverse before restoring parent, and
   close.finish(); page = render(); assert.equal(page.page, 'account')
   assert.equal(close.value.value, 1)
   h.unmount()
+})
+
+
+test('settings B has no root back, H1 and search share a row and input pushes content below', () => {
+  const nodes = descendants(parse(settingsFile))
+  const top = nodes.find(node => tag(node) === 'MagTopBar')
+  assert.equal(attribute(top, 'masthead'), "{t('sync_state_settings_eyebrow')}")
+  assert.equal(attribute(top, 'leading'), undefined)
+  assert.equal(attribute(top, 'onBack'), undefined)
+  const row = nodes.find(node => tag(node) === 'View' && attribute(node, 'style') === '{styles.titleActionRow}')
+  const title = descendants(row).find(node => tag(node) === 'Text')
+  assert.equal(attribute(title, 'size'), '{magType.h1.size}')
+  const search = descendants(row).find(node => tag(node) === 'IconButton')
+  assert.equal(attribute(search, 'size'), '{28}')
+  assert.equal(attribute(search, 'onPress'), '{handleToggleSettingsSearch}')
+  const input = nodes.find(node => tag(node) === 'UnderlineInput' && attribute(node, 'value') === '{settingsSearchQuery}')
+  assert.ok(input.pos > row.end)
+  assert.doesNotMatch(read(settingsFile), /SyncStatusRow|<BackButton/)
+  assert.match(read(settingsFile), /const SETTINGS_SECTION_GAP = 22/)
+  const pillSource = read('src/screens/SyncStatus/index.tsx')
+  assert.match(pillSource, /pillTarget:.*minHeight: 44.*paddingVertical: 8/)
+  assert.match(pillSource, /pill:.*minHeight: 28.*paddingHorizontal: 8/)
+  assert.doesNotMatch(pillSource, /hitSlop|ActivityIndicator/)
 })

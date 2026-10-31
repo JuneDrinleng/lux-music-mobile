@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import SyncLogin from '@/screens/SyncLogin'
-import SyncStatusPage, { SyncStatusRow } from '@/screens/SyncStatus'
+import SyncStatusPage, { SyncStatusPill, SyncConnectionInfo } from '@/screens/SyncStatus'
 import ServerStep from '@/screens/Login/ServerStep'
 import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
 import { reconnectNow } from '@/plugins/sync/client/client'
@@ -18,7 +18,6 @@ import AiTokenStatusPage from '@/screens/AiTokenStatus'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
-  BackButton,
   DOCK_BASE_HEIGHT,
   EmptyState,
   Hairline,
@@ -86,10 +85,9 @@ import { AdminConsoleLayer } from '@/screens/AdminConsole'
 
 /**
  * Settings group-to-group rhythm (design numbers).
- * After #55: ruleGap 22 + headGap 12 ≈ 34. Target visual ≈ 16–20.
- * Now: ruleGap 12 + headGap 6 ≈ 18.
+ * Approved settings B: ruleGap 22, headGap 6 (including the first appearance rule).
  */
-const SETTINGS_SECTION_GAP = 12
+const SETTINGS_SECTION_GAP = 22
 const SETTINGS_SECTION_HEAD_GAP = 6
 const BOTTOM_DOCK_BASE_HEIGHT = DOCK_BASE_HEIGHT
 const currentVer = process.versions.app
@@ -853,16 +851,12 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <MagTopBar
-          leading={<BackButton compact onPress={() => { setNavActiveId('nav_search') }} accessibilityLabel={t('back')} />}
-          trailing={
-            <IconButton
-              name="magnify"
-              accessibilityLabel={t('action_search')}
-              onPress={handleToggleSettingsSearch}
-            />
-          }
-        />
+        <MagTopBar masthead={t('sync_state_settings_eyebrow')} style={styles.settingsMasthead} />
+        <View style={styles.titleActionRow}>
+          <Text size={magType.h1.size} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
+          <IconButton name="magnify" size={28} style={styles.settingsSearchButton}
+            accessibilityLabel={t('action_search')} onPress={handleToggleSettingsSearch} />
+        </View>
         {isSettingsSearchOpen
           ? (
             <View style={styles.settingsSearchRow}>
@@ -890,25 +884,31 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
             </View>
             )
           : null}
-        <Text size={11} color={r.eyebrow} style={styles.statusEyebrow}>{t('sync_state_settings_eyebrow')}</Text>
-        <Text size={32} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
-        {statusModel ? <SyncStatusRow model={statusModel} name={nickname} host={syncHost} now={now} onPress={() => {
-          if (statusModel.route === 'sync') handleOpenSyncDetail()
-          else setStatusPage(statusModel)
-        }} /> : null}
-
-        {showProfileHero
-          ? (
-            <TouchableOpacity style={styles.profileHeroRow} activeOpacity={0.82} onPress={handleOpenProfileDetail} accessibilityRole="button">
-              <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
-              <View style={styles.profileHeroText}>
-                <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1}>{nickname}</Text>
-                <Text size={magType.meta.size} color={r.muted} numberOfLines={2}>{signature || defaultSignature}</Text>
-              </View>
-              <MdiIcon name="chevron-right" size={18} color={r.quiet} />
-            </TouchableOpacity>
-            )
-          : null}
+        <View style={styles.profileHeroRow}>
+          {showProfileHero ? <TouchableOpacity activeOpacity={0.7} onPress={handleOpenProfileDetail}
+            accessibilityRole="button" accessibilityLabel={t('setting_profile')}>
+            <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
+          </TouchableOpacity> : null}
+          <View style={styles.profileHeroText}>
+            {showProfileHero ? <TouchableOpacity activeOpacity={0.7} onPress={handleOpenProfileDetail} accessibilityRole="button">
+              <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1}>{nickname}</Text>
+            </TouchableOpacity> : null}
+            <View style={styles.profileSignatureRow}>
+              {showProfileHero ? <TouchableOpacity style={styles.profileSignatureTarget} activeOpacity={0.7}
+                onPress={handleOpenProfileDetail} accessibilityRole="button">
+                <Text size={magType.meta.size} color={r.muted} numberOfLines={1}>{signature || defaultSignature}</Text>
+              </TouchableOpacity> : null}
+              <SyncStatusPill model={statusModel} onPress={() => {
+                if (statusModel.route === 'sync') handleOpenSyncDetail()
+                else setStatusPage(statusModel)
+              }} />
+            </View>
+          </View>
+          {showProfileHero ? <TouchableOpacity style={styles.profileArrowTarget} activeOpacity={0.7}
+            onPress={handleOpenProfileDetail} accessibilityRole="button" accessibilityLabel={t('setting_profile')}>
+            <MdiIcon name="chevron-right" size={18} color={r.quiet} />
+          </TouchableOpacity> : null}
+        </View>
 
         {showAppearanceSection
           ? (
@@ -1205,6 +1205,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           {activeOptionDetail === 'sync'
             ? (
               <View style={styles.optionList}>
+                <SyncConnectionInfo model={statusModel} host={syncHost} username={reloginUsername || nickname} />
                 <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
                 <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} />
                 {syncHostHistory.map((host, index) => (
@@ -1305,7 +1306,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         bottomDockHeight={bottomDockHeight}
       />
       <SettingsPage visible={statusPage != null} onBack={() => { setStatusPage(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
-        {back => <SyncStatusPage model={statusModel ?? statusPage!} host={syncHost} username={reloginUsername || nickname}
+        {back => <SyncStatusPage model={statusModel.route !== 'sync' ? statusModel : statusPage!} connectionModel={statusModel} host={syncHost} username={reloginUsername || nickname}
           onBack={back}
           onHome={() => { setStatusPage(null); setNavActiveId('nav_search') }}
           onRetry={() => {
@@ -1355,8 +1356,10 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     elevation: APP_LAYER_INDEX.controls + 6,
     backgroundColor: colors.bg.app,
   },
-  statusEyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
-  settingsTitle: { lineHeight: 38, fontWeight: '800' },
+  settingsMasthead: { minHeight: 14, marginTop: 18 },
+  titleActionRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  settingsSearchButton: { marginRight: -8 },
+  settingsTitle: { lineHeight: magType.h1.lineHeight, fontWeight: magType.h1.weight, letterSpacing: magType.h1.letterSpacing },
   pageTitle: {
     fontWeight: '800',
     letterSpacing: -1,
@@ -1381,6 +1384,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 22,
+    minHeight: 68,
     // Group-to-group rhythm comes from SETTINGS_SECTION_GAP on SectionHeader rules.
     marginBottom: 0,
     gap: 14,
@@ -1396,10 +1400,10 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flex: 1,
     minWidth: 0,
   },
-  profileHeroName: {
-    fontWeight: '800',
-    marginBottom: 4,
-  },
+  profileHeroName: { fontWeight: '800', lineHeight: 28 },
+  profileSignatureRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  profileSignatureTarget: { flexShrink: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  profileArrowTarget: { width: 18, minHeight: 44, justifyContent: 'center' },
   sectionBlock: {
     // Inter-group spacing is SETTINGS_SECTION_GAP on the section rule only.
     marginTop: 0,

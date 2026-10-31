@@ -48,7 +48,7 @@ test('error mapping table: every message, LuxRequestError code/status and socket
   }
   for (const message of [constants.SYNC_CODE.authFailed, constants.SYNC_CODE.missingAuthCode]) assert.equal(map({ message }).kind, 'expired')
   for (const status of [403, 429, 500, 503]) assert.equal(map({ error: new errors.LuxRequestError('HTTP failure', status) }).kind, 'unreachable')
-  for (const message of ['Network request failed', 'failed', 'Connect timeout, try reconnect...', constants.SYNC_CODE.connecting, 'Wait syncing...']) assert.equal(map({ message }).kind, 'unreachable')
+  for (const message of ['Network request failed', 'failed', 'Connect timeout, try reconnect...']) assert.equal(map({ message }).kind, 'unreachable')
 })
 
 test('serverCheck compatibility and actual version payload are retained; local/disabled/disconnected stay neutral', () => {
@@ -63,10 +63,10 @@ test('serverCheck compatibility and actual version payload are retained; local/d
   assert.equal(value.kind, 'incompatible')
   const text = model.syncStatusText(value, { name: 'June', host: 'https://lux.june-nas.cn', relative: '', unknown: '未知' })
   assert.equal(translate(text.detailKey, { version: text.version, minimum: text.minimum }), '服务器 1.9.0 < 需要 2.1')
-  assert.equal(map({ status: true }, { enabled: false }), null)
-  assert.equal(map({ message: 'failure' }, { local: true }), null)
-  assert.equal(map({ closeCode: 1000 }), null)
-  assert.equal(map({}), null)
+  assert.equal(map({ status: true }, { enabled: false }).kind, 'unsynced')
+  assert.equal(map({ message: 'failure' }, { local: true }).kind, 'local')
+  assert.equal(map({ closeCode: 1000 }).kind, 'unsynced')
+  assert.equal(map({}).kind, 'unsynced')
   assert.equal(map({ message: constants.SYNC_CODE.luxSessionExpired }, { enabled: false }).kind, 'expired')
   assert.equal(map({ status: true, lastSyncedAt: 500 }).kind, 'synced')
 })
@@ -112,9 +112,10 @@ const commonDeps = h => ({
   '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 0 },
   '@/utils/tools': { createStyle: value => value, clipboardWriteText() {} },
   '@/utils/syncStatus': model,
+  '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
   '@/utils/accountPage': load('src/utils/accountPage.ts'),
 })
-const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 1000 }, hasSocket = true) => {
+const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 1000 }, hasSocket = true, options = {}) => {
   const h = hookHarness(); const events = []; const clocks = []; const deps = commonDeps(h)
   Object.assign(deps['react-native'], {
     Animated: { View: 'AnimatedView', Value: class { interpolate() {} setValue() {} }, timing: () => ({ start() {} }) },
@@ -126,7 +127,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
   const noop = () => {}; const asyncNoop = async() => {}
   Object.assign(deps, {
     '@/screens/SyncLogin': { default: 'SyncLogin' },
-    '@/screens/SyncStatus': { default: 'SyncStatusPage', SyncStatusRow: 'SyncStatusRow' },
+    '@/screens/SyncStatus': { default: 'SyncStatusPage', SyncStatusPill: 'SyncStatusPill', SyncConnectionInfo: 'SyncConnectionInfo' },
     '@/screens/Login/ServerStep': { default: 'ServerStep' },
     '@/plugins/sync/client/client': { reconnectNow: () => { events.push(['retry']); return hasSocket } },
     '@/utils/enterLocalSpace': { enterLocalSpace: async value => { events.push(['local', value]) } },
@@ -156,20 +157,20 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
       getUserAvatar: async() => null,
       getUserName: async() => 'June',
       getUserSignature: async() => '',
-      getSyncHost: async() => 'https://server',
-      reloadSyncHostFromStorage: async() => 'https://server',
+      getSyncHost: async() => options.host ?? 'https://server',
+      reloadSyncHostFromStorage: async() => options.host ?? 'https://server',
       getSyncMode: async() => 'lux',
       findLuxAuthForHost: async() => ({ user: { username: 'june' } }),
       setSyncHost: async host => { events.push(['saveHost', host]) },
       addSyncHostHistory: async host => { events.push(['history', host]) },
       setSyncMode: async mode => { events.push(['mode', mode]) },
     },
-    '@/utils/syncLoginPrefill': { loadSyncLoginFormSnapshot: async() => ({ host: 'https://server', luxUsername: 'june' }) },
+    '@/utils/syncLoginPrefill': { loadSyncLoginFormSnapshot: async() => ({ host: options.host ?? 'https://server', luxUsername: 'june' }) },
     '@/plugins/sync/data': { getSyncHostHistory: async() => ['https://server', 'http://older'], removeSyncHostHistory: async index => { events.push(['deleteHost', index]) } },
     '@/plugins/sync/client/credentials': {},
     '@/plugins/sync/client/userErrors': {},
     '@/plugins/sync': { connectLuxServer: async host => { events.push(['connectLux', host]) }, connectServer: async host => { events.push(['connectLx', host]) }, disconnectServer: async() => { events.push(['disconnect']) } },
-    '@/store/setting/hook': { useSettingValue: key => key === 'sync.enable' },
+    '@/store/setting/hook': { useSettingValue: key => key === 'sync.enable' ? options.enabled !== false : undefined },
     '@/core/common': { updateSetting: value => { events.push(['setting', value]) }, setNavActiveId: value => { events.push(['nav', value]) } },
     '@/core/apiSource': {},
     '@/store/version/hook': { useVersionInfo: () => ({}), useVersionDownloadProgressUpdated: () => ({}) },
@@ -199,7 +200,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     tick() { clocks.forEach(fn => fn()) },
     render() {
       const previous = global.app_event
-      global.app_event = { on() {}, off() {} }
+      global.app_event = { on() {}, off() {}, settingsSearchStateUpdated() {} }
       try { tree = h.render(screen); return tree } finally { global.app_event = previous }
     },
     find(type, predicate = () => true) { return nodes(tree).find(node => node.type === type && predicate(node.props))?.props },
@@ -210,7 +211,7 @@ test('actual Settings row routes each current state to the specified page/settin
   for (const [status, target] of [[{ status: true, message: '' }, 'sync'], [{ status: false, message: 'offline' }, 'unreachable'], [{ status: false, message: constants.SYNC_CODE.lowServiceVersion }, 'incompatible'], [{ status: false, message: constants.SYNC_CODE.luxSessionExpired }, 'expired']]) {
     const h = settingsHarness(status)
     h.render(); await settle(); h.render()
-    const row = h.find('SyncStatusRow')
+    const row = h.find('SyncStatusPill')
     assert.equal(row.model.route, target)
     row.onPress(); h.render(); await settle(); h.render()
     if (target === 'sync') assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lux))
@@ -275,7 +276,7 @@ test('merged entry retains validation, history selection/toggle/delete and proto
 test('Settings display clock only rerenders the existing deadline without connecting', async() => {
   const h = settingsHarness({ status: false, message: 'offline', attempts: 3, retryAt: Date.now() - 1000 })
   h.render(); await settle(); h.render()
-  h.find('SyncStatusRow').onPress(); h.render()
+  h.find('SyncStatusPill').onPress(); h.render()
   for (let i = 0; i < 5; i++) { h.tick(); h.render() }
   assert.equal(h.find('SyncStatusPage').model.seconds, 0)
   assert.equal(h.find('SyncStatusPage').model.attempts, 3)
@@ -285,7 +286,7 @@ test('Settings display clock only rerenders the existing deadline without connec
 test('unreachable actions use immediate reconnect, prefilled ServerStep and Home without pausing sync', async() => {
   const h = settingsHarness({ status: false, message: 'offline', attempts: 3, retryAt: Date.now() + 30000 })
   h.render(); await settle(); h.render()
-  h.find('SyncStatusRow').onPress(); h.render()
+  h.find('SyncStatusPill').onPress(); h.render()
   h.find('SyncStatusPage').onRetry()
   assert.deepEqual(h.events, [['retry']])
   h.find('SyncStatusPage').onCheckAddress(); h.render()
@@ -313,18 +314,19 @@ test('preview pages expose exact copy and button callbacks, including version co
   assert.deepEqual(events.slice(-2), ['onLogin', 'onLocal'])
 })
 
-test('synced row shows one action and exact name/host/relative text; expired relogin uses cached username', async() => {
+test('pill is a single accessible action; expired relogin uses cached username', async() => {
   const hooks = hookHarness()
-  const Row = load('src/screens/SyncStatus/index.tsx', commonDeps(hooks)).SyncStatusRow
+  const Pill = load('src/screens/SyncStatus/index.tsx', commonDeps(hooks)).SyncStatusPill
   let taps = 0
-  const tree = hooks.render(Row, { model: map({ status: true, lastSyncedAt: 1000 }), name: 'June', host: 'https://lux.june-nas.cn', now: 61000, onPress: () => { taps++ } })
-  assert.equal(nodes(tree).filter(node => node.type === 'TouchableOpacity').length, 1)
-  assert.ok(nodes(tree).some(node => node.props?.children === 'June • lux.june-nas.cn • 1 分钟前'))
-  nodes(tree).find(node => node.type === 'TouchableOpacity').props.onPress()
-  assert.equal(taps, 1)
+  const tree = hooks.render(Pill, { model: map({ status: true, lastSyncedAt: 1000 }), onPress: () => { taps++ } })
+  const buttons = nodes(tree).filter(node => node.props?.accessibilityRole === 'button')
+  assert.equal(buttons.length, 1)
+  assert.equal(buttons[0].props.accessibilityLabel, '已同步，查看同步详情')
+  assert.equal(buttons[0].props.accessibilityLiveRegion, 'polite')
+  buttons[0].props.onPress(); assert.equal(taps, 1)
   const h = settingsHarness({ status: false, message: constants.SYNC_CODE.luxSessionExpired })
   h.render(); await settle(); h.render()
-  h.find('SyncStatusRow').onPress(); h.render()
+  h.find('SyncStatusPill').onPress(); h.render()
   assert.equal(h.find('SyncStatusPage').username, 'june')
   h.find('SyncStatusPage').onLogin(); await settle(); h.render()
   assert.ok(h.find('SyncStatusPage'), 'status remains underneath login for hierarchical back')
@@ -337,7 +339,7 @@ test('synced row shows one action and exact name/host/relative text; expired rel
 test('manual retry without a socket calls the existing connection entry exactly once', async() => {
   const h = settingsHarness({ status: false, message: 'offline' }, false)
   h.render(); await settle(); h.render()
-  h.find('SyncStatusRow').onPress(); h.render()
+  h.find('SyncStatusPill').onPress(); h.render()
   h.find('SyncStatusPage').onRetry(); await settle()
   assert.deepEqual(h.events, [['retry'], ['connectLux', 'https://server']])
 })
@@ -348,7 +350,7 @@ test('all three locales interpolate status text through the production translato
     const translator = load('src/lang/i18n.ts', { react: {}, './index': { messages: { zh_cn: messages } } }).createI18n('zh_cn')
     assert.deepEqual(Object.keys(messages).filter(key => key.startsWith('sync_state_')), Object.keys(zh).filter(key => key.startsWith('sync_state_')))
     for (const key of Object.keys(zh).filter(key => key.startsWith('sync_state_'))) {
-      const text = translator.t(key, { count: 3, seconds: 30, value: 'NAS', version: '1.9', minimum: '2.1' })
+      const text = translator.t(key, { count: 3, seconds: 30, value: 'NAS', version: '1.9', minimum: '2.1', status: '已同步' })
       assert.ok(!/[{}]/.test(text), `${locale}: ${key}: ${text}`)
     }
     assert.ok(translator.t('sync_state_attempts', { count: 3, seconds: 30 }).includes('30'))
@@ -384,4 +386,88 @@ test('audio settings entry opens the Main overlay without moving existing entrie
   try { row.props.onPress() } finally { global.app_event = previous }
   assert.equal(opened, 1)
   assert.ok(!nodes(h.render()).some(node => node.type === 'AudioEffectsPage'))
+})
+
+
+test('all eight capsule states keep a route; handshake and connected sockets never invent a sync task', () => {
+  const scenarios = [
+    [{ status: true }, {}, 'synced', 'sync'],
+    [{}, { enabled: false }, 'unsynced', 'sync'],
+    [{}, { local: true }, 'local', 'sync'],
+    [{ message: constants.SYNC_CODE.connecting }, {}, 'connecting', 'sync'],
+    [{ message: 'Wait syncing...' }, {}, 'connecting', 'sync'],
+    [{ syncing: true }, {}, 'syncing', 'sync'],
+    [{ message: 'offline' }, {}, 'unreachable', 'unreachable'],
+    [{ message: constants.SYNC_CODE.luxSessionExpired }, { enabled: false }, 'expired', 'expired'],
+    [{ message: constants.SYNC_CODE.lowServiceVersion }, {}, 'incompatible', 'incompatible'],
+  ]
+  for (const [status, options, kind, route] of scenarios) {
+    const value = map(status, options)
+    assert.equal(value.kind, kind)
+    assert.equal(value.route, route)
+    assert.ok(translate(value.pillKey).length)
+  }
+  assert.equal(map({ status: true, syncing: true, error: { code: 'SESSION_EXPIRED' } }).kind, 'expired')
+  assert.equal(map({ status: true, syncing: true, error: { status: 426 } }).kind, 'incompatible')
+})
+
+test('local, disabled and connecting pills open service details without reconnecting or opening account', async() => {
+  for (const [status, options, kind] of [
+    [{ status: false, message: '' }, { host: '' }, 'local'],
+    [{ status: true, message: '' }, { enabled: false }, 'unsynced'],
+    [{ status: false, message: constants.SYNC_CODE.connecting }, {}, 'connecting'],
+    [{ status: false, message: 'Wait syncing...' }, {}, 'connecting'],
+    [{ status: true, message: '', syncing: true }, {}, 'syncing'],
+  ]) {
+    const h = settingsHarness(status, true, options)
+    h.render(); await settle(); h.render()
+    assert.equal(h.find('SyncStatusPill').model.kind, kind)
+    h.find('SyncStatusPill').onPress(); h.render(); await settle(); h.render()
+    assert.ok(h.find('SyncConnectionInfo'))
+    assert.equal(h.find('SyncConnectionInfo').model.kind, kind)
+    assert.equal(h.find('AccountPage'), undefined)
+    assert.equal(h.find('SyncStatusPage'), undefined)
+    assert.deepEqual(h.events, [])
+  }
+})
+
+test('search filters account but preserves sync capsule, clear restores profile and account action stays separate', async() => {
+  const previousEvents = global.app_event
+  global.app_event = { on() {}, off() {}, settingsSearchStateUpdated() {} }
+  try {
+  const h = settingsHarness()
+  h.render(); await settle(); h.render()
+  h.find('IconButton', p => p.name === 'magnify').onPress(); h.render()
+  h.find('UnderlineInput', p => p.placeholder === zh.setting_search_topbar_placeholder).onChangeText('no-matching-profile')
+  h.render()
+  assert.equal(h.find('Image'), undefined)
+  assert.ok(h.find('SyncStatusPill'))
+  h.find('IconButton', p => p.name === 'close').onPress(); h.render()
+  assert.ok(h.find('Image'))
+  h.find('TouchableOpacity', p => p.accessibilityLabel === zh.setting_profile).onPress(); h.render()
+  assert.ok(h.find('AccountPage'))
+  assert.equal(h.find('SyncStatusPage'), undefined)
+  } finally { global.app_event = previousEvents }
+})
+
+test('connection information keeps actual host/account/history, handles missing time and copies the full address', () => {
+  const h = hookHarness(); const deps = commonDeps(h); const copied = []
+  deps['@/utils/tools'].clipboardWriteText = value => copied.push(value)
+  const Info = load('src/screens/SyncStatus/index.tsx', deps).SyncConnectionInfo
+  for (const lastSyncedAt of [undefined, Number.NaN, 0, 1000]) {
+    const tree = h.render(Info, { model: map({ message: 'offline', lastSyncedAt }), host: 'https://server/path', username: 'june' })
+    const rows = nodes(tree).filter(node => node.type === 'SettingRow')
+    assert.equal(rows.length, 4)
+    assert.equal(rows[0].props.subtitle, 'https://server/path')
+    rows[0].props.onPress()
+    assert.equal(rows[1].props.subtitle, 'june')
+    assert.equal(rows[2].props.subtitle, '连接失败', 'historical timestamp must not imply server is online')
+    assert.equal(rows[3].props.subtitle, lastSyncedAt === 1000 ? new Date(1000).toLocaleString() : zh.sync_state_no_record)
+  }
+  assert.deepEqual(copied, Array(4).fill('https://server/path'))
+  const tree = h.render(Info, { model: map({}, { local: true }), host: '', username: '' })
+  const rows = nodes(tree).filter(node => node.type === 'SettingRow')
+  assert.equal(rows[0].props.subtitle, zh.sync_state_no_record)
+  assert.equal(rows[0].props.onPress, undefined)
+  assert.equal(rows[1].props.subtitle, zh.sync_state_no_record)
 })

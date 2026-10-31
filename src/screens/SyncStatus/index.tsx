@@ -4,39 +4,60 @@ import { useEffect } from 'react'
 import { BackHandler, ScrollView, View, TouchableOpacity } from 'react-native'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
-import { BackButton, PrimaryButton, SecondaryButton } from '@/components/magazine'
+import { BackButton, PrimaryButton, SecondaryButton, SectionHeader, SettingRow } from '@/components/magazine'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle, clipboardWriteText } from '@/utils/tools'
-import { syncHostname, syncStatusText, type SyncStatusModel } from '@/utils/syncStatus'
-import { relativeActivity } from '@/utils/accountPage'
+import { syncHostname, type SyncStatusModel } from '@/utils/syncStatus'
+import { MdiIcon } from '@/components/common/MdiIcon'
 import { useStatusbarHeight } from '@/store/common/hook'
 import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 
-export function SyncStatusRow({ model, name, host, now, onPress }: { model: SyncStatusModel, name: string, host: string, now: number, onPress: () => void }) {
+/** Independent sibling of account controls; the layout reserves its full 44pt target. */
+export function SyncStatusPill({ model, onPress }: { model: SyncStatusModel, onPress: () => void }) {
   const t = useI18n()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
-  const relative = relativeActivity(model.lastSyncedAt == null ? '' : new Date(model.lastSyncedAt).toISOString(), now)
-  const text = syncStatusText(model, { name, host, relative: t(relative.key, relative.args), unknown: t('sync_state_unknown_version') })
-  const detail = model.kind === 'synced' ? text.syncedDetail : t(text.detailKey, { seconds: model.seconds ?? 0, version: text.version, minimum: text.minimum })
+  const error = model.route !== 'sync'
+  const active = ['synced', 'connecting', 'syncing'].includes(model.kind)
+  const color = error ? r.danger : active ? r.accentInk : r.muted
+  const icon = model.kind === 'synced' ? 'check' : model.kind === 'expired' ? 'clock-alert-outline'
+    : model.kind === 'incompatible' ? 'alert-outline' : error ? 'alert-circle-outline'
+      : active ? 'sync' : 'cloud-off-outline'
+  return <TouchableOpacity style={styles.pillTarget} activeOpacity={0.7} onPress={onPress}
+    accessibilityRole="button" accessibilityLiveRegion="polite"
+    accessibilityLabel={t('sync_state_pill_accessibility', { status: t(model.pillKey) })}>
+    <View style={[styles.pill, { backgroundColor: active ? r.accentSoft : r.paper, borderColor: error ? r.danger : active ? r.accentSoft : r.hairline }]}>
+      <MdiIcon name={icon} size={12} color={color} />
+      <Text size={11} color={color} style={styles.pillLabel}>{t(model.pillKey)}</Text>
+    </View>
+  </TouchableOpacity>
+}
+
+/** Shared by the sync service editor and all error detail pages. A timestamp is history, not reachability. */
+export function SyncConnectionInfo({ model, host, username }: { model: SyncStatusModel, host: string, username: string }) {
+  const t = useI18n()
+  const { colors } = useLuxTheme()
+  const r = magazineRoles(colors)
+  const styles = useStyles()
+  const timestamp = model.lastSyncedAt
+  const lastActivity = timestamp != null && Number.isFinite(timestamp) && timestamp > 0
+    ? new Date(timestamp).toLocaleString() : t('sync_state_no_record')
   return <View style={styles.section}>
-    <View style={[styles.rule, { backgroundColor: r.ink }]} />
-    <Text size={22} color={r.ink} style={styles.sectionTitle}>{t('sync_state_section')}</Text>
-    <TouchableOpacity style={styles.row} activeOpacity={0.7} accessibilityRole="button" onPress={onPress}>
-      <View style={styles.rowText}>
-        <Text size={15} color={model.kind === 'synced' ? r.accentInk : model.kind === 'expired' ? r.ink : r.like} style={styles.bold}>{text.symbol} {t(model.titleKey)}</Text>
-        <Text size={12} color={r.muted} style={styles.subtitle}>{detail}</Text>
-      </View>
-      <Text size={18} color={r.ink}>›</Text>
-    </TouchableOpacity>
+    <SectionHeader title={t('sync_state_connection_info')} showRule ruleGap={22} headGap={6} />
+    <SettingRow icon="server" iconBg={r.iconWrap.purple} title={t('sync_state_server')} subtitle={host || t('sync_state_no_record')}
+      onPress={host ? () => { clipboardWriteText(host) } : undefined} />
+    <SettingRow icon="account-outline" iconBg={r.iconWrap.purple} title={t('sync_state_username')} subtitle={username || t('sync_state_no_record')} />
+    <SettingRow icon="cloud-outline" iconBg={r.iconWrap.purple} title={t('sync_state_connection_status')} subtitle={t(model.pillKey)} />
+    <SettingRow icon="history" iconBg={r.iconWrap.purple} title={t('sync_state_last_activity')} subtitle={lastActivity} last />
   </View>
 }
 
-export default function SyncStatusPage({ model, host, username, onBack, onHome, onRetry, onCheckAddress, onLogin, onLocal }: {
+export default function SyncStatusPage({ model, connectionModel = model, host, username, onBack, onHome, onRetry, onCheckAddress, onLogin, onLocal }: {
   model: SyncStatusModel
+  connectionModel?: SyncStatusModel
   host: string
   username: string
   onBack: () => void
@@ -79,6 +100,7 @@ export default function SyncStatusPage({ model, host, username, onBack, onHome, 
         {!expired && !incompatible ? <SecondaryButton compact style={styles.button} label={t('sync_state_check_address')} onPress={onCheckAddress} /> : null}
         <SecondaryButton compact style={styles.button} label={t(expired ? 'sync_state_local' : 'sync_state_offline')} onPress={expired ? onLocal : onHome} />
       </View>
+      <SyncConnectionInfo model={connectionModel} host={host} username={username} />
     </ScrollView>
   </View>
 }
@@ -96,9 +118,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
   button: { paddingHorizontal: 14, borderRadius: 15 },
   bold: { fontWeight: '700' },
   section: { marginTop: 22 },
-  rule: { height: 2, marginBottom: 12 },
-  sectionTitle: { fontWeight: '800' },
-  row: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowText: { flex: 1 },
-  subtitle: { marginTop: 2 },
+  pillTarget: { minHeight: 44, minWidth: 70, maxWidth: '100%', flexShrink: 0, justifyContent: 'center', paddingVertical: 8 },
+  pillLabel: { fontWeight: '700', flexShrink: 1 },
+  pill: { minHeight: 28, paddingHorizontal: 8, borderRadius: 99, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
 }))

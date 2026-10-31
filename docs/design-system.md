@@ -115,16 +115,17 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 3. 底部绝对定位 **`Dock`**：`DockPlayerSlot`（封面 44 r4、歌名 15/700、播放键 44 墨圆）+ 三 Tab 图标（`home-variant-outline` / `folder-music-outline` / `cog-outline`），顶缘 **3px  accent 进度** + 拇指。
 4. 键盘弹出且 `common.autoHidePlayBar` 时可隐藏 Dock。
 
-首页顶栏右侧：搜索 `IconButton` + 圆形头像进设置。设置顶栏右侧：搜索图标展开 **UnderlineInput** 行（非顶栏胶囊）。
+首页顶栏右侧：搜索 `IconButton` + 圆形头像进设置。设置采用 B 版：刊头「SETTINGS · LUX MUSIC」，下方 H1 右侧搜索图标展开 **UnderlineInput** 行，输入位于标题行后，正常下推内容。
 
 ### 设置主页
 
 `SettingsTab.tsx`：
 
-- MagTopBar masthead + 可选设置内搜索行。
-- H1「设置」。
-- 可选 **资料 hero 行**（头像 + 名 + 签名 + chevron），不是旧版独立「资料」分组 eyebrow。
-- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
+- 一级页无返回键，系统返回逻辑不变；二级及更深页保留共享返回。B 版 MagTopBar 刊头「SETTINGS · LUX MUSIC」，顶距 18、行高 14；18 间距后 H1「设置」（magType.h1）与搜索同排（28 图标 / 44 容器，右外移 8）；可选 UnderlineInput 在标题行后。
+- **资料 hero 行**：上距 22，56 头像、14 间距、22/800 单行昵称；副行为 12 号单行签名 + 独立同步胶囊，间距 8，昵称/签名先省略，胶囊不截断。搜索过滤资料时仍显示胶囊，本地/关闭同步也保留入口。
+- `SyncStatusPill`（`screens/SyncStatus/index.tsx`）视觉最小高 28、内边距 8、11/700 字 + 12 图标，独立 44 最小触达容器（上下各 8 实际布局留位，不覆盖昵称），放大字体允许副行增高。成功/进行中为 accent.soft + ink.olive；本地/未同步为 paper + hairline 描边 + ink.secondary；错误为 paper + danger 描边与字。无新增主题色。账户其余区域仍进 AccountPage；胶囊只打开同步详情。
+- 原独立同步主线、标题及状态整行移除，服务器/账号/连接状态/最近成功同步或活跃在成功与错误详情共享的 `SyncConnectionInfo` 展示；没有时间戳显示「暂无记录」，时间戳不代表在线。
+- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户至外观及其余组主线上距 22、栏目头距线 6。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
 - 子页：`MagTopBar` + `BackButton` + H2；单选用 **`OptionRow`**（选中 10×10 accent 圆点，浅色主题带墨边）。
 
 弹窗 / 输入：杂志组件 `MagDialog`、`UnderlineInput`、`PrimaryButton`（墨底）等；缓存 **`ResourceCacheSection`** 为 Section + SettingRow + `CacheLimitSlider`，**无**整页白卡片容器。
