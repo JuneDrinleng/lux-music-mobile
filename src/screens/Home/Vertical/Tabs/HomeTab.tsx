@@ -41,7 +41,8 @@ import { getOnlineSongPicUrl } from '@/core/music'
 import { cacheImageUri, getCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
 import { formatMinutes } from '@/utils/formatMinutes'
 import { formatHomeDailyMeta, resolveHomeListCover, type HomeCoverSong } from '@/utils/homeBootGate'
-import { getHomePlaylistMetaSnapshot, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
+import { getHomePlaylistMetaSnapshot, publishHomePlaylistMeta, subscribeHomePlaylistMeta, toHomeCoverSong } from '@/utils/homeFirstScreenBoot'
+import { getActiveSpace } from '@/utils/dataSpace'
 import { peekPlaylistCover } from '@/utils/playlistCoverStore'
 import { getData, saveData } from '@/plugins/storage'
 import { createHomeRankingCacheWriter } from './homeRankingCacheWriter'
@@ -301,16 +302,20 @@ const useYesterdayListenedMinutes = (): number => {
 
 // ---------- Animation utilities ----------
 
-const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
+const ContentReveal = memo(({ children, active = true }: { children: React.ReactNode, active?: boolean }) => {
   const anim = useRef(new Animated.Value(0)).current
   useEffect(() => {
-    Animated.timing(anim, {
+    anim.setValue(0)
+    if (!active) return
+    const animation = Animated.timing(anim, {
       toValue: 1,
       duration: 260,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start()
-  }, [anim])
+    })
+    animation.start()
+    return () => { animation.stop() }
+  }, [active, anim])
   return (
     <Animated.View style={{
       opacity: anim,
@@ -323,6 +328,7 @@ const ContentReveal = memo(({ children }: { children: React.ReactNode }) => {
 
 // ---------- AllContent ----------
 interface AllContentProps {
+  active: boolean
   discover: DiscoverCard
   dailyLists: LibraryItem[]
   playlistMetaMap: Record<string, { count: number, cover: string | null }>
@@ -333,6 +339,7 @@ interface AllContentProps {
 }
 
 const AllContent = memo(({
+  active,
   discover,
   dailyLists,
   playlistMetaMap,
@@ -351,7 +358,7 @@ const AllContent = memo(({
 
   return (
     <View>
-      <RecommendationSection discover={discover}
+      <RecommendationSection active={active} discover={discover}
         onOpenWeekly={onOpenWeekly}
         onPlayWeekly={onPlayWeekly} />
 
@@ -672,6 +679,7 @@ export default memo(() => {
   const [displayName, setDisplayName] = useState(DEFAULT_USER_NAME)
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
+  const contentScrollRef = useRef<ScrollView>(null)
   const [activeFilter, setActiveFilter] = useState<FilterId>('all')
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, cover: string | null }>>(getHomePlaylistMetaSnapshot)
   const playlistMetaRequestRef = useRef(0)
@@ -815,9 +823,11 @@ export default memo(() => {
   }, [playlists, t])
 
   const refreshPlaylistMeta = useCallback(async() => {
+    const space = getActiveSpace()
     const requestId = ++playlistMetaRequestRef.current
     if (!libraryItems.length) {
       setPlaylistMetaMap({})
+      publishHomePlaylistMeta({}, space)
       return
     }
 
@@ -830,7 +840,7 @@ export default memo(() => {
       }
     }))
 
-    if (playlistMetaRequestRef.current !== requestId) return
+    if (playlistMetaRequestRef.current !== requestId || getActiveSpace() !== space) return
 
     const next: Record<string, { count: number, cover: string | null }> = {}
     for (const item of result) {
@@ -840,6 +850,7 @@ export default memo(() => {
       }
     }
     setPlaylistMetaMap(next)
+    publishHomePlaylistMeta(next, space)
     const coverUrls = Object.values(next)
       .map(item => item.cover)
       .filter((url): url is string => Boolean(url))
@@ -1184,6 +1195,7 @@ export default memo(() => {
   }, [handlePlayPlaylist])
 
   const handleFilterChange = useCallback((id: string) => {
+    contentScrollRef.current?.scrollTo({ x: 0, y: 0, animated: false })
     setActiveFilter(id as FilterId)
   }, [])
 
@@ -1236,6 +1248,7 @@ export default memo(() => {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={contentScrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 24 + BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom }]}
         showsVerticalScrollIndicator={false}
@@ -1289,9 +1302,13 @@ export default memo(() => {
         />
 
         <View>
-          {activeFilter === 'all' && (
-            <ContentReveal>
+          <View style={activeFilter === 'all' ? undefined : { position: 'absolute', left: 0, right: 0, opacity: 0 }}
+            pointerEvents={activeFilter === 'all' ? 'auto' : 'none'}
+            accessibilityElementsHidden={activeFilter !== 'all'}
+            importantForAccessibility={activeFilter === 'all' ? 'auto' : 'no-hide-descendants'}>
+            <ContentReveal active={activeFilter === 'all'}>
               <AllContent
+                active={activeFilter === 'all' && activeNavId === 'nav_search'}
                 discover={discover}
                 dailyLists={dailyLists}
                 playlistMetaMap={playlistMetaMap}
@@ -1301,7 +1318,7 @@ export default memo(() => {
                 handlePlayPlaylistPress={handlePlayPlaylistPress}
               />
             </ContentReveal>
-          )}
+          </View>
           {isLbFilter && (
             <LbContent
               lbAllData={lbAllData}

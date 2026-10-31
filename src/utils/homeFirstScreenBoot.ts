@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { Image } from 'react-native'
+import { getActiveSpace } from '@/utils/dataSpace'
+import { recommendationBootCoversReady, finishRecommendationCoverBoot } from './recommendationCoverBoot'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
 import playerState from '@/store/player/state'
@@ -30,6 +32,7 @@ export interface HomeBootHandle {
 const HTTP_URL = /^https?:\/\//i
 
 let meta: Record<string, HomeListMeta> | null = null
+let metaSpace: string | null = null
 let splashArmed = false
 let revealed = false
 let splashHidden = false
@@ -51,7 +54,7 @@ export const toHomeCoverSong = (song: LX.Music.MusicInfo): HomeCoverSong => ({
   albumId: song.source == 'local' || !('albumId' in song.meta) ? null : song.meta.albumId ?? null,
 })
 
-export const getHomePlaylistMetaSnapshot = (): Record<string, HomeListMeta> => meta ?? {}
+export const getHomePlaylistMetaSnapshot = (): Record<string, HomeListMeta> => metaSpace === getActiveSpace() ? meta ?? {} : {}
 
 export const subscribeHomePlaylistMeta = (listener: () => void) => {
   metaListeners.add(listener)
@@ -60,7 +63,9 @@ export const subscribeHomePlaylistMeta = (listener: () => void) => {
   }
 }
 
-const publishMeta = (next: Record<string, HomeListMeta>) => {
+export const publishHomePlaylistMeta = (next: Record<string, HomeListMeta>, space = getActiveSpace()) => {
+  if (space !== getActiveSpace()) return
+  metaSpace = space
   meta = next
   for (const listener of metaListeners) listener()
 }
@@ -92,6 +97,7 @@ export const subscribeHomeBootReveal = (listener: () => void) => {
 export const markHomeBootRevealed = () => {
   if (revealed) return
   revealed = true
+  finishRecommendationCoverBoot()
   const listeners = [...revealListeners]
   revealListeners.clear()
   for (const listener of listeners) listener()
@@ -149,6 +155,7 @@ const warmUrl = async(url: string) => {
 }
 
 const loadCounts = async() => {
+  const space = getActiveSpace()
   const ids = selectHomeFirstListIds(listState.allList, { love: LIST_IDS.LOVE, fallback: LIST_IDS.DEFAULT })
   const next: Record<string, HomeListMeta> = {}
   await Promise.all(ids.map(async id => {
@@ -162,7 +169,7 @@ const loadCounts = async() => {
       // Leave the id out so the row does not claim zero songs.
     }
   }))
-  publishMeta(next)
+  publishHomePlaylistMeta(next, space)
   return next
 }
 
@@ -198,7 +205,7 @@ const runBoot = async(resolveMount: () => void, resolveCovers: () => void) => {
   }
   resolveMount()
   try {
-    await warmCovers(next)
+    await Promise.all([warmCovers(next), recommendationBootCoversReady])
   } catch {
     // The splash deadline still reveals. Uncached covers follow the placeholder fade.
   }

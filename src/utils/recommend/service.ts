@@ -43,6 +43,7 @@ const validCache = (cache: RecommendationCache | null): cache is RecommendationC
 export const createRecommendationEngine = (deps: RecommendationDependencies) => {
   const queues = new Map<string, Promise<unknown>>()
   const memory = new Map<string, RecommendationCache>()
+  let snapshot: { batch: RecommendationBatch, sources: string[] } | null = null
   let generation = 0
   const enqueue = async<T>(space: string, action: () => Promise<T>, timeoutMs: number, expire: () => void): Promise<T> => {
     const task = (queues.get(space) ?? Promise.resolve()).catch(() => {}).then(async() => withRecommendationTimeout(action(), timeoutMs, expire))
@@ -118,7 +119,9 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
           // Progress callbacks are serialized by collectCandidates.
           // eslint-disable-next-line require-atomic-updates
           shown = retainOrder(ranked).slice(0, 100)
-          opts.onProgress(copy({ spaceId, date, items: shown.slice(0, opts.limit ?? 30), failures }))
+          const batch = { spaceId, date, items: shown.slice(0, opts.limit ?? 30), failures }
+          snapshot = { batch: copy(batch), sources: sources.map(source => source.id) }
+          opts.onProgress(copy(batch))
         }
         const local = await collectCandidates([historySource, ...sources.filter(source => source.id.startsWith('local:'))], context, opts.timeoutMs, progress)
         // Local cards are published before even starting the usable remote sources.
@@ -168,11 +171,23 @@ export const createRecommendationEngine = (deps: RecommendationDependencies) => 
       memory.set(spaceId, copy(cache))
       try { await withRecommendationTimeout(deps.writeCache(spaceId, copy(cache)), 250) } catch { /* Session cache remains usable if disk is unavailable. */ }
       assertSpace()
-      return copy({ spaceId, date, items: selected, failures })
+      const batch = { spaceId, date, items: selected, failures }
+      if (kind == 'daily') snapshot = { batch: copy(batch), sources: sources.map(source => source.id) }
+      return copy(batch)
     }, opts.overallTimeoutMs ?? 9000, () => { expired = true }), opts.overallTimeoutMs ?? 9000, () => { expired = true })
   }
   return {
-    clearSessionCache: () => { generation++; memory.clear() },
+    clearSessionCache: () => { generation++; memory.clear(); snapshot = null },
+    /** Only reuse the current space/day/source identity; never reuse similar/radio results. */
+    peekDailyRecommendations: (): RecommendationBatch | null => {
+      if (!snapshot || snapshot.batch.spaceId != deps.getSpaceId() ||
+        snapshot.batch.date != dateKey(localDateReader()(Date.now()))) return null
+      const ids = deps.getSources().map(source => source.id)
+      if (ids.length != snapshot.sources.length || ids.some((id, index) => id != snapshot?.sources[index])) return null
+      const batch = copy(snapshot.batch)
+      batch.items = batch.items.filter(item => !deps.isDisliked(item.song))
+      return batch
+    },
     getDailyRecommendations: async(opts: RecommendationOptions = {}) => request('daily', undefined, [], opts),
     getSimilar: async(song: Song, opts: RecommendationOptions = {}) => {
       const result = await request('similar', copy(song), [], opts)
