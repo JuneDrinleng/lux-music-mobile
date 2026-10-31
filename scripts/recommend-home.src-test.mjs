@@ -77,6 +77,10 @@ test('equal-height RecCards have one-line titles and no nested buttons; action r
   assert.equal(carousel.props.snapToInterval, 314)
   assert.equal(carousel.props.snapToAlignment, 'start')
   assert.equal(carousel.props.decelerationRate, 'fast')
+  assert.equal(carousel.props.style.overflow, undefined)
+  assert.equal(carousel.props.style.marginLeft, -22)
+  assert.equal(carousel.props.style.marginRight, -22)
+  assert.equal(carousel.props.contentContainerStyle.paddingHorizontal, 22)
   // Last content offset = 300 + 14 + 300 - 349 = 265; its right edge equals the viewport.
   assert.equal(cards[0].props.width + cards[0].props.gap + cards[1].props.width - 349, 265)
   for (const card of rendered) {
@@ -89,6 +93,70 @@ test('equal-height RecCards have one-line titles and no nested buttons; action r
   const topChildren = mounted.props.children
   assert.equal(topChildren[2].props.children[0].type, 'RecommendationButton')
   assert.equal(topChildren[3].type, 'RecommendationStatus')
+})
+
+test('full-bleed carousel preserves card geometry, gutter peeks, endpoint docking and page conversion', () => {
+  // W is measured inside HomeTab padding. Gutter values include createStyle's
+  // scaleSizeW result (which floors before applying the user's font-size scale).
+  for (const [width, scale, fontSize, density] of [[349, 1, 1, 1], [367, 1.06, 1, 3], [349.090909, 1.01, 1, 2.75], [294, 0.93, 1.1, 3]]) {
+    const gutter = Math.floor(22 * scale) * fontSize
+    const env = setup({ '@/utils/tools': { createStyle: styles => Object.fromEntries(Object.entries(styles).map(([key, style]) => [key,
+      Object.fromEntries(Object.entries(style).map(([prop, value]) => [prop,
+        typeof value === 'number' && ['marginLeft', 'marginRight', 'paddingHorizontal'].includes(prop) ? Math.floor(value * scale) * fontSize : value])),
+    ])) } })
+    const { RecommendationSection, RecCard } = env.load('../../components/recommend/RecommendationSection')
+    const props = { discover: { title: 'Weekly', cover: null, sourceListId: 'weekly' } }
+    const render = () => env.host.render(RecommendationSection, props)
+    render().props.onLayout({ nativeEvent: { layout: { width } } })
+    const carousel = nodes(render()).find(n => n.type === 'ScrollView')
+    const cards = nodes(carousel).filter(n => n.type === RecCard)
+    const c = width * 300 / 349
+    const g = width * 14 / 349
+    const interval = c + g
+    const maxOffset = 2 * c + g - width
+    const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`)
+    near(cards[0].props.width, c)
+    near(cards[1].props.width, c)
+    near(cards[0].props.gap, g)
+    assert.equal(cards[1].props.gap, 0)
+    near(RecCard(cards[0].props).props.style.height, c * 0.75 + 58)
+    near(carousel.props.snapToInterval, interval)
+    const viewportLeft = gutter + carousel.props.style.marginLeft
+    const viewportWidth = width - carousel.props.style.marginLeft - carousel.props.style.marginRight
+    const padding = carousel.props.contentContainerStyle.paddingHorizontal
+    const contentSize = padding * 2 + cards[0].props.width + cards[0].props.gap + cards[1].props.width
+    near(viewportLeft, 0)
+    near(viewportWidth, width + 2 * gutter)
+    near(contentSize - viewportWidth, maxOffset)
+    const screenX = (card, x) => viewportLeft + padding + card * interval - x
+    near(screenX(0, 0), gutter)
+    near(screenX(1, maxOffset) + c, viewportWidth - gutter)
+    // Initial next-card peek and final previous-card peek include the gutter.
+    near(viewportWidth - screenX(1, 0), width + gutter - interval)
+    near(screenX(0, maxOffset) + c, gutter + c - maxOffset)
+    assert.ok(screenX(0, maxOffset) < 0)
+    assert.ok(screenX(0, maxOffset) + c > 0)
+    // Every card edge has the same screen coordinate throughout the scroll,
+    // including after rounding to physical pixels on fractional DPR devices.
+    for (const x of [0, maxOffset / 4, maxOffset / 2, maxOffset]) {
+      for (const card of [0, 1]) {
+        for (const edge of [0, c]) {
+          const oldX = gutter + card * interval - x + edge
+          const newX = screenX(card, x) + edge
+          near(newX, oldX)
+          assert.equal(Math.round(newX * density), Math.round(oldX * density))
+        }
+      }
+    }
+    // Padding does not shift the offset origin or the existing page threshold.
+    for (const [x, page] of [[-10, 0], [0, 0], [interval * 0.49, 0], [interval * 0.51, 1], [maxOffset, 1], [maxOffset + 10, 1], [0, 0]]) {
+      carousel.props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x } } })
+      const dots = nodes(render()).filter(n => n.props.style?.some?.(s => s?.width === 16 || s?.width === 6))
+      assert.equal(dots[page].props.style[1].width, 16)
+      assert.equal(dots[1 - page].props.style[1].width, 6)
+    }
+    env.host.dispose()
+  }
 })
 
 test('play follows the settled index; radio always uses first daily song; cards navigate independently', async() => {
