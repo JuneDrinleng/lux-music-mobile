@@ -6,6 +6,7 @@ import { SectionHeader } from '@/components/magazine'
 import { useI18n } from '@/lang'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
+import { PAGE_GUTTER } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
 import { setRecommendationBootCovers } from '@/utils/recommendationCoverBoot'
 import { coveredRecommendations, weeklyCover } from './coverModel'
@@ -59,7 +60,8 @@ export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekl
   const cardWidth = contentWidth * CARD_RATIO
   const gap = contentWidth * 14 / 349
   const interval = cardWidth + gap
-  // Native end clamping right-aligns the last card without trailing blank space.
+  // The full-bleed viewport and equal content padding cancel out: offsets stay
+  // unchanged, and native end clamping keeps the last card inside PAGE_GUTTER.
   const onMomentumScrollEnd = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (interval > 0) setCurrentIndex(Math.max(0, Math.min(1, Math.round(nativeEvent.contentOffset.x / interval))))
   }
@@ -73,6 +75,7 @@ export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekl
     <View onLayout={({ nativeEvent }) => { if (nativeEvent.layout.width > 0) setContentWidth(nativeEvent.layout.width) }}>
       <SectionHeader title={t('recommend_for_you')} meta={t('recommend_swipe_hint')} ruleGap={0} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews={false} style={styles.carousel}
+        contentContainerStyle={styles.carouselContent}
         snapToInterval={interval || 1} decelerationRate="fast" snapToAlignment="start" bounces={false}
         onMomentumScrollEnd={onMomentumScrollEnd}>
         <RecCard width={cardWidth} gap={gap} kicker={t('recommend_daily_kicker')} title={t('recommend_daily')} label={t('recommend_open_daily')}
@@ -94,8 +97,9 @@ export const RecommendationSection = memo(({ discover, onOpenWeekly, onPlayWeekl
 })
 const useStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)
-  return createStyle({
-    carousel: { marginTop: 12, overflow: 'visible' },
+  const styles = createStyle({
+    carousel: { marginTop: 12 },
+    carouselContent: { paddingHorizontal: PAGE_GUTTER },
     cover: { borderRadius: 6, overflow: 'hidden', backgroundColor: r.placeholder },
     kicker: { fontWeight: '700', letterSpacing: 2, marginTop: 12, lineHeight: 14 },
     title: { fontWeight: '800', letterSpacing: -0.3, marginTop: 4, lineHeight: 28 },
@@ -103,4 +107,8 @@ const useStyles = sharedLuxStyles(colors => {
     dots: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 5 },
     dot: { height: 6, borderRadius: 3 },
   })
+  // Negate AFTER scaling: scaleSizeW floors, so scaling -PAGE_GUTTER can be
+  // one layout unit larger than the positive padding. Keep both exactly equal.
+  const gutter = styles.carouselContent.paddingHorizontal
+  return { ...styles, carousel: { ...styles.carousel, marginLeft: -gutter, marginRight: -gutter } }
 })
