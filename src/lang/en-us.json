@@ -404,6 +404,7 @@
   "me_playlist_list": "Playlists",
   "me_today_listening": "Today's listening: {num} min",
   "me_quick_local": "Local",
+  "local_songs_load_failed": "Could not load songs. Reopen this page to retry.",
   "local_songs_title": "Local songs",
   "local_songs_meta": "{count} songs",
   "local_songs_usage": "{count} songs · {size} total",

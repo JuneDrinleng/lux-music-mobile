@@ -404,6 +404,7 @@
   "me_playlist_list": "歌單列表",
   "me_today_listening": "今日收聽時長：{num} 分鐘",
   "me_quick_local": "本機",
+  "local_songs_load_failed": "歌曲讀取失敗，請重新開啟頁面重試",
   "local_songs_title": "本機歌曲",
   "local_songs_meta": "{count} 首",
   "local_songs_usage": "{count} 首 · 共 {size}",
