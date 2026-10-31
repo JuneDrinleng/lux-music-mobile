@@ -1908,5 +1908,15 @@
   "sync_state_username": "Account",
   "sync_state_connection_status": "Connection status",
   "sync_state_last_activity": "Last successful sync / activity",
-  "sync_state_no_record": "No records yet"
+  "sync_state_no_record": "No records yet",
+  "import_tab_lux": "Lux playlists",
+  "import_lux_search": "Search playlists, songs or artists",
+  "import_lux_newest": "Newest first",
+  "import_lux_oldest": "Oldest first",
+  "import_lux_select_all": "Select current results",
+  "import_lux_clear": "Clear current results",
+  "import_lux_sort_hint": "Sorted by creation time in playlist IDs; unknown dates appear last.",
+  "import_lux_available": "{num} songs available",
+  "import_lux_done": "Imported {num} songs",
+  "import_lux_choose": "Choose another playlist"
 }
