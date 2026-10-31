@@ -135,6 +135,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/utils/accountDataDialogs': { showLogoutOptions: asyncNoop },
     '@/screens/Account/AccountPage': { default: 'AccountPage' },
     '@/screens/AiTokenStatus': { default: 'AiTokenStatusPage' },
+    '@/utils/aiAssistantEntry': load('src/utils/aiAssistantEntry.ts'),
     '@/screens/AudioEffects': { default: 'AudioEffectsPage' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/common/Image': { default: 'Image' },
@@ -195,12 +196,14 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
   })
   const screen = load('src/screens/Home/Vertical/Tabs/SettingsTab.tsx', deps, { setInterval: fn => { clocks.push(fn); return clocks.length }, clearInterval() {} }).default
   let tree
+  const listeners = new Map()
   return {
     events,
+    emit(event, value) { listeners.get(event)?.(value) },
     tick() { clocks.forEach(fn => fn()) },
     render() {
       const previous = global.app_event
-      global.app_event = { on() {}, off() {}, settingsSearchStateUpdated() {} }
+      global.app_event = { on: (event, handler) => listeners.set(event, handler), off: event => listeners.delete(event), settingsSearchStateUpdated() {} }
       try { tree = h.render(screen); return tree } finally { global.app_event = previous }
     },
     find(type, predicate = () => true) { return nodes(tree).find(node => node.type === type && predicate(node.props))?.props },
@@ -357,9 +360,11 @@ test('all three locales interpolate status text through the production translato
   }
 })
 
-test('AI settings entry opens a read-only page and back unmounts its layer', () => {
+test('AI settings entry opens a read-only page and back unmounts its layer', async() => {
   const h = settingsHarness({ status: true })
   let tree = h.render()
+  assert.ok(!nodes(tree).some(node => node.type === 'SettingRow' && node.props.title === translate('ai_tokens_title')))
+  await settle(); tree = h.render()
   const row = nodes(tree).find(node => node.type === 'SettingRow' && node.props.title === translate('ai_tokens_title'))
   assert.ok(row)
   row.props.onPress()
@@ -368,6 +373,28 @@ test('AI settings entry opens a read-only page and back unmounts its layer', () 
   assert.ok(page)
   page.props.onBack()
   assert.ok(!nodes(h.render()).some(node => node.type === 'AiTokenStatusPage'))
+})
+
+
+test('AI entry and open page follow format/local changes and do not reopen automatically', async() => {
+  const h = settingsHarness({ status: true })
+  const row = () => h.find('SettingRow', props => props.title === translate('ai_tokens_title'))
+  h.render(); await settle(); h.render()
+  row().onPress(); h.render()
+  assert.ok(h.find('AiTokenStatusPage'))
+  h.emit('syncModeUpdated', 'lx'); h.render()
+  assert.equal(row(), undefined)
+  assert.equal(h.find('AiTokenStatusPage'), undefined)
+  h.emit('syncModeUpdated', 'lux'); h.render()
+  assert.ok(row())
+  assert.equal(h.find('AiTokenStatusPage'), undefined)
+  row().onPress(); h.render()
+  h.emit('syncHostUpdated', ''); h.render()
+  assert.equal(row(), undefined)
+  assert.equal(h.find('AiTokenStatusPage'), undefined)
+  h.emit('syncHostUpdated', 'https://new.example'); h.render()
+  assert.ok(row())
+  assert.equal(h.find('AiTokenStatusPage'), undefined)
 })
 
 

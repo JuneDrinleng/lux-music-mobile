@@ -15,6 +15,7 @@ import Text from '@/components/common/Text'
 import { showLogoutOptions } from '@/utils/accountDataDialogs'
 import AccountPage from '@/screens/Account/AccountPage'
 import AiTokenStatusPage from '@/screens/AiTokenStatus'
+import { isAiAssistantAvailable } from '@/utils/aiAssistantEntry'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
@@ -145,6 +146,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   const [authCode, setAuthCode] = useState('')
   const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
   const [syncMode, setSyncModeLocal] = useState<LX.Sync.Mode>('lx')
+  const [syncServerLoaded, setSyncServerLoaded] = useState(false)
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
@@ -212,17 +214,45 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     { value: 'mg', label: t('source_real_mg') },
   ] as const, [t])
   useEffect(() => {
-    void getSyncMode().then(setSyncModeLocal)
-    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
-    const refreshHost = () => { void getSyncHost().then(host => { setSyncHostLocal(host ?? '') }) }
-    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode); refreshHost() }
+    let active = true
+    let modeRevision = 0
+    let hostRevision = 0
+    const refreshHost = () => {
+      const revision = ++hostRevision
+      void getSyncHost().then(host => {
+        if (active && revision === hostRevision) setSyncHostLocal(host ?? '')
+      })
+    }
+    const handleSyncHostUpdated = (host: string) => {
+      hostRevision++
+      setSyncHostLocal(host)
+    }
+    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => {
+      modeRevision++
+      setSyncModeLocal(mode)
+      refreshHost()
+    }
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
+    global.app_event.on('syncHostUpdated', handleSyncHostUpdated)
     global.app_event.on('focus', refreshHost)
+    void Promise.all([getSyncMode(), getSyncHost()]).then(([mode, host]) => {
+      if (!active) return
+      // A newer event must win over an in-flight initial storage read.
+      if (modeRevision === 0) setSyncModeLocal(mode)
+      if (hostRevision === 0) setSyncHostLocal(host ?? '')
+      setSyncServerLoaded(true)
+    }).catch(() => { /* Keep the entry hidden if storage could not be loaded. */ })
     return () => {
+      active = false
       global.app_event.off('syncModeUpdated', handleSyncModeUpdated)
+      global.app_event.off('syncHostUpdated', handleSyncHostUpdated)
       global.app_event.off('focus', refreshHost)
     }
   }, [])
+  const showAiAssistantEntry = isAiAssistantAvailable(syncServerLoaded ? syncMode : null, syncHost)
+  useEffect(() => {
+    if (!showAiAssistantEntry) setAiTokensVisible(false)
+  }, [showAiAssistantEntry])
   const reloginUsername = expiredAccountUsername(syncHost) ?? luxUsername
   const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
@@ -419,8 +449,8 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     activeApiSourceLabel,
   )
   const showDataSection = matchesSettingsSearch(
-    t('ai_tokens_title'),
-    t('ai_tokens_entry_subtitle'),
+    showAiAssistantEntry ? t('ai_tokens_title') : null,
+    showAiAssistantEntry ? t('ai_tokens_entry_subtitle') : null,
     t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
@@ -938,7 +968,11 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={handleOpenSyncDetail} />
-              <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
+              {showAiAssistantEntry
+                ? (
+                  <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
+                  )
+                : null}
               {showAdminConsoleEntry
                 ? (
                   <SettingRow
@@ -1024,7 +1058,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           : null}
 
       </ScrollView>
-      <SettingsPage visible={aiTokensVisible} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
+      <SettingsPage visible={aiTokensVisible && showAiAssistantEntry} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
         {back => <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={back} />}
       </SettingsPage>
       <SettingsPage visible={isProfileDetailVisible} onBack={handleCloseProfileDetail} bottomInset={bottomDockHeight} hardwareBack={false}>
