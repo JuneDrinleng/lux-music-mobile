@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSubpageActive } from '@/components/common/SettingsPage'
 import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BackHandler, View } from 'react-native'
@@ -20,6 +21,7 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
+  const pageActive = useSubpageActive()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const [address, setAddress] = useState(initialHost)
@@ -34,9 +36,9 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
     return () => { active = false }
   }, [showHistory])
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!blocked) onBack(); return true })
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!pageActive) return false; if (!blocked) onBack(); return true })
     return () => { subscription.remove() }
-  }, [onBack, blocked])
+  }, [onBack, blocked, pageActive])
   const checker = useMemo(() => createServerChecker({
     clientVersion: process.versions.app,
     onChange: setState,

@@ -55,6 +55,7 @@ export const useOverlaySlideTransition = (width: number, { symmetric = true, aut
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (token != tokenRef.current) return
+      closingRef.current = false
       if (finished) onClosed?.()
     })
   }, [progress, symmetric])

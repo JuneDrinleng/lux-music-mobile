@@ -22,7 +22,7 @@ const routing = load('src/utils/syncLoginRouting.ts')
 const credentials = load('src/plugins/sync/client/credentials.ts')
 const userErrors = load('src/plugins/sync/client/userErrors.ts')
 const api = load('src/utils/luxAuthApi.ts', { '@/plugins/sync/client/userErrors': userErrors })
-const jsx = (type, props) => ({ type, props })
+const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
 const children = node => !node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(children)]
 
 // Run the actual screen functions with stateful hooks and inspect their rendered callbacks.
