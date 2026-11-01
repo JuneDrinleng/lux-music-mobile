@@ -24,6 +24,8 @@ const constants = load('src/plugins/sync/constants.ts').SYNC_CODE
 const authHarness = (session, response = { code: 200, text: '{}' }, savedKey = null, { hello = constants.helloMsg, info } = {}) => {
   const requests = []
   const auth = load('src/plugins/sync/client/auth.ts', {
+    '@/utils/loginCredentialRepository': load('src/utils/loginCredentialRepository.ts', { './secureCredentials': {} }),
+    '@/utils/dataSpace': { luxSpaceId: (server, user) => `lux:${server}:${user}` },
     '@/utils/serverCheck': load('src/utils/serverCheck.ts'),
     './utils': {
       request: async(url, options) => {

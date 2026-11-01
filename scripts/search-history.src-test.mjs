@@ -206,6 +206,8 @@ test('storage cache keeps a clear made during disk loading, including the deferr
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
     './secureCredentials': {},
+    './loginCredentialRepository': { createLoginCredentialRepository: () => ({}) },
+    './loginRecents': { createLoginRecents: () => ({}) },
     './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
   }
