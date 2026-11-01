@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { Script } from 'node:vm'
 import test from 'node:test'
 import ts from 'typescript'
-import { fakeSecure, migration } from './secure-credentials-test-support.mjs'
+import { fakeSecure, migration, load } from './secure-credentials-test-support.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const evaluate = (file, deps) => {
@@ -259,6 +259,8 @@ test('production data helpers isolate profile, default/love/custom lists and met
   const constants = evaluate('src/config/constant.ts', {})
   const data = evaluate('src/utils/data.ts', {
     './secureCredentials': env.secure,
+    './loginCredentialRepository': load('src/utils/loginCredentialRepository.ts', { './secureCredentials': { nativeCredentialBackend: env.secure.backend } }),
+    './loginRecents': load('src/utils/loginRecents.ts', { './loginSession': load('src/utils/loginSession.ts', { './serverCheck': load('src/utils/serverCheck.ts') }) }),
     './secureCredentialMigration': migration,
     '@/plugins/storage': env.adapter,
     '@/config/constant': constants,
@@ -384,6 +386,8 @@ test('interrupted avatar copy is rebuilt through temp + rename, with size checke
 
 const loadData = env => evaluate('src/utils/data.ts', {
   './secureCredentials': env.secure,
+  './loginCredentialRepository': load('src/utils/loginCredentialRepository.ts', { './secureCredentials': { nativeCredentialBackend: env.secure.backend } }),
+  './loginRecents': load('src/utils/loginRecents.ts', { './loginSession': load('src/utils/loginSession.ts', { './serverCheck': load('src/utils/serverCheck.ts') }) }),
   './secureCredentialMigration': migration,
   '@/plugins/storage': env.adapter,
   '@/config/constant': evaluate('src/config/constant.ts', {}),
@@ -815,6 +819,8 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
   }
   const constants = evaluate('src/plugins/sync/constants.ts', {}).SYNC_CODE
   const auth = evaluate('src/plugins/sync/client/auth.ts', {
+    '@/utils/loginCredentialRepository': load('src/utils/loginCredentialRepository.ts', { './secureCredentials': {} }),
+    '@/utils/dataSpace': env.space,
     '@/utils/serverCheck': evaluate('src/utils/serverCheck.ts', {}),
     './utils': { request: async url => ({ text: url.endsWith('/hello') ? constants.helloMsg : constants.idPrefix + 'server' }) },
     './userErrors': evaluate('src/plugins/sync/client/userErrors.ts', {}),
@@ -895,6 +901,7 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
   await overlay.finish(null)
   await login
   await socketReady
+  assert.equal((await data.getLoginRecents()).recents[0].account.userId, 'alice', 'recent publishes only after import and legacy connection succeed')
   assert.equal(socket.moduleReadys.list, true)
   assert.equal(connected, 1)
   assert.equal(await env.adapter.getData(keys.userList), null)
@@ -1300,4 +1307,50 @@ test('delete-local scope also removes the selected native downloads, preserving 
   await assert.rejects(operations.deleteSpaceData('lux:s:b'), /Cannot delete/)
   await assert.rejects(operations.deleteSpaceData('local'), /Cannot delete/)
   assert.deepEqual(env.deletedDownloadSpaces, ['lux:s:a'])
+})
+
+
+test('PR1 production compatibility adapters keep unknown legacy history separate and migrate keys safely', async() => {
+  const auth = { serverId: 'nas', serverUrl: 'https://NAS/Music', token: 'access-secret', user: { id: 'alice', username: 'alice' } }
+  const legacyKey = { clientId: 'phone', key: 'lx-secret', serverName: 'NAS' }
+  const env = make({
+    '@sync_host_history': JSON.stringify(['https://nas/Music', 'https://nas/music']),
+    '@sync_login_draft': JSON.stringify({ lx: { host: 'https://lx/Library', lxAuthCode: 'code-secret' } }),
+    '@lux_auth_servers': JSON.stringify({ nas: auth }),
+    '@sync_auth_key': JSON.stringify({ nas: legacyKey }),
+  })
+  await env.space.migrateDataSpaces('local')
+  const data = loadData(env)
+  const before = await data.getLoginRecents()
+  assert.equal(before.recents.length, 0)
+  assert.equal(before.history.length, 3)
+  assert.equal(before.knownAccounts[0].spaceId, 'lux:nas:alice')
+  assert.doesNotMatch(env.disk.get('loginRecents:v1'), /access-secret|code-secret|lx-secret|lastLoginAt/)
+  assert.deepEqual(await data.getSyncAuthKey('nas'), legacyKey)
+  assert.doesNotMatch(env.disk.get('@sync_auth_key'), /lx-secret/)
+  assert.equal(await data.hasSavedLxSyncKeys(), true)
+  assert.equal(await data.getLoginCredentialAvailability({ kind: 'syncKey', id: 'nas' }), 'available')
+  env.secure.fail(true)
+  assert.equal(await data.getLoginCredentialAvailability({ kind: 'syncKey', id: 'nas' }), 'unavailable')
+  env.secure.fail(false)
+  await data.setSyncLoginCompleted(true)
+  assert.equal((await data.getLoginRecents()).recents[0].provider, 'local')
+  await data.removeRecentLogin('local')
+  assert.deepEqual(await data.getSyncAuthKey('nas'), legacyKey, 'recent removal retains credentials')
+  assert.equal(await data.getLuxAuth('nas') !== null, true, 'recent removal retains Lux sessions')
+})
+
+test('PR1 metadata failures and incomplete spaces cannot publish success or fail legacy login', async() => {
+  const env = make()
+  const data = loadData(env)
+  await data.recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
+  assert.equal(env.disk.has('loginRecents:v1'), false)
+  await env.space.migrateDataSpaces('local')
+  const write = env.storage.setItem
+  env.storage.setItem = async(key, value) => { if (key === 'loginRecents:v1') throw Error('quota'); return write(key, value) }
+  await data.recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
+  assert.equal(env.disk.has('loginRecents:v1'), false)
+  env.storage.setItem = write
+  await data.recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
+  assert.equal((await data.getLoginRecents()).recents.length, 1)
 })

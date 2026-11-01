@@ -1,4 +1,4 @@
-import handleAuth, { authLux } from './auth'
+import handleAuth, { authLux, recordAuthenticatedLogin } from './auth'
 import { connect as socketConnect, disconnect as socketDisconnect, sendSyncStatus, sendSyncMessage } from './client'
 // import { getSyncHost } from '@/utils/data'
 import log from '../log'
@@ -18,6 +18,7 @@ const handleConnect = async(host: string, authCode?: string) => {
   const keyInfo = await handleAuth(urlInfo, authCode)
   if (id != connectId) return
   socketConnect(urlInfo, keyInfo)
+  await recordAuthenticatedLogin(keyInfo)
 }
 const handleLuxConnect = async(host: string, username?: string, password?: string) => {
   const id = connectId
@@ -27,6 +28,7 @@ const handleLuxConnect = async(host: string, username?: string, password?: strin
   const keyInfo = await authLux(urlInfo, username, password)
   if (id != connectId) return
   socketConnect(urlInfo, keyInfo)
+  await recordAuthenticatedLogin(keyInfo)
 }
 const handleDisconnect = async() => {
   await socketDisconnect()

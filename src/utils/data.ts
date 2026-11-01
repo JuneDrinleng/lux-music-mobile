@@ -2,7 +2,7 @@
 
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
-import { luxSpaceId, setActiveSpace, storageKey, getActiveSpace, avatarDirectory, type SpaceId } from './dataSpace'
+import { luxSpaceId, setActiveSpace, storageKey, getActiveSpace, avatarDirectory, isDataSpaceReady, type DataSpace, type SpaceId } from './dataSpace'
 import { throttle } from './common'
 import { existsFile, extname, mkdir, readFile, unlink, writeFile } from './fs'
 import { log } from './log'
@@ -12,6 +12,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import secureCredentials, { refreshTokenServerKey } from './secureCredentials'
 import { migrateLuxCredentials, withoutLuxSecrets } from './secureCredentialMigration'
 import { createCredentialStore } from '@/plugins/sync/client/credentials'
+import { createLoginCredentialRepository } from './loginCredentialRepository'
+import { createLoginRecents, LOGIN_RECENTS_KEY, type LoginRecentsSchema } from './loginRecents'
+import type { ActiveSession, CredentialRef } from './loginSession'
 // import { gzip, ungzip } from '@/utils/nativeModules/gzip'
 // import { readFile, writeFile, temporaryDirectoryPath, unlink } from '@/utils/fs'
 // import { isNotificationsEnabled, openNotificationPermissionActivity, shareText } from '@/utils/nativeModules/utils'
@@ -492,15 +495,22 @@ export const getSelectedManagedFolder = async() => {
   return selectedManagedFolder
 }
 
-const syncKeys = createCredentialStore<LX.Sync.KeyInfo>({
-  read: async() => getData<Record<string, LX.Sync.KeyInfo>>(syncAuthKeyPrefix),
+const syncKeys = createLoginCredentialRepository({
+  read: async() => JSON.parse(await AsyncStorage.getItem(syncAuthKeyPrefix) ?? 'null'),
   // Credentials are small; replace atomically without saveData's remove-before-write gap.
   write: async(keys) => AsyncStorage.setItem(syncAuthKeyPrefix, JSON.stringify(keys)),
-  remove: async() => removeData(syncAuthKeyPrefix),
+  remove: async() => AsyncStorage.removeItem(syncAuthKeyPrefix),
 })
 export const getSyncAuthKey = async(serverId: string) => syncKeys.get(serverId)
 export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => syncKeys.set(serverId, info)
 export const clearSyncAuthKey = async() => syncKeys.clear()
+/** Availability only: no credential values are copied into recent metadata. */
+export const getLoginCredentialAvailability = async(ref: CredentialRef): Promise<'available' | 'missing' | 'unavailable'> => {
+  try {
+    const value = ref.kind === 'syncKey' ? await syncKeys.get(ref.id) : await syncKeys.readRefresh(ref)
+    return value ? 'available' : 'missing'
+  } catch { return 'unavailable' }
+}
 
 export const getSyncMode = async(): Promise<LX.Sync.Mode> => {
   const mode = await getData<LX.Sync.Mode>(syncModePrefix)
@@ -704,6 +714,7 @@ export const clearSyncLoginDraft = async() => removeData(syncLoginDraftPrefix)
 export const getSyncLoginCompleted = async() => getData<boolean>(syncLoginCompletedPrefix).then(completed => completed === true)
 export const setSyncLoginCompleted = async(completed: boolean) => {
   await saveData(syncLoginCompletedPrefix, completed)
+  if (completed && !(await getSyncHost()).trim() && getActiveSpace() === 'local') await recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
 }
 export const getSyncConflictMode = async() => {
   const mode = await getData<LX.Sync.List.SyncMode>(syncConflictModePrefix)
@@ -927,5 +938,44 @@ export const saveUserGender = async(gender: 'male' | 'female' | 'unknown' | null
     await saveData(userGenderPrefix, gender)
   } else {
     await saveData(userGenderPrefix, 'unknown')
+  }
+}
+
+
+// Compatibility metadata adapter only. PR2 will own the activation transaction.
+const loginRecents = createLoginRecents({
+  read: async() => JSON.parse(await AsyncStorage.getItem(LOGIN_RECENTS_KEY) ?? 'null') as LoginRecentsSchema | null,
+  write: async(schema) => AsyncStorage.setItem(LOGIN_RECENTS_KEY, JSON.stringify(schema)),
+  legacy: async() => {
+    const read = async<T>(key: string): Promise<T | null> => JSON.parse(await AsyncStorage.getItem(key) ?? 'null') as T | null
+    const [history, host, drafts, sessions, active, spaces] = await Promise.all([
+      read<string[]>(syncHostHistoryPrefix), read<string>(syncHostPrefix), read<unknown>(syncLoginDraftPrefix),
+      read<Record<string, LX.Sync.LuxAuth>>(storageDataPrefix.luxAuthServers), read<LX.Sync.LuxAuth>(luxAuthPrefix), read<DataSpace[]>('dataSpaceSpaces'),
+    ])
+    const form = normalizeSyncLoginDrafts(drafts)
+    return {
+      // Old shared history has no protocol evidence. Do not suggest LX URLs as Lux.
+      history: [
+        ...(history ?? []).map(url => ({ url })), ...(host ? [{ url: host }] : []),
+        ...(form?.lx?.host ? [{ provider: 'lx' as const, url: form.lx.host }] : []),
+        ...(form?.lux?.host ? [{ provider: 'lux' as const, url: form.lux.host }] : []),
+      ],
+      accounts: [
+        ...[...Object.values(sessions ?? {}), ...(active ? [active] : [])].filter(auth => auth.serverId && auth.user?.id).map(auth => ({
+          spaceId: luxSpaceId(auth.serverId!, auth.user.id), serverId: auth.serverId, userId: auth.user.id, username: auth.user.username, url: auth.serverUrl,
+        })),
+        ...(spaces ?? []).map(space => ({ spaceId: space.id, username: space.username, url: space.host })),
+      ],
+    }
+  },
+})
+export const getLoginRecents = async() => loginRecents.list()
+export const removeRecentLogin = async(id: string) => loginRecents.remove(id)
+export const recordSuccessfulLogin = async(session: ActiveSession): Promise<void> => {
+  // Never publish success while the existing data-space migration is incomplete.
+  if (!isDataSpaceReady() || getActiveSpace() !== session.spaceId) return
+  try { await loginRecents.recordSuccess(session, Date.now()) } catch {
+    // Metadata failure must not change the old login result or log credentials.
+    log.warn('login recents write failed; existing login flow retained')
   }
 }

@@ -3,14 +3,26 @@ import { request, generateRsaKey } from './utils'
 import { LuxRequestError } from './userErrors'
 import { createLuxAuthClient } from '@/utils/luxAuthApi'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
-import { getLuxAuth, getLuxRefreshToken, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer } from '@/utils/data'
+import { getLuxAuth, getLuxRefreshToken, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer, recordSuccessfulLogin } from '@/utils/data'
 import log from '../log'
+import { luxCredentialRef, syncCredentialRef } from '@/utils/loginCredentialRepository'
+import { luxSpaceId } from '@/utils/dataSpace'
+import type { ActiveSession } from '@/utils/loginSession'
 import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
 import { SYNC_CODE } from '../constants'
 import { getSyncDeviceId } from '../deviceId'
 import { buildLuxKeyRequest, buildLxAuthMessage, credentialStorageKey, CredentialRejectedError, isKeyRejection, reuseOrRequestKey, selectLuxCredential, selectLxCredential, canReuseLuxSession } from './credentials'
+
+// Carry only identity metadata across the legacy auth/connect boundary.
+// Failed or superseded connections never publish a recent; weak keys need no cleanup journal.
+const authenticatedLogins = new WeakMap<LX.Sync.KeyInfo, ActiveSession>()
+export const recordAuthenticatedLogin = async(keyInfo: LX.Sync.KeyInfo): Promise<void> => {
+  const session = authenticatedLogins.get(keyInfo)
+  authenticatedLogins.delete(keyInfo)
+  if (session) await recordSuccessfulLogin(session)
+}
 
 export const luxAuthApi = createLuxAuthClient({
   send: request,
@@ -125,6 +137,9 @@ const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string
   })
   await setSyncAuthKey(currentKey, keyInfo)
   await setSyncAuthKey(serverId, keyInfo)
+  try {
+    authenticatedLogins.set(keyInfo, { provider: 'lx', spaceId: 'local', server: { serverId, url: urlInfo.href }, deviceId: await getSyncDeviceId(), credentialRef: syncCredentialRef(currentKey) })
+  } catch { /* Optional metadata/device-ID failure must not fail the old login. */ }
   return keyInfo
 }
 
@@ -193,6 +208,13 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
     const { pushLuxProfileToServer } = await import('./profile')
     await pushLuxProfileToServer()
   }
+  authenticatedLogins.set(keyInfo, {
+    provider: 'lux',
+    spaceId: luxSpaceId(serverId, committedSession.user.id) as `lux:${string}:${string}`,
+    server: { serverId, url: urlInfo.href },
+    account: { userId: committedSession.user.id, username: committedSession.user.username, displayName: committedSession.user.displayName },
+    credentialRef: luxCredentialRef(serverId, committedSession.user.id),
+  })
   return keyInfo
 }
 

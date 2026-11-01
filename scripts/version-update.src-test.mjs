@@ -89,6 +89,8 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
     './secureCredentials': {},
+    './loginCredentialRepository': { createLoginCredentialRepository: () => ({}) },
+    './loginRecents': { createLoginRecents: () => ({}) },
     './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
     '@/utils/simplify-chinese-main': {},

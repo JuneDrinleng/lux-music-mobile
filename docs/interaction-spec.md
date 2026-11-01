@@ -164,3 +164,18 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - 列表复用 `components/common/useStaggeredAppear.ts`：以 FlatList 首次报告的可见行（最多 12 条）为一批，每条间隔 40ms、单条 320ms，opacity 0→1、translateY 8→0，分段缓出；一个 `useNativeDriver: true` 时钟驱动全部行。初批之外直接显示，滚动、封面补齐、切 Tab、刷新、初次空库后导入均不整列重播。虚拟列表重新挂载行沿用已完成时钟。
 - 数字文本用 JS Animated 时钟（原生驱动不能更新文字内容），每帧只更新页头。`components/common/useReducedMotion.ts` 读取并监听系统「减少动画」：偏好尚未知时保守地直接显示结果；开启或动画中开启时立即到最终值，列表直接显示。卸载停止动画、移除监听，失效读取代次不回写。
 - 以后同类异步计数与列表页面复用以上 common hooks 和 `asyncAppearMath.ts` 的插值 / 时序，不各自复制动画。当前只接入本地歌曲页；纯函数与模拟时钟验证见 `scripts/async-appear.src-test.mjs`，Android 性能与视觉仍需真机确认。
+
+## 登录领域术语与兼容阶段（LoginGate PR1）
+
+本节仅定义会话领域和存储契约。当前仍使用原有 welcome、SyncLogin、AuthFlow、设置登录与账户空间入口，默认路由、页面、返回和播放行为不变；尚未实现 App 级 LoginGate 或身份切换事务。内部子页仍遵循本文指定的共享过渡和返回实现。
+
+- `ActiveSession`：显式产品身份联合，provider 为 local / lx / lux；与 socket 的 `Session`、底层协议 `LX.Sync.Mode = lx | lux` 区分。local 与 LX 共用 `local`，Lux 继续使用原 `luxSpaceId(serverId,userId)`，不改变数据空间布局。PR1 只把已认证的身份快照传给兼容记录适配器，尚未把它替换为全 App 的唯一资格源。
+- `SessionConnectivity`：online / connecting / offline / expired / incompatible / disabled，独立于产品身份；暂停同步不等于退出账号。此类型在 PR2 接入协调器前不改变现有状态展示。
+- `LoginIntent`：显式 reason、source、目标 provider/身份/recent、initialHost、returnPolicy 与白名单 resumeTask；`initialHost=null` 表示新建不回填，undefined 才允许历史建议。任务包含 transitionId、过期时间、所需能力和可选 expectedServerId/roomId；本 PR 仅定义契约，不启用任务续接或修改旧路由参数语义。
+- `RecentLogin` / `loginRecents:v1`：全局的成功登录元数据，含方式、服务器、真实用户身份/显示名、头像首字母、原空间 ID、成功时间与凭据引用。Lux 按真实 `(serverId,userId)` 唯一；LX 按服务器身份、保留大小写的部署路径与本机设备身份唯一，多个 LX 记录仍指向 local。URL 只规范协议/主机及尾斜线，不降低部署路径大小写，不接受 URL 内的用户密码、query 或 fragment。
+- 成功记录：旧 LX 认证及 key 保存完成、Lux 匹配认证/空间选择/首次导入处理完成后，且旧连接流程已创建 socket 后，由兼容适配器记账（尚不等待完整同步握手）；显式完成本地使用时记录 local。空间迁移未就绪或空间不匹配不记账。失败尝试、只有凭据、地址历史、空间 lastActiveAt、离线缓存都不是成功时间证据。自动重新认证成功可以更新使用时间。PR2 将把记录发布移到协调器真正的 activation commit。
+- 历史迁移：schema 的 history 与 knownAccounts 独立于 recents；旧数据没有可靠成功时间，recents 保持空，不补 Date.now。旧共用地址历史的协议保持未知，只有分方式草稿提供协议证据；已有会话/空间只提供需要登录的身份和地址，不复制数据。缺少 serverId 的旧会话不推断新空间。迁移不写回旧地址、草稿或空间；单次原子发布，无额外完成标记，失败下次读取重试。
+- `CredentialRef`：凭据逻辑索引，值通过凭据层读取，recent 不含明文密码、连接码、access/refresh token 或 LX key，也不记录密钥日志。Lux refresh 沿用现有复合账号 Keychain service；同步长期 key（包括兼容 Lux socket key）由旧 get/setSyncAuthKey API 转接安全仓库。逐条安全写入并回读验证后，把原 key 索引项替换为引用；进程中断可重放。安全存储不可用时拒绝读取/保存，不回落明文；未成功迁移的旧明文仅作为原位重试源保留。已有短期 access token 与旧表单保存行为不在本 PR 中重构，不能声称所有凭据都已迁入 Keychain。
+- 边界：移除最近记录只删除 metadata；清凭据继续走旧按方式能力；退出/删除空间继续走原有流程，既不因记录删除清凭据，也不因清凭据删除最近记录或音乐库。`authHint` 是展示快照，消费引用时必须重新检查可用性，不能据此认定会话有效。
+
+后续 PR2 接入协调器、屏障与 journal；PR3 才实现 June 选定的 L1 统一登录视觉和入口收敛；PR4 接入能力引导与续接；PR5 清理旧适配层。当前不宣称统一登录完成。
