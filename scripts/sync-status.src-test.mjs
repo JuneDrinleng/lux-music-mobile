@@ -156,8 +156,8 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
       DEFAULT_USER_NAME: 'June',
       DEFAULT_USER_AVATAR: 'avatar',
       getUserAvatar: async() => null,
-      getUserName: async() => 'June',
-      getUserSignature: async() => '',
+      getUserName: async() => options.nickname ?? 'June',
+      getUserSignature: async() => options.signature ?? '',
       getSyncHost: async() => options.host ?? 'https://server',
       reloadSyncHostFromStorage: async() => options.host ?? 'https://server',
       getSyncMode: async() => 'lux',
@@ -338,6 +338,28 @@ test('pill is a single accessible action; expired relogin uses cached username',
   assert.equal(h.find('SyncLogin').initialUsername, 'june')
 })
 
+
+test('nickname and signature share an account target beside the independent sync pill', async() => {
+  for (const signature of ['', 'A short signature']) {
+    const nickname = 'June'.repeat(40)
+    const h = settingsHarness(undefined, true, { nickname, signature })
+    h.render(); await settle()
+    const tree = h.render()
+    const name = nodes(tree).find(node => node.type === 'Text' && node.props.children === nickname)
+    assert.equal(name.props.numberOfLines, 1)
+    assert.equal(name.props.ellipsizeMode, 'tail')
+    const account = nodes(tree).find(node => node.type === 'TouchableOpacity' && node.props.children?.includes?.(name))
+    assert.ok(account, 'nickname has an account action')
+    const texts = nodes(account).filter(node => node.type === 'Text')
+    assert.deepEqual(texts.map(node => node.props.children), [nickname, signature || zh.me_profile_status])
+    assert.equal(texts[1].props.numberOfLines, 1)
+    assert.equal(nodes(account).some(node => node.type === 'SyncStatusPill'), false)
+    const row = nodes(tree).find(node => node.props.children?.includes?.(account) && node.props.children.some(child => child?.type === 'SyncStatusPill'))
+    assert.ok(row, 'pill is an independent sibling of the account text')
+    account.props.onPress(); h.render()
+    assert.ok(h.find('AccountPage'), 'both text lines still enter account details')
+  }
+})
 
 test('manual retry without a socket calls the existing connection entry exactly once', async() => {
   const h = settingsHarness({ status: false, message: 'offline' }, false)

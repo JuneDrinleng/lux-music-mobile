@@ -920,19 +920,15 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
             <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
           </TouchableOpacity> : null}
           <View style={styles.profileHeroText}>
-            {showProfileHero ? <TouchableOpacity activeOpacity={0.7} onPress={handleOpenProfileDetail} accessibilityRole="button">
-              <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1}>{nickname}</Text>
+            {showProfileHero ? <TouchableOpacity style={styles.profileInfoTarget} activeOpacity={0.7}
+              onPress={handleOpenProfileDetail} accessibilityRole="button">
+              <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1} ellipsizeMode="tail">{nickname}</Text>
+              <Text size={magType.meta.size} color={r.muted} style={styles.profileHeroSignature} numberOfLines={1}>{signature || defaultSignature}</Text>
             </TouchableOpacity> : null}
-            <View style={styles.profileSignatureRow}>
-              {showProfileHero ? <TouchableOpacity style={styles.profileSignatureTarget} activeOpacity={0.7}
-                onPress={handleOpenProfileDetail} accessibilityRole="button">
-                <Text size={magType.meta.size} color={r.muted} numberOfLines={1}>{signature || defaultSignature}</Text>
-              </TouchableOpacity> : null}
-              <SyncStatusPill model={statusModel} onPress={() => {
-                if (statusModel.route === 'sync') handleOpenSyncDetail()
-                else setStatusPage(statusModel)
-              }} />
-            </View>
+            <SyncStatusPill model={statusModel} onPress={() => {
+              if (statusModel.route === 'sync') handleOpenSyncDetail()
+              else setStatusPage(statusModel)
+            }} />
           </View>
           {showProfileHero ? <TouchableOpacity style={styles.profileArrowTarget} activeOpacity={0.7}
             onPress={handleOpenProfileDetail} accessibilityRole="button" accessibilityLabel={t('setting_profile')}>
@@ -1433,10 +1429,15 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   profileHeroText: {
     flex: 1,
     minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
+  // The pill reserves 8 above/below its 28pt face. Match the nickname's top
+  // inset so their centers align, while the account text keeps its compact rhythm.
+  profileInfoTarget: { flexShrink: 1, minWidth: 0, minHeight: 44, paddingTop: 8 },
   profileHeroName: { fontWeight: '800', lineHeight: 28 },
-  profileSignatureRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  profileSignatureTarget: { flexShrink: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  profileHeroSignature: { marginTop: 2, lineHeight: magType.meta.lineHeight },
   profileArrowTarget: { width: 18, minHeight: 44, justifyContent: 'center' },
   sectionBlock: {
     // Inter-group spacing is SETTINGS_SECTION_GAP on the section rule only.
