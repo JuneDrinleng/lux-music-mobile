@@ -52,7 +52,7 @@ test('import surface uses one four-tab flow with Lux first/default, shared compo
   assert.match(flow, /local \? 'lux' : 'text'/)
   assert.match(flow, /id: 'lux'[\s\S]*id: 'text'[\s\S]*id: 'csv'[\s\S]*id: 'platform'/)
   assert.doesNotMatch(flow + panel, /onLocalImport|import_from_local/)
-  assert.match(flow, /KeyboardAvoidingView behavior=\{Platform.OS === 'ios' \? 'padding' : 'height'\}/)
+  assert.match(flow, /<SubpageSurface coversDock/)
   assert.match(panel, /UnderlineInput/)
   assert.match(panel, /props.onToggleSelectAll\(visibleIds\)/)
   assert.match(panel, /accessibilityRole="checkbox"/)

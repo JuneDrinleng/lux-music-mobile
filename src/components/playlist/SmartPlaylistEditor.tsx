@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import { useEffect, useRef, useState } from 'react'
 import { FlatList, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { SubpageSurface } from '@/components/common/SubpageSurface'
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import Text from '@/components/common/Text'
 import { MagTopBar, MagazineSheet, OptionRow, Toggle, PrimaryButton, TextButton, UnderlineInput, MagSegmented } from '@/components/magazine'
 import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
@@ -79,9 +81,9 @@ export default ({ initial, onClose }: { initial: SmartPlaylistDefinition, onClos
   }
   const pill = (text: string, action: () => void, accessibilityLabel = text) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }} style={styles.pill} onPress={action}><Text size={13} color={r.ink} numberOfLines={1} style={{ fontWeight: '700' }}>{text}</Text></TouchableOpacity>
   return <Modal visible animationType="slide" onRequestClose={onClose}>
-    <View style={[styles.root, { paddingTop: status }]}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
-        <MagTopBar onBack={onClose} trailing={<TextButton compact label={label('save')} disabled={!valid || saving} onPress={() => { void save() }} />} />
+    <SubpageSurface coversDock style={[styles.root, { paddingTop: status }]}>
+      <FocusVisibleScrollView contentContainerStyle={styles.page}>
+        <MagTopBar onBack={onClose} trailing={<FocusVisibleAction><TextButton compact label={label('save')} disabled={!valid || saving} onPress={() => { void save() }} /></FocusVisibleAction>} />
         <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{label('eyebrow')}</Text>
         <UnderlineInput accessibilityLabel={label('name')} value={draft.name} onChangeText={name => { setDraft(prev => ({ ...prev, name })) }} style={styles.name} />
         <View style={styles.rule} />
@@ -98,9 +100,9 @@ export default ({ initial, onClose }: { initial: SmartPlaylistDefinition, onClos
         <TouchableOpacity style={styles.row} accessibilityRole="button" onPress={() => { setPicker({ kind: 'sort' }) }}><View style={{ flex: 1 }}><Text size={15} color={r.list} style={{ fontWeight: '700' }}>{label('sort')}</Text><Text size={12} color={r.muted} style={{ marginTop: 2 }}>{t(draft.ruleSet.sort.direction == 'asc' ? 'smart_sort_summary_asc' : 'smart_sort_summary', { field: label(draft.ruleSet.sort.field) })} · {draft.ruleSet.limit == null ? t('smart_limit_none') : t('smart_limit_summary', { num: draft.ruleSet.limit })}</Text></View><Text color={r.ink}>›</Text></TouchableOpacity>
         <View style={[styles.row, { borderBottomWidth: 0 }]}><View style={{ flex: 1 }}><Text size={15} color={r.list} style={{ fontWeight: '700' }}>{label('auto')}</Text><Text size={12} color={r.muted} style={{ marginTop: 2 }}>{label('auto_hint')}</Text></View><Toggle compact accessibilityLabel={label('auto')} value={draft.autoRefresh} onChange={autoRefresh => { setDraft(prev => ({ ...prev, autoRefresh })) }} /></View>
         {error ? <Text color={r.danger}>{label('error')}</Text> : null}
-      </ScrollView>
+      </FocusVisibleScrollView>
       <View style={[styles.footer, { paddingBottom: inset + 26 }]}><Text size={12} color={r.muted} style={{ fontWeight: '700' }}>{label('matches')} <Text size={18} color={r.ink} style={{ fontWeight: '800' }}>{result?.matchCount ?? '…'}</Text> {label('songs')}</Text><PrimaryButton compact label={label('preview')} disabled={!result} style={{ flex: 1 }} onPress={() => { setPicker({ kind: 'preview' }) }} /></View>
-    </View>
+    </SubpageSurface>
     <MagazineSheet visible={picker != null} onClose={() => { setPicker(null) }} title={label(picker?.kind ?? 'rules')}>
       {picker?.kind == 'preview' ? <FlatList data={result?.songs ?? []} keyExtractor={song => `${song.source}:${song.id}`} renderItem={({ item }) => <View style={styles.row}><View><Text size={15} color={r.list} style={{ fontWeight: '700' }}>{item.name}</Text><Text size={12} color={r.muted}>{item.singer} · {item.source}</Text></View></View>} /> : <ScrollView keyboardShouldPersistTaps="handled">
         {picker?.kind == 'field' ? (Object.keys(fieldOperators) as RuleField[]).map(field => <OptionRow key={field} label={label(field)} selected={rule?.field == field} description={field == 'addedDate' ? label('added_unknown') : undefined} disabled={field == 'addedDate' || (draft.ruleSet.rules.length >= 100 && picker.index == draft.ruleSet.rules.length)} onPress={() => { const next = defaultRule(field); if (picker.index == draft.ruleSet.rules.length) changeRules([...draft.ruleSet.rules, next]); else changeRule(picker.index, next); setPicker(null) }} />) : null}

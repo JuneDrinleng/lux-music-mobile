@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 
 import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
+import { useVisibleDockHeight } from '@/components/common/VisibleDockHeight'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import Text from '@/components/common/Text'
 import { LIST_IDS } from '@/config/constant'
@@ -39,7 +40,6 @@ import { usePlaylistImport } from './hooks/usePlaylistImport'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
 const DETAIL_TRANSITION_FORWARD_DURATION = 268
 const DETAIL_TRANSITION_BACKWARD_DURATION = 220
 
@@ -95,6 +95,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   const pendingDeleteSongRef = useRef<LX.Music.MusicInfo | null>(null)
 
   const musicMultiAddModalRef = useRef<MusicMultiAddModalType>(null)
+  const visibleDockHeight = useVisibleDockHeight()
   const renameListDialogRef = useRef<PromptDialogType>(null)
   const removeListDialogRef = useRef<PromptDialogType>(null)
   const removeSongDialogRef = useRef<PromptDialogType>(null)
@@ -404,7 +405,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
           <FlatList
             ref={drag.detailListRef}
             style={styles.container}
-            contentContainerStyle={[styles.detailContent, { paddingBottom: BOTTOM_DOCK_BASE_HEIGHT }]}
+            contentContainerStyle={[styles.detailContent, { paddingBottom: visibleDockHeight + 42 }]}
             data={detailData.detailSongs}
             renderItem={renderSongItem}
             keyExtractor={(item, index) => drag.getSongRowKey(item, index)}

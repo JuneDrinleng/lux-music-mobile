@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { FlatList, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
+import { renderFocusVisibleScroll } from '@/components/common/FocusVisibleScrollView'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import { Checkbox, EmptyState, IconButton, MagazineSheetRow, PrimaryButton, SecondaryButton, SourceTag, TextButton, UnderlineInput } from '@/components/magazine'
 import { LIST_IDS } from '@/config/constant'
@@ -70,6 +71,7 @@ function ImportPanelContent(props: PlaylistImportPanelProps) {
   return <PlaylistImportFlow targetListId={props.targetListId} targetListName={props.targetListName} onClose={props.onClose} onImported={props.onImported} local={{
     submitting: props.submitting,
     render: header => <FlatList
+      renderScrollComponent={renderFocusVisibleScroll}
       data={active ? songs : []}
       keyExtractor={item => item.id}
       extraData={props.selectedMap}

@@ -1,7 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
-import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -10,18 +9,20 @@ import {
   Keyboard,
   ScrollView,
   StyleSheet,
-  TextInput,
+  type TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
   type ListRenderItem,
 } from 'react-native'
+import { FocusVisibleInput } from '@/components/common/FocusVisibleInput'
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
+import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import {
   BackButton,
-  DOCK_BASE_HEIGHT,
   EmptyState,
   MagMenu,
   RankNumber,
@@ -50,7 +51,6 @@ import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
 import { type VerticalSearchPagePayload, type VerticalSearchSource } from '@/event/appEvent'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { isHomeScreenActive } from '@/utils/homeBackHandler'
-import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { debounce } from '@/utils'
 import musicSdk from '@/utils/musicSdk'
@@ -99,7 +99,6 @@ export default function SearchPage({
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
-  const gestureInsetBottom = useSystemGestureInsetBottom()
   const defaultSearchSource = useSettingValue('search.defaultSource') as PageSearchSource
   const [pageSearchSource, setPageSearchSource] = useState<PageSearchSource>(defaultSearchSource ?? 'all')
   const [searchText, setSearchText] = useState('')
@@ -135,7 +134,6 @@ export default function SearchPage({
     songlist: '',
   })
   const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
-  const bottomPad = DOCK_BASE_HEIGHT + gestureInsetBottom
 
   const sourceLabel = useMemo(() => {
     if (pageSearchSource === 'all') return t('search_source_all')
@@ -209,7 +207,6 @@ export default function SearchPage({
 
   useEffect(() => {
     if (visible) {
-      setKeepPlayBarOnKeyboard(true)
       setShouldRender(true)
       Animated.timing(pageAnim, {
         toValue: 1,
@@ -220,7 +217,6 @@ export default function SearchPage({
       return
     }
 
-    setKeepPlayBarOnKeyboard(false)
     resetSearchPageState()
     Animated.timing(pageAnim, {
       toValue: 0,
@@ -735,7 +731,7 @@ export default function SearchPage({
           <MdiIcon name="magnify" size={24} color={r.ink} />
           {isSearchInputEditing
             ? (
-              <TextInput
+              <FocusVisibleInput
                 ref={searchInputRef}
                 style={styles.searchInput}
                 value={searchText}
@@ -856,7 +852,7 @@ export default function SearchPage({
         style={styles.initialScroll}
         contentContainerStyle={[
           styles.initialContent,
-          { paddingTop: searchHeaderHeight, paddingBottom: 22 + bottomPad },
+          { paddingTop: searchHeaderHeight, paddingBottom: 22 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -930,7 +926,6 @@ export default function SearchPage({
       </ScrollView>
     )
   }, [
-    bottomPad,
     handleClearSearchHistoryList,
     handlePickSearchKeyword,
     handleRemoveSearchHistoryItem,
@@ -988,9 +983,9 @@ export default function SearchPage({
       ]}
       pointerEvents={visible ? 'auto' : 'none'}
     >
-      <View style={styles.searchModeRoot}>
-        <View style={styles.searchResultHeaderFloating}>
-          {searchHeader}
+      <SubpageSurface style={styles.searchModeRoot}>
+        <View style={[styles.searchResultHeaderFloating, { height: searchHeaderHeight, maxHeight: '100%' }]}>
+          <FocusVisibleScrollView showsVerticalScrollIndicator={false}>{searchHeader}</FocusVisibleScrollView>
         </View>
         {showInitialPage
           ? initialView
@@ -1000,7 +995,7 @@ export default function SearchPage({
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 },
                 ]}
                 data={songlistSearchResults}
                 renderItem={renderSonglistResultItem}
@@ -1029,7 +1024,7 @@ export default function SearchPage({
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 },
                 ]}
                 data={musicSearchResults}
                 renderItem={renderSearchResultItem}
@@ -1053,7 +1048,7 @@ export default function SearchPage({
                 overScrollMode="never"
               />
               )}
-      </View>
+      </SubpageSurface>
       <MagMenu
         visible={sourceMenuVisible}
         onClose={() => { setSourceMenuVisible(false) }}

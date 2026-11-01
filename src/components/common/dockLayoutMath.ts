@@ -6,10 +6,13 @@ export const isDockHidden = (autoHide: boolean, keyboardShown: boolean, keepPlay
 export const visibleDockHeight = (hidden: boolean, measuredHeight: number, fallbackHeight: number) => hidden ? 0 : measuredHeight > 0 ? measuredHeight : fallbackHeight
 
 /** Minimal scroll that fits the input and primary action, when both can fit. */
-export function focusScrollOffset(offset: number, viewportHeight: number, contentHeight: number, inputTop: number, inputBottom: number, actionBottom?: number, gap = 12) {
+export function focusScrollOffset(offset: number, viewportHeight: number, contentHeight: number, inputTop: number, inputBottom: number, actionBottom?: number, gap = 12, actionTop?: number) {
   if (viewportHeight <= 0) return offset
-  const top = inputTop - gap
-  const bottom = actionBottom != null && actionBottom - top <= viewportHeight - gap ? Math.max(inputBottom, actionBottom) : inputBottom
+  const groupTop = Math.min(inputTop, actionTop ?? inputTop) - gap
+  const groupBottom = Math.max(inputBottom, actionBottom ?? inputBottom)
+  const includeAction = actionBottom != null && groupBottom - groupTop <= viewportHeight - gap
+  const top = includeAction ? groupTop : inputTop - gap
+  const bottom = includeAction ? groupBottom : inputBottom
   const delta = top < 0 ? top : Math.max(0, bottom + gap - viewportHeight)
   return Math.max(0, Math.min(Math.max(0, contentHeight - viewportHeight), offset + delta))
 }

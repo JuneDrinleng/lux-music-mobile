@@ -207,7 +207,7 @@ const harness = () => {
   }
   const modules = {
     react,
-    './VisibleDockHeight': { useVisibleDockHeight: fallback => dockHeight ?? fallback },
+    './VisibleDockHeight': { VisibleDockHeightContext: { Provider: 'DockProvider' }, useVisibleDockHeight: fallback => dockHeight ?? fallback },
     'react-native': native,
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/config/constant': { APP_LAYER_INDEX: { controls: 20 } },
@@ -256,7 +256,7 @@ test('Settings button and Android back reverse the same 248ms curve and retain c
     assert.deepEqual(tree.props.style[2].opacity.outputRange, [0.92, 1])
     const count = h.animations.length
     back(); h.back(); assert.equal(h.animations.length, count, 'repeat back is coalesced')
-    tree = render(); assert.equal(tree.props.children, 'AI content'); assert.equal(closeCount, 0)
+    tree = render(); assert.equal(tree.props.children.props.children, 'AI content'); assert.equal(closeCount, 0)
     close.finish(); assert.equal(closeCount, 1); assert.equal(render(), null)
     h.unmount()
   }
@@ -267,10 +267,10 @@ test('external close retains old page; reopen cancels stale completion; unmount 
   const render = () => h.render(() => h.api.SettingsPage({ visible, onBack: () => { closed++ }, children: callback => { back = callback; return label } }))
   render(); h.animations.at(-1).finish()
   visible = false; label = 'empty'
-  assert.equal(render().props.children, 'cache')
+  assert.equal(render().props.children.props.children, 'cache')
   const staleClose = h.animations.at(-1)
   visible = true; label = 'themes'; render()
-  staleClose.finish(); assert.equal(render().props.children, 'themes')
+  staleClose.finish(); assert.equal(render().props.children.props.children, 'themes')
   back(); const pending = h.animations.at(-1)
   h.unmount(); pending.finish(); assert.equal(closed, 0)
 })
@@ -323,7 +323,7 @@ test('SettingsPage replaces fixed bottom with shared visible height across keybo
     h.setDockHeight(height)
     const tree = render()
     assert.equal(tree.props.style[1].bottom, height)
-    assert.equal(tree.props.children, 'profile draft')
+    assert.equal(tree.props.children.props.children, 'profile draft')
     assert.equal(h.animations.length, animationCount)
   }
   h.unmount()
