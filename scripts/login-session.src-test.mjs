@@ -211,3 +211,15 @@ test('secure clear failure keeps the index for retry, without deleting other ref
   assert.equal(removed, true)
   assert.equal(await h.secure.getRefreshToken(JSON.stringify(['nas', 'alice'])), 'refresh')
 })
+
+
+test('untrusted server indexes cannot alias object prototypes or leave undiscoverable secure entries', async() => {
+  const h = credentialsHarness({})
+  await h.repo.set('__proto__', key('alice'))
+  await h.repo.set('constructor', key('bob'))
+  assert.equal(Object.hasOwn(h.value(), '__proto__'), true)
+  assert.deepEqual(await h.repo.get('__proto__'), key('alice'))
+  assert.deepEqual(await h.repo.get('constructor'), key('bob'))
+  await h.repo.clear()
+  assert.equal(h.secure.tokens.size, 0)
+})

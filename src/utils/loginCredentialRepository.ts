@@ -28,10 +28,10 @@ export const createLoginCredentialRepository = (storage: IndexStorage, secure: S
     return { credentialRef: syncCredentialRef(id), ...(info.luxUserId ? { luxUserId: info.luxUserId } : {}) }
   }
   const migrate = async(): Promise<Index> => {
-    const index = await storage.read() ?? {}
+    let index = await storage.read() ?? {}
     for (const [id, entry] of Object.entries(index)) {
       if ('key' in entry) {
-        index[id] = await save(id, entry)
+        index = { ...index, [id]: await save(id, entry) }
         // Publish each verified entry. Restart can resume after any individual write.
         await storage.write(index)
       }
@@ -58,11 +58,11 @@ export const createLoginCredentialRepository = (storage: IndexStorage, secure: S
       return info
     }),
     set: async(id: string, info: KeyInfo): Promise<void> => enqueue(async() => {
-      const index = await migrate()
+      let index = await migrate()
       if (!Object.prototype.hasOwnProperty.call(index, id)) {
         // Reserve a discoverable reference before writing a new secure entry.
         // Even a crash between native write and index publication can be cleared.
-        index[id] = { credentialRef: syncCredentialRef(id), ...(info.luxUserId ? { luxUserId: info.luxUserId } : {}) }
+        index = { ...index, [id]: { credentialRef: syncCredentialRef(id), ...(info.luxUserId ? { luxUserId: info.luxUserId } : {}) } }
         await storage.write(index)
       }
       const ref = await save(id, info)
