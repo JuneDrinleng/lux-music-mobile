@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsSubpage } from '@/components/common/SettingsPage'
+import { SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
 import { useCallback, useEffect, useState } from 'react'
 import { Animated, useWindowDimensions } from 'react-native'
 
@@ -40,12 +40,11 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   const { width } = useWindowDimensions()
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const model = useListeningStatsModel()
-  const { page: route, setPage: setRoute, style: subpageStyle } = useSettingsSubpage<'root' | 'monthly' | 'report' | 'replay'>('root')
+  const { page: route, pages, setPage: setRoute, style: subpageStyle } = useSettingsSubpage<'root' | 'monthly' | 'report' | 'replay'>('root')
   const monthlyOpen = route === 'monthly'
   const reportOpen = route === 'report'
   const replayOpen = route === 'replay'
   const [monthlyMonth, setMonthlyMonth] = useState<ReportMonth>()
-  const layout = selectStatsLayout(model.memoriesLayout, model.pageStyle, reportOpen)
   useEffect(() => {
     setRoute('root')
   }, [model.memoriesLayout, setRoute])
@@ -70,7 +69,11 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   }, [monthlyOpen, reportOpen, replayOpen, requestClose, setRoute]))
 
   return (
-    <Animated.View style={[styles.root, sceneStyle]}><Animated.View style={[styles.root, subpageStyle]}>
+    <Animated.View style={[styles.root, sceneStyle]}><SettingsSubpage pages={pages} style={subpageStyle}>{route => {
+      const monthlyOpen = route === 'monthly'
+      const replayOpen = route === 'replay'
+      const layout = selectStatsLayout(model.memoriesLayout, model.pageStyle, route === 'report')
+      return <>
       {monthlyOpen || layout == 'monthly'
         ? <MonthlyReportPage key={monthlyMonth ? `${monthlyMonth.year}-${monthlyMonth.month}` : 'current'} initialMonth={monthlyMonth} model={model} onClose={closeReport} bottomPadding={bottomPadding} />
         : !replayOpen && (layout == 'cards' || layout == 'timeline')
@@ -78,7 +81,8 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
             : replayOpen || layout == 'replay'
               ? <ListeningStatsReplay model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setRoute('report') }} onClose={replayOpen ? closeReport : requestClose} bottomPadding={bottomPadding} />
               : <ListeningStatsMagazine model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setRoute('report') }} onClose={requestClose} bottomPadding={bottomPadding} />}
-    </Animated.View></Animated.View>
+    </>
+    }}</SettingsSubpage></Animated.View>
   )
 }
 

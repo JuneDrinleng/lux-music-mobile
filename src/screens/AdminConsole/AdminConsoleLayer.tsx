@@ -2,7 +2,7 @@
 
 import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, RefreshControl, View } from 'react-native'
+import { ActivityIndicator, RefreshControl, View } from 'react-native'
 import Text from '@/components/common/Text'
 import {
   EmptyState,
@@ -16,7 +16,7 @@ import {
   TextButton,
   UnderlineInput,
 } from '@/components/magazine'
-import { SettingsPage, useSettingsTransition } from '@/components/common/SettingsPage'
+import { SettingsPage, SettingsSubpage, useSettingsTransition } from '@/components/common/SettingsPage'
 import {
   adminApi,
   ensureAdminAccess,
@@ -230,7 +230,7 @@ export const AdminConsoleLayer = ({
     }
   }
 
-  const pageTitle = useMemo(() => {
+  const getPageTitle = (route: AdminRoute) => {
     switch (route.name) {
       case 'denied':
       case 'loading':
@@ -247,7 +247,7 @@ export const AdminConsoleLayer = ({
       default:
         return t('admin_console_title')
     }
-  }, [route.name, t])
+  }
 
   const filteredUsers = useMemo(() => {
     const q = userQuery.trim().toLowerCase()
@@ -547,7 +547,7 @@ export const AdminConsoleLayer = ({
     </View>
   )
 
-  const body = (() => {
+  const renderBody = (route: AdminRoute) => {
     switch (route.name) {
       case 'loading':
         return (
@@ -570,14 +570,14 @@ export const AdminConsoleLayer = ({
       default:
         return null
     }
-  })()
+  }
 
   return (
     <>
       <SettingsPage visible={visible} onBack={onClose} bottomInset={bottomDockHeight} hardwareBack={false}>
         {back => {
           closePage.current = back
-          return <Animated.View style={[{ flex: 1 }, subpageStyle]}>
+          return <SettingsSubpage pages={routeStack} style={subpageStyle}>{route =>
         <FocusVisibleScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 }]}
@@ -590,10 +590,10 @@ export const AdminConsoleLayer = ({
           }
         >
           <MagTopBar onBack={handleBack} />
-          <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{pageTitle}</Text>
-          {body}
+          <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{getPageTitle(route)}</Text>
+          {renderBody(route)}
         </FocusVisibleScrollView>
-          </Animated.View>
+          }</SettingsSubpage>
         }}
       </SettingsPage>
 

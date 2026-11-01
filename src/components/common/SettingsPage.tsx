@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Animated, StyleSheet, useWindowDimensions } from 'react-native'
+import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Animated, StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import commonState from '@/store/common/state'
 import { useLuxTheme } from '@/theme/LuxTheme'
@@ -16,36 +16,68 @@ export const useSettingsTransition = (autoOpen = true) => {
   return useOverlaySlideTransition(width, { symmetric: true, autoOpen })
 }
 
+const SubpageActiveContext = createContext(true)
+export const useSubpageActive = () => useContext(SubpageActiveContext)
+
 /** Stable listener: parent rerenders must not take priority over deeper pages. */
 export const useSettingsBack = (handler: () => void, enabled = true) => {
+  const active = useSubpageActive()
   const latest = useRef(handler)
   latest.current = handler
   useBackHandler(useCallback(() => {
-    if (!enabled || !isHomeScreenActive(commonState.componentIds)) return false
+    if (!active || !enabled || !isHomeScreenActive(commonState.componentIds)) return false
     latest.current()
     return true
-  }, [enabled]))
+  }, [active, enabled]))
 }
 
 /** Local sub-pages keep their outgoing content until the reverse animation ends. */
 export const useSettingsSubpage = <T,>(root: T, enabled = true, initial = root) => {
-  const [page, updatePage] = useState(initial)
-  const currentPage = useRef(page)
-  currentPage.current = page
+  const [pages, updatePages] = useState<T[]>(enabled && !Object.is(initial, root) ? [root, initial] : [initial])
+  const page = pages[pages.length - 1]
+  const currentPages = useRef(pages)
+  currentPages.current = pages
   const transition = useSettingsTransition(false)
   const { progress, requestClose, requestOpen } = transition
   useEffect(() => { progress.setValue(1) }, [progress])
   const setPage = useCallback((next: T, onChanged?: () => void) => {
-    if (Object.is(next, currentPage.current)) return
-    if (!enabled) { updatePage(next); onChanged?.(); return }
-    if (next === root) {
-      requestClose(() => { updatePage(next); progress.setValue(1); onChanged?.() })
+    const stack = currentPages.current
+    if (Object.is(next, stack[stack.length - 1])) return
+    const commit = (nextPages: T[]) => { currentPages.current = nextPages; updatePages(nextPages) }
+    if (!enabled) { commit([next]); onChanged?.(); return }
+    const previous = stack.findIndex(value => Object.is(value, next))
+    if (previous >= 0) {
+      requestClose(() => { commit(stack.slice(0, previous + 1)); progress.setValue(1); onChanged?.() })
     } else {
-      updatePage(next)
+      commit([...stack, next])
       requestOpen(onChanged)
     }
-  }, [progress, requestClose, requestOpen, root, enabled])
-  return { page, setPage, style: transition.style }
+  }, [progress, requestClose, requestOpen, enabled])
+  return { page, pages, setPage, style: transition.style }
+}
+
+/** Keep every ancestor mounted and painted; animate only the top child scene.
+ * Stable depth keys preserve native scroll/input instances through push and pop.
+ * The caller removes the outgoing scene only in requestClose's finished callback.
+ */
+export function SettingsSubpage<T>({ pages, style, children }: {
+  pages: readonly T[]
+  style: StyleProp<ViewStyle>
+  children: (page: T) => ReactNode
+}) {
+  const { colors } = useLuxTheme()
+  const parentActive = useSubpageActive()
+  return <View style={{ flex: 1, backgroundColor: colors.bg.app, overflow: 'hidden' }}>
+    {pages.map((page, index) => {
+      const active = parentActive && index === pages.length - 1
+      return <Animated.View key={index} collapsable={false}
+        pointerEvents={active ? 'auto' : 'none'}
+        accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.bg.app }, active && index > 0 ? style : null]}>
+        <SubpageActiveContext.Provider value={active}>{children(page)}</SubpageActiveContext.Provider>
+      </Animated.View>
+    })}
+  </View>
 }
 
 /**

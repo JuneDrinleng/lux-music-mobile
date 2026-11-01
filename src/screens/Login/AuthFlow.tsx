@@ -1,10 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
-import { useSettingsSubpage } from '@/components/common/SettingsPage'
+import { useSubpageActive, SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useEffect, useRef, useState } from 'react'
-import { Animated, BackHandler, KeyboardAvoidingView, Platform, View } from 'react-native'
+import { BackHandler, KeyboardAvoidingView, Platform, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import SyncLoginLocalAction from '../SyncLogin/LocalAction'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm, syncHostCompareKey } from '@/utils/syncLoginPrefill'
@@ -37,10 +37,11 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
+  const pageActive = useSubpageActive()
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const { page, setPage, style: pageStyle } = useSettingsSubpage<Page>('login', settings)
+  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<Page>('login', settings)
   const [form, setForm] = useState(emptyForm)
   const [savedSession, setSavedSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [hasSavedLogin, setHasSavedLogin] = useState(false)
@@ -75,7 +76,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     else setPage('login')
   }
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { back(); return true })
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!pageActive) return false; back(); return true })
     return () => { subscription.remove() }
   })
   useEffect(() => {
@@ -180,8 +181,9 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     </View>
   }
   const help = helpMessage(form.username, hostname, t)
-  const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
-  return <Animated.View style={[{ flex: 1 }, settings ? pageStyle : null]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const renderPage = (page: Page) => {
+    const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
+    return <KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
     <FocusVisibleScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton onPress={back} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
@@ -224,7 +226,9 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     {page === 'register' || (page === 'forgot' && adminOption) ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
       {page === 'register' ? primary : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
     </View> : null}
-  </KeyboardAvoidingView></Animated.View>
+  </KeyboardAvoidingView>
+  }
+  return <SettingsSubpage pages={pages} style={pageStyle}>{renderPage}</SettingsSubpage>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({

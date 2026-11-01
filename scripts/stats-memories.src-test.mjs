@@ -159,7 +159,7 @@ test('5B This week is a Monday-based calendar period and keeps the existing roll
 const statsFixture = (pageStyle, memoriesLayout) => {
   const slots = []; let cursor = 0; let back; let closed = 0
   const model = { pageStyle, memoriesLayout, setRange: value => { model.range = value } }
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const deps = {
     react: {
       useState: initial => {
@@ -172,7 +172,7 @@ const statsFixture = (pageStyle, memoriesLayout) => {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { Animated: { View: 'View' }, useWindowDimensions: () => ({ width: 375 }) },
-    '@/components/common/SettingsPage': { useSettingsSubpage: root => { const [page, setPage] = deps.react.useState(root); return { page, setPage, style: {} } } },
+    '@/components/common/SettingsPage': { SettingsSubpage: function SettingsSubpage({ pages, children }) { return children(pages.at(-1)) }, useSettingsSubpage: root => { const [page, setPage] = deps.react.useState(root); return { page, pages: [page], setPage, style: {} } } },
     '@/components/common/overlaySlideTransition': { useOverlaySlideTransition: () => ({ requestClose: fn => fn() }) },
     '@/theme/LuxTheme': { sharedLuxStyles: () => () => ({}), useLuxTheme() {} },
     '@/theme/magazineRoles': {},
@@ -263,7 +263,7 @@ test('stats style subgroups use eyebrows and spacing; all five options retain se
   const { magType } = load('../../theme/magazineType')
   const { STATS_PAGE_STYLES } = load('../playHistory/statsPageStyle')
   const changes = []
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const js = ts.transpileModule(`const styles = {${styleProperties.join(',')}}; const render = () => ${detail};`, {
     compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS },
   }).outputText
