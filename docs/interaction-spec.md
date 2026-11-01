@@ -84,11 +84,15 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 
 ## 键盘与 Dock
 
+规则适用于**一级页之外的所有层级页面**：二级、三级、四级及更深，包括全屏 overlay/全屏任务页，不限于设置模块。键盘弹出时背景不漏底，输入框和提交按钮保持可见（极小视口优先输入、提交仍可滚达），Dock 按用户自动隐藏设置显隐。临时 MagDialog / PromptDialog / ConfirmAlert / MagazineSheet 和横屏全屏输入法不属于这次统一范围。逐页盘点、范围外输入和待执行真机清单见 [ime-all-levels-audit.md](ime-all-levels-audit.md)。
+
+新页面必须复用共享容器/组件：设置层使用 `SettingsPage`（裁切后向子树提供 0 高度）；其他非一级内容使用 `SubpageSurface`（纸底、实际 Dock 留位且仅消费一次）。覆盖主壳的原生全屏 Modal 使用 `coversDock`，不再预留被覆盖的 Dock；只在 iOS 启用 padding 避让，Android 依赖窗口 resize。滚动表单用 `FocusVisibleScrollView`；虚拟列表用 `renderFocusVisibleScroll`，保留原生 scroll ref 与列表事件；UnderlineInput 或 `FocusVisibleInput` 上报焦点，滚动中的主操作用 `FocusVisibleAction`。固定底部操作可保留原位置，但必须位于可见窗口内；全局搜索顶栏在原位使用有界共享滚动容器，小视口可滚动露出输入。
+
 - `Home/Vertical/index.tsx` 是竖屏 Dock 显隐与占位的唯一来源，通过 `VisibleDockHeightContext` / `useVisibleDockHeight()` 共享同一帧的高度。开启 `common.autoHidePlayBar` 且键盘显示、没有保留请求时隐藏 Dock，占位立即为 0；关闭键盘或显式保留播放条/Dock 时使用包含导航、分隔线和系统 inset 的实际测量高度。保留最后一次非零测量供恢复使用，不在隐藏时清掉测量后等待再次 onLayout。首次测量前按 Dock 各段缩放高度估算，不能重复加 inset。
 - SettingsPage（背景及命中区）、设置主页、一起听聊天/邀请及其内联面板订阅这份高度，不再把固定 `122 + inset` 当作永远可见的空间。裁切后的设置子页不重复加 Dock；没有竖屏 provider 的横屏宿主仍使用 0，由横屏主壳布局。保留 Dock 时页面止于它的真实上沿，不能覆盖它的点击区域。
-- Android 保持窗口 resize，不在表单再次减键盘高度或新增 Android KAV height/padding。`FocusVisibleScrollView` 按实际原生视口测量；`UnderlineInput` 转发焦点并保留调用方 onFocus/onBlur，在聚焦、视口布局、内容高度及 keyboardDidShow 后重新检查。仅在被遮挡时做最小滚动，失焦/卸载使旧回调失效。`FocusVisibleAction` 标记滚动内容中的主要按钮；输入与按钮能同时容纳时一并显示，极小视口优先输入、按钮仍可滚动到达。固定 footer 位于滚动视口之外，不叠加键盘高度。
+- Android 保持窗口 resize，不在表单再次减键盘高度或新增 Android KAV height/padding。`FocusVisibleScrollView` 按实际原生视口测量；`UnderlineInput` 转发焦点并保留调用方 onFocus/onBlur，在聚焦、视口布局、内容高度及 keyboardDidShow 后重新检查。仅在被遮挡时做最小滚动，失焦/卸载使旧回调失效。`FocusVisibleAction` 标记滚动内容中的主要按钮（包括位于输入上方的保存，上下沿一起测量）；输入与按钮能同时容纳时一并显示，极小视口优先输入、按钮仍可滚动到达。固定 footer 位于滚动视口之外，不叠加键盘高度。
 - 已接入：资料昵称/签名、修改密码、服务器地址检查、Lux 登录/注册、LX 旧登录、管理员用户搜索，以及一起听邀请码。资料编辑保存由顶部滚动行移到底部固定操作区，键盘期间仍可提交；其他页面原有提交位置保持。复用的独立登录/引导表单也获得焦点滚动能力。表单使用 `keyboardShouldPersistTaps="handled"`，包括管理员用户搜索。
-- 歌单在线搜索仅在该搜索场景且歌单 Tab 活跃期间保留 Dock，离开搜索/切 Tab/卸载释放，防止进入资料等表单后误保留；重新回到搜索再申请。现有保留标志写入统一经过 `setKeepPlayBarOnKeyboard` 并通知主壳，键盘已打开时退出搜索也立即更新显隐与占位，不等下一次键盘事件。其余搜索保留体验沿用现有实现，本次不重构全部全局布尔值的并发所有权。
+- 全局搜索与歌单在线搜索遵循同一自动隐藏设置，不再因处于搜索模式强制保留 Dock；搜索与列表空间使用实际可见高度。其他既有显式保留请求仍通过 `setKeepPlayBarOnKeyboard` 通知主壳，本次不重构全局布尔值的并发所有权。
 - 收键盘后恢复 Dock 和原页面范围，保留草稿与合理滚动位置，不重播页面过渡。IME 可见时 Android 系统返回先由系统关闭键盘，再次返回沿既有逐层逻辑；提交期间的保护不变。
 - `scripts/ime-layout.src-test.mjs` 覆盖显隐组合、保留播放条、测量恢复、最小滚动、按钮可见、极小视口与 blur/unmount 清理。静态/模拟测试不能替代 Android resize、边到边 IME、候选栏变化、大字体、手势/三键导航及快速开合的真机验证。
 - MagDialog、PromptDialog、ConfirmAlert、MagazineSheet（原生 Modal 与 inline 的自身缩高逻辑）及横屏全屏输入法是后续单独问题，本次不调整其窗口/避让策略。临时原生 Modal / 系统选图仍可能遮住底栏。
@@ -124,7 +128,7 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - 搜索为去除首尾空白、忽略大小写的子串匹配，支持歌单名、歌名、歌手；歌单名命中显示该歌单所有可导入歌曲，歌曲/歌手命中显示匹配歌曲及其歌单。搜索仅覆盖去重后可导入歌曲，不搜索目标已有歌曲；无歌曲或全被去重的歌单仍可按歌单名找到。
 - 复用 `UnderlineInput`、`MagazineSheetRow`、`Checkbox`、`SecondaryButton`、`PrimaryButton`。逐首多选；「全选当前结果」只切换当前打开歌单在当前搜索条件下的歌曲，空搜索即全选该歌单。跨歌单同一 `source_id` 共用选中状态，清除当前全选保留其他歌曲的选择；底部计数是所有歌单的选中总数。
 - 候选加载沿用原 `source_id` 去重及目标歌曲排除逻辑，并保留每首歌的全部来源歌单 ID。确认时再次排除目标现有歌曲，调用 `addListMusics`、遵循 `list.addMusicLocationType`，成功提示实际提交数量并关闭、刷新目标；失败提示且保留选择。提交期间禁用勾选、搜索、切标签及关闭，阻止重复提交。
-- 复用导入页已有原生 Modal 过渡、顶栏返回和系统返回汇流；Lux 标签内返回关闭整个导入弹层，切换歌单通过页内按钮，不增加导航层。输入与列表位于 `KeyboardAvoidingView`（Android height / iOS padding）内，键盘出现时收缩可用高度；列表允许键盘期间点击、拖动收键盘，切标签收键盘。页边距 22；排序按钮可见高 28、上下 hitSlop 各 8，勾选行内预留 44 区域。
+- 复用导入页已有原生 Modal 过渡、顶栏返回和系统返回汇流；Lux 标签内返回关闭整个导入弹层，切换歌单通过页内按钮，不增加导航层。输入与列表位于共享 `SubpageSurface coversDock`，Android 依赖原生窗口 resize、iOS 使用 padding；列表通过 `renderFocusVisibleScroll` 让表头输入随可用视口滚动；列表允许键盘期间点击、拖动收键盘，切标签收键盘。页边距 22；排序按钮可见高 28、上下 hitSlop 各 8，勾选行内预留 44 区域。
 - `scripts/import-local.src-test.mjs` 覆盖排序、未知时间、跨歌单归属/去重、三类搜索及标签/组件接线；Android 键盘、窄屏横向标签滚动、系统返回与大量歌曲需真机确认。
 
 ## 评论加载

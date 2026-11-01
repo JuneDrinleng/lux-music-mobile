@@ -92,7 +92,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 | `OPTION_ROW_MIN_HEIGHT` | 58 | 单选行 |
 | `ICON_BLOCK` | 34 | 设置行图标方底（圆角 8） |
 
-滚动底部让位的设计基准：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。`SearchPage.tsx`、首页和歌单以 `DOCK_BASE_HEIGHT` 为设计基准；设置页与一起听通过 `components/common/VisibleDockHeight.tsx` 订阅主壳实际可见高度，隐藏为 0，可见时含实测分隔线及系统 inset。
+滚动底部让位的设计基准：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。首页和歌单根页以 `DOCK_BASE_HEIGHT` 为设计基准；非一级搜索/设置页与一起听通过 `components/common/VisibleDockHeight.tsx` 订阅主壳实际可见高度，隐藏为 0，可见时含实测分隔线及系统 inset。
 
 ### 圆角与阴影
 
@@ -184,7 +184,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 
 - 纸底：`useLuxTheme()` / `magazineRoles`，**不写 hex**。
 - 左右 **22**，Section + SettingRow / OptionRow，MagTopBar 子页 + BackButton。
-- 设置页和一起听底部留位从 `useVisibleDockHeight()` 读取：Dock 隐藏为 0，可见为实测高度（含分隔线及 gesture inset）；设计基准仍为 122。
+- 一级页之外的所有层级页面使用 SettingsPage / SubpageSurface 及共享焦点滚动；底部留位从 `useVisibleDockHeight()` 读取：Dock 隐藏为 0，可见为实测高度（含分隔线及 gesture inset）；设计基准仍为 122。
 - 复用杂志组件；删除/隐藏既有 UI 时在 **PR 描述**单独列出（见 AGENTS.md）。
 
 改规范时：**先对代码，再改本文**，并写上文件路径。
@@ -192,7 +192,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 ## 已知不一致
 
 - `SettingsTab.tsx` 样式表仍保留未使用的玻璃搜索、`headerFloating`、18  padding 等旧类名。
-- `PlaylistDetailOverlay.tsx` 仍写死 `BOTTOM_DOCK_BASE_HEIGHT = 164`，与 `DOCK_BASE_HEIGHT` 122 不一致。
+- `PlaylistDetailOverlay.tsx` 底部歌曲留白使用实际可见 Dock + 42 内容留白；全屏导入覆盖 Dock，不重复让位。
 - 横屏 `Home/Horizontal` 仍用旧 `PlayerBar` + 玻璃 `BottomNav`。
 - `docs/design-system-magazine.md` 文首仍写「仅文档、未改代码」——**与 `dev` 实现不符**；以本文与代码为准。
 - 强调黄绿、墨色、弱文字仍有多套近邻 hex（见 `luxTokens`）；不要「整理合并」默认主题字面量。

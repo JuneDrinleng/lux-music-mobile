@@ -7,7 +7,7 @@ import commonState from '@/store/common/state'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { isHomeScreenActive } from '@/utils/homeBackHandler'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
-import { useVisibleDockHeight } from './VisibleDockHeight'
+import { VisibleDockHeightContext, useVisibleDockHeight } from './VisibleDockHeight'
 import { useOverlaySlideTransition } from './overlaySlideTransition'
 
 /** Settings always uses the majority's right-entry curve in BOTH directions. */
@@ -49,7 +49,7 @@ export const useSettingsSubpage = <T,>(root: T, enabled = true, initial = root) 
 }
 
 /**
- * Persistent host for a Settings secondary page. Do not conditionally mount it:
+ * Persistent host for a Settings page at any depth below a Tab. Do not conditionally mount it:
  * it retains the last children through exit, then releases requests/listeners.
  * Children must use the supplied back callback; sub-page back uses the same helper.
  * The host is clipped above Dock so neither rendering nor hit testing covers it.
@@ -92,5 +92,5 @@ export function SettingsPage({ visible, onBack, children, bottomInset = 0, hardw
     StyleSheet.absoluteFillObject,
     { bottom: visibleDockHeight, backgroundColor: colors.bg.app, overflow: 'hidden', zIndex: APP_LAYER_INDEX.controls + 5, elevation: APP_LAYER_INDEX.controls + 5 },
     style,
-  ]}>{lastChildren.current}</Animated.View>
+  ]}><VisibleDockHeightContext.Provider value={0}>{lastChildren.current}</VisibleDockHeightContext.Provider></Animated.View>
 }

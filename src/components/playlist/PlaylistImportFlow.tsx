@@ -1,7 +1,9 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import { FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, TouchableOpacity, View } from 'react-native'
+import { FlatList, Keyboard, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
+import { renderFocusVisibleScroll } from '@/components/common/FocusVisibleScrollView'
 import ChoosePath, { type ChoosePathType } from '@/components/common/ChoosePath'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import { Checkbox, Hairline, MagazineSheet, MagazineSheetRow, MagTopBar, OptionRow, PrimaryButton, SecondaryButton, SourceTag, TextButton, TextTabs, Toggle, UnderlineInput } from '@/components/magazine'
@@ -165,8 +167,9 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
           {error ? <Text accessibilityRole="alert" size={12} color={r.danger} style={{ marginTop: 8 }}>{error}</Text> : null}
         </>
   return <Modal visible animationType="slide" onRequestClose={close}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.root, { paddingTop: statusBar }]}>
+    <SubpageSurface coversDock style={[styles.root, { paddingTop: statusBar }]}>
       {tab === 'lux' && local ? local.render(header) : <FlatList
+        renderScrollComponent={renderFocusVisibleScroll}
         data={rows?.map((row, index) => ({ row, index })).filter(({ row }) => statusTab === 'all' || row.status === statusTab) ?? []}
         keyExtractor={item => String(item.index)}
         keyboardShouldPersistTaps="handled"
@@ -192,7 +195,7 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
         <Text size={12} color={r.muted} style={styles.bold}>{rows ? t('import_will_add', { num: chosenSongs.length }) : tab === 'platform' ? t('import_tab_platform') : <>{recognizedParts[0]}<Text size={18} color={r.ink} style={styles.bold}>{tracks.length}</Text>{recognizedParts[1]}</>}</Text>
         <PrimaryButton compact label={saving ? t('import_saving') : busy ? tab === 'platform' ? t('list_loading') : t('import_progress', { done: progress, total: tracks.length }) : rows ? t('list_import') : t('import_start')} badge={rows ? chosenSongs.length : undefined} labelSize={15} style={{ flex: 1 }} disabled={saving || busy || (rows ? !chosenSongs.length : tab === 'platform' ? !link.trim() : !tracks.length)} onPress={() => { if (rows) void submit(); else void start() }} />
       </View>}
-    </KeyboardAvoidingView>
+    </SubpageSurface>
     <MagazineSheet visible={sourcePicker} onClose={() => { setSourcePicker(false) }} title={t('import_sources')}>
       <ScrollView>{(['tx', 'wy', 'kg', 'kw', 'mg'] as const).map(source => <OptionRow key={source} label={source} description={sources.includes(source) ? String(sources.indexOf(source) + 1) : undefined} selected={sources.includes(source)} onPress={() => { setSources(previous => previous.includes(source) ? previous.length === 1 ? previous : previous.filter(item => item !== source) : [...previous, source]) }} />)}<Text size={12} color={r.muted}>{t('import_sources_hint')}</Text></ScrollView>
     </MagazineSheet>
