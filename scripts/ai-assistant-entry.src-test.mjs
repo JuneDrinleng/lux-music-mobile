@@ -94,3 +94,97 @@ test('losing eligibility resets the open page and retains the shared animated Se
   assert.match(settings, /showAiAssistantEntry \? t\('ai_tokens_entry_subtitle'\) : null/)
   assert.match(read('src/utils/data.ts'), /await saveData\(syncHostPrefix, syncHostInfo\)\s*global\.app_event\?\.syncHostUpdated\(host\)/)
 })
+
+const initializer = name => {
+  let expression
+  const find = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name) expression = node.initializer.getText(ast)
+    ts.forEachChild(node, find)
+  }
+  find(ast)
+  assert.ok(expression, name)
+  return expression
+}
+const diagnosticGate = initializer('showTogetherDebugSection')
+const diagnosticsAvailable = (page, build = true) => new Script(diagnosticGate).runInNewContext({
+  showAiAssistantEntry: page.available(), isTogetherDebugPanelBuild: () => build,
+})
+
+test('diagnostic rows reuse AI eligibility, wait for configuration and react to server changes', async() => {
+  assert.equal(diagnosticGate, 'showAiAssistantEntry && isTogetherDebugPanelBuild()')
+  const page = mount()
+  assert.equal(diagnosticsAvailable(page), false)
+  page.hostRead.resolve('https://music.example'); await flush()
+  assert.equal(diagnosticsAvailable(page), false)
+  page.modeRead.resolve('lux'); await flush()
+  assert.equal(diagnosticsAvailable(page), true)
+  assert.equal(diagnosticsAvailable(page, false), false)
+  for (const [event, value, expected] of [
+    ['syncModeUpdated', 'lx', false], ['syncModeUpdated', 'lux', true],
+    ['syncHostUpdated', '', false], ['syncHostUpdated', '   ', false],
+    ['syncHostUpdated', 'https://other.example', true],
+  ]) {
+    page.listeners.get(event)(value)
+    assert.equal(diagnosticsAvailable(page), expected)
+  }
+  page.cleanup()
+})
+
+test('diagnostic searches exclude both groups when hidden and include copy in the debug group', () => {
+  const search = (name, visible, query) => new Script(initializer(name)).runInNewContext({
+    showTogetherDebugSection: visible, showAiAssistantEntry: false,
+    t: key => key, activeSyncStatusLabel: '', resourceCacheSizeLabel: '',
+    matchesSettingsSearch: (...values) => values.some(value => value?.includes(query)),
+  })
+  for (const query of ['together_debug_panel_toggle', 'together_debug_panel_toggle_desc', 'together_readiness_copy_settings', 'setting_debug_section']) {
+    for (const group of ['showDataSection', 'showTogetherDebugSettingsSection']) {
+      assert.equal(search(group, false, query), false, `${group}: hidden ${query}`)
+      assert.equal(search(group, true, query), true, `${group}: visible ${query}`)
+    }
+  }
+  assert.equal(search('showDataSection', false, 'setting_cache_management'), true)
+})
+
+const groupExpressions = new Map()
+const findGroups = node => {
+  if (ts.isConditionalExpression(node) && ['showDataSection', 'showTogetherDebugSettingsSection'].includes(node.condition.getText(ast))) {
+    groupExpressions.set(node.condition.getText(ast), node.getText(ast))
+  }
+  ts.forEachChild(node, findGroups)
+}
+findGroups(ast)
+const renderGroup = (name, visible) => {
+  const expression = groupExpressions.get(name)
+  assert.ok(expression, name)
+  const context = {
+    React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: 'Fragment' },
+    View: 'View', SectionHeader: 'SectionHeader', SettingRow: 'SettingRow',
+    styles: {}, r: { iconWrap: {} }, t: key => key,
+    SETTINGS_SECTION_GAP: 22, SETTINGS_SECTION_HEAD_GAP: 6,
+    showDataSection: true, showTogetherDebugSettingsSection: visible,
+    showAiAssistantEntry: false, showAdminConsoleEntry: false, showTogetherDebugSection: visible,
+    syncHost: '', syncMode: 'lx', togetherDebugPanelEnabled: true, resourceCacheSizeLabel: '',
+  }
+  for (const handler of expression.matchAll(/\bhandle\w+/g)) context[handler[0]] = () => {}
+  const js = ts.transpileModule(`(${expression})`, { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 } }).outputText
+  return new Script(js).runInNewContext(context)
+}
+const rows = node => !node || typeof node !== 'object' ? [] : [
+  ...(node.type === 'SettingRow' ? [node.props] : []), ...node.children.flatMap(rows),
+]
+
+test('both diagnostic row copies unmount together without empty rows; remaining data rows keep their last marker', () => {
+  const hidden = rows(renderGroup('showDataSection', false))
+  assert.deepEqual(hidden.map(row => row.title), [
+    'sync_state_address_format', 'setting_sync_clear_conflict_mode', 'setting_cache_management', 'setting_export_data', 'setting_import_data',
+  ])
+  assert.equal(hidden.at(-1).last, true)
+  assert.equal(hidden.slice(0, -1).every(row => !row.last), true)
+  const shown = rows(renderGroup('showDataSection', true))
+  assert.equal(shown.length, hidden.length + 2)
+  assert.equal(shown.find(row => row.title === 'together_debug_panel_toggle').value, 'together_debug_on')
+  assert.equal(renderGroup('showTogetherDebugSettingsSection', false), null)
+  const debug = rows(renderGroup('showTogetherDebugSettingsSection', true))
+  assert.deepEqual(debug.map(row => row.title), ['together_debug_panel_toggle', 'together_readiness_copy_settings'])
+  assert.equal(debug.at(-1).last, true)
+})
