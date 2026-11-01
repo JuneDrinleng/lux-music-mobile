@@ -1,7 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, RefreshControl, ScrollView, View } from 'react-native'
+import { ActivityIndicator, Animated, RefreshControl, View } from 'react-native'
 import Text from '@/components/common/Text'
 import {
   EmptyState,
@@ -415,7 +416,7 @@ export const AdminConsoleLayer = ({
           returnKeyType="search"
         />
       </View>
-      <TextButton label={t('admin_console_create_user')} onPress={() => { setCreateUserOpen(true) }} />
+      <FocusVisibleAction><TextButton label={t('admin_console_create_user')} onPress={() => { setCreateUserOpen(true) }} /></FocusVisibleAction>
       {filteredUsers.length === 0
         ? <EmptyState title={t('admin_console_users_empty')} message={t('admin_console_users_empty_hint')} />
         : filteredUsers.map((user, index) => (
@@ -577,7 +578,7 @@ export const AdminConsoleLayer = ({
         {back => {
           closePage.current = back
           return <Animated.View style={[{ flex: 1 }, subpageStyle]}>
-        <ScrollView
+        <FocusVisibleScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingBottom: 18 }]}
           showsVerticalScrollIndicator={false}
@@ -591,7 +592,7 @@ export const AdminConsoleLayer = ({
           <MagTopBar onBack={handleBack} />
           <Text size={magType.h2.size} color={r.display} style={styles.subpageTitle}>{pageTitle}</Text>
           {body}
-        </ScrollView>
+        </FocusVisibleScrollView>
           </Animated.View>
         }}
       </SettingsPage>

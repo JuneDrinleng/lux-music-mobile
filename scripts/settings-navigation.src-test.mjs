@@ -161,7 +161,7 @@ test('all imported Settings screens and nested pages use the shared transition, 
 
 const harness = () => {
   const slots = []; let cursor = 0; let effects = []
-  const animations = []; let hardware; let home = true
+  const animations = []; let hardware; let home = true; let dockHeight = null
   const depsEqual = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]))
   const react = {
     useRef: initial => { const i = cursor++; return slots[i] ??= { current: initial } },
@@ -207,6 +207,7 @@ const harness = () => {
   }
   const modules = {
     react,
+    './VisibleDockHeight': { useVisibleDockHeight: fallback => dockHeight ?? fallback },
     'react-native': native,
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/config/constant': { APP_LAYER_INDEX: { controls: 20 } },
@@ -229,6 +230,7 @@ const harness = () => {
     render(fn) { cursor = 0; const value = fn(); const pending = effects; effects = []; pending.forEach(effect => effect()); return value },
     back: () => hardware(),
     setHome: value => { home = value },
+    setDockHeight: value => { dockHeight = value },
     unmount: () => slots.forEach(slot => slot?.cleanup?.()),
   }
 }
@@ -308,4 +310,21 @@ test('settings B has no root back, H1 and search share a row and input pushes co
   assert.match(pillSource, /pillTarget:.*minHeight: 44.*paddingVertical: 8/)
   assert.match(pillSource, /pill:.*minHeight: 28.*paddingHorizontal: 8/)
   assert.doesNotMatch(pillSource, /hitSlop|ActivityIndicator/)
+})
+
+
+test('SettingsPage replaces fixed bottom with shared visible height across keyboard cycles without remount or replay', () => {
+  const h = harness()
+  const render = () => h.render(() => h.api.SettingsPage({ visible: true, bottomInset: 130, onBack() {}, children: () => 'profile draft' }))
+  assert.equal(render().props.style[1].bottom, 130)
+  h.animations.at(-1).finish()
+  const animationCount = h.animations.length
+  for (const height of [147, 0, 147, 0, 147]) {
+    h.setDockHeight(height)
+    const tree = render()
+    assert.equal(tree.props.style[1].bottom, height)
+    assert.equal(tree.props.children, 'profile draft')
+    assert.equal(h.animations.length, animationCount)
+  }
+  h.unmount()
 })

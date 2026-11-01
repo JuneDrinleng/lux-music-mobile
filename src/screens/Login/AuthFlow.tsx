@@ -1,9 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import { useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useEffect, useRef, useState } from 'react'
-import { Animated, BackHandler, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
+import { Animated, BackHandler, KeyboardAvoidingView, Platform, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import SyncLoginLocalAction from '../SyncLogin/LocalAction'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm, syncHostCompareKey } from '@/utils/syncLoginPrefill'
@@ -182,7 +183,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
   const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
   return <Animated.View style={[{ flex: 1 }, settings ? pageStyle : null]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <FocusVisibleScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton onPress={back} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{page === 'forgot' ? t('auth_forgot_eyebrow') : hostname.toUpperCase()}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t(page === 'forgot' ? 'auth_recover' : page === 'register' ? 'auth_register' : 'auth_login')}</Text>
@@ -207,7 +208,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
             <TextButton compact label={t('auth_forgot_link')} disabled={busy} onPress={() => { setPage('forgot'); setMessage('') }} />
             <TextButton compact label={t('auth_change_server')} disabled={busy} onPress={back} />
           </View>
-          <View style={styles.loginButton}>{primary}</View>
+          <FocusVisibleAction style={styles.loginButton}>{primary}</FocusVisibleAction>
           {info?.registration.enabled ? <View style={styles.registerLink}>
             <Text size={14} color={r.ink}>{t('auth_no_account')}</Text>
             <TextButton compact label={t('auth_register_link')} disabled={busy} onPress={() => { setPage('register'); setTouched({}); setMessage('') }} />
@@ -219,7 +220,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
         {!onboarding ? <SyncLoginLocalAction disabled={busy || !prefillReady} onBusyChange={setBusy} /> : null}
       </> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
-    </ScrollView>
+    </FocusVisibleScrollView>
     {page === 'register' || (page === 'forgot' && adminOption) ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
       {page === 'register' ? primary : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
     </View> : null}

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import { useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { resolveSyncLoginEntry, syncLoginExitTarget } from '@/utils/syncLoginRouting'
@@ -8,7 +9,7 @@ import AuthFlow from '../Login/AuthFlow'
 import ServerStep from '../Login/ServerStep'
 import { getPreferredSyncHost, addSyncHostHistory, findLuxAuthForHost, getSyncMode, setSyncHost, setSyncLoginCompleted, setSyncMode } from '@/utils/data'
 import { memo, useCallback, useEffect, useState } from 'react'
-import { Animated, BackHandler, ScrollView, View } from 'react-native'
+import { Animated, BackHandler, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import StatusBar from '@/components/common/StatusBar'
 import Text from '@/components/common/Text'
@@ -204,7 +205,7 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
   return (
     <View style={[styles.container, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
       <StatusBar />
-      <ScrollView
+      <FocusVisibleScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -281,12 +282,14 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
 
         {message ? <Text size={13} color={r.danger} style={styles.message}>{message}</Text> : null}
 
+        <FocusVisibleAction>
         <PrimaryButton
           label={submitting ? t('sync_login_submitting') : (isLuxMode ? t('sync_login_lux_submit') : t('sync_login_lx_submit'))}
           onPress={() => { void handleSubmit() }}
           disabled={submitting}
           style={styles.primary}
         />
+        </FocusVisibleAction>
         <View style={styles.skipWrap}>
           <TextButton
             label={t('sync_login_skip')}
@@ -310,7 +313,7 @@ export const LegacySyncLogin = memo(({ onboarding = false, initialHost = '', ini
           <MdiIcon name="information-outline" size={16} color={r.quiet} />
           <Text size={12} color={r.muted} style={styles.noteText}>{t('sync_login_skip_note')}</Text>
         </View>
-      </ScrollView>
+      </FocusVisibleScrollView>
     </View>
   )
 })

@@ -100,6 +100,8 @@ magazine.DOCK_BASE_HEIGHT = 122
 const commonDeps = h => ({
   '@/components/common/SettingsPage': { SettingsPage: ({ visible, children, onBack }) => visible ? children(onBack) : null },
   react: h.react,
+  '@/utils/hooks/useKeepPlayBarOnKeyboard': { setKeepPlayBarOnKeyboard() {} },
+  '@/components/common/VisibleDockHeight': { useVisibleDockHeight: (fallback = 0) => fallback },
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'react-native': { View: 'View', Modal: 'Modal', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', BackHandler: { addEventListener: () => ({ remove() {} }) } },
   '@/components/common/Text': { default: 'Text' },

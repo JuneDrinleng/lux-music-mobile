@@ -72,6 +72,7 @@ const renderScreen = env => {
     '@/components/common/SettingsPage': { ...settingsTransitionMock(hooks), useSettingsBack: handler => { hardwareBack = handler } },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import SyncLogin from '@/screens/SyncLogin'
 import SyncStatusPage, { SyncStatusPill, SyncConnectionInfo } from '@/screens/SyncStatus'
 import ServerStep from '@/screens/Login/ServerStep'
@@ -19,7 +20,6 @@ import { isAiAssistantAvailable } from '@/utils/aiAssistantEntry'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import {
-  DOCK_BASE_HEIGHT,
   EmptyState,
   Hairline,
   IconButton,
@@ -38,7 +38,7 @@ import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
 import { SettingsPage } from '@/components/common/SettingsPage'
-import { useSystemGestureInsetBottom } from '@/utils/hooks'
+import { useVisibleDockHeight } from '@/components/common/VisibleDockHeight'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
@@ -90,7 +90,6 @@ import { AdminConsoleLayer } from '@/screens/AdminConsole'
  */
 const SETTINGS_SECTION_GAP = 22
 const SETTINGS_SECTION_HEAD_GAP = 6
-const BOTTOM_DOCK_BASE_HEIGHT = DOCK_BASE_HEIGHT
 const currentVer = process.versions.app
 const syncHostRxp = /^https?:\/\/\S+/i
 const languageOptions = [
@@ -120,8 +119,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     }
   }
   const statusBarHeight = useStatusbarHeight()
-  const gestureInsetBottom = useSystemGestureInsetBottom()
-  const bottomDockHeight = dockHeight ?? BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
+  const bottomDockHeight = useVisibleDockHeight(dockHeight)
   const topPadding = statusBarHeight
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
@@ -391,11 +389,11 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   }, [])
 
   const handleSettingsSearchFocus = useCallback(() => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
+    setKeepPlayBarOnKeyboard(true)
   }, [])
 
   const handleSettingsSearchBlur = useCallback(() => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
+    setKeepPlayBarOnKeyboard(false)
   }, [])
 
   const handleToggleSettingsSearch = useCallback(() => {

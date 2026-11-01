@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import { type ImportCandidate, buildLocalCandidates } from '@/utils/playlistImport/local'
 import SmartPlaylistEditor, { newSmartPlaylist } from '@/components/playlist/SmartPlaylistEditor'
 import { startSmartPlaylists } from '@/utils/smartPlaylist'
@@ -44,7 +45,7 @@ import { MdiIcon } from '@/components/common/MdiIcon'
 import Image from '@/components/common/Image'
 import { formatMinutes } from '@/utils/formatMinutes'
 import { confirmDialog, createStyle } from '@/utils/tools'
-import { useStatusbarHeight } from '@/store/common/hook'
+import { useStatusbarHeight, useNavActiveId } from '@/store/common/hook'
 import { useMyList } from '@/store/list/hook'
 import { addListMusics, createList, getListMusics, removeListMusics, removeUserList, setActiveList, setTempList, updateListMusicPosition, updateUserList } from '@/core/list'
 import { addMusicToQueueAndPlay, pause, play, playList, playListAsQueue } from '@/core/player/player'
@@ -183,6 +184,7 @@ export default () => {
   const todayListenedMinutes = useTodayListenedMinutes()
   const days7ListenedMinutes = useDays7ListenedMinutes()
   const statusBarHeight = useStatusbarHeight()
+  const activeNavId = useNavActiveId()
   const gestureInsetBottom = useSystemGestureInsetBottom()
   const bottomDockHeight = BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
   // MagTopBar scrolls with content; drag auto-scroll only needs status-bar inset.
@@ -297,9 +299,6 @@ export default () => {
   const selectedListId = selectedDetail?.type == 'local' ? selectedDetail.listId : null
   const selectedOnlineDetail = selectedDetail?.type == 'onlineSonglist' ? selectedDetail : null
   const selectedDetailCacheKey = selectedListId ?? (selectedOnlineDetail ? getOnlinePlaylistDetailKey(selectedOnlineDetail) : null)
-  const setKeepPlayBarVisible = (visible: boolean) => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
-  }
   const lovePlaylist = useMemo(() => playlists.find(list => list.id === LIST_IDS.LOVE) ?? null, [playlists])
   const displayPlaylists = useMemo(() => {
     const userPlaylists = playlists.filter((list): list is LX.List.UserListInfo => list.id !== LIST_IDS.LOVE && list.id !== LIST_IDS.DEFAULT)
@@ -396,10 +395,10 @@ export default () => {
   }), [detailSceneAnim])
 
   useEffect(() => {
-    return () => {
-      setKeepPlayBarVisible(false)
-    }
-  }, [])
+    if (!isSearchMode || activeNavId !== 'nav_love') return
+    setKeepPlayBarOnKeyboard(true)
+    return () => { setKeepPlayBarOnKeyboard(false) }
+  }, [isSearchMode, activeNavId])
   useEffect(() => {
     let isUnmounted = false
     void getUserAvatar().then((path) => {
@@ -1444,7 +1443,6 @@ export default () => {
   const handleEnterSearch = useCallback(() => {
     setSearchMode(true)
     setSearchInputEditing(true)
-    setKeepPlayBarVisible(true)
     loadSearchHistoryList()
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
