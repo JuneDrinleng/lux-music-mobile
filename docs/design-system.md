@@ -122,8 +122,8 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 `SettingsTab.tsx`：
 
 - 一级页无返回键，系统返回逻辑不变；二级及更深页保留共享返回。B 版 MagTopBar 刊头「SETTINGS · LUX MUSIC」，顶距 18、行高 14；18 间距后 H1「设置」（magType.h1）与搜索同排（28 图标 / 44 容器，右外移 8）；可选 UnderlineInput 在标题行后。
-- **资料 hero 行**：上距 22，56 头像、14 间距、22/800 单行昵称；副行为 12 号单行签名 + 独立同步胶囊，间距 8，昵称/签名先省略，胶囊不截断。搜索过滤资料时仍显示胶囊，本地/关闭同步也保留入口。
-- `SyncStatusPill`（`screens/SyncStatus/index.tsx`）视觉最小高 28、内边距 8、11/700 字 + 12 图标，独立 44 最小触达容器（上下各 8 实际布局留位，不覆盖昵称），放大字体允许副行增高。成功/进行中为 accent.soft + ink.olive；本地/未同步为 paper + hairline 描边 + ink.secondary；错误为 paper + danger 描边与字。无新增主题色。账户其余区域仍进 AccountPage；胶囊只打开同步详情。
+- **资料 hero 行**：上距 22，56 头像、14 间距、22/800 单行昵称；独立同步胶囊在昵称右侧，水平间距 8、与昵称垂直居中；昵称和签名共用账户按钮，先单行省略，胶囊不收缩、不换行。签名单独在下一行（12/16），距昵称 2；无签名沿用默认签名。搜索过滤资料时仍显示胶囊，本地/关闭同步也保留入口。
+- `SyncStatusPill`（`screens/SyncStatus/index.tsx`）视觉最小高 28、内边距 8、11/700 字 + 12 图标，独立 44 最小触达容器（上下各 8 实际布局留位，与账户文字按钮横向分离），账户文字上留 8 与胶囊面顶边对齐。hero 保留最小高 68、头像 56 并垂直居中，状态刷新不改变布局；放大字体允许整体增高。成功/进行中为 accent.soft + ink.olive；本地/未同步为 paper + hairline 描边 + ink.secondary；错误为 paper + danger 描边与字。无新增主题色。账户其余区域仍进 AccountPage；胶囊只打开同步详情。
 - 原独立同步主线、标题及状态整行移除，服务器/账号/连接状态/最近成功同步或活跃在成功与错误详情共享的 `SyncConnectionInfo` 展示；没有时间戳显示「暂无记录」，时间戳不代表在线。
 - 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户至外观及其余组主线上距 22、栏目头距线 6。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
 - 子页：`MagTopBar` + `BackButton` + H2；单选用 **`OptionRow`**（选中 10×10 accent 圆点，浅色主题带墨边）。

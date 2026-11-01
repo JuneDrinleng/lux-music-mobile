@@ -103,7 +103,7 @@ test('profile avatar retains the complete AccountPage through shared SettingsPag
   const hero = nodes.find(node => tag(node) === 'View' && attribute(node, 'style') === '{styles.profileHeroRow}')
   assert.ok(hero)
   const accountControls = descendants(hero).filter(node => tag(node) === 'TouchableOpacity')
-  assert.equal(accountControls.length, 4)
+  assert.equal(accountControls.length, 3) // Avatar, combined nickname/signature, arrow.
   for (const control of accountControls) assert.equal(attribute(control, 'onPress'), '{handleOpenProfileDetail}')
   const pill = descendants(hero).find(node => tag(node) === 'SyncStatusPill')
   assert.ok(pill)
