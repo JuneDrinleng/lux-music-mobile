@@ -1,5 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { subpageNavigationOptions } from './pageTransitionRegistry'
 import { Navigation } from 'react-native-navigation'
 // import { InteractionManager } from 'react-native'
 
@@ -17,7 +18,6 @@ import {
 import themeState from '@/store/theme/state'
 import playerState from '@/store/player/state'
 import { getStatusBarStyle } from './utils'
-import { windowSizeTools } from '@/utils/windowSizeTools'
 import { setBgPic } from '@/core/common'
 import { resolveImageUri } from '@/utils/imageCache'
 
@@ -143,6 +143,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
           docType: docType ?? 'pact',
         },
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -159,7 +160,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
+            componentBackgroundColor: 'transparent',
           },
         },
       },
@@ -271,7 +272,7 @@ export async function pushHomeScreen(options?: { immediate?: boolean, background
     },
   })
 }
-export function pushPlayDetailScreen(componentId: string, skipAnimation = false) {
+export function pushPlayDetailScreen(componentId: string, _skipAnimation = false) {
   // 立即设置 bgPic 为当前歌曲封面，避免 PageContent 白底闪烁
   const pic = playerState.musicInfo.pic
   if (pic) {
@@ -319,6 +320,7 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
       component: {
         name: PLAY_DETAIL_SCREEN,
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -335,39 +337,7 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
             backgroundColor: 'transparent',
           },
           layout: {
-            // 使用黑色背景避免推入动画过程中的白屏闪烁
-            componentBackgroundColor: '#000000',
-          },
-          animations: {
-            push: skipAnimation ? {} : {
-              content: {
-                translationY: {
-                  from: windowSizeTools.getSize().height,
-                  to: 0,
-                  duration: 420,
-                  interpolation: { type: 'spring' },
-                },
-                alpha: {
-                  from: 0.92,
-                  to: 1,
-                  duration: 420,
-                },
-              },
-            },
-            pop: skipAnimation ? {} : {
-              content: {
-                translationY: {
-                  from: 0,
-                  to: windowSizeTools.getSize().height,
-                  duration: 300,
-                },
-                alpha: {
-                  from: 1,
-                  to: 0.92,
-                  duration: 300,
-                },
-              },
-            },
+            componentBackgroundColor: 'transparent',
           },
         },
       },
@@ -415,6 +385,7 @@ export function pushCommentScreen(componentId: string) {
       component: {
         name: COMMENT_SCREEN,
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -431,27 +402,7 @@ export function pushCommentScreen(componentId: string) {
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
-          },
-          animations: {
-            push: {
-              content: {
-                translationX: {
-                  from: windowSizeTools.getSize().width,
-                  to: 0,
-                  duration: 300,
-                },
-              },
-            },
-            pop: {
-              content: {
-                translationX: {
-                  from: 0,
-                  to: windowSizeTools.getSize().width,
-                  duration: 300,
-                },
-              },
-            },
+            componentBackgroundColor: 'transparent',
           },
         },
       },
@@ -468,6 +419,7 @@ export function pushLeaderboardDetailScreen(componentId: string, info: { source:
         name: LEADERBOARD_DETAIL_SCREEN,
         passProps: info,
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -484,27 +436,7 @@ export function pushLeaderboardDetailScreen(componentId: string, info: { source:
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
-          },
-          animations: {
-            push: {
-              content: {
-                translationX: {
-                  from: windowSizeTools.getSize().width,
-                  to: 0,
-                  duration: 300,
-                },
-              },
-            },
-            pop: {
-              content: {
-                translationX: {
-                  from: 0,
-                  to: windowSizeTools.getSize().width,
-                  duration: 300,
-                },
-              },
-            },
+            componentBackgroundColor: 'transparent',
           },
         },
       },

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSettingsSubpage } from '@/components/common/SettingsPage'
 // Lux Proprietary
 import { type ImportCandidate, buildLocalCandidates } from '@/utils/playlistImport/local'
 import SmartPlaylistEditor, { newSmartPlaylist } from '@/components/playlist/SmartPlaylistEditor'
@@ -7,7 +8,6 @@ import { startSmartPlaylists } from '@/utils/smartPlaylist'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
-  Dimensions,
   Easing,
   Keyboard,
   LayoutAnimation,
@@ -77,9 +77,6 @@ const SOURCE_MENU_ROW_HEIGHT = 44
 const SOURCE_MENU_EXPAND_DURATION = 132
 const SOURCE_MENU_REVEAL_DURATION = 156
 const SOURCE_MENU_REVEAL_DELAY = 52
-const DETAIL_TRANSITION_FORWARD_DURATION = 318
-const DETAIL_TRANSITION_BACKWARD_DURATION = 304
-const DETAIL_TRANSITION_HOME_PARALLAX = 0.28
 const sourceMenus = [
   { action: 'all', label: 'all' },
   { action: 'kg', label: 'kg' },
@@ -189,7 +186,6 @@ export default () => {
   const headerHeight = statusBarHeight + 50
   const playlists = useMyList()
   const isPlay = useIsPlay()
-  const detailSceneWidth = Dimensions.get('window').width
   const [playlistMetaMap, setPlaylistMetaMap] = useState<Record<string, { count: number, pic: string | null }>>(() => {
     const next: Record<string, { count: number, pic: string | null }> = {}
     for (const [id, value] of playlistSnapshotCache) {
@@ -206,7 +202,7 @@ export default () => {
   const [searchText, setSearchText] = useState('')
   const [searchSource, setSearchSource] = useState<SourceMenu['action']>('all')
   const [isSourceMenuVisible, setSourceMenuVisible] = useState(false)
-  const [isSearchMode, setSearchMode] = useState(false)
+  const { page: isSearchMode, setPage: setSearchMode, style: searchPageStyle } = useSettingsSubpage(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
@@ -220,7 +216,6 @@ export default () => {
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
-  const [isDetailTransitioning, setDetailTransitioning] = useState(false)
   const linkedPlaylistId = useLinkedPlaylistId()
   const playlistSortMode = useSettingValue('list.playlistSortMode')
   const playlistCustomOrderStr = useSettingValue('list.playlistCustomOrder')
@@ -269,10 +264,8 @@ export default () => {
   const dragTop = useRef(new Animated.Value(0)).current
   const dragScale = useRef(new Animated.Value(1)).current
   const dragOpacity = useRef(new Animated.Value(0)).current
-  const detailSceneAnim = useRef(new Animated.Value(0)).current
   const sourceMenuExpandAnim = useRef(new Animated.Value(0)).current
   const sourceMenuListAnim = useRef(new Animated.Value(0)).current
-  const detailTransitionTokenRef = useRef(0)
   const [isSongDragActive, setSongDragActive] = useState(false)
   const [draggingSong, setDraggingSong] = useState<LX.Music.MusicInfo | null>(null)
   const [draggingSongKey, setDraggingSongKey] = useState<string | null>(null)
@@ -378,20 +371,6 @@ export default () => {
     () => t('library_days7_meta_minutes', { minutes: formatMinutes(days7ListenedMinutes) }),
     [days7ListenedMinutes, t],
   )
-  const homeSceneParallax = detailSceneWidth * DETAIL_TRANSITION_HOME_PARALLAX
-  const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneAnim, detailSceneWidth])
-  const homeSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -homeSceneParallax],
-  }), [detailSceneAnim, homeSceneParallax])
-  const detailSceneShadeOpacity = useMemo(() => detailSceneAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.065],
-  }), [detailSceneAnim])
-
   useEffect(() => {
     let isUnmounted = false
     void getUserAvatar().then((path) => {
@@ -520,26 +499,8 @@ export default () => {
     setDetailSongs([...list])
     if (showLoading) setDetailLoading(false)
   }, [cachePlaylistSnapshot])
-  const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
-    const token = ++detailTransitionTokenRef.current
-    setDetailTransitioning(true)
-    detailSceneAnim.stopAnimation()
-    const animation = Animated.timing(detailSceneAnim, {
-      toValue,
-      duration: toValue ? DETAIL_TRANSITION_FORWARD_DURATION : DETAIL_TRANSITION_BACKWARD_DURATION,
-      easing: toValue
-        ? Easing.bezier(0.36, 0.66, 0.04, 1)
-        : Easing.bezier(0.32, 0.72, 0, 1),
-      useNativeDriver: true,
-    })
-    animation.start(({ finished }) => {
-      if (token !== detailTransitionTokenRef.current) return
-      if (finished) onFinish?.()
-      setDetailTransitioning(false)
-    })
-  }, [detailSceneAnim])
   const clearDetailSelection = useCallback((immediate = false) => {
-    if (!selectedDetail && !isDetailTransitioning) return
+    if (!selectedDetail) return
     detailRequestIdRef.current += 1
     const finish = () => {
       detailScrollOffsetRef.current = 0
@@ -547,16 +508,9 @@ export default () => {
       setDetailSongs([])
       setDetailLoading(false)
     }
-    if (immediate) {
-      detailTransitionTokenRef.current += 1
-      detailSceneAnim.stopAnimation()
-      detailSceneAnim.setValue(0)
-      setDetailTransitioning(false)
-      finish()
-      return
-    }
-    animateDetailScene(0, finish)
-  }, [animateDetailScene, detailSceneAnim, isDetailTransitioning, selectedDetail])
+    finish()
+  }, [selectedDetail])
+
 
   const refreshLovedSongMap = useCallback(async() => {
     const list = await getListMusics(LIST_IDS.LOVE)
@@ -1419,20 +1373,21 @@ export default () => {
     void addHistoryWord(input)
     void runSearch(input, searchSource)
     forceDismissSearchInput()
-  }, [closeSourceMenu, forceDismissSearchInput, runSearch, searchSource, searchText])
+  }, [closeSourceMenu, forceDismissSearchInput, runSearch, searchSource, searchText, setSearchMode])
   const handleExitSearch = useCallback(() => {
-    searchRequestIdRef.current += 1
-    setSearchLoading(false)
-    setSearchMode(false)
-    setSearchInputEditing(false)
-    setSearchKeyword('')
-    setSearchResults([])
-    closeSourceMenu()
-    searchTipRequestIdRef.current += 1
-    setSearchTipLoading(false)
-    setSearchTipList([])
     forceDismissSearchInput()
-  }, [closeSourceMenu, forceDismissSearchInput])
+    setSearchMode(false, () => {
+      searchRequestIdRef.current += 1
+      setSearchLoading(false)
+      setSearchInputEditing(false)
+      setSearchKeyword('')
+      setSearchResults([])
+      closeSourceMenu()
+      searchTipRequestIdRef.current += 1
+      setSearchTipLoading(false)
+      setSearchTipList([])
+    })
+  }, [closeSourceMenu, forceDismissSearchInput, setSearchMode])
   const handleEnterSearch = useCallback(() => {
     setSearchMode(true)
     setSearchInputEditing(true)
@@ -1440,7 +1395,7 @@ export default () => {
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
     })
-  }, [loadSearchHistoryList])
+  }, [loadSearchHistoryList, setSearchMode])
   useBackHandler(useCallback(() => {
     if (!isHomeScreenActive(commonState.componentIds)) return false
     if (commonState.navActiveId != 'nav_love') return false
@@ -1529,7 +1484,7 @@ export default () => {
   }, [searchAssistKeyword, searchHistoryList, searchTipList])
   if (isSearchMode) {
     return (
-      <PlaylistSearchScene
+      <Animated.View style={[{ flex: 1 }, searchPageStyle]}><PlaylistSearchScene
         styles={styles}
         t={t}
         statusBarHeight={statusBarHeight}
@@ -1569,7 +1524,7 @@ export default () => {
         onClearSearchHistoryList={handleClearSearchHistoryList}
         onPickSearchKeyword={handlePickSearchKeyword}
         onRemoveSearchHistoryItem={handleRemoveSearchHistoryItem}
-      />
+      /></Animated.View>
     )
   }
 
@@ -1738,28 +1693,20 @@ export default () => {
       {smartDraft ? <SmartPlaylistEditor initial={smartDraft} onClose={() => { setSmartDraft(null) }} /> : null}
       <Animated.View
         pointerEvents={shouldRenderDetailScene ? 'none' : 'auto'}
-        renderToHardwareTextureAndroid={isDetailTransitioning}
-        shouldRasterizeIOS={isDetailTransitioning}
         style={[
           styles.scene,
-          { transform: [{ translateX: homeSceneTranslateX }] },
         ]}
       >
         {homeScene}
       </Animated.View>
       {shouldRenderDetailScene
         ? <>
-            <Animated.View pointerEvents="none" style={[styles.detailSceneShade, { opacity: detailSceneShadeOpacity }]} />
             <Animated.View
-              renderToHardwareTextureAndroid={isDetailTransitioning}
-              shouldRasterizeIOS={isDetailTransitioning}
               style={[
                 styles.scene,
                 styles.sceneOverlay,
                 styles.detailScene,
-                {
-                  transform: [{ translateX: detailSceneTranslateX }],
-                },
+
               ]}
             >
               <PlaylistDetailView detail={selectedDetail} onClose={handleCloseDetail} bottomPadding={bottomDockHeight} />

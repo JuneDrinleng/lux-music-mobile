@@ -3,26 +3,26 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { Animated, Easing } from 'react-native'
 
-/** Same open/close as ListeningStatsPage (PlaylistTab 「统计」). */
+/** Single transition contract for every page below a root Tab. */
 export const OVERLAY_SLIDE_OPEN_MS = 248
-export const OVERLAY_SLIDE_CLOSE_MS = 220
+export const OVERLAY_SLIDE_CLOSE_MS = OVERLAY_SLIDE_OPEN_MS
 export const OVERLAY_SLIDE_OPEN_EASING = Easing.bezier(0.22, 0.84, 0.22, 1)
-export const OVERLAY_SLIDE_CLOSE_EASING = Easing.bezier(0.4, 0, 0.2, 1)
+export const OVERLAY_SLIDE_CLOSE_EASING = OVERLAY_SLIDE_OPEN_EASING
 export const OVERLAY_SLIDE_OPEN_OPACITY = 0.92
 
 /**
- * Horizontal slide overlay used by 听歌统计 and 本地歌曲.
+ * Shared horizontal slide for every non-root page, regardless of module/depth.
  * Entry: full width from the right; exit: reverse. Back callers should run
  * `requestClose` then unmount on the finished callback (no edge swipe).
  */
-export const useOverlaySlideTransition = (width: number, { symmetric = false, autoOpen = true }: { symmetric?: boolean, autoOpen?: boolean } = {}) => {
+export const useOverlaySlideTransition = (width: number, { symmetric = true, autoOpen = true }: { symmetric?: boolean, autoOpen?: boolean } = {}) => {
   const progress = useRef(new Animated.Value(0)).current
   const closingRef = useRef(false)
   const tokenRef = useRef(0)
 
-  const requestOpen = useCallback(() => {
+  const requestOpen = useCallback((onOpened?: () => void) => {
     closingRef.current = false
-    tokenRef.current += 1
+    const token = ++tokenRef.current
     progress.stopAnimation()
     progress.setValue(0)
     Animated.timing(progress, {
@@ -30,7 +30,9 @@ export const useOverlaySlideTransition = (width: number, { symmetric = false, au
       duration: OVERLAY_SLIDE_OPEN_MS,
       easing: OVERLAY_SLIDE_OPEN_EASING,
       useNativeDriver: true,
-    }).start()
+    }).start(({ finished }) => {
+      if (finished && token === tokenRef.current) onOpened?.()
+    })
   }, [progress])
 
   useEffect(() => {

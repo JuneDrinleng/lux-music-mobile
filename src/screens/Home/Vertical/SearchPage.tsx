@@ -1,10 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSettingsTransition } from '@/components/common/SettingsPage'
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
-  Easing,
   FlatList,
   Keyboard,
   ScrollView,
@@ -88,7 +88,7 @@ export default function SearchPage({
 }: {
   visible: boolean
   covered: boolean
-  onSelectSong?: (song: LX.Music.MusicInfoOnline) => Promise<void>
+  onSelectSong?: (song: LX.Music.MusicInfoOnline) => Promise<boolean>
   request: SearchPageRequest | null
   onClose: () => void
 }) {
@@ -133,7 +133,7 @@ export default function SearchPage({
     music: '',
     songlist: '',
   })
-  const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
+  const { style: pageStyle, requestOpen, requestClose } = useSettingsTransition(false)
 
   const sourceLabel = useMemo(() => {
     if (pageSearchSource === 'all') return t('search_source_all')
@@ -208,25 +208,14 @@ export default function SearchPage({
   useEffect(() => {
     if (visible) {
       setShouldRender(true)
-      Animated.timing(pageAnim, {
-        toValue: 1,
-        duration: 268,
-        easing: Easing.bezier(0.22, 0.84, 0.22, 1),
-        useNativeDriver: true,
-      }).start()
+      requestOpen()
       return
     }
-
-    resetSearchPageState()
-    Animated.timing(pageAnim, {
-      toValue: 0,
-      duration: 220,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setShouldRender(false)
+    requestClose(() => {
+      resetSearchPageState()
+      setShouldRender(false)
     })
-  }, [pageAnim, resetSearchPageState, visible])
+  }, [requestOpen, requestClose, resetSearchPageState, visible])
 
   const loadSearchHistoryList = useCallback(() => {
     const requestId = ++searchHistoryRequestIdRef.current
@@ -370,9 +359,12 @@ export default function SearchPage({
   }, [])
 
   const handleClose = useCallback(() => {
-    resetSearchPageState()
-    onClose()
-  }, [onClose, resetSearchPageState])
+    requestClose(() => {
+      resetSearchPageState()
+      setShouldRender(false)
+      onClose()
+    })
+  }, [onClose, requestClose, resetSearchPageState])
 
   const handleSearchInputBlur = useCallback(() => {
     requestAnimationFrame(() => {
@@ -494,9 +486,10 @@ export default function SearchPage({
   }, [loadSearchHistoryList, searchHistoryList])
 
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
-    if (onSelectSong) await onSelectSong(song)
-    else await addMusicToQueueAndPlay(song)
-  }, [onSelectSong])
+    if (onSelectSong) {
+      if (await onSelectSong(song)) handleClose()
+    } else await addMusicToQueueAndPlay(song)
+  }, [onSelectSong, handleClose])
 
   const handleToggleSearchLoved = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     const songId = String(song.id)
@@ -820,15 +813,6 @@ export default function SearchPage({
     t,
   ])
 
-  const panelTranslateX = useMemo(() => pageAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [width, 0],
-  }), [pageAnim, width])
-  const panelOpacity = useMemo(() => pageAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.86, 1],
-  }), [pageAnim])
-
   const searchHeaderHeight = statusBarHeight + 10 + 40 + 14 + 40 + 18 + 36
 
   const renderSuggestionItem = useCallback((keyword: string, index: number) => {
@@ -976,10 +960,7 @@ export default function SearchPage({
     <Animated.View
       style={[
         styles.overlayRoot,
-        {
-          opacity: panelOpacity,
-          transform: [{ translateX: panelTranslateX }],
-        },
+        pageStyle,
       ]}
       pointerEvents={visible ? 'auto' : 'none'}
     >

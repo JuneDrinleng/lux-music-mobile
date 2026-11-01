@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSettingsSubpage } from '@/components/common/SettingsPage'
 import { useCallback, useEffect, useState } from 'react'
 import { Animated, useWindowDimensions } from 'react-native'
 
@@ -39,24 +40,22 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
   const { width } = useWindowDimensions()
   const { style: sceneStyle, requestClose: animateClose } = useOverlaySlideTransition(width)
   const model = useListeningStatsModel()
-  const [monthlyOpen, setMonthlyOpen] = useState(false)
+  const { page: route, setPage: setRoute, style: subpageStyle } = useSettingsSubpage<'root' | 'monthly' | 'report' | 'replay'>('root')
+  const monthlyOpen = route === 'monthly'
+  const reportOpen = route === 'report'
+  const replayOpen = route === 'replay'
   const [monthlyMonth, setMonthlyMonth] = useState<ReportMonth>()
-  const [reportOpen, setReportOpen] = useState(false)
-  const [replayOpen, setReplayOpen] = useState(false)
   const layout = selectStatsLayout(model.memoriesLayout, model.pageStyle, reportOpen)
   useEffect(() => {
-    setReportOpen(false)
-    setReplayOpen(false)
-    setMonthlyOpen(false)
-  }, [model.memoriesLayout])
+    setRoute('root')
+  }, [model.memoriesLayout, setRoute])
   const openMonthly = (month?: ReportMonth) => {
     setMonthlyMonth(month)
-    setMonthlyOpen(true)
+    setRoute('monthly')
   }
   const closeReport = () => {
-    setMonthlyOpen(false)
-    setReportOpen(false)
-    setReplayOpen(false)
+    if (route === 'root') animateClose(onClose)
+    else setRoute('root')
   }
 
   const requestClose = useCallback(() => {
@@ -65,23 +64,21 @@ const ListeningStatsPage = ({ onClose, bottomPadding = 0 }: ListeningStatsPagePr
 
   useBackHandler(useCallback(() => {
     if (monthlyOpen || reportOpen || replayOpen) {
-      setMonthlyOpen(false)
-      setReportOpen(false)
-      setReplayOpen(false)
+      setRoute('root')
     } else requestClose()
     return true
-  }, [monthlyOpen, reportOpen, replayOpen, requestClose]))
+  }, [monthlyOpen, reportOpen, replayOpen, requestClose, setRoute]))
 
   return (
-    <Animated.View style={[styles.root, sceneStyle]}>
+    <Animated.View style={[styles.root, sceneStyle]}><Animated.View style={[styles.root, subpageStyle]}>
       {monthlyOpen || layout == 'monthly'
         ? <MonthlyReportPage key={monthlyMonth ? `${monthlyMonth.year}-${monthlyMonth.month}` : 'current'} initialMonth={monthlyMonth} model={model} onClose={closeReport} bottomPadding={bottomPadding} />
         : !replayOpen && (layout == 'cards' || layout == 'timeline')
-            ? <MemoriesStatsPage model={model} timeline={layout == 'timeline'} onClose={closeReport} onOpenMonthly={openMonthly} onOpenReplay={() => { model.setRange('year'); setReplayOpen(true) }} bottomPadding={bottomPadding} />
+            ? <MemoriesStatsPage model={model} timeline={layout == 'timeline'} onClose={closeReport} onOpenMonthly={openMonthly} onOpenReplay={() => { model.setRange('year'); setRoute('replay') }} bottomPadding={bottomPadding} />
             : replayOpen || layout == 'replay'
-              ? <ListeningStatsReplay model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setReplayOpen(false); setReportOpen(true) }} onClose={replayOpen ? closeReport : requestClose} bottomPadding={bottomPadding} />
-              : <ListeningStatsMagazine model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setReportOpen(true) }} onClose={requestClose} bottomPadding={bottomPadding} />}
-    </Animated.View>
+              ? <ListeningStatsReplay model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setRoute('report') }} onClose={replayOpen ? closeReport : requestClose} bottomPadding={bottomPadding} />
+              : <ListeningStatsMagazine model={model} onOpenMonthly={() => { setMonthlyMonth(undefined); setRoute('report') }} onClose={requestClose} bottomPadding={bottomPadding} />}
+    </Animated.View></Animated.View>
   )
 }
 

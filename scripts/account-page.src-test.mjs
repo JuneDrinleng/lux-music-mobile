@@ -101,7 +101,7 @@ test('profile PATCH is server-first; failure leaves local data and events unchan
   assert.deepEqual(raced.writes, [])
 })
 
-const renderAccount = ({ server = true, failSave = false } = {}) => {
+const renderAccount = ({ server = true, failSave = false, saveWait } = {}) => {
   const values = []; const effects = []; const calls = []; let cursor = 0; let confirm = false
   let savedAuth = auth
   let currentDevices = devices.slice()
@@ -119,13 +119,13 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
-    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView', 'TouchableOpacity'].map(key => [key, key])), Platform: { OS: 'android' } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['ActivityIndicator', 'View', 'Modal', 'ScrollView', 'KeyboardAvoidingView', 'TouchableOpacity'].map(key => [key, key])), Platform: { OS: 'android' } },
     'react-native-image-crop-picker': { default: { openPicker: async() => ({ data: 'new', mime: 'image/png' }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/Image': { default: 'Image' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
-    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
+    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'PrimaryButton', 'IconButton', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder() },
     '@/theme/magazineRoles': { magazineRoles: () => ({}) },
     '@/utils/tools': { createStyle: value => value, confirmDialog: async() => confirm },
@@ -139,7 +139,7 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
         return { sessions: currentDevices }
       },
     },
-    '@/plugins/sync/client/profile': { saveEditedProfile: async(...args) => { calls.push(['save', ...args]); if (failSave) throw new Error('offline') } },
+    '@/plugins/sync/client/profile': { saveEditedProfile: async(...args) => { calls.push(['save', ...args]); if (failSave) throw new Error('offline'); await saveWait } },
     '@/utils/data': { findLuxAuthForHost: async() => savedAuth, getUserAvatarDataUrl: async() => '', getUserGender: async() => 'unknown', getUserSignature: async() => 'signature' },
     '@/utils/dataSpace': { getActiveSpace: () => server ? 'lux:server:alice' : 'local', listSpaces: async() => [{ id: 'local', kind: 'local' }, { id: 'lux:server:alice', kind: 'lux', label: 'alice' }, { id: 'lux:server:bob', kind: 'lux', label: 'bob' }] },
     '@/utils/accountPage': api,
@@ -167,7 +167,7 @@ test('Lux and local account rows, data-space labels, username read-only and expl
     assert.ok(view.text(server ? zh.account_save_note : zh.account_save_local_note))
     view.find('SecondaryButton', '更换头像').props.onPress(); await flush(); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
     assert.ok(view.text(zh.account_save_failed)); assert.ok(view.text('编辑资料'))
     assert.equal(view.calls.find(call => call[0] === 'save')[2], server)
   }
@@ -251,7 +251,7 @@ test('14D loads signature and gender into an isolated draft and saves them toget
     options[1].props.onPress(); view.render()
     view.find('UnderlineInput', '昵称').props.onChangeText('New name'); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
     assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', { displayName: 'New name', avatar: '', signature: 'New signature', gender: 'female' }, server])
     assert.equal(view.text('编辑资料'), undefined)
   }
@@ -262,7 +262,7 @@ test('14D failure retains signature/gender draft; cancel discards it; signature 
   view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
   view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('x'.repeat(150))
   view.find('OptionRow', zh.setting_profile_gender_male).props.onPress(); view.render()
-  view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
+  view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
   assert.equal(view.calls.find(call => call[0] === 'save')[1].signature, 'x'.repeat(140))
   assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'x'.repeat(150))
   assert.equal(view.find('OptionRow', zh.setting_profile_gender_male).props.selected, true)
@@ -273,7 +273,7 @@ test('14D failure retains signature/gender draft; cancel discards it; signature 
   assert.equal(view.find('OptionRow', zh.setting_profile_gender_unknown).props.selected, true)
   for (const value of ['   ', zh.me_profile_status]) {
     view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText(value); view.render()
-    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').at(-1)[1].signature, '')
   }
 })
@@ -307,7 +307,7 @@ const renderDataDialog = kind => {
     '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
     '@/components/common/Text': { default: 'Text' },
-    '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),
+    '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'IconButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),
     '@/lang': { useI18n: () => t },
     '@/store/common/hook': { useStatusbarHeight: () => 44 },
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder({ surface: {} }) },
@@ -368,4 +368,36 @@ test('5.7 every new space/dialog string has matching interpolation fields in all
       assert.deepEqual(parameters(locale[key]), parameters(locales[0][key]), key)
     }
   }
+})
+
+
+test('edit profile save is a 28pt header check outside scrolling, disabled until changed and busy during save', async() => {
+  let finish
+  const view = renderAccount({ saveWait: new Promise(resolve => { finish = resolve }) })
+  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
+  const save = () => view.find('IconButton', zh.account_save)
+  assert.equal(save().props.name, 'check')
+  assert.equal(save().props.size, 28)
+  assert.equal(save().props.disabled, true)
+  assert.equal(view.find('PrimaryButton', zh.account_save), undefined)
+  const scroll = view.find('ScrollView')
+  const flatten = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(flatten) : [node, ...flatten(node.props?.children)]
+  assert.ok(!flatten(scroll).includes(save()), 'header stays outside focus scrolling')
+  assert.ok(!flatten(scroll).some(node => node.props?.children === zh.account_edit_title))
+  view.find('UnderlineInput', '昵称').props.onChangeText('Changed'); view.render()
+  assert.equal(save().props.disabled, false)
+  view.find('UnderlineInput', '昵称').props.onChangeText('Alice'); view.render()
+  assert.equal(save().props.disabled, true, 'reverting draft disables save again')
+  view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('new signature'); view.render()
+  save().props.onPress(); view.render()
+  assert.equal(save().props.disabled, true)
+  assert.equal(save().props.children.type, 'ActivityIndicator')
+  save().props.onPress()
+  assert.equal(view.calls.filter(call => call[0] === 'save').length, 1)
+  finish(); await flush(); view.render()
+  assert.equal(view.find('IconButton', zh.account_save), undefined)
+  const source = readFileSync(new URL('../src/screens/Account/AccountPage.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /styles.footer|FocusVisibleAction|<PrimaryButton/)
+  const icon = readFileSync(new URL('../src/components/magazine/IconButton.tsx', import.meta.url), 'utf8')
+  assert.match(icon, /ICON_BUTTON_SIZE = 44/)
 })

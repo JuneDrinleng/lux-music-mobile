@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import { FlatList, Keyboard, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+
+import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
+import { Animated, FlatList, Keyboard, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
 import { renderFocusVisibleScroll } from '@/components/common/FocusVisibleScrollView'
@@ -28,7 +30,7 @@ type Row = ReviewRow<Song>
 type InputTab = 'lux' | 'text' | 'csv' | 'platform'
 const defaultSources: ImportSource[] = ['tx', 'wy', 'kg']
 
-export default function PlaylistImportFlow({ initialTab, targetListId, targetListName, onClose, onImported, local }: {
+export default function PlaylistImportFlow({ initialTab, targetListId, targetListName, onClose: finishClose, onImported, local }: {
   initialTab?: InputTab
   targetListId?: string
   targetListName?: string
@@ -36,6 +38,8 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
   onImported?: (id: string) => void
   local?: { render: (header: ReactElement) => ReactElement, footer: ReactElement, submitting: boolean }
 }) {
+  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const styles = useStyles()
   const { colors } = useLuxTheme()
@@ -166,7 +170,7 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
           </> : null}
           {error ? <Text accessibilityRole="alert" size={12} color={r.danger} style={{ marginTop: 8 }}>{error}</Text> : null}
         </>
-  return <Modal visible animationType="slide" onRequestClose={close}>
+  return <Modal transparent visible animationType="none" onRequestClose={close}><Animated.View style={[{ flex: 1 }, pageStyle]}>
     <SubpageSurface coversDock style={[styles.root, { paddingTop: statusBar }]}>
       {tab === 'lux' && local ? local.render(header) : <FlatList
         renderScrollComponent={renderFocusVisibleScroll}
@@ -211,7 +215,7 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
     </MagazineSheet>
     <ChoosePath ref={choosePath} onConfirm={path => { void readCSV(path) }} />
     <PromptDialog ref={createName} title={t('list_create')} placeholder={t('list_create_input_placeholder')} confirmText={t('list_import')} cancelText={t('cancel')} onConfirm={submit} />
-  </Modal>
+  </Animated.View></Modal>
 }
 const useStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)

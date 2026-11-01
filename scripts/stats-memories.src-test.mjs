@@ -172,6 +172,7 @@ const statsFixture = (pageStyle, memoriesLayout) => {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { Animated: { View: 'View' }, useWindowDimensions: () => ({ width: 375 }) },
+    '@/components/common/SettingsPage': { useSettingsSubpage: root => { const [page, setPage] = deps.react.useState(root); return { page, setPage, style: {} } } },
     '@/components/common/overlaySlideTransition': { useOverlaySlideTransition: () => ({ requestClose: fn => fn() }) },
     '@/theme/LuxTheme': { sharedLuxStyles: () => () => ({}), useLuxTheme() {} },
     '@/theme/magazineRoles': {},
@@ -189,7 +190,7 @@ const statsFixture = (pageStyle, memoriesLayout) => {
     return deps[name]
   }, module, module.exports)
   return {
-    render: () => { cursor = 0; return module.exports.default({ onClose: () => { closed++ } }).props.children },
+    render: () => { cursor = 0; return module.exports.default({ onClose: () => { closed++ } }).props.children.props.children },
     back: () => back(),
     closed: () => closed,
     model,

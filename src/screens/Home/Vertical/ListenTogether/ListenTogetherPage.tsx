@@ -284,9 +284,9 @@ const ListenTogetherPage = ({ onClose, bottomPadding: fallbackPadding = 0 }: Lis
       {room && shouldMountRequestSheet(requestsOpen, feed.capabilities.requests, feed.roomId) ? <RequestSheet feed={feed} selfId={together.selfId} hostId={room.hostId} bottomInset={bottomPadding} onClose={() => { setRequestsOpen(false) }} onPickSong={() => { setRequestsOpen(false); setPickingSong(true) }} /> : null}
       {room && pickingSong && feed.capabilities.requests ? <SearchPage visible covered={false} request={null} onClose={() => { setPickingSong(false); setRequestsOpen(true) }} onSelectSong={async(song) => {
         const model = selectRequestQueueModel(togetherRoomFeed.getSnapshot(), together.selfId, room.hostId)
-        if (!model.canRequest) { toast(t('together_request_limit_reached')); return }
+        if (!model.canRequest) { toast(t('together_request_limit_reached')); return false }
         const ok = await performRoomAction(async() => togetherRoomFeed.addRequest(song), t('together_action_failed'))
-        if (ok && togetherRoomFeed.getSnapshot().roomId == room.roomId && togetherRoomFeed.getSnapshot().capabilities.requests) { setPickingSong(false); setRequestsOpen(true) }
+        return ok && togetherRoomFeed.getSnapshot().roomId == room.roomId && togetherRoomFeed.getSnapshot().capabilities.requests
       }} /> : null}
       <InviteSheet visible={inviteOpen} onClose={() => { setInviteOpen(false) }} />
       <TogetherDebugPanel visible={showDebugPanel} gateSnap={gateSnap} />
