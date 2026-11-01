@@ -1,13 +1,14 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Animated, KeyboardAvoidingView, Platform, TouchableOpacity, View } from 'react-native'
 import ImagePicker from 'react-native-image-crop-picker'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import StatusBar from '@/components/common/StatusBar'
 import { MdiIcon } from '@/components/common/MdiIcon'
-import { BackButton, OptionRow, Rule, SecondaryButton, TextButton, UnderlineInput } from '@/components/magazine'
+import { BackButton, OptionRow, Rule, PrimaryButton, SecondaryButton, UnderlineInput } from '@/components/magazine'
 import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle, confirmDialog } from '@/utils/tools'
@@ -144,8 +145,8 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
   return <Animated.View style={[{ flex: 1 }, pageStyle]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
-      <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} />{page === 'edit' ? <TextButton compact label={t('account_save')} onPress={save} disabled={busy} /> : null}</View>
+    <FocusVisibleScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
+      <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(eyebrow)}</Text>
       {page === 'account' ? <>
         <View style={styles.hero}>{avatarCircle(72, avatar, nickname)}<View style={styles.flex}><Text size={28} color={r.display} style={[styles.heavy, styles.name]}>{nickname}</Text><Text size={12} color={r.muted}>{server ? `${session?.user.username ?? ''} • ${host.replace(/^https?:\/\//, '').replace(/\/+$/, '')} • ${t(session?.user.role === 'admin' ? 'account_admin' : 'account_member')}` : t('account_local')}</Text></View><SecondaryButton compact label={t('account_edit')} onPress={edit} disabled={busy} style={styles.button} /></View>
@@ -191,13 +192,15 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
         <View style={[styles.field, { alignItems: 'flex-start' }]}><SecondaryButton compact label={t('account_revoke')} onPress={() => { mutateSessions() }} disabled={busy || !service} style={styles.button} /></View>
       </> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
-    </ScrollView>
+    </FocusVisibleScrollView>
+    {page === 'edit' ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}><PrimaryButton compact label={t('account_save')} onPress={save} disabled={busy} /></View> : null}
     {page === 'password' && session ? <ChangePassword host={host.replace(/\/+$/, '')} session={session} onBack={() => { setPage('account'); void run(refreshSessions) }} /> : null}
   </KeyboardAvoidingView></Animated.View>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({
   page: { flex: 1 },
+  footer: { borderTopWidth: 2, paddingHorizontal: 22, paddingTop: 12 },
   content: { paddingHorizontal: 22 },
   top: { marginTop: 10, height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },

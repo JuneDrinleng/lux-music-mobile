@@ -7,6 +7,7 @@ import commonState from '@/store/common/state'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { isHomeScreenActive } from '@/utils/homeBackHandler'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
+import { useVisibleDockHeight } from './VisibleDockHeight'
 import { useOverlaySlideTransition } from './overlaySlideTransition'
 
 /** Settings always uses the majority's right-entry curve in BOTH directions. */
@@ -61,6 +62,7 @@ export function SettingsPage({ visible, onBack, children, bottomInset = 0, hardw
   hardwareBack?: boolean
 }) {
   const { colors } = useLuxTheme()
+  const visibleDockHeight = useVisibleDockHeight(bottomInset)
   const { style, requestClose, requestOpen } = useSettingsTransition(false)
   const [retained, setRetained] = useState(visible)
   const lastChildren = useRef<ReactNode>(null)
@@ -88,7 +90,7 @@ export function SettingsPage({ visible, onBack, children, bottomInset = 0, hardw
   }
   return <Animated.View pointerEvents={visible ? 'auto' : 'none'} style={[
     StyleSheet.absoluteFillObject,
-    { bottom: bottomInset, backgroundColor: colors.bg.app, overflow: 'hidden', zIndex: APP_LAYER_INDEX.controls + 5, elevation: APP_LAYER_INDEX.controls + 5 },
+    { bottom: visibleDockHeight, backgroundColor: colors.bg.app, overflow: 'hidden', zIndex: APP_LAYER_INDEX.controls + 5, elevation: APP_LAYER_INDEX.controls + 5 },
     style,
   ]}>{lastChildren.current}</Animated.View>
 }

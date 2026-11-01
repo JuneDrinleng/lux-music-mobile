@@ -16,7 +16,7 @@ test('vertical progress subscription belongs to the Dock container, below Conten
   assert.match(shell, /import DockContainer from '\.\/DockContainer'/)
   assert.match(shell, /<DockContainer\s+musicId={musicInfo.id}/)
   assert.ok(shell.indexOf('<Content />') < shell.indexOf('<DockContainer'))
-  assert.match(shell, /const hideDock = autoHidePlayBar && keyboardShown && !keepPlayBarOnKeyboard/)
+  assert.match(shell, /const hideDock = isDockHidden\(autoHidePlayBar, keyboardShown, keepPlayBarOnKeyboard\)/)
   assert.match(shell, /{hideDock\s*\? null[\s\S]*?<DockContainer/)
   assert.match(shell, /onNavPress={handleNavPress}/)
   assert.match(shell, /onQueuePress={\(\) => { global.app_event.togglePlayQueuePanel\(\) }}/)

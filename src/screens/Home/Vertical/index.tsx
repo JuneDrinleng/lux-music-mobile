@@ -29,7 +29,12 @@ import { useI18n } from '@/lang'
 import { useIsPlay, usePlayerMusicInfo } from '@/store/player/hook'
 import { togglePlay } from '@/core/player/player'
 import { useKeyboard } from '@/utils/hooks'
+import { useKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import { useSettingValue } from '@/store/setting/hook'
+import { DOCK_PLAYER_HEIGHT, DOCK_NAV_HEIGHT } from '@/components/magazine/Dock'
+import { scaleSizeH } from '@/utils/pixelRatio'
+import { VisibleDockHeightContext } from '@/components/common/VisibleDockHeight'
+import { isDockHidden, visibleDockHeight } from '@/components/common/dockLayoutMath'
 
 const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
@@ -81,7 +86,7 @@ export default () => {
   const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
   const [listenTogetherOpen, setListenTogetherOpen] = useState(false)
   const togetherActive = useTogetherActive()
-  const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
+  const [measuredDockHeight, setMeasuredDockHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
 
   useEffect(() => {
@@ -200,12 +205,14 @@ export default () => {
     global.app_event.showPlayDetail()
   }, [musicInfo.id])
 
-  const keepPlayBarOnKeyboard = Reflect.get(global.lx, 'keepPlayBarOnKeyboard') === true
-  const hideDock = autoHidePlayBar && keyboardShown && !keepPlayBarOnKeyboard
+  const keepPlayBarOnKeyboard = useKeepPlayBarOnKeyboard()
+  const hideDock = isDockHidden(autoHidePlayBar, keyboardShown, keepPlayBarOnKeyboard)
+  const bottomLayerHeight = visibleDockHeight(hideDock, measuredDockHeight, scaleSizeH(DOCK_PLAYER_HEIGHT) + scaleSizeH(DOCK_NAV_HEIGHT) + scaleSizeH(1) + bottomInset)
 
   const subtitle = [musicInfo.singer, musicInfo.album].filter(Boolean).join(' · ')
 
   return (
+    <VisibleDockHeightContext.Provider value={bottomLayerHeight}>
     <View style={styles.container}>
       <StatusBar barStyle={holdSplashChrome || mode !== 'dark' ? 'dark-content' : 'light-content'} />
       <Content />
@@ -253,7 +260,7 @@ export default () => {
           <View
             style={styles.bottomLayer}
             pointerEvents="box-none"
-            onLayout={(e: LayoutChangeEvent) => { setBottomLayerHeight(e.nativeEvent.layout.height) }}
+            onLayout={(e: LayoutChangeEvent) => { setMeasuredDockHeight(e.nativeEvent.layout.height) }}
           >
             <DockContainer
               musicId={musicInfo.id}
@@ -279,5 +286,6 @@ export default () => {
       <PlayQueueSheet systemGestureInsetBottom={bottomInset} enabled={!componentIds.playDetail} />
       <PlayDetailOverlay componentId={componentIds.home ?? ''} />
     </View>
+    </VisibleDockHeightContext.Provider>
   )
 }

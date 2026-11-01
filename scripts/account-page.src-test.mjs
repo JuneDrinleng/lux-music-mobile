@@ -118,13 +118,14 @@ const renderAccount = ({ server = true, failSave = false } = {}) => {
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView', 'TouchableOpacity'].map(key => [key, key])), Platform: { OS: 'android' } },
     'react-native-image-crop-picker': { default: { openPicker: async() => ({ data: 'new', mime: 'image/png' }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/Image': { default: 'Image' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
-    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
+    '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder() },
     '@/theme/magazineRoles': { magazineRoles: () => ({}) },
     '@/utils/tools': { createStyle: value => value, confirmDialog: async() => confirm },
@@ -166,7 +167,7 @@ test('Lux and local account rows, data-space labels, username read-only and expl
     assert.ok(view.text(server ? zh.account_save_note : zh.account_save_local_note))
     view.find('SecondaryButton', '更换头像').props.onPress(); await flush(); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
     assert.ok(view.text(zh.account_save_failed)); assert.ok(view.text('编辑资料'))
     assert.equal(view.calls.find(call => call[0] === 'save')[2], server)
   }
@@ -250,7 +251,7 @@ test('14D loads signature and gender into an isolated draft and saves them toget
     options[1].props.onPress(); view.render()
     view.find('UnderlineInput', '昵称').props.onChangeText('New name'); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
     assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', { displayName: 'New name', avatar: '', signature: 'New signature', gender: 'female' }, server])
     assert.equal(view.text('编辑资料'), undefined)
   }
@@ -261,7 +262,7 @@ test('14D failure retains signature/gender draft; cancel discards it; signature 
   view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
   view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('x'.repeat(150))
   view.find('OptionRow', zh.setting_profile_gender_male).props.onPress(); view.render()
-  view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+  view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
   assert.equal(view.calls.find(call => call[0] === 'save')[1].signature, 'x'.repeat(140))
   assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'x'.repeat(150))
   assert.equal(view.find('OptionRow', zh.setting_profile_gender_male).props.selected, true)
@@ -272,7 +273,7 @@ test('14D failure retains signature/gender draft; cancel discards it; signature 
   assert.equal(view.find('OptionRow', zh.setting_profile_gender_unknown).props.selected, true)
   for (const value of ['   ', zh.me_profile_status]) {
     view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText(value); view.render()
-    view.find('TextButton', '保存').props.onPress(); await flush(); view.render()
+    view.find('PrimaryButton', '保存').props.onPress(); await flush(); view.render()
     assert.equal(view.calls.filter(call => call[0] === 'save').at(-1)[1].signature, '')
   }
 })
@@ -303,6 +304,7 @@ const renderDataDialog = kind => {
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, BackHandler: {}, View: 'View', ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity' },
     '@/components/common/Text': { default: 'Text' },
     '@/components/magazine': Object.fromEntries(['Checkbox', 'MagazineSheet', 'OptionRow', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'Toggle'].map(name => [name, name])),

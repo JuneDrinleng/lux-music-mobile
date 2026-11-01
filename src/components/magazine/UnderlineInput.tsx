@@ -1,9 +1,10 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { TextInput, View, type TextInputProps } from 'react-native'
 
 import Text from '@/components/common/Text'
+import { useFocusVisibility } from '@/components/common/FocusVisibleScrollView'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { magType } from '@/theme/magazineType'
@@ -16,6 +17,8 @@ export const UnderlineInput = memo(({
   error,
   large = false,
   style,
+  onFocus,
+  onBlur,
   ...rest
 }: {
   label?: string
@@ -27,6 +30,8 @@ export const UnderlineInput = memo(({
 } & Omit<TextInputProps, 'value' | 'onChangeText' | 'placeholder' | 'style'> & { style?: TextInputProps['style'] }) => {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const input = useRef<TextInput>(null)
+  const visibility = useFocusVisibility()
   const [focused, setFocused] = useState(false)
   const underlineColor = error ? r.danger : focused ? r.ink : r.hairline
   const underlineWidth = (error != null && error !== '') || focused ? 1.5 : 1
@@ -42,6 +47,7 @@ export const UnderlineInput = memo(({
           )
         : null}
       <TextInput
+        ref={input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -50,11 +56,13 @@ export const UnderlineInput = memo(({
         cursorColor={r.ink}
         onFocus={(e) => {
           setFocused(true)
-          rest.onFocus?.(e)
+          if (input.current) visibility?.focus(input.current)
+          onFocus?.(e)
         }}
         onBlur={(e) => {
           setFocused(false)
-          rest.onBlur?.(e)
+          if (input.current) visibility?.blur(input.current)
+          onBlur?.(e)
         }}
         style={[{
           fontSize: large ? magType.searchInput.size : 16,

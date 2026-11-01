@@ -92,7 +92,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 | `OPTION_ROW_MIN_HEIGHT` | 58 | 单选行 |
 | `ICON_BLOCK` | 34 | 设置行图标方底（圆角 8） |
 
-滚动底部让位：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。`SearchPage.tsx` 与三 Tab 统一用 `DOCK_BASE_HEIGHT`，不再使用 112 / 164 两套常量。
+滚动底部让位的设计基准：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。`SearchPage.tsx`、首页和歌单以 `DOCK_BASE_HEIGHT` 为设计基准；设置页与一起听通过 `components/common/VisibleDockHeight.tsx` 订阅主壳实际可见高度，隐藏为 0，可见时含实测分隔线及系统 inset。
 
 ### 圆角与阴影
 
@@ -152,7 +152,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 | `SectionHeader` + `Rule` / `Hairline` | 设置与列表分节 |
 | `SettingRow` | 设置入口行 |
 | `OptionRow` | 单选列表 |
-| `Dock` / `DockPlayerSlot` | 仅主壳；子页留出 `DOCK_BASE_HEIGHT` |
+| `Dock` / `DockPlayerSlot` | 仅主壳；设置子页用共享可见高度留位 |
 | `TextTabs`、`UnderlineInput`、`PrimaryButton`、`MagDialog`、`MagazineSheet` | 表单、面板、抽屉 |
 | `RankedRow`、`SongRow`、`SourceTag` | 首页 / 搜索 / 歌单行 |
 | `Text`、`MdiIcon`、`Image` | 文案与图标（设置行图标 **18**，色 **`ink`**，色相在图标底） |
@@ -184,7 +184,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 
 - 纸底：`useLuxTheme()` / `magazineRoles`，**不写 hex**。
 - 左右 **22**，Section + SettingRow / OptionRow，MagTopBar 子页 + BackButton。
-- 底部留白 **122 + gesture inset**。
+- 设置页和一起听底部留位从 `useVisibleDockHeight()` 读取：Dock 隐藏为 0，可见为实测高度（含分隔线及 gesture inset）；设计基准仍为 122。
 - 复用杂志组件；删除/隐藏既有 UI 时在 **PR 描述**单独列出（见 AGENTS.md）。
 
 改规范时：**先对代码，再改本文**，并写上文件路径。

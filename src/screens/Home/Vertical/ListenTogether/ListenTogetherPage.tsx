@@ -1,7 +1,9 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Animated, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import { useVisibleDockHeight } from '@/components/common/VisibleDockHeight'
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
+import { Animated, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 
 import Image from '@/components/common/Image'
 import Text from '@/components/common/Text'
@@ -81,7 +83,8 @@ export interface ListenTogetherPageProps {
   bottomPadding?: number
 }
 
-const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPageProps) => {
+const ListenTogetherPage = ({ onClose, bottomPadding: fallbackPadding = 0 }: ListenTogetherPageProps) => {
+  const bottomPadding = useVisibleDockHeight(fallbackPadding)
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -217,7 +220,7 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
               </View>
         </>}
       /> : (
-      <ScrollView
+      <FocusVisibleScrollView
         contentContainerStyle={[styles.content, { paddingTop: statusBarHeight, paddingBottom: 72 + bottomPadding }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -269,15 +272,15 @@ const ListenTogetherPage = ({ onClose, bottomPadding = 0 }: ListenTogetherPagePr
                 error={joinError}
                 large
               />
-              <View style={[styles.actions, { marginTop: 16 }]}>
+              <FocusVisibleAction style={[styles.actions, { marginTop: 16 }]}>
                 <SecondaryButton
                   label={t('together_join_room')}
                   onPress={handleJoin}
                   disabled={together.pending || together.connection != 'online'}
                 />
-              </View>
+              </FocusVisibleAction>
             </>
-      </ScrollView>)}
+      </FocusVisibleScrollView>)}
       {room && shouldMountRequestSheet(requestsOpen, feed.capabilities.requests, feed.roomId) ? <RequestSheet feed={feed} selfId={together.selfId} hostId={room.hostId} bottomInset={bottomPadding} onClose={() => { setRequestsOpen(false) }} onPickSong={() => { setRequestsOpen(false); setPickingSong(true) }} /> : null}
       {room && pickingSong && feed.capabilities.requests ? <SearchPage visible covered={false} request={null} onClose={() => { setPickingSong(false); setRequestsOpen(true) }} onSelectSong={async(song) => {
         const model = selectRequestQueueModel(togetherRoomFeed.getSnapshot(), together.selfId, room.hostId)

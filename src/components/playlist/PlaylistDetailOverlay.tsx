@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import {
   Animated,
   Dimensions,
@@ -111,7 +112,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   }), [detailSceneAnim, detailSceneWidth])
 
   const setKeepPlayBarVisible = (visible: boolean) => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
+    setKeepPlayBarOnKeyboard(visible)
   }
 
   const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {

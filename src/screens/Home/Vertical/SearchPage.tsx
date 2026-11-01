@@ -1,6 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -208,7 +209,7 @@ export default function SearchPage({
 
   useEffect(() => {
     if (visible) {
-      Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
+      setKeepPlayBarOnKeyboard(true)
       setShouldRender(true)
       Animated.timing(pageAnim, {
         toValue: 1,
@@ -219,7 +220,7 @@ export default function SearchPage({
       return
     }
 
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
+    setKeepPlayBarOnKeyboard(false)
     resetSearchPageState()
     Animated.timing(pageAnim, {
       toValue: 0,

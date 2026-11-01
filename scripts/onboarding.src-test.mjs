@@ -246,6 +246,7 @@ test('legacy login adapter prefills checked URL and completes only after success
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, View: 'View', ScrollView: 'ScrollView', BackHandler: { addEventListener: () => ({ remove: noOp }) } },
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
