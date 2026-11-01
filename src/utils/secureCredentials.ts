@@ -17,7 +17,7 @@ interface KeychainModule {
 }
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const keychain = (): KeychainModule => require('react-native-keychain') as KeychainModule
-const nativeBackend: SecureCredentialBackend = {
+export const nativeCredentialBackend: SecureCredentialBackend = {
   set: async(service, token) => {
     const kc = keychain()
     return kc.setGenericPassword('refresh', token, {
@@ -37,7 +37,7 @@ const nativeBackend: SecureCredentialBackend = {
 
 export const refreshTokenServerKey = (auth: { serverId?: string, serverUrl?: string, user?: { id: string } }) => auth.user?.id ? JSON.stringify([auth.serverId ?? auth.serverUrl ?? 'legacy', auth.user.id]) : auth.serverId ?? auth.serverUrl ?? 'legacy'
 
-export const createSecureCredentials = (backend: SecureCredentialBackend = nativeBackend) => {
+export const createSecureCredentials = (backend: SecureCredentialBackend = nativeCredentialBackend) => {
   const service = (serverKey: string) => `lux.refresh.${encodeURIComponent(serverKey)}`
   const clear = async(serverKey: string): Promise<void> => {
     try { await backend.clear(service(serverKey)) } catch {}
