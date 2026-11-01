@@ -16,6 +16,7 @@ const evaluate = (file, deps) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence' && !(name in deps)) return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -298,10 +299,11 @@ test('production data helpers isolate profile, default/love/custom lists and met
     assert.equal(await data.getListPosition('love'), 25)
     assert.deepEqual((await data.getListUpdateInfo()).custom, { isAutoUpdate: true, updateTime: 123 })
   }
-  await data.setLuxAuth({ serverId: 's', user: { id: 'a', username: 'Alice' }, token: 'token' })
+  await data.commitLuxAuth({ serverId: 's', user: { id: 'a', username: 'Alice' }, token: 'token' })
   assert.equal(env.space.getActiveSpace(), 'lux:s:a')
   assert.equal((await env.space.listSpaces()).find(space => space.id === 'lux:s:a').label, 'Alice')
   const logout = evaluate('src/utils/syncLogout.ts', {
+    '@/core/appSession': { requestLogin: async() => { env.frozen = true } },
     '@/core/common': { updateSetting() {} },
     '@/core/player/player': {},
     '@/plugins/sync': { disconnectServer: async() => {} },
@@ -311,8 +313,8 @@ test('production data helpers isolate profile, default/love/custom lists and met
     '@/utils/dataSpace/operations': { deleteSpaceData: async() => {} },
   })
   await logout.applySyncAccountLogout()
-  assert.equal(env.space.getActiveSpace(), 'local')
-  assert.equal(await data.getUserName(), 'local')
+  assert.equal(env.space.getActiveSpace(), 'lux:s:a')
+  assert.equal(await data.getUserName(), 'lux:s:a')
 })
 
 test('a write already in flight keeps its physical namespace when the active account changes', async() => {
@@ -612,9 +614,9 @@ test('login activates its data space; inactive refresh cannot overwrite a switch
   const data = loadData(env)
   const alice = { serverId: 's', serverUrl: 'https://s', token: 'alice', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
   const bob = { ...alice, token: 'bob', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
-  await data.setLuxAuth(alice)
+  await data.commitLuxAuth(alice)
   assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
-  await data.setLuxAuth(bob)
+  await data.commitLuxAuth(bob)
   assert.equal(env.space.getActiveSpace(), 'lux:s:bob')
   assert.equal((await data.rotateLuxAuth(alice, { token: 'renewed-alice', refreshToken: 'renewed-ra' })).user.id, 'alice')
   assert.equal((await data.getLuxAuth()).user.id, 'bob', 'inactive refresh cannot replace the selected account')
@@ -689,17 +691,18 @@ test('secure refresh reads reject stale accounts; server switches preserve each 
   const data = loadData(env)
   const a = { serverId: 'a', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
   const b = { serverId: 'b', token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
-  await data.setLuxAuth(a)
-  await data.setLuxAuth(b)
+  await data.commitLuxAuth(a)
+  await data.commitLuxAuth(b)
   const savedA = await data.getLuxAuth('a')
-  await data.setLuxAuth(savedA)
+  await data.commitLuxAuth(savedA)
   assert.equal(await data.getLuxRefreshToken(savedA), 'ra')
   assert.equal(await env.secure.getRefreshToken(JSON.stringify(['b', 'bob'])), 'rb')
   const replacement = { ...a, token: 'new-account', refreshToken: 'new-refresh', user: b.user }
-  await data.setLuxAuth(replacement)
+  await data.commitLuxAuth(replacement)
   assert.equal(await data.getLuxRefreshToken(savedA), 'ra', 'another account on the same server keeps its own session')
   assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('a')), 'new-refresh')
   const logout = evaluate('src/utils/syncLogout.ts', {
+    '@/core/appSession': { requestLogin: async() => { env.frozen = true } },
     '@/core/common': { updateSetting() {} },
     '@/core/player/player': {},
     '@/plugins/sync': { disconnectServer: async() => {} },
@@ -722,7 +725,7 @@ test('legacy session binding transfers its verified refresh token into the serve
   const data = loadData(env)
   const auth = await data.getLuxAuth('nas')
   assert.equal(auth.refreshToken, undefined)
-  await data.setLuxAuth({ ...auth, serverId: 'nas' })
+  await data.commitLuxAuth({ ...auth, serverId: 'nas' })
   assert.equal(await data.getLuxRefreshToken(await data.getLuxAuth('nas')), 'ra')
   assert.equal(await env.secure.getRefreshToken('https://nas'), null)
 })
@@ -731,7 +734,7 @@ test('failed rotation discards the secure token and never persists its plaintext
   const env = make()
   const data = loadData(env)
   const auth = { serverId: 'a', token: 'old', refreshToken: 'old-refresh', user: { id: 'alice', username: 'alice' } }
-  await data.setLuxAuth(auth)
+  await data.commitLuxAuth(auth)
   env.secure.fail(true)
   assert.equal(await data.rotateLuxAuth(await data.getLuxAuth('a'), { token: 'new', refreshToken: 'replacement' }), null)
   assert.equal(JSON.stringify([...env.disk]).includes('replacement'), false)
@@ -742,7 +745,7 @@ test('failed rotation discards the secure token and never persists its plaintext
 test('401 refresh reads the actual secure backend and persists rotation without a plaintext session token', async() => {
   const env = make()
   const data = loadData(env)
-  await data.setLuxAuth({ serverId: 'nas', serverUrl: 'https://nas', token: 'old', refreshToken: 'keychain-refresh', user: { id: 'alice', username: 'alice' } })
+  await data.commitLuxAuth({ serverId: 'nas', serverUrl: 'https://nas', token: 'old', refreshToken: 'keychain-refresh', user: { id: 'alice', username: 'alice' } })
   const saved = await data.getLuxAuth('nas')
   assert.equal(saved.refreshToken, undefined)
   const errors = evaluate('src/plugins/sync/client/userErrors.ts', {})
@@ -772,6 +775,7 @@ test('401 refresh reads the actual secure backend and persists rotation without 
 
 // 5.7: exercise the production storage adapter, import gate, auth and connection order.
 const operationsFor = env => evaluate('src/utils/dataSpace/operations.ts', {
+  '@/utils/sessionFence': { sessionWritesFrozen: () => env.frozen === true },
   'react-native': { NativeModules: { DownloadModule: { removeSpace: async space => { (env.deletedDownloadSpaces ??= []).push(space) } } } },
   '@react-native-async-storage/async-storage': env.storage,
   '@/config/constant': evaluate('src/config/constant.ts', {}),
@@ -887,7 +891,7 @@ test('5.7 regression: logging into an empty server account does NOT auto-upload 
     './utils': { parseUrl: () => ({ href: 'https://server', httpProtocol: 'https:', hostPath: 'server' }) },
     '../constants': { SYNC_CODE: constants },
   })
-  const login = client.connectLuxServer('https://server', 'alice', 'password')
+  const login = client.legacyConnectLuxServer('https://server', 'alice', 'password')
   for (let i = 0; i < 20; i++) {
     if (overlay) break
     await new Promise(resolve => setImmediate(resolve))
@@ -970,15 +974,16 @@ test('5.7 logout keep/delete touches only the captured account, including shards
     const data = loadData(env)
     const a = { serverId: 's', serverUrl: 'https://server', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
     const b = { ...a, token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
-    await data.setLuxAuth(b)
+    await data.commitLuxAuth(b)
     await env.adapter.saveData(keys.userName, 'Bob')
-    await data.setLuxAuth(a)
+    await data.commitLuxAuth(a)
     await env.adapter.saveData(keys.userName, 'Alice')
     await env.adapter.saveData(keys.list + 'big', Array(120000).fill('large-song'))
     const directory = env.avatar.avatarDirectory('lux:s:alice')
     env.files.set(directory, '')
     const before = new Map([...env.disk].filter(([key]) => key.endsWith('@local') || key.endsWith('@lux:s:bob')))
     const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/appSession': { requestLogin: async() => { env.frozen = true } },
       '@/core/common': { updateSetting() {} },
       '@/core/player/player': {},
       '@/plugins/sync': { disconnectServer: async() => {} },
@@ -988,7 +993,7 @@ test('5.7 logout keep/delete touches only the captured account, including shards
       '@/utils/dataSpace/operations': operationsFor(env),
     })
     await logout.applySyncAccountLogout(remove)
-    assert.equal(env.space.getActiveSpace(), 'local')
+    assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
     assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(a)), null)
     assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(b)), 'rb')
     assert.equal((await data.listLuxAuthSessions()).length, 1)
@@ -1068,11 +1073,12 @@ test('recommendation cache migrates with milestones/history and logout keep/dele
       // Include a real sharded cache, since playback metadata can grow beyond a root value.
       await env.adapter.saveData(keys.recommendations, { id, payload: 'x'.repeat(1100000) })
     }
-    await data.setLuxAuth({ serverId: 's', token: 'a', user: { id: 'alice', username: 'Alice' } })
+    await data.commitLuxAuth({ serverId: 's', token: 'a', user: { id: 'alice', username: 'Alice' } })
     const before = new Map(env.disk)
     const root = `${keys.recommendations}@lux:s:alice`
     const shards = JSON.parse(before.get(root).slice('@___PART_A___'.length))
     const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/appSession': { requestLogin: async() => { env.frozen = true } },
       '@/core/common': { updateSetting() {} },
       '@/core/player/player': {},
       '@/plugins/sync': { disconnectServer: async() => {} },
@@ -1082,7 +1088,7 @@ test('recommendation cache migrates with milestones/history and logout keep/dele
       '@/utils/dataSpace/operations': operationsFor(env),
     })
     await logout.applySyncAccountLogout(remove)
-    assert.equal(env.space.getActiveSpace(), 'local')
+    assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
     for (const key of [root, ...shards]) assert.equal(env.disk.has(key), !remove, key)
     for (const id of ['local', 'lux:s:bob']) {
       await env.space.setActiveSpace(id)
@@ -1131,7 +1137,7 @@ test('5.7 real logout switches to local before deletion and clears only the logg
       { serverId: 's', token: 'sibling-token', refreshToken: 'sibling-refresh', user: { id: 'alice2', username: 'alice2' } },
       { serverId: 's', token: 'target-token', refreshToken: 'target-refresh', user: { id: 'alice', username: 'alice' } },
     ]
-    for (const auth of auths) await data.setLuxAuth(auth)
+    for (const auth of auths) await data.commitLuxAuth(auth)
     await data.setSyncLoginCompleted(true)
     const before = new Map(env.disk)
     const files = new Map(env.files)
@@ -1141,12 +1147,13 @@ test('5.7 real logout switches to local before deletion and clears only the logg
     const originalRemove = env.storage.multiRemove
     env.storage.multiRemove = async keys => {
       // Observe the physical I/O of the real operation; do not replace deleteSpaceData.
-      assert.equal(env.space.getActiveSpace(), 'local', 'must switch before removing account roots/shards')
-      assert.equal(env.disk.get('dataSpaceActive'), 'local')
+      assert.equal(env.space.getActiveSpace(), 'lux:s:alice', 'Gate preserves captured source ownership while deleting explicit logout data')
+      assert.equal(env.disk.get('dataSpaceActive'), 'lux:s:alice')
       removals.push(...keys)
       await originalRemove(keys)
     }
     const logout = evaluate('src/utils/syncLogout.ts', {
+      '@/core/appSession': { requestLogin: async() => { env.frozen = true } },
       '@/core/common': { updateSetting() {} },
       '@/core/player/player': {},
       '@/plugins/sync': { disconnectServer: async() => {} },
@@ -1157,7 +1164,7 @@ test('5.7 real logout switches to local before deletion and clears only the logg
     })
     await logout.applySyncAccountLogout(remove)
     const target = 'lux:s:alice'
-    assert.equal(env.space.getActiveSpace(), 'local')
+    assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
     assert.deepEqual(new Set(removals), remove ? env.owned.get(target) : new Set())
     const expectedTokens = new Map(tokens)
     expectedTokens.delete(`lux.refresh.${encodeURIComponent(JSON.stringify(['s', 'alice']))}`)
@@ -1186,11 +1193,11 @@ test('5.7 same-server accounts retain separate sessions and Keychain tokens, swi
   const data = loadData(env)
   const a = { serverId: 's', serverUrl: 'https://server', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
   const b = { ...a, token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }
-  await data.setLuxAuth(a)
-  await data.setLuxAuth(b)
+  await data.commitLuxAuth(a)
+  await data.commitLuxAuth(b)
   assert.equal((await data.listLuxAuthSessions()).length, 2)
   const savedA = (await data.listLuxAuthSessions()).find(auth => auth.user.id === 'alice')
-  await data.setLuxAuth(savedA)
+  await data.commitLuxAuth(savedA)
   assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
   assert.equal((await data.findLuxAuthForHost('https://server')).user.id, 'alice')
   assert.equal(await data.getLuxRefreshToken(savedA), 'ra')
@@ -1205,10 +1212,11 @@ test('5.7 space list metadata and switching route local/session/signed-out entri
   await seedLocalImport(env)
   const data = loadData(env)
   const a = { serverId: 's', serverUrl: 'https://server', token: 'a', user: { id: 'alice', username: 'alice' } }
-  await data.setLuxAuth(a)
+  await data.commitLuxAuth(a)
   const calls = []
   const navigation = { pushSyncLoginScreen: async props => { calls.push(['login', props]) }, pushHomeScreen: async() => { calls.push(['home']) } }
   const service = evaluate('src/utils/accountSpaceSwitch.ts', {
+    '@/core/appSession': { requestLogin: async intent => { calls.push(['intent', intent]) } },
     '@/core/common': { updateSetting: value => calls.push(['setting', value]) },
     '@/core/player/player': {},
     '@/store/player/state': { isPlay: false },
@@ -1231,12 +1239,14 @@ test('5.7 space list metadata and switching route local/session/signed-out entri
   assert.equal(ops.spaceMeta(account.space, true, true, account.contents, t), 'server • 已登录 • 正在使用')
   assert.equal(ops.spaceMeta(account.space, false, false, account.contents, t), 'server • 已退出（数据保留）')
   await service.switchAccountSpace(local.space)
-  assert.equal(env.space.getActiveSpace(), 'local')
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
+  assert.equal(calls.at(-1)[1].targetProvider, 'local')
   await service.switchAccountSpace(account.space, account.session)
   assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
-  assert.ok(calls.some(call => call[0] === 'connect' && call[1] === 'https://server' && call[2] === 'alice'))
   await service.switchAccountSpace({ id: 'lux:s:bob', kind: 'lux', host: 'https://server', username: 'bob' })
-  assert.deepEqual(calls.at(-1), ['login', { onboarding: false, initialHost: 'https://server', initialUsername: 'bob' }])
+  assert.equal(calls.at(-1)[0], 'intent')
+  assert.equal(calls.at(-1)[1].initialHost, 'https://server')
+  assert.equal(calls.at(-1)[1].targetProvider, 'lux')
   assert.equal(env.space.getActiveSpace(), 'lux:s:alice', 'signed-out navigation keeps the current space until login succeeds')
 })
 
@@ -1334,6 +1344,8 @@ test('PR1 production compatibility adapters keep unknown legacy history separate
   assert.equal(await data.getLoginCredentialAvailability({ kind: 'syncKey', id: 'nas' }), 'unavailable')
   env.secure.fail(false)
   await data.setSyncLoginCompleted(true)
+  assert.equal((await data.getLoginRecents()).recents.length, 0, 'completion flags alone do not publish success')
+  await data.recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
   assert.equal((await data.getLoginRecents()).recents[0].provider, 'local')
   await data.removeRecentLogin('local')
   assert.deepEqual(await data.getSyncAuthKey('nas'), legacyKey, 'recent removal retains credentials')
@@ -1353,4 +1365,18 @@ test('PR1 metadata failures and incomplete spaces cannot publish success or fail
   env.storage.setItem = write
   await data.recordSuccessfulLogin({ provider: 'local', spaceId: 'local' })
   assert.equal((await data.getLoginRecents()).recents.length, 1)
+})
+
+test('candidate refresh credential storage failure cannot publish active auth or select the target space', async() => {
+  const env = make()
+  await env.space.initializeDataSpaces()
+  const data = loadData(env)
+  const original = { serverId: 's', serverUrl: 'https://server', token: 'a', refreshToken: 'ra', user: { id: 'alice', username: 'alice' } }
+  await data.commitLuxAuth(original)
+  env.secure.fail(true)
+  await assert.rejects(data.commitLuxAuth({ ...original, token: 'b', refreshToken: 'rb', user: { id: 'bob', username: 'bob' } }), /Secure credential storage/)
+  assert.equal(env.space.getActiveSpace(), 'lux:s:alice')
+  assert.equal(JSON.parse(env.disk.get(keys.luxAuth)).user.id, 'alice')
+  env.secure.fail(false)
+  assert.equal(await env.secure.getRefreshToken(env.secure.refreshTokenServerKey(original)), 'ra')
 })

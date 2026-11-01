@@ -43,6 +43,7 @@ export const createLuxAuthClient = (deps: {
   rotate: (previous: LX.Sync.LuxAuth, tokens: { token: string, refreshToken: string }) => Promise<LX.Sync.LuxAuth | null>
   clear: (previous: LX.Sync.LuxAuth) => Promise<boolean>
   expired: (host: string, previous: LX.Sync.LuxAuth) => void
+  generation?: () => number
 }) => {
   const retired = new Map<string, { host: string, userId: string }>()
   const flights = new Map<string, Promise<LX.Sync.LuxAuth>>()
@@ -57,8 +58,9 @@ export const createLuxAuthClient = (deps: {
     if (response.code < 200 || response.code >= 300) throw new LuxRequestError(value?.message ?? `HTTP ${response.code}`, response.code, value?.code)
     return value as T
   }
-  const renew = async(host: string, previous: LX.Sync.LuxAuth) => {
-    const key = JSON.stringify([previous.serverId ?? host, previous.user.id, previous.token])
+  const renew = async(host: string, previous: LX.Sync.LuxAuth, generation: number | undefined) => {
+    const current = () => generation === deps.generation?.()
+    const key = JSON.stringify([previous.serverId ?? host, previous.user.id, previous.token, generation])
     let flight = flights.get(key)
     if (!flight) {
       flight = (async() => {
@@ -69,6 +71,7 @@ export const createLuxAuthClient = (deps: {
           const token = value[AUTH_CONTRACT.accessTokenField]
           const nextRefreshToken = value[AUTH_CONTRACT.refreshField]
           if (typeof token !== 'string' || !token || typeof nextRefreshToken !== 'string' || !nextRefreshToken) throw new LuxRequestError('Invalid refresh response', 401)
+          if (!current()) throw new Error('Session changed')
           const next = await deps.rotate(previous, { token, refreshToken: nextRefreshToken })
           if (!next) throw new LuxRequestError('Session changed', 401)
           retired.set(previous.token, { host, userId: previous.user.id })
@@ -76,7 +79,7 @@ export const createLuxAuthClient = (deps: {
         } catch (error) {
           // Only a definitive rejection ends the session. Network errors, timeouts, 429 and 5xx keep the saved
           // credentials so the next request can renew again instead of signing the user out while offline.
-          if (isSessionRejection(error) && await deps.clear(previous)) deps.expired(host, previous)
+          if (current() && isSessionRejection(error) && await deps.clear(previous)) deps.expired(host, previous)
           throw error
         }
       })().finally(() => { flights.delete(key) })
@@ -85,6 +88,8 @@ export const createLuxAuthClient = (deps: {
     return flight
   }
   const request = async<T>(url: string, body?: unknown, token?: string, method?: string): Promise<T> => {
+    const generation = deps.generation?.()
+    const current = () => generation === deps.generation?.()
     // Preserve deployment subpaths; public auth endpoints never renew recursively.
     const host = url.split('/api/')[0]
     const publicAuth = /\/api\/auth\/(login|refresh|register|invite\/check)(?:$|\?)/.test(url)
@@ -93,13 +98,14 @@ export const createLuxAuthClient = (deps: {
     const before = saved && (saved.token === token || (alias?.host === host && alias.userId === saved.user.id)) ? saved : null
     const currentToken = before?.user && before.token ? before.token : token
     try { return await raw<T>(url, body, currentToken, method) } catch (error) {
+      if (!current()) throw error
       if (!(error instanceof LuxRequestError) || error.status !== 401 || !before || publicAuth) throw error
       const latest = await deps.find(host)
       if (!latest || latest.user.id !== before.user.id) throw error
-      const next = latest.token !== before.token ? latest : await renew(host, before)
+      const next = latest.token !== before.token ? latest : await renew(host, before, generation)
       // Exactly one retry; a second 401 is terminal for this session.
       try { return await raw<T>(url, body, next.token, method) } catch (retryError) {
-        if (retryError instanceof LuxRequestError && retryError.status === 401 && await deps.clear(next)) deps.expired(host, next)
+        if (current() && retryError instanceof LuxRequestError && retryError.status === 401 && await deps.clear(next)) deps.expired(host, next)
         throw retryError
       }
     }

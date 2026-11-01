@@ -1,3 +1,6 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
+import { appSession, requestLogin } from '@/core/appSession'
+import type { LoginIntent } from '@/utils/loginSession'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { subpageNavigationOptions } from './pageTransitionRegistry'
@@ -95,7 +98,13 @@ export async function pushLoginScreen() {
   })
 }
 
-export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string, initialUsername?: string }) {
+export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string | null, initialUsername?: string, targetProvider?: 'lx' | 'lux' }) {
+  if (!isSessionCoordinatorEnabled()) return replaceWithLoginGate({ reason: 'switch', source: 'legacy', initialHost: props?.initialHost, initialUsername: props?.initialUsername, returnPolicy: 'none' })
+  return requestLogin({ reason: props?.onboarding ? 'boot' : 'switch', source: 'pushSyncLoginScreen', initialUsername: props?.initialUsername, targetProvider: props?.targetProvider, initialHost: props?.initialHost, returnPolicy: props?.onboarding ? 'none' : 'restorePrevious' })
+}
+
+export async function replaceWithLoginGate(intent: LoginIntent) {
+  const props = { onboarding: intent.reason === 'boot', initialProvider: intent.targetProvider === 'local' ? undefined : intent.targetProvider, initialHost: intent.initialHost ?? '', initialUsername: intent.targetIdentity?.provider === 'lux' ? intent.targetIdentity.account.username : intent.initialUsername, intent }
   const theme = themeState.theme
 
   await Navigation.setRoot({
@@ -169,6 +178,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
 }
 
 export async function pushHomeScreen(options?: { immediate?: boolean, backgroundColor?: string }) {
+  if (!appSession.canEnterMain) throw new Error('Login transaction is incomplete')
   /*
     Navigation.setDefaultOptions({
       topBar: {

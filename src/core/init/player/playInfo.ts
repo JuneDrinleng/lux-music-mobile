@@ -1,9 +1,11 @@
+import { sessionWritesFrozen } from '@/utils/sessionFence'
 import { getPlayInfo } from '@/utils/data'
 import { getListMusics } from '@/core/list'
 import { playList, play } from '@/core/player/player'
 
 
 export default async(setting: LX.AppSetting) => {
+  if (sessionWritesFrozen()) return
   const info = await getPlayInfo()
   global.lx.restorePlayInfo = null
   if (!info?.listId || info.index < 0) return

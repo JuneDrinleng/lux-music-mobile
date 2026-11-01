@@ -1,3 +1,4 @@
+import { sessionGeneration, sessionWritesFrozen, isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 import handleAuth, { authLux, recordAuthenticatedLogin } from './auth'
 import { connect as socketConnect, disconnect as socketDisconnect, sendSyncStatus, sendSyncMessage } from './client'
 // import { getSyncHost } from '@/utils/data'
@@ -11,22 +12,24 @@ const handleConnect = async(host: string, authCode?: string) => {
   // const hostInfo = await getSyncHost()
   // console.log(hostInfo)
   // if (!hostInfo || !hostInfo.host || !hostInfo.port) throw new Error(SYNC_CODE.unknownServiceAddress)
+  const generation = sessionGeneration()
   const id = connectId
   const urlInfo = parseUrl(host)
   await disconnectServer(false)
-  if (id != connectId) return
+  if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
   const keyInfo = await handleAuth(urlInfo, authCode)
-  if (id != connectId) return
+  if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
   socketConnect(urlInfo, keyInfo)
   await recordAuthenticatedLogin(keyInfo)
 }
 const handleLuxConnect = async(host: string, username?: string, password?: string) => {
+  const generation = sessionGeneration()
   const id = connectId
   const urlInfo = parseUrl(host)
   await disconnectServer(false)
-  if (id != connectId) return
+  if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
   const keyInfo = await authLux(urlInfo, username, password)
-  if (id != connectId) return
+  if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
   socketConnect(urlInfo, keyInfo)
   await recordAuthenticatedLogin(keyInfo)
 }
@@ -34,14 +37,15 @@ const handleDisconnect = async() => {
   await socketDisconnect()
 }
 
-const connectServer = async(host: string, authCode?: string) => {
+const legacyConnectServer = async(host: string, authCode?: string) => {
   sendSyncStatus({
     status: false,
     message: SYNC_CODE.connecting,
   })
+  const generation = sessionGeneration()
   const id = connectId
   return handleConnect(host, authCode).catch(async err => {
-    if (id != connectId) return
+    if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
     sendSyncStatus({
       status: false,
       message: err.message,
@@ -61,14 +65,15 @@ const connectServer = async(host: string, authCode?: string) => {
   })
 }
 
-const connectLuxServer = async(host: string, username?: string, password?: string) => {
+const legacyConnectLuxServer = async(host: string, username?: string, password?: string) => {
   sendSyncStatus({
     status: false,
     message: SYNC_CODE.connecting,
   })
+  const generation = sessionGeneration()
   const id = connectId
   return handleLuxConnect(host, username, password).catch(async err => {
-    if (id != connectId) return
+    if (sessionWritesFrozen() || generation !== sessionGeneration() || id != connectId) return
     if (err.message == SYNC_CODE.authFailed || err.message == SYNC_CODE.missingAuthCode) err = new Error(SYNC_CODE.luxSessionExpired)
     sendSyncStatus({
       status: false,
@@ -95,7 +100,25 @@ const disconnectServer = async(isResetStatus = true) => handleDisconnect().then(
   sendSyncMessage(err.message as string)
 })
 
+// No fallback after begin: an import/setup failure occurs before any transaction mutation.
+const connectServer = async(host: string, authCode?: string) => {
+  if (!isSessionCoordinatorEnabled()) return legacyConnectServer(host, authCode)
+  const { connectAppSession, getActiveAppSession, restoreAppSessionConnection, appSession } = await import('@/core/appSession')
+  const active = getActiveAppSession()
+  if (!appSession.pending && !authCode && active?.provider === 'lx' && active.server.url === parseUrl(host).href) return restoreAppSessionConnection('lx', host)
+  return connectAppSession('lx', host, undefined, authCode)
+}
+const connectLuxServer = async(host: string, username?: string, password?: string) => {
+  if (!isSessionCoordinatorEnabled()) return legacyConnectLuxServer(host, username, password)
+  const { connectAppSession, getActiveAppSession, restoreAppSessionConnection, appSession } = await import('@/core/appSession')
+  const active = getActiveAppSession()
+  if (!appSession.pending && username === undefined && !password && active?.provider === 'lux' && active.server.url === parseUrl(host).href) return restoreAppSessionConnection('lux', host)
+  return connectAppSession('lux', host, username, password)
+}
+
 export {
+  legacyConnectServer,
+  legacyConnectLuxServer,
   connectServer,
   connectLuxServer,
   disconnectServer,

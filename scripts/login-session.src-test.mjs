@@ -154,7 +154,8 @@ test('Lux reference uses existing compound secure index without lending same-ser
 
 test('legacy login integrations publish only after auth, import and socket creation succeed', async() => {
   const auth = readFileSync(new URL('../src/plugins/sync/client/auth.ts', import.meta.url), 'utf8')
-  assert.ok(auth.indexOf("provider: 'lux'") > auth.indexOf('await offerLocalImport'))
+  assert.ok(auth.includes('authenticateLuxCandidate'))
+  assert.ok(auth.indexOf('await offerLocalImport') > auth.indexOf('prepare: async'))
   const data = readFileSync(new URL('../src/utils/data.ts', import.meta.url), 'utf8')
   assert.match(data, /!isDataSpaceReady\(\) \|\| getActiveSpace\(\) !== session.spaceId/)
   const keyInfo = key()
@@ -168,7 +169,7 @@ test('legacy login integrations publish only after auth, import and socket creat
       './utils': { parseUrl: () => ({ href: 'https://nas' }) },
       '../constants': { SYNC_CODE: {} },
     })
-    const connect = provider === 'lx' ? client.connectServer : client.connectLuxServer
+    const connect = provider === 'lx' ? client.legacyConnectServer : client.legacyConnectLuxServer
     await assert.rejects(connect('https://nas'), /socket failed/)
     assert.deepEqual(events, ['socket'])
     failed = false

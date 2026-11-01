@@ -11,7 +11,7 @@ const load = (path, deps = {}, globals = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports,global) {${source}\n})`).runInThisContext()(
-    name => { assert.ok(Object.hasOwn(deps, name), `Unexpected dependency: ${name}`); return deps[name] },
+    name => { if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }; assert.ok(Object.hasOwn(deps, name), `Unexpected dependency: ${name}`); return deps[name] },
     module, module.exports, globals,
   )
   return module.exports
@@ -39,7 +39,7 @@ const authHarness = (session, response = { code: 200, text: '{}' }, savedKey = n
     './userErrors': errors,
     '@/utils/luxAuthApi': load('src/utils/luxAuthApi.ts', { '@/plugins/sync/client/userErrors': errors }),
     '../data': { getSyncAuthKey: async() => savedKey, setSyncAuthKey: async() => {} },
-    '@/utils/data': { getLuxAuth: async() => session, findLuxAuthForHost: async() => null, setLuxAuth: async() => {} },
+    '@/utils/data': { getLuxAuth: async() => session, listLuxAuthSessions: async() => session ? [session] : [], findLuxAuthForHost: async() => null, setLuxAuth: async() => {} },
     '../log': { default: { error() {} } },
     '../utils': {},
     '@/utils/nativeModules/utils': { getDeviceName: async() => 'phone' },

@@ -96,7 +96,7 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
         <PrimaryButton compact style={styles.next} label={t('onboard_next_login')} disabled={state.status !== 'ok' || blocked} onPress={() => {
           if (onReady) { onReady(state.url); return }
           setOpening(true)
-          void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url }).catch(() => { setOpening(false) })
+          void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url, targetProvider: 'lux' }).catch(() => { setOpening(false) })
         }} />
       </View>
     </View>

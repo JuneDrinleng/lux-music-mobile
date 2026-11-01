@@ -1,10 +1,12 @@
+import { sessionWritesFrozen, sessionGeneration } from '@/utils/sessionFence'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import TrackPlayer, { Capability, Event, RepeatMode, State, type MetadataOptions } from 'react-native-track-player'
 import BackgroundTimer from 'react-native-background-timer'
 import { NativeModules } from 'react-native'
 import { createVolumeFade } from './volumeFade'
-import { playMusic as handlePlayMusic } from './playList'
+import { invalidateGapless } from './gapless'
+import { playMusic as handlePlayMusic, clearSessionPlayerQueue, quiesceSessionPlayer } from './playList'
 import { getTrackCacheKey } from './cache'
 import { existsFile, moveFile, privateStorageDirectoryPath, temporaryDirectoryPath } from '@/utils/fs'
 import { toast } from '@/utils/tools'
@@ -119,7 +121,9 @@ const playMusic = ((fn: (musicInfo: LX.Player.PlayMusic, url: string, time: numb
   let _musicInfo: LX.Player.PlayMusic | null = null
   let _url = ''
   let _time = 0
+  let generation = sessionGeneration()
   return (musicInfo: LX.Player.PlayMusic, url: string, time: number) => {
+    generation = sessionGeneration()
     _musicInfo = musicInfo
     _url = url
     _time = time
@@ -141,7 +145,7 @@ const playMusic = ((fn: (musicInfo: LX.Player.PlayMusic, url: string, time: numb
         _url = ''
         _time = 0
         isDelayRun = false
-        fn(musicInfo!, url, time)
+        if (!sessionWritesFrozen() && generation === sessionGeneration()) fn(musicInfo!, url, time)
       }, delay)
     } else {
       isDelayRun = true
@@ -160,7 +164,7 @@ export const setResource = (musicInfo: LX.Player.PlayMusic, url: string, duratio
   playMusic(musicInfo, url, duration ?? 0)
 }
 
-export const setPlay = async() => TrackPlayer.play()
+export const setPlay = async() => { if (!sessionWritesFrozen()) await TrackPlayer.play() }
 export const getPosition = async() => TrackPlayer.getPosition()
 export const getDuration = async() => TrackPlayer.getDuration()
 export const setStop = async() => {
@@ -391,3 +395,12 @@ export const updateOptions = async(options?: Partial<MetadataOptions>) => {
 // }
 
 export { updateMetaData, initTrackInfo } from './playList'
+
+export const pauseForSessionSwitch = async(): Promise<void> => {
+  if (!global.lx.playerStatus.isInitialized) return
+  invalidateGapless()
+  await quiesceSessionPlayer()
+  await TrackPlayer.pause()
+  if (await TrackPlayer.getState() === State.Playing) throw new Error(global.i18n.t('login_gate_pause_failed'))
+}
+export const resetForSessionSwitch = async(): Promise<void> => { await TrackPlayer.reset(); clearSessionPlayerQueue() }

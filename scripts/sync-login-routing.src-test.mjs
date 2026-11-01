@@ -13,6 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -62,6 +63,7 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
     setSyncLoginCompleted: async() => {},
   }
   const deps = {
+    '@/core/appSession': { getLoginIntent: () => null, cancelAppSessionSwitch: async() => { events.push(['home']) } },
     '@/components/common/SettingsPage': settingsTransitionMock(react),
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
@@ -236,7 +238,7 @@ test('Lux session prefill allows passwordless same-account reconnect, remembers 
   h.find('PrimaryButton', 'auth_login').onPress(); await settle()
   assert.ok(h.events.some(event => event[0] === 'connect' && event[2] === 'alice' && event[3] === undefined))
   assert.ok(h.events.some(event => event[0] === 'remember'))
-  assert.ok(h.events.some(event => event[0] === 'home'))
+  assert.equal(h.events.some(event => event[0] === 'home'), false, 'coordinator owns Main replacement')
   h.render(props)
   h.find('TextButton', 'sync_login_clear_saved').onPress(); await settle(); h.render(props)
   assert.ok(h.events.some(event => event[0] === 'clear' && event[1] === 'lux'))
@@ -257,7 +259,7 @@ test('local-use preserves credentials, selects local mode, completes login and e
   const h = harness('src/screens/SyncLogin/LocalAction.tsx')
   h.render()
   h.find('TextButton', 'sync_login_skip').onPress(); await settle()
-  assert.deepEqual(h.events, [['local'], ['mode', 'lx'], ['home']])
+  assert.deepEqual(h.events, [['local']])
 })
 
 
@@ -287,7 +289,7 @@ test('expired saved session opens the dialog and does not exit Home', async() =>
 
 test('expired Lux account reopens its host and username even if saved entry mode is LX', async() => {
   const h = harness('src/screens/SyncLogin/index.tsx', { mode: 'lx' })
-  const props = { onboarding: false, initialHost: 'https://expired-server', initialUsername: 'june' }
+  const props = { onboarding: false, initialHost: 'https://expired-server', initialUsername: 'june', initialProvider: 'lux' }
   h.render(props); await settle()
   const tree = h.render(props)
   assert.equal(tree.type, 'AuthFlow')

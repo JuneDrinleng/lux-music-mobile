@@ -212,6 +212,7 @@ test('storage cache keeps a clear made during disk loading, including the deferr
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
   }
   const storage = evaluateModule(join(root, 'src/utils/data.ts'), (specifier) => {
+    if (specifier === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true }
     assert.ok(Object.hasOwn(dependencies, specifier), `Unexpected dependency: ${specifier}`)
     return dependencies[specifier]
   })

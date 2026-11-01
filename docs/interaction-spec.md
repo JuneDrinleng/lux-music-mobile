@@ -167,7 +167,7 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 
 ## 登录领域术语与兼容阶段（LoginGate PR1）
 
-本节仅定义会话领域和存储契约。当前仍使用原有 welcome、SyncLogin、AuthFlow、设置登录与账户空间入口，默认路由、页面、返回和播放行为不变；尚未实现 App 级 LoginGate 或身份切换事务。内部子页仍遵循本文指定的共享过渡和返回实现。
+本节保留 PR1 合入时的会话领域和存储契约；执行行为以其后的 PR2 条目为准。PR1 阶段仍使用原有 welcome、SyncLogin、AuthFlow、设置登录与账户空间入口，默认路由、页面、返回和播放行为不变；尚未实现 App 级 LoginGate 或身份切换事务。内部子页仍遵循本文指定的共享过渡和返回实现。
 
 - `ActiveSession`：显式产品身份联合，provider 为 local / lx / lux；与 socket 的 `Session`、底层协议 `LX.Sync.Mode = lx | lux` 区分。local 与 LX 共用 `local`，Lux 继续使用原 `luxSpaceId(serverId,userId)`，不改变数据空间布局。PR1 只把已认证的身份快照传给兼容记录适配器，尚未把它替换为全 App 的唯一资格源。
 - `SessionConnectivity`：online / connecting / offline / expired / incompatible / disabled，独立于产品身份；暂停同步不等于退出账号。此类型在 PR2 接入协调器前不改变现有状态展示。
@@ -178,4 +178,21 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - `CredentialRef`：凭据逻辑索引，值通过凭据层读取，recent 不含明文密码、连接码、access/refresh token 或 LX key，也不记录密钥日志。Lux refresh 沿用现有复合账号 Keychain service；同步长期 key（包括兼容 Lux socket key）由旧 get/setSyncAuthKey API 转接安全仓库。逐条安全写入并回读验证后，把原 key 索引项替换为引用；进程中断可重放。安全存储不可用时拒绝读取/保存，不回落明文；未成功迁移的旧明文仅作为原位重试源保留。已有短期 access token 与旧表单保存行为不在本 PR 中重构，不能声称所有凭据都已迁入 Keychain。
 - 边界：移除最近记录只删除 metadata；清凭据继续走旧按方式能力；退出/删除空间继续走原有流程，既不因记录删除清凭据，也不因清凭据删除最近记录或音乐库。`authHint` 是展示快照，消费引用时必须重新检查可用性，不能据此认定会话有效。
 
-后续 PR2 接入协调器、屏障与 journal；PR3 才实现 June 选定的 L1 统一登录视觉和入口收敛；PR4 接入能力引导与续接；PR5 清理旧适配层。当前不宣称统一登录完成。
+PR2 的协调器、屏障与 journal 见下节；PR3 才实现 June 选定的 L1 统一登录视觉和入口收敛；PR4 接入能力引导与续接；PR5 清理旧适配层。当前不宣称统一登录完成。
+
+## App 级登录门与切换事务基础（LoginGate PR2）
+
+PR2 保留原有 welcome / ServerStep / AuthFlow / LX 表单的视觉与功能，不提前实现 L1 最近账号界面。身份写入由 `core/appSession` 的 `AppSessionCoordinator` 统一接管；原有 `setSyncMode` / `setSyncHost` 只提交 intent，表单选择不修改有效连接。原账号资料更新可以更新同一身份，不能通过该路径换身份。`ActiveSession` 在空间准备完成后发布，旧兼容成功记账仅用于启动时选定的旧实现。
+
+- `requestLogin(LoginIntent)` 串行受理切换。重复开始或提交复用在途任务；模式、服务器、账号空间、本地使用、退出登录和旧根导航适配器均经过控制器。`initialHost=null` 不建议历史，目标协议显式传递，旧 username 参数只用于预填。普通连接重试与冷启动恢复校验当前身份，不把网络故障解释为换号。
+- 顺序为冻结播放/队列/同步写 → 等待原生 pause 并核实 → 固定源物理 key 保存位置与待写历史（临时列表沿用原空间持久列表，临时插队及列表来源附加到已有 @play_info 的可选字段）→ 下载原生暂停栅栏 → 持久化 `gatePending` → 停止一起听跟随/上报并显式离房 → 断开连接及重连定时器 → 根替换为旧登录表单。播放、保存、下载暂停失败发生在检查点前时留在原 Main，保持暂停并允许重试；服务端拒绝离房时清检查点并中止切换，不静默关闭房间。
+- Android `DownloadModule.pauseSpace` 与入队/重试/URL 更新/恢复/重建队列共享原生串行执行器。先写暂停状态、等待 WorkManager 取消、等待 worker 文件锁，再核实没有 queued/running；失败中止切换。journal 只记录本次实际暂停的 ID，不包含用户原已暂停项。切回后仍保持暂停，复用现有下载恢复按钮由用户明确恢复，不自动恢复授权 URL 解析或下载。
+- `authenticateLuxCandidate` / `authenticateLxCandidate` 返回内存候选身份及 prepare/activate，不在网络认证阶段切有效空间或发布成功记录。准备时先保存匹配身份的凭据，再复用空间串行锁、首次导入和缓存生命周期；App 级原生 AccountDataDialog / SyncModeModal 在 Main 卸载后仍可处理导入及冲突。空间未就绪拒绝提交。有效目标队列与进度恢复为暂停状态，成功与取消均不自动续播、入房或恢复下载。
+- `appSessionJournal:v1` 是中性全局检查点：transitionId、generation、phase、原身份、intent、候选身份引用、切换暂停下载 ID；无密码、连接码或 token。phase 为 gatePending / authenticating / preparing / committing。跨 AsyncStorage 与 Keychain 的准备失败保留已保存凭据和原数据，不发布半完成身份。Main 根替换成功后清 journal；清理失败也回 Gate。崩溃重启只要 journal 存在（含无法解析的旧版本）就冻结并进 Gate，不自动重连旧账号，也不 catch 后进首页；重新认证/空间准备可安全重试。
+- `sessionGeneration` 在冻结时递增；旧 profile、历史/游标、下载 URL、媒体 URL、401/refresh 回调与房间控制不能在新身份提交后回写。目标 socket 只在目标空间准备完成后获准同步；Gate 期间媒体通知、耳机、车载和延迟播放路径同样受播放栅栏控制。
+- 旧登录根消费统一 intent，返回从根执行原身份重新认证/准备与主壳重建，不能直接 pushHome 绕过未完成事务。清凭据和主动退出撤销返回原账号资格。主动退出保留源空间的存储归属，按原确认选择清凭据/删除数据，之后留 Gate；不隐式进入 local Main。注册、忘记密码、地址历史、数据管理和旧表单入口继续保留。
+- 兼容实现在启动、尚无事务时选择：旧原生下载模块缺少 pauseSpace 时使用旧连接实现；有 journal 时始终选择协调器恢复，事务开始后禁止混用旧写入。内部子页、键盘和返回容器继续复用共享实现及 248ms 对称动画，根替换是应用身份重置例外。
+
+测试以 `scripts/app-session.src-test.mjs` 的故障注入/可控 Promise 和原有 data-spaces、download、together、auth、路由脚本为准。真机仍须核实通知/耳机/车载、WorkManager 实际取消、杀进程重启、导入/冲突弹窗、键盘与硬件返回。PR3 实现 L1 统一视觉及全入口收敛；PR4 实现能力说明/白名单任务续接；PR5 退役兼容旧壳。PR2 不宣称这些后续交付已完成。
+
+一起听成员首次接管临时列表前，在同空间现有 @play_info 中保存 personalQueue 检查点；房间进度不覆盖该个人检查点。切换保存前恢复个人临时列表、来源及进度并保持暂停，再保存源空间；目标恢复清空旧原生/JS track tail、已播放与临时插队快照，仅载入目标保存队列。以上不新增数据空间目录或命名布局。

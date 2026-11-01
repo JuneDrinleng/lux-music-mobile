@@ -13,6 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -114,6 +115,7 @@ test('production expiry adapter clears only auth, ignores inactive server, and n
   let overlay
   const auth = { serverId: account.serverId, serverUrl: account.host, token: account.token, user: { id: account.userId, username: account.username } }
   const adapter = load('src/plugins/sync/client/sessionExpired.ts', {
+    '@/core/appSession': { requestLogin: async intent => { events.push(['gate', intent.reason]) } },
     '../constants': { SYNC_CODE: { luxSessionExpired: 'Lux session expired' } },
     '@/core/sync': { setSyncStatus: value => { events.push(['status', value]) } },
     'react-native-navigation': {
@@ -141,7 +143,7 @@ test('production expiry adapter clears only auth, ignores inactive server, and n
   assert.ok(events.some(event => event[0] === 'status' && event[1].message === 'Lux session expired'))
   assert.equal(events.some(event => event[0] === 'navigate'), false)
   await overlay.passProps.login()
-  assert.deepEqual(events.at(-1), ['navigate', { onboarding: false, initialHost: account.host, initialUsername: 'june' }])
+  assert.deepEqual(events.at(-1), ['navigate', { onboarding: false, initialHost: account.host, initialUsername: 'june', targetProvider: 'lux' }])
   await adapter.showSessionExpiredDialog(account.host)
   assert.equal(events.filter(event => event === 'show').length, 1)
 })

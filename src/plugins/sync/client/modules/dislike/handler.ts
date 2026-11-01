@@ -1,3 +1,4 @@
+import { sessionRemoteWritesFrozen } from '@/utils/sessionFence'
 // 这个文件导出的方法将暴露给服务端调用，第一个参数固定为当前 socket 对象
 import { handleRemoteDislikeAction, getLocalDislikeData, setLocalDislikeData } from '../../../dislikeEvent'
 import log from '../../../log'
@@ -14,17 +15,20 @@ const logInfo = (eventName: string, success = false) => {
 // }
 const handler: LX.Sync.ClientSyncHandlerDislikeActions<LX.Sync.Socket> = {
   async onDislikeSyncAction(socket, action) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     if (!socket?.moduleReadys?.dislike) return
     await handleRemoteDislikeAction(action)
   },
 
   async dislike_sync_get_md5(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('dislike:sync:dislike_sync_get_md5')
     return toMD5((await getLocalDislikeData()).trim())
   },
 
 
   async dislike_sync_get_sync_mode(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('dislike:sync:dislike_sync_get_sync_mode')
     const unsubscribe = socket.onClose(() => {
       removeSyncModeEvent()
@@ -33,16 +37,19 @@ const handler: LX.Sync.ClientSyncHandlerDislikeActions<LX.Sync.Socket> = {
   },
 
   async dislike_sync_get_list_data(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('dislike:sync:dislike_sync_get_list_data')
     return getLocalDislikeData()
   },
 
   async dislike_sync_set_list_data(socket, data) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('dislike:sync:dislike_sync_set_list_data')
     await setLocalDislikeData(data)
   },
 
   async dislike_sync_finished(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('dislike:sync:finished')
     if (!socket?.moduleReadys) return
     socket.moduleReadys.dislike = true

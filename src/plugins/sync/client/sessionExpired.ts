@@ -17,6 +17,8 @@ const present = createSessionExpiredDialog({
   disconnect: async(account) => {
     const [{ updateSetting }, { disconnectServer }] = await Promise.all([import('@/core/common'), import('@/plugins/sync')])
     if (!isActive(account)) return
+    const { requestLogin } = await import('@/core/appSession')
+    await requestLogin({ reason: 'reauth', source: 'session-expired', targetProvider: 'lux', initialHost: account.host, initialUsername: account.username, returnPolicy: 'none' })
     updateSetting({ 'sync.enable': false })
     await disconnectServer()
     const { setSyncStatus } = await import('@/core/sync')
@@ -36,7 +38,7 @@ const present = createSessionExpiredDialog({
   hide: async() => { await Navigation.dismissOverlay(componentId) },
   login: async(account) => {
     const { navigations } = await import('@/navigation')
-    await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: account.host, initialUsername: account.username })
+    await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: account.host, initialUsername: account.username, targetProvider: 'lux' })
   },
 })
 

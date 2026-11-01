@@ -47,7 +47,7 @@ export default function AccountSpaces({ onManageData }: { onManageData: () => vo
         {!current ? <SecondaryButton compact label={t('spaces_switch')} disabled={busy} style={styles.button} onPress={() => { void run(async() => switchAccountSpace(space, session)) }} /> : null}
       </View>
     })}
-    <View style={styles.actions}><SecondaryButton compact label={t('spaces_add')} disabled={busy} style={styles.button} onPress={() => { void run(async() => pushSyncLoginScreen({ onboarding: false, initialHost: '', initialUsername: '' })) }} /><SecondaryButton compact label={t('spaces_manage')} disabled={busy} style={styles.button} onPress={onManageData} /></View>
+    <View style={styles.actions}><SecondaryButton compact label={t('spaces_add')} disabled={busy} style={styles.button} onPress={() => { void run(async() => pushSyncLoginScreen({ onboarding: false, initialHost: null, initialUsername: '', targetProvider: 'lux' })) }} /><SecondaryButton compact label={t('spaces_manage')} disabled={busy} style={styles.button} onPress={onManageData} /></View>
     {error ? <Text size={12} color={r.danger} style={styles.subtitle} accessibilityLiveRegion="polite">{error}</Text> : null}
   </>
 }

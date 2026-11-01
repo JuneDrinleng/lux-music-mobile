@@ -21,6 +21,8 @@ export interface LoginIntent {
   targetIdentity?: ActiveSession
   /** null: new server, no prefill; undefined: history suggestions allowed. */
   initialHost?: string | null
+  /** Transitional old-form prefill; protocol is always targetProvider. */
+  initialUsername?: string
   returnPolicy: 'none' | 'restorePrevious'
   resumeTask?: {
     task: 'together' | 'ai' | 'admin'
