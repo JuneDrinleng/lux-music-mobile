@@ -128,7 +128,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   const backupModeRef = useRef<'export' | 'import'>('export')
   const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
   const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
-  const showTogetherDebugSection = isTogetherDebugPanelBuild()
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
@@ -250,6 +249,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     }
   }, [])
   const showAiAssistantEntry = isAiAssistantAvailable(syncServerLoaded ? syncMode : null, syncHost)
+  const showTogetherDebugSection = showAiAssistantEntry && isTogetherDebugPanelBuild()
   useEffect(() => {
     if (!showAiAssistantEntry) setAiTokensVisible(false)
   }, [showAiAssistantEntry])
@@ -470,15 +470,16 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     t('setting_import_data_desc'),
     t('admin_console_entry_title'),
     t('admin_console_entry_subtitle'),
-    t('together_debug_panel_toggle'),
-    t('together_debug_panel_toggle_desc'),
-    t('together_readiness_copy_settings'),
-    t('setting_debug_section'),
+    showTogetherDebugSection ? t('together_debug_panel_toggle') : null,
+    showTogetherDebugSection ? t('together_debug_panel_toggle_desc') : null,
+    showTogetherDebugSection ? t('together_readiness_copy_settings') : null,
+    showTogetherDebugSection ? t('setting_debug_section') : null,
   )
   const showTogetherDebugSettingsSection = showTogetherDebugSection && matchesSettingsSearch(
     t('setting_debug_section'),
     t('together_debug_panel_toggle'),
     t('together_debug_panel_toggle_desc'),
+    t('together_readiness_copy_settings'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
