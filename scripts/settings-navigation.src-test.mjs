@@ -185,8 +185,11 @@ const harness = () => {
       if (!prev || !depsEqual(deps, prev.deps)) effects.push(() => { prev?.cleanup?.(); slots[i] = { deps, cleanup: fn() } })
     },
   }
+  react.useLayoutEffect = react.useEffect
+  const popped = []; let nativeBack; let disappear
   const jsx = (type, props) => ({ type, props })
   const native = {
+    BackHandler: { addEventListener: (_event, fn) => { nativeBack = fn; return { remove() {} } } },
     useWindowDimensions: () => ({ width: 375 }),
     StyleSheet: { absoluteFillObject: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } },
     Animated: {
@@ -224,8 +227,26 @@ const harness = () => {
   }
   modules['./overlaySlideTransition'] = load('src/components/common/overlaySlideTransition.ts')
   const api = load('src/components/common/SettingsPage.tsx')
+  const registry = load('src/navigation/pageTransitionRegistry.ts')
+  modules['./pageTransitionRegistry'] = registry
+  modules['@/components/common/SettingsPage'] = api
+  modules['react-native-navigation'] = {
+    Navigation: {
+      pop: async id => { popped.push(id); return id },
+      events: () => ({
+        registerComponentDidAppearListener: () => ({ remove() {} }),
+        registerComponentDidDisappearListener: fn => { disappear = fn; return { remove() {} } },
+      }),
+    },
+  }
+  const nativeApi = load('src/navigation/SubpageScreen.tsx')
   return {
-    api,
+    api: { ...api, ...nativeApi },
+    registry,
+    popped,
+    nativeBack: () => nativeBack(),
+    disappear: id => disappear({ componentId: id }),
+    overlay: modules['./overlaySlideTransition'],
     animations,
     render(fn) { cursor = 0; const value = fn(); const pending = effects; effects = []; pending.forEach(effect => effect()); return value },
     back: () => hardware(),
@@ -281,11 +302,14 @@ test('nested Settings routes slide forward, reverse before restoring parent, and
   let page = render(); page.setPage('account'); assert.equal(h.animations.length, 0)
   page.setPage('devices'); page = render(); assert.equal(page.page, 'devices')
   const open = h.animations.at(-1); open.finish()
-  page.setPage('account'); page = render(); assert.equal(page.page, 'devices')
+  let cleaned = false
+  page.setPage('account', () => { cleaned = true }); page = render(); assert.equal(page.page, 'devices')
+  assert.equal(cleaned, false)
   const close = h.animations.at(-1)
   assert.equal(close.config.duration, open.config.duration); assert.equal(close.config.easing, open.config.easing)
   close.finish(); page = render(); assert.equal(page.page, 'account')
   assert.equal(close.value.value, 1)
+  assert.equal(cleaned, true)
   h.unmount()
 })
 
@@ -327,4 +351,101 @@ test('SettingsPage replaces fixed bottom with shared visible height across keybo
     assert.equal(h.animations.length, animationCount)
   }
   h.unmount()
+})
+
+
+test('all depths and module adapters use the Settings curve, opacity, width and native driver', () => {
+  for (const kind of ['settings', 'overlay-default', 'overlay-compat']) {
+    const h = harness()
+    const page = h.render(() => kind === 'settings' ? h.api.useSettingsTransition() : h.overlay.useOverlaySlideTransition(375, kind === 'overlay-compat' ? { symmetric: false } : undefined))
+    const open = h.animations.at(-1); open.finish()
+    page.requestClose()
+    const close = h.animations.at(-1)
+    assert.equal(open.config.duration, 248, kind)
+    assert.equal(close.config.duration, open.config.duration, kind)
+    assert.equal(close.config.easing, open.config.easing, kind)
+    assert.deepEqual(open.config.easing, [0.22, 0.84, 0.22, 1])
+    assert.equal(open.config.useNativeDriver, true)
+    assert.equal(close.config.useNativeDriver, true)
+    assert.deepEqual(page.style.opacity.outputRange, [0.92, 1])
+    assert.deepEqual(page.style.transform[0].translateX.outputRange, [375, 0])
+    h.unmount()
+  }
+  for (const file of [
+    'src/screens/Home/Vertical/SearchPage.tsx',
+    'src/screens/Home/Vertical/PlayDetailOverlay.tsx',
+    'src/components/playlist/PlaylistDetailOverlay.tsx',
+    'src/components/playlist/detailSceneTransition.ts',
+    'src/components/playlist/SmartPlaylistEditor.tsx',
+    'src/components/playlist/PlaylistImportFlow.tsx',
+    'src/components/shareCard/ShareCardPage.tsx',
+    'src/navigation/SubpageScreen.tsx',
+    'src/components/recommend/DailyRecommendationPage.tsx',
+    'src/screens/Home/Vertical/WhiteNoisePage.tsx',
+  ]) {
+    assert.match(read(file), /useSettingsTransition/)
+    assert.doesNotMatch(read(file), /Animated.timing|animationType="slide"/, file)
+  }
+  const library = read('src/screens/Home/Vertical/Tabs/PlaylistTab.tsx')
+  assert.doesNotMatch(library, /animateDetailScene|detailSceneTranslateX|homeSceneTranslateX/)
+  assert.match(library, /useSettingsSubpage\(false\)/)
+})
+
+test('native stack registration defaults to shared pages and every native push disables platform animation', () => {
+  const register = read('src/navigation/registerScreens.tsx')
+  assert.match(register, /subpage = true/)
+  assert.match(register, /<SubpageScreen componentId={props.componentId}/)
+  const ast = parse('src/navigation/navigation.ts')
+  for (const call of descendants(ast).filter(node => ts.isCallExpression(node) && node.expression.getText() === 'Navigation.push')) {
+    assert.match(call.arguments[1].getText(), /\.\.\.subpageNavigationOptions/)
+    assert.doesNotMatch(call.arguments[1].getText(), /translation[XY]|duration:/)
+  }
+  assert.match(read('src/navigation/utils.ts'), /const close = getRegisteredPageClose\(compId\)[\s\S]*close \? close\(\) : Navigation.pop\(compId\)/)
+  const host = read('src/navigation/SubpageScreen.tsx')
+  assert.match(host, /useLayoutEffect/)
+  assert.match(host, /requestClose\(\(\) => \{ resolve\(Navigation.pop\(componentId\)\)/)
+  assert.match(host, /if \(!active.current\) return false/)
+  assert.match(host, /back.remove\(\); appear.remove\(\); disappear.remove\(\)/)
+})
+
+test('shared hardware listener keeps mount priority across parent rerenders and invokes the latest callback', () => {
+  const ref = { current: null }; let effect; let listener; let registrations = 0; let removed = 0
+  const module = { exports: {} }
+  const source = ts.transpileModule(read('src/utils/hooks/useBackHandler.ts'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
+  const deps = {
+    react: { useRef: () => ref, useEffect: fn => { effect ??= fn } },
+    'react-native': { BackHandler: { addEventListener: (_event, callback) => { registrations++; listener = callback; return { remove() { removed++ } } } } },
+  }
+  new Script(`(function(require,module,exports){${source}\n})`).runInThisContext()(name => deps[name], module, module.exports)
+  module.exports.useBackHandler(() => false)
+  const cleanup = effect()
+  assert.equal(listener(), false)
+  module.exports.useBackHandler(() => true)
+  assert.equal(listener(), true)
+  assert.equal(registrations, 1)
+  cleanup(); assert.equal(removed, 1)
+})
+
+
+test('native screen button and system back wait for shared exit before popping; background screens do not consume back', async() => {
+  for (const input of ['button', 'system']) {
+    const h = harness()
+    const tree = h.render(() => h.api.SubpageScreen({ componentId: 'comment', children: 'comments' }))
+    const open = h.animations.at(-1); open.finish()
+    assert.deepEqual(tree.props.style[1].opacity.outputRange, [0.92, 1])
+    let done
+    if (input === 'button') done = h.registry.getRegisteredPageClose('comment')()
+    else assert.equal(h.nativeBack(), true)
+    const close = h.animations.at(-1)
+    assert.equal(close.config.duration, open.config.duration)
+    assert.equal(close.config.easing, open.config.easing)
+    assert.equal(h.popped.length, 0)
+    h.nativeBack()
+    assert.equal(h.animations.at(-1), close, 'duplicate native back must be coalesced')
+    close.finish(); await done
+    assert.deepEqual(h.popped, ['comment'])
+    h.disappear('comment'); assert.equal(h.nativeBack(), false)
+    h.unmount()
+    assert.equal(h.registry.getRegisteredPageClose('comment'), undefined)
+  }
 })

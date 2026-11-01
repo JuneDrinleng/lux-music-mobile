@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
+import { useSettingsTransition } from '@/components/common/SettingsPage'
 import { useCallback } from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { Animated, ScrollView, StyleSheet, View } from 'react-native'
 import Text from '@/components/common/Text'
 import { DOCK_BASE_HEIGHT, MagTopBar, Rule, SongRow } from '@/components/magazine'
 import { weekdayKey } from '@/components/stats/statsShared'
@@ -21,7 +23,9 @@ import { useRecommendations } from './useRecommendations'
 import { playRecommendations, startRecommendationRadio } from './actions'
 import { RecommendationButton, RecommendationStatus, useRecommendationAction } from './RecommendationViews'
 
-export const DailyRecommendationPage = ({ onClose }: { onClose: () => void }) => {
+export const DailyRecommendationPage = ({ onClose: finishClose }: { onClose: () => void }) => {
+  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const { batch, loading, failed, reload } = useRecommendations()
   const items = batch?.items ?? []
   const t = useI18n()
@@ -51,7 +55,7 @@ export const DailyRecommendationPage = ({ onClose }: { onClose: () => void }) =>
     if (!next.items.length) throw new Error('No radio candidates')
   }
   return (
-    <View style={styles.root}>
+    <Animated.View style={[styles.root, pageStyle]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: statusbarHeight, paddingBottom: DOCK_BASE_HEIGHT + gestureInset + 24 }]} showsVerticalScrollIndicator={false}>
         <MagTopBar onBack={onClose} />
         <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('recommend_detail_eyebrow', { date: dateLabel })}</Text>
@@ -76,7 +80,7 @@ export const DailyRecommendationPage = ({ onClose }: { onClose: () => void }) =>
             onPress={() => { if (!loading && !pending) void run(async() => playRecommendations([item])) }} />
         ))}
       </ScrollView>
-    </View>
+    </Animated.View>
   )
 }
 const useStyles = sharedLuxStyles(colors => {

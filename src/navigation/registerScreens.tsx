@@ -2,6 +2,7 @@
 
 // @flow
 
+import { SubpageScreen } from './SubpageScreen'
 import { Navigation } from 'react-native-navigation'
 
 import {
@@ -38,14 +39,14 @@ import VersionModal from './components/VersionModal'
 import PactModal from './components/PactModal'
 import SyncModeModal from './components/SyncModeModal'
 
-function WrappedComponent(Component: any) {
+function WrappedComponent(Component: any, subpage = true) {
   return function inject(props: Record<string, any>) {
     const EnhancedComponent = () => (
       <Provider>
         <LuxThemeProvider>
-          <Component
-            {...props}
-          />
+          {subpage && props.mode !== 'overlay'
+            ? <SubpageScreen componentId={props.componentId}><Component {...props} /></SubpageScreen>
+            : <Component {...props} />}
         </LuxThemeProvider>
       </Provider>
     )
@@ -55,19 +56,19 @@ function WrappedComponent(Component: any) {
 }
 
 export default () => {
-  Navigation.registerComponent(ACCOUNT_DATA_OVERLAY, () => WrappedComponent(AccountDataDialog))
-  Navigation.registerComponent(SESSION_EXPIRED_OVERLAY, () => WrappedComponent(SessionExpiredDialog))
-  Navigation.registerComponent(LAUNCH_SCREEN, () => WrappedComponent(Launch))
-  Navigation.registerComponent(LOGIN_SCREEN, () => WrappedComponent(Login))
-  Navigation.registerComponent(SYNC_LOGIN_SCREEN, () => WrappedComponent(SyncLogin))
-  Navigation.registerComponent(AGREEMENT_SCREEN, () => WrappedComponent(Agreement))
-  Navigation.registerComponent(HOME_SCREEN, () => WrappedComponent(Home))
-  Navigation.registerComponent(PLAY_DETAIL_SCREEN, () => WrappedComponent(PlayDetail))
-  Navigation.registerComponent(COMMENT_SCREEN, () => WrappedComponent(Comment))
-  Navigation.registerComponent(LEADERBOARD_DETAIL_SCREEN, () => WrappedComponent(LeaderboardDetail))
-  Navigation.registerComponent(VERSION_MODAL, () => WrappedComponent(VersionModal))
-  Navigation.registerComponent(PACT_MODAL, () => WrappedComponent(PactModal))
-  Navigation.registerComponent(SYNC_MODE_MODAL, () => WrappedComponent(SyncModeModal))
+  Navigation.registerComponent(ACCOUNT_DATA_OVERLAY, () => WrappedComponent(AccountDataDialog, false))
+  Navigation.registerComponent(SESSION_EXPIRED_OVERLAY, () => WrappedComponent(SessionExpiredDialog, false))
+  Navigation.registerComponent(LAUNCH_SCREEN, () => WrappedComponent(Launch, false))
+  Navigation.registerComponent(LOGIN_SCREEN, () => WrappedComponent(Login, false))
+  Navigation.registerComponent(SYNC_LOGIN_SCREEN, () => WrappedComponent(SyncLogin, false))
+  Navigation.registerComponent(AGREEMENT_SCREEN, () => WrappedComponent(Agreement, true))
+  Navigation.registerComponent(HOME_SCREEN, () => WrappedComponent(Home, false))
+  Navigation.registerComponent(PLAY_DETAIL_SCREEN, () => WrappedComponent(PlayDetail, true))
+  Navigation.registerComponent(COMMENT_SCREEN, () => WrappedComponent(Comment, true))
+  Navigation.registerComponent(LEADERBOARD_DETAIL_SCREEN, () => WrappedComponent(LeaderboardDetail, true))
+  Navigation.registerComponent(VERSION_MODAL, () => WrappedComponent(VersionModal, false))
+  Navigation.registerComponent(PACT_MODAL, () => WrappedComponent(PactModal, false))
+  Navigation.registerComponent(SYNC_MODE_MODAL, () => WrappedComponent(SyncModeModal, false))
 
   console.info('All screens have been registered...')
 }

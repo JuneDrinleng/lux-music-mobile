@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
@@ -38,10 +39,13 @@ export const shareCardFixture = (file = 'src/components/shareCard/ShareCardPage.
     return messages[key].replace(/\{(\w+)\}/g, (_, name) => args[name])
   }
   const roles = { paper: '#eef0fb', paperRaised: '#fff', ink: '#111827', onInk: '#fff', onAccent: '#111827', accent: '#c8e600', muted: '#767d89', display: '#16181f', eyebrow: '#838995', quiet: '#a9aeb8', hairline: '#e1e6ef', list: '#20242d' }
+  hooks.useCallback = (fn, deps) => hooks.useMemo(() => fn, deps)
   const deps = {
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': {
+      Animated: { View: 'AnimatedView' },
       ...Object.fromEntries(['Modal', 'ScrollView', 'View', 'FlatList', 'TouchableOpacity'].map(name => [name, name])),
       Share: { share: async value => { env.textShares.push(value) } },
       Platform: env.platform,

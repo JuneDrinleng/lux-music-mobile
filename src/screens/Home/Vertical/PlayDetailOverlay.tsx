@@ -1,43 +1,24 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, View } from 'react-native'
+import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Animated, View } from 'react-native'
 import PlayDetail from '@/screens/PlayDetail'
 import { APP_LAYER_INDEX, COMPONENT_IDS } from '@/config/constant'
 import { setBgPic, setComponentId } from '@/core/common'
-import { useWindowSize } from '@/utils/hooks'
 import commonState from '@/store/common/state'
 import { sharedLuxStyles } from '@/theme/LuxTheme'
-import { type LuxColors } from '@/theme/luxTokens'
 
-const ANIM_IN_DURATION = 420
-const ANIM_OUT_DURATION = 300
 
 export default memo(
   ({ componentId }: { componentId: string }) => {
     const styles = useLuxStyles()
 
-    const animValue = useRef(new Animated.Value(0)).current
+    const { style: pageStyle, requestOpen, requestClose } = useSettingsTransition(false)
     const prevBgPicRef = useRef<string | null>(null)
     const [isVisible, setVisible] = useState(false)
     const [hasEverShown, setHasEverShown] = useState(false)
-    const windowSize = useWindowSize()
-    const screenHeight = windowSize.height
-
-    const translateY = useMemo(() => animValue.interpolate({
-      inputRange: [0, 1],
-      outputRange: [screenHeight, 0],
-      extrapolate: 'clamp',
-    }), [animValue, screenHeight])
-
     const hidePlayDetail = useCallback(() => {
       if (!isVisible) return
-      animValue.stopAnimation()
-      Animated.timing(animValue, {
-        toValue: 0,
-        duration: ANIM_OUT_DURATION,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished) return
+      requestClose(() => {
         setVisible(false)
         // 关闭后恢复 bgPic（但若 init 代码已设置了新的就不再覆盖）
         if (commonState.bgPic === null) {
@@ -45,7 +26,7 @@ export default memo(
         }
         setComponentId(COMPONENT_IDS.playDetail, '')
       })
-    }, [isVisible, animValue])
+    }, [isVisible, requestClose])
 
     const showPlayDetail = useCallback(() => {
       if (isVisible) return
@@ -55,15 +36,8 @@ export default memo(
       setBgPic(null)
       setVisible(true)
       setComponentId(COMPONENT_IDS.playDetail, componentId)
-      animValue.stopAnimation()
-      animValue.setValue(0)
-      Animated.timing(animValue, {
-        toValue: 1,
-        duration: ANIM_IN_DURATION,
-        easing: Easing.out(Easing.back(1.05)),
-        useNativeDriver: true,
-      }).start()
-    }, [isVisible, animValue, hasEverShown, componentId])
+      requestOpen()
+    }, [isVisible, requestOpen, hasEverShown, componentId])
 
     useEffect(() => {
       global.app_event.on('showPlayDetail', showPlayDetail)
@@ -80,13 +54,9 @@ export default memo(
         pointerEvents={isVisible ? 'auto' : 'none'}
       >
         <Animated.View
-          style={[styles.mask, { opacity: animValue }]}
-          pointerEvents={isVisible ? 'auto' : 'none'}
-        />
-        <Animated.View
           style={[
             styles.content,
-            { transform: [{ translateY }] },
+            pageStyle,
           ]}
         >
           {hasEverShown ? (
@@ -102,7 +72,7 @@ export default memo(
   },
 )
 
-const useLuxStyles = sharedLuxStyles((colors: LuxColors) => ({
+const useLuxStyles = sharedLuxStyles(() => ({
   container: {
     position: 'absolute' as const,
     top: 0,
@@ -112,14 +82,6 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => ({
     zIndex: APP_LAYER_INDEX.playDetail,
     elevation: 0,
     overflow: 'hidden' as const,
-  },
-  mask: {
-    position: 'absolute' as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.scrim.mask,
   },
   content: {
     flex: 1,

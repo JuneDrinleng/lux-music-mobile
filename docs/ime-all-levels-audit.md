@@ -8,7 +8,7 @@
 
 | 页面/输入 | 层级 | 文件（src/ 下） | 原状态 | 处理 |
 | --- | --- | --- | --- | --- |
-| 账户资料：昵称、个性签名（含只读用户名） | 设置→账户→编辑，三级 | screens/Account/AccountPage.tsx | SettingsPage + FocusVisibleScrollView，保存固定 footer，已接入 | 保留；共享宿主消费 Dock 后向子树提供 0，避免深层重复留位 |
+| 账户资料：昵称、个性签名（含只读用户名） | 设置→账户→编辑，三级 | screens/Account/AccountPage.tsx | SettingsPage + FocusVisibleScrollView，保存固定 footer，已接入 | 保存移到滚动区外标题行勾按钮，删除底部 footer；保留共享焦点滚动，固定按钮不参与滚动测量；共享宿主消费 Dock 后向子树提供 0，避免深层重复留位 |
 | 账户修改密码：旧密码、新密码、确认密码 | 三级 | screens/Login/ChangePassword.tsx | 同上，固定提交 footer | 保留 |
 | 同步服务器地址检查 | 设置同步流程，三级或更深；首次启动另有入口 | screens/Login/ServerStep.tsx | 共享焦点滚动，固定检查按钮 | 保留；不改独立引导导航 |
 | Lux 登录：用户名、密码 | 同步流程三级或更深 | screens/Login/AuthFlow.tsx | 共享焦点滚动 + FocusVisibleAction | 保留 |

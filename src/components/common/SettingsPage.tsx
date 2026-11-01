@@ -35,14 +35,14 @@ export const useSettingsSubpage = <T,>(root: T, enabled = true, initial = root) 
   const transition = useSettingsTransition(false)
   const { progress, requestClose, requestOpen } = transition
   useEffect(() => { progress.setValue(1) }, [progress])
-  const setPage = useCallback((next: T) => {
+  const setPage = useCallback((next: T, onChanged?: () => void) => {
     if (Object.is(next, currentPage.current)) return
-    if (!enabled) { updatePage(next); return }
+    if (!enabled) { updatePage(next); onChanged?.(); return }
     if (next === root) {
-      requestClose(() => { updatePage(next); progress.setValue(1) })
+      requestClose(() => { updatePage(next); progress.setValue(1); onChanged?.() })
     } else {
       updatePage(next)
-      requestOpen()
+      requestOpen(onChanged)
     }
   }, [progress, requestClose, requestOpen, root, enabled])
   return { page, setPage, style: transition.style }

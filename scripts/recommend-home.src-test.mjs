@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -26,9 +27,10 @@ const setup = (overrides = {}) => {
   const state = { batch: { items, failures: [] }, loading: false, failed: false, reload: async retry => { retries += Number(retry) } }
   const jsx = (type, props) => ({ type, props })
   const dependencies = {
+    '@/components/common/SettingsPage': settingsTransitionMock(host.react),
     react: host.react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', Image: 'NativeImage', StyleSheet: { absoluteFillObject: {}, create: value => value }, AppState: { addEventListener: () => ({ remove() {} }) } },
+    'react-native': { Animated: { View: 'View' }, ScrollView: 'ScrollView', TouchableOpacity: 'TouchableOpacity', View: 'View', Image: 'NativeImage', StyleSheet: { absoluteFillObject: {}, create: value => value }, AppState: { addEventListener: () => ({ remove() {} }) } },
     '@/components/common/Text': { default: 'Text', __esModule: true },
     '@/components/common/Image': { default: 'Image', defaultHeaders: { 'User-Agent': 'test' }, __esModule: true },
     '@/components/magazine': { SectionHeader: 'SectionHeader', MagTopBar: 'MagTopBar', SongRow: 'SongRow', Rule: 'Rule', DOCK_BASE_HEIGHT: 122 },
@@ -100,10 +102,14 @@ test('full-bleed carousel preserves card geometry, gutter peeks, endpoint dockin
   // scaleSizeW result (which floors before applying the user's font-size scale).
   for (const [width, scale, fontSize, density] of [[349, 1, 1, 1], [367, 1.06, 1, 3], [349.090909, 1.01, 1, 2.75], [294, 0.93, 1.1, 3]]) {
     const gutter = Math.floor(22 * scale) * fontSize
-    const env = setup({ '@/utils/tools': { createStyle: styles => Object.fromEntries(Object.entries(styles).map(([key, style]) => [key,
-      Object.fromEntries(Object.entries(style).map(([prop, value]) => [prop,
-        typeof value === 'number' && ['marginLeft', 'marginRight', 'paddingHorizontal'].includes(prop) ? Math.floor(value * scale) * fontSize : value])),
-    ])) } })
+    const env = setup({
+      '@/utils/tools': {
+        createStyle: styles => Object.fromEntries(Object.entries(styles).map(([key, style]) => [key,
+          Object.fromEntries(Object.entries(style).map(([prop, value]) => [prop,
+            typeof value === 'number' && ['marginLeft', 'marginRight', 'paddingHorizontal'].includes(prop) ? Math.floor(value * scale) * fontSize : value])),
+        ])),
+      },
+    })
     const { RecommendationSection, RecCard } = env.load('../../components/recommend/RecommendationSection')
     const props = { discover: { title: 'Weekly', cover: null, sourceListId: 'weekly' } }
     const render = () => env.host.render(RecommendationSection, props)

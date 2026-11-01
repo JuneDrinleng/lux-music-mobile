@@ -1,6 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-import { useEffect, useRef, useState } from 'react'
-import { FlatList, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+
+import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Animated, FlatList, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import { SubpageSurface } from '@/components/common/SubpageSurface'
 import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import Text from '@/components/common/Text'
@@ -26,7 +28,9 @@ export const newSmartPlaylist = (name: string): SmartPlaylistDefinition => ({
 })
 
 type Picker = { kind: 'field' | 'operator' | 'value', index: number } | { kind: 'sort' | 'preview' }
-export default ({ initial, onClose }: { initial: SmartPlaylistDefinition, onClose: () => void }) => {
+export default ({ initial, onClose: finishClose }: { initial: SmartPlaylistDefinition, onClose: () => void }) => {
+  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -80,7 +84,7 @@ export default ({ initial, onClose }: { initial: SmartPlaylistDefinition, onClos
     return `${item.value}${item.field == 'playCount' ? label('times') : item.operator == 'withinDays' || item.operator == 'notWithinDays' ? label('days') : item.field == 'duration' ? label('seconds') : ''}`
   }
   const pill = (text: string, action: () => void, accessibilityLabel = text) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }} style={styles.pill} onPress={action}><Text size={13} color={r.ink} numberOfLines={1} style={{ fontWeight: '700' }}>{text}</Text></TouchableOpacity>
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal transparent visible animationType="none" onRequestClose={onClose}><Animated.View style={[{ flex: 1 }, pageStyle]}>
     <SubpageSurface coversDock style={[styles.root, { paddingTop: status }]}>
       <FocusVisibleScrollView contentContainerStyle={styles.page}>
         <MagTopBar onBack={onClose} trailing={<FocusVisibleAction><TextButton compact label={label('save')} disabled={!valid || saving} onPress={() => { void save() }} /></FocusVisibleAction>} />
@@ -111,7 +115,7 @@ export default ({ initial, onClose }: { initial: SmartPlaylistDefinition, onClos
         {picker?.kind == 'sort' ? <View>{(['library', ...Object.keys(fieldOperators)] as const).map(field => <OptionRow key={field} label={label(field)} selected={draft.ruleSet.sort.field == field} disabled={field == 'addedDate'} onPress={() => { setDraft(prev => ({ ...prev, ruleSet: { ...prev.ruleSet, sort: { ...prev.ruleSet.sort, field: field as RuleField | 'library' } } })) }} />)}{(['asc', 'desc'] as const).map(direction => <OptionRow key={direction} label={label(direction)} selected={draft.ruleSet.sort.direction == direction} onPress={() => { setDraft(prev => ({ ...prev, ruleSet: { ...prev.ruleSet, sort: { ...prev.ruleSet.sort, direction } } })) }} />)}<UnderlineInput label={label('limit')} value={draft.ruleSet.limit == null ? '' : String(draft.ruleSet.limit)} keyboardType="numeric" onChangeText={text => { setDraft(prev => ({ ...prev, ruleSet: { ...prev.ruleSet, limit: text ? Number(text) : undefined } })) }} /></View> : null}
       </ScrollView>}
     </MagazineSheet>
-  </Modal>
+  </Animated.View></Modal>
 }
 const useStyles = sharedLuxStyles(colors => {
   const r = magazineRoles(colors)
