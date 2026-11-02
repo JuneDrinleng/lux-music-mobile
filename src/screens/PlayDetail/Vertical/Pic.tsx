@@ -37,8 +37,8 @@ const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
 /** Keep the pre-three-line disc budget; actual preview height is measured independently. */
 const PLAYER_RESERVED_LYRIC = 124
-/** Record-to-title 30 + title-to-lyrics 18 + fixed lyrics-to-transport 18. */
-const PLAYER_RESERVED_GAPS = 30 + 18 + 18
+/** Record-to-title 30 + title-to-lyrics 18; the lyric spacer no longer reserves height. */
+const PLAYER_RESERVED_GAPS = 30 + 18 + 0
 const PLAYER_DISC_MIN = 200
 
 const sourceShortKey = (source: string): keyof Message => {
@@ -495,6 +495,7 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
       </ScrollView>
 
       <PlayerTransport
+        seekOverlapTop={21}
         progress={progress}
         duration={maxPlayTime}
         nowPlayTimeStr={nowPlayTimeStr}
@@ -531,6 +532,8 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   scroll: {
     flex: 1,
+    // The actions win the unavoidable overlap with the transparent seek area.
+    zIndex: 2,
   },
   scrollContent: {
     flexGrow: 1,
@@ -558,10 +561,11 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     flexShrink: 0,
     minHeight: 18,
   },
+  // Visible clearance comes from the action row and transport, not another spacer.
   flexGapLyric: {
     flexGrow: 0,
     flexShrink: 0,
-    minHeight: 18,
+    minHeight: 0,
   },
   recordWrap: {
     alignSelf: 'center',
