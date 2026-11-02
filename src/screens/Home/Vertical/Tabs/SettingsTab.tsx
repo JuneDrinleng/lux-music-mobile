@@ -688,8 +688,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       return next
     })
     if (host === syncHost) {
-      updateSetting({ 'sync.enable': false })
-      void disconnectServer()
       void saveSyncHost('')
       setSyncHostLocal('')
     }

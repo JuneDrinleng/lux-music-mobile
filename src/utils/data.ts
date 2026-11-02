@@ -995,7 +995,14 @@ export const setSyncMode = async(mode: LX.Sync.Mode) => {
   await requestLogin({ reason: 'switch', source: 'setSyncMode', targetProvider: mode, returnPolicy: 'restorePrevious' })
 }
 export const setSyncHost = async(host: string) => {
-  if (!isSessionCoordinatorEnabled()) return commitSyncHost(host)
+  if (!isSessionCoordinatorEnabled()) {
+    if (!host) {
+      const [{ disconnectServer }, { updateSetting }] = await Promise.all([import('@/plugins/sync'), import('@/core/common')])
+      updateSetting({ 'sync.enable': false })
+      await disconnectServer()
+    }
+    return commitSyncHost(host)
+  }
   const { requestLogin } = await import('@/core/appSession')
   await requestLogin({ reason: 'changeServer', source: 'setSyncHost', initialHost: host, returnPolicy: 'restorePrevious' })
 }

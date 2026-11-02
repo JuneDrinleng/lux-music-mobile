@@ -324,3 +324,10 @@ test('embedded Settings login backs through server and LX without replacing the 
   assert.equal(closed, 1)
   assert.deepEqual(h.events, [])
 })
+
+test('deleting the current server routes through the transaction before any disconnect', () => {
+  const source = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/SettingsTab.tsx', import.meta.url), 'utf8')
+  const deletion = source.slice(source.indexOf('const handleDeleteSyncHost'), source.indexOf('const handleToggleSyncManage'))
+  assert.match(deletion, /saveSyncHost\(''\)/)
+  assert.doesNotMatch(deletion, /disconnectServer|updateSetting/)
+})

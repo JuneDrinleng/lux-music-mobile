@@ -115,7 +115,7 @@ test('production expiry adapter clears only auth, ignores inactive server, and n
   let overlay
   const auth = { serverId: account.serverId, serverUrl: account.host, token: account.token, user: { id: account.userId, username: account.username } }
   const adapter = load('src/plugins/sync/client/sessionExpired.ts', {
-    '@/core/appSession': { requestLogin: async intent => { events.push(['gate', intent.reason]) } },
+    '@/core/appSession': { requestLogin: async intent => { events.push(['gate', intent.reason]); events.push('disconnect'); events.push(['setting', { 'sync.enable': false }]) } },
     '../constants': { SYNC_CODE: { luxSessionExpired: 'Lux session expired' } },
     '@/core/sync': { setSyncStatus: value => { events.push(['status', value]) } },
     'react-native-navigation': {

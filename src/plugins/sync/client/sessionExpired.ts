@@ -1,3 +1,4 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { SYNC_CODE } from '../constants'
@@ -17,10 +18,13 @@ const present = createSessionExpiredDialog({
   disconnect: async(account) => {
     const [{ updateSetting }, { disconnectServer }] = await Promise.all([import('@/core/common'), import('@/plugins/sync')])
     if (!isActive(account)) return
-    const { requestLogin } = await import('@/core/appSession')
-    await requestLogin({ reason: 'reauth', source: 'session-expired', targetProvider: 'lux', initialHost: account.host, initialUsername: account.username, returnPolicy: 'none' })
-    updateSetting({ 'sync.enable': false })
-    await disconnectServer()
+    if (isSessionCoordinatorEnabled()) {
+      const { requestLogin } = await import('@/core/appSession')
+      await requestLogin({ reason: 'reauth', source: 'session-expired', targetProvider: 'lux', initialHost: account.host, initialUsername: account.username, returnPolicy: 'none' })
+    } else {
+      updateSetting({ 'sync.enable': false })
+      await disconnectServer()
+    }
     const { setSyncStatus } = await import('@/core/sync')
     if (!isActive(account)) return
     setSyncStatus({ status: false, message: SYNC_CODE.luxSessionExpired })
