@@ -30,7 +30,7 @@ const entries = {
   audio_effects_title: '() => { global.app_event.openAudioEffects() }',
   setting_basic_source: 'handleOpenPlayerDetail',
   together_layout: "() => { setActiveOptionDetail('togetherLayout') }",
-  sync_state_address_format: 'handleOpenSyncDetail',
+  sync_state_address_format: "() => { openGate('E11-address-format') }",
   ai_tokens_title: '() => { setAiTokensVisible(true) }',
   admin_console_entry_title: 'handleOpenAdminConsole',
   together_debug_panel_toggle: 'handleToggleTogetherDebugPanel',
@@ -48,7 +48,7 @@ const options = ['language', 'theme', 'statsPageStyle', 'searchSource', 'player'
 test('every Settings entry is enumerated; every option renderer is inside SettingsPage', () => {
   const ast = parse(settingsFile)
   const nodes = descendants(ast)
-  const reviewedTags = ['AccountPage', 'AdminConsoleLayer', 'AiTokenStatusPage', 'ChoosePath', 'EmptyState', 'Hairline', 'IconButton', 'Image', 'MagDialog', 'MagTopBar', 'MdiIcon', 'OptionRow', 'ResourceCacheDetail', 'Rule', 'ScrollView', 'SectionHeader', 'ServerStep', 'SettingRow', 'SettingsPage', 'Source', 'SyncLogin', 'SyncStatusPage', 'SyncStatusPill', 'SyncConnectionInfo', 'Text', 'TouchableOpacity', 'UnderlineInput', 'VersionChangelogDetail', 'View']
+  const reviewedTags = ['AccountPage', 'AdminConsoleLayer', 'AiTokenStatusPage', 'ChoosePath', 'EmptyState', 'Hairline', 'IconButton', 'Image', 'MagDialog', 'MagTopBar', 'MdiIcon', 'OptionRow', 'ResourceCacheDetail', 'Rule', 'ScrollView', 'SectionHeader', 'ServerStep', 'SettingRow', 'SettingsPage', 'Source', 'SyncLogin', 'SyncStatusPage', 'SyncStatusPill', 'SyncConnectionInfo', 'Text', 'TextButton', 'TouchableOpacity', 'UnderlineInput', 'VersionChangelogDetail', 'View']
   assert.deepEqual([...new Set(nodes.map(tag).filter(Boolean))].sort(), reviewedTags.sort(), 'New surface requires audit, including imports outside @/screens')
   const rows = nodes.filter(node => tag(node) === 'SettingRow')
   const seen = new Set()

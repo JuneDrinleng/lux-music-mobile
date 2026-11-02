@@ -8,8 +8,8 @@
 
 - 一级：Home 主壳的首页 / 歌单 / 设置。竖屏为 `Home/Vertical/Main.tsx` 的三页 Pager + Dock；横屏 `Home/Horizontal/Main.tsx` 复用三 Tab，使用侧栏与 PlayerBar。
 - 二级：设置选项、音效、AI 助手、账号、管理员控制台、同步状态。使用 Home 内的内容层，不创建独立原生窗口，不用原生 Modal 充当页面，也不调用 `Navigation.setRoot` 打开设置子页。
-- 更深一级：音效详情、账号编辑/设备/数据空间/密码、管理员的用户/邀请/歌单/服务、同步地址检查/登录/注册/忘记密码。打开后只返回上一层，不能越级关闭整个设置。
-- 弹层：地址/授权码/登录凭据输入、创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
+- 更深一级：音效详情、账号编辑/设备/数据空间/密码、管理员的用户/邀请/歌单/服务。同步地址检查/登录/注册/忘记密码移至根 LoginGate 内部。打开后只返回上一层，不能越级关闭整个设置。
+- 弹层：创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
 - 外部入口：GitHub Releases / 更新日志内 GitHub / 自定义源帮助交给 `openUrl`；图库裁切与系统文件授权由平台接管。它们不适用 App 内页面的固定过渡参数。
 
 完整设置页面清单（名字对应状态/路由，便于代码检索）：
@@ -22,15 +22,15 @@
 | 默认搜索源 | `searchSource` | 同上 |
 | 自定义音源 | `player`；源管理为页内编辑模式 | 同上，Source 以 embedded 挂载；导入为文件选择弹层 |
 | 一起听布局 | `togetherLayout` | 同上 |
-| 同步地址与格式 | `sync`；地址历史管理为页内模式 | 同上；输入地址、LX 授权码、Lux 凭据为 MagDialog |
+| 同步地址与格式（含搜索命中） | LoginGate 主态 | `requestLogin` 根替换；方式、地址与凭据均为草稿 |
 | 缓存/下载与数据管理 | `resourceCache` | 同上，ResourceCacheDetail |
 | 关于 → 当前版本 | `changelog` | 同上，VersionChangelogDetail；没有独立「关于」整页 |
 | AI 助手 | AiTokenStatusPage | SettingsTab → SettingsPage → 普通 View |
 | 资料 hero（头像；重复账户列表行已移除） | AccountPage → `edit` / `devices` / `spaces` / `password` | SettingsPage + useSettingsSubpage；ChangePassword 在账号的子页过渡面内 |
 | 音效/均衡器 | AudioEffectsPage → 响度与无缝播放详情 | 横竖屏 Main 的应用内层；useSettingsTransition + useSettingsSubpage |
 | 管理员控制台（按条件显示） | dashboard → users / invites / playlists / service | AdminConsoleLayer → SettingsPage；内部 useSettingsTransition；loading / denied 是权限状态，不另算导航 |
-| 账户昵称右侧同步胶囊（全部状态可见） | 同步服务 editor（成功/未同步/本地/进行中）或 SyncStatusPage（失败/过期/不兼容）→ ServerStep / SyncLogin | SettingsTab 的持久 SettingsPage host；返回逐层恢复 |
-| 同步登录内部 | 服务器地址 → Lux AuthFlow / LX LegacySyncLogin；Lux → register / forgot | Settings 下以 onBack 回调嵌入，useSettingsSubpage；AuthFlow 通过 settings 标志启用同一规则。独立启动/首次引导保留自己的顶层流程 |
+| 账户昵称右侧同步胶囊（全部状态可见） | 同步连接详情（成功/未同步/本地/进行中）或 SyncStatusPage（失败/过期/不兼容） | 状态与诊断保留持久 SettingsPage；修复地址/登录/换方式进入根 Gate |
+| 统一登录 L1 | 最近账号 → Lux / LX / 本地确认；历史、记录管理、注册、帮助 | `SyncLogin/LoginGate.tsx`，内部全部 `useSettingsSubpage`，无 Dock；旧表单壳留 PR5 清理 |
 
 导出/导入备份直接打开 ChoosePath；检查更新触发现有更新流程；清除冲突策略、调试开关、复制诊断是动作，不产生二级页面。
 
@@ -42,7 +42,7 @@
 - `SettingsTab.tsx` 的 SyncStatusPill 移到昵称右侧（间距 8、垂直居中），签名独占下一行（12/16，距昵称 2），无签名沿用默认文案。昵称与签名共用最小高 44 的账户文字按钮；头像、账户文字、箭头进入完整 AccountPage，退出登录在账户内。账户文字与胶囊为横向独立同级按钮，没有覆盖胶囊的外层 TouchableOpacity 或无障碍按钮；胶囊上下各 8 的空间实际预留，最小命中高 44、视觉最小高 28，账户文字上留 8 对齐昵称与胶囊面。长昵称/签名优先单行省略，胶囊 flexShrink=0、不换行或截断；hero 最小高 68、56 头像居中，极端字体整体可增高。
 - 胶囊读作「状态，查看同步详情」，状态变化 polite 播报。搜索过滤掉资料时、无服务器、本地、关闭同步时均保留胶囊，不依赖 showProfileHero 或模型非空。
 - mapSyncStatus 保留会话/版本/传输错误优先级；本地无服务器显示本地模式，已配置但关闭或断开显示未同步。Connecting... 与 Wait syncing... 仅是连接/握手阶段，显示连接中；status.status=true 显示已同步，不能推断正在传输。模型仅在显式 syncing 任务信号时展示同步中；当前 socket 没有该任务信号，不伪造。连接中、同步中点胶囊只开详情，不触发重连。
-- 成功/未同步/本地/进行中进入原同步服务 editor，保留地址历史、格式及凭据管理；失败/过期/不兼容沿原 SyncStatusPage 分流，保留重试、地址检查、离线、重新登录、本地用户与复制版本提示。两条路径均用 SyncConnectionInfo 展示服务器（可复制）、账号、连接状态及最近成功同步/活跃；没有有效时间戳显示暂无记录，历史时间戳不视为服务器在线证据。
+- 成功/未同步/本地/进行中进入同步服务详情，保留地址历史管理、格式与暂停同步动作；身份、地址与凭据输入改走 Gate。失败/过期/不兼容沿原 SyncStatusPage 分流，保留重试、地址检查、离线、重新登录、本地用户与复制版本提示。两条路径均用 SyncConnectionInfo 展示服务器（可复制）、账号、连接状态及最近成功同步/活跃；没有有效时间戳显示暂无记录，历史时间戳不视为服务器在线证据。
 - 删除独立同步区的主线、标题与整行外形；信息及入口按上述位置迁移。状态刷新不自动打开新页或改变按钮分区，既有成功恢复关闭错误页行为保留。共享 SettingsPage 的 248ms 对称进出、逐层返回及 Dock 行为不变。
 
 ## 所有非一级页统一过渡（唯一共用实现）
@@ -64,7 +64,7 @@
 
 - 独立二级页：持久渲染 `<SettingsPage visible={...} onBack={...} bottomInset={...}>`，其 children 为接收 `back` 的函数。页内返回必须调用这个 `back`；组件保留退出内容，在动画完成后调用 onBack 并卸载。父层主动设置 visible=false 时也保留最后一帧内容到退出结束。
 - 已有独立挂载的页面（音效）：`useSettingsTransition()` 提供 `style` 与 `requestClose`；用 `requestClose(onBack)`，完成后才通知 host 卸载。
-- 内部状态子页：`useSettingsSubpage(root)` 提供 page / pages / setPage / style，配合 `<SettingsSubpage pages={pages} style={style}>{page => …}</SettingsSubpage>` 渲染整个祖先栈。前进时保留父页的原生视图、滚动位置和组件实例，新页叠在上方；只给最顶层子页施加共享过渡，祖先页保持完整不透明、原位可见，不使用条件卸载、display:none 或 opacity=0。返回按钮、三键和系统边缘返回手势走同一 requestClose，248ms 结束后才移除出栈页；返回到任一已有祖先均适用，连续返回不重复出栈，每次完成后解除共享 closing 防重入锁，下一层仍能正常退出。初始深链也渲染根父页；独立登录/引导 enabled=false 仍即时切换。管理员沿用自己的 routeStack / useSettingsTransition(false)，同样交给 SettingsSubpage 渲染，不再只渲染当前 route。
+- 内部状态子页：`useSettingsSubpage(root)` 提供 page / pages / setPage / style，配合 `<SettingsSubpage pages={pages} style={style}>{page => …}</SettingsSubpage>` 渲染整个祖先栈。前进时保留父页的原生视图、滚动位置和组件实例，新页叠在上方；只给最顶层子页施加共享过渡，祖先页保持完整不透明、原位可见，不使用条件卸载、display:none 或 opacity=0。返回按钮、三键和系统边缘返回手势走同一 requestClose，248ms 结束后才移除出栈页；返回到任一已有祖先均适用，连续返回不重复出栈，每次完成后解除共享 closing 防重入锁，下一层仍能正常退出。初始深链也渲染根父页；登录 Gate 内部所有深度同样启用共享转场；协议 welcome 到 Gate 是根替换。管理员沿用自己的 routeStack / useSettingsTransition(false)，同样交给 SettingsSubpage 渲染，不再只渲染当前 route。
 - SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定。资料编辑标题右侧勾按钮及各功能入口位置不变。
 - 已有自己的返回拦截的内容传 `hardwareBack={false}`，由内容把按钮和硬件返回汇入同一个回调。无自定义逻辑时使用 SettingsPage 默认硬件返回处理。
 - 重复返回合并；再次打开会使旧的退出回调失效；卸载时停止动画并使未完成的回调失效。
@@ -197,3 +197,36 @@ PR2 保留原有 welcome / ServerStep / AuthFlow / LX 表单的视觉与功能�
 测试以 `scripts/app-session.src-test.mjs` 的故障注入/可控 Promise 和原有 data-spaces、download、together、auth、路由脚本为准。真机仍须核实通知/耳机/车载、WorkManager 实际取消、杀进程重启、导入/冲突弹窗、键盘与硬件返回。PR3 实现 L1 统一视觉及全入口收敛；PR4 实现能力说明/白名单任务续接；PR5 退役兼容旧壳。PR2 不宣称这些后续交付已完成。
 
 一起听成员首次接管临时列表前，在同空间现有 @play_info 中保存 personalQueue 检查点；房间进度不覆盖该个人检查点。切换保存前恢复个人临时列表、来源及进度并保持暂停，再保存源空间；目标恢复清空旧原生/JS track tail、已播放与临时插队快照，仅载入目标保存队列。以上不新增数据空间目录或命名布局。
+
+## 统一登录门 L1 与入口收敛（LoginGate PR3）
+
+本节覆盖上文 PR1/PR2 的过渡界面说明。`SyncLogin` 默认导出 L1，旧 ServerStep、LegacySyncLoginHost、LegacySyncLogin、设置输入弹窗代码保留供 PR5 清理，正式身份入口不再打开它们。能力说明/任务 TTL/横竖屏 host 属于 PR4，E21 的现有登录适配仍保留。
+
+| 入口 | 当前行为与预选 |
+| --- | --- |
+| E01–E03 首启/未完成 | Welcome 只确认协议与安全提示；不标记登录完成，`requestLogin(boot, initialHost=null)` → L1 主态；已有完成用户沿 PR2 恢复，不重走协议。 |
+| E04–E05 头像/资料 | 保留 AccountPage 资料、头像、设备、密码；不因收敛移动头像入口。 |
+| E06 切换账号 | AccountPage 切换按钮直接 `requestLogin(switch)` → L1 主态；账号空间列表/数据管理另有入口，保持可达。 |
+| E07–E08 空间切换/添加 | 空间切换携带 provider、host、username，已知会话携带真实 targetIdentity；需要 Gate 明确继续。添加 `reason=add, initialHost=null`，不借上一台服务器。 |
+| E09 退出/数据选择 | 保留 15C 保留或移除数据确认；PR2 暂停、清当前凭据、可选删数据 → Gate，不自动 local Main，不显示取消退出。 |
+| E10 状态胶囊 | 保留当前状态、时间、账号与地址复制、重试、版本诊断；查看不改身份。连接详情新增显式「暂停同步」，与点历史地址分开。 |
+| E11–E14 地址格式/格式/新地址/历史 | 地址格式行及搜索直接 requestLogin 主态；格式行预选该 provider 且 null host；新地址预选当前 provider 且 null host；历史行预选当前 provider 与选中 host。只预填，不立即写有效 mode/host。 |
+| E15 删除地址记录 | 非当前只删历史；当前先确认删除并断开，经事务暂停进入 Gate，再移除历史，不清凭据/空间。Gate 历史也保留同一范围说明。 |
+| E16 LX 缺码/认证失败 | 自动失败只更新状态与提示，不自动弹码框；用户修复经 E17/E18 预选 LX、目标 host，仅显示码。 |
+| E17–E18 检查地址/重新登录 | 状态页 CTA 直接 requestLogin，显式 provider、host、username；协议不由 username 是否为空决定。 |
+| E19 本地/离线 | 「本地」进入 Gate 本地确认；原账号「离线查看」保留原空间/身份、sync disabled，不记录成功、不远端激活，重新启动也不自动连回。 |
+| E20 明确失效 | PR2 暂停后一次性进 reauth Gate，显示失效标题、原 host/username、重新登录和原账号离线查看；旧延后弹窗不再叠在 Gate 上。短暂网络失败不抢根。 |
+| E21 一起听旧登录入口 | 仍经 pushSyncLoginScreen → requestLogin；资格说明和续接在 PR4，当前不宣称已实现。 |
+| E22–E24 方式/无同步/换服务器与返回 | 三方式全部可见；方式/地址只改草稿；本地必须确认，不做服务器探测；返回先回内部表单/主态。 |
+| E25 注册/帮助 | Lux server-info 允许时进入注册；邀请码校验、用户名/昵称/密码确认保留；帮助保留管理员/其他设备选项及复制文案。均走共享转场及协调器激活。 |
+| E26 清保存登录信息 | 管理登录记录内分别清 Lux/LX 的全部保存凭据与草稿（包括最近列表外账号）；确认说明范围与数量，保留所有空间与最近 metadata；清原方式时撤销在线取消返回资格。 |
+
+L1 页面规则：
+
+- 参考 360×800 的 L1-recent/lux/lx/local/expired/switch-paused；纸面刊头、40/44 标题、最近首字母方框/身份/服务器/真实时间、28 状态标签、44 主按钮、下划线链接、62 三方式行与底注。全新样式通过 createStyle/Text 缩放，颜色仅 useLuxTheme + magazineRoles，继承六主题；不改默认主题色。无最近成功记录时整块最近区撤去。
+- 只在成功提交后写 recent 时间；运行时重查 credentialRef 可用性，无凭据时原主按钮改为重新登录并预填原身份。单条移除只 removeRecentLogin，不清凭据/数据。按方式清理过滤安全仓库的归属，不影响另一个协议。
+- Lux 字段含地址/历史、用户名、可显示密码、兼容性/注册状态、HTTP 提醒；LX 只用 hello/id/连接码认证，不用 Lux server-info 阻挡。密码/新连接码只在内存使用，提交结束清空，不进入 recent；不预取带认证头像。
+- LoginGate 根替换卸载 Main/Dock，背景全程纸色，不留 Dock 空洞。内部表单/确认/管理/历史/注册/帮助复用 SettingsSubpage 与唯一 useSettingsTransition 的 248ms 对称转场；无新 Animated.timing。普通设置与 Dock 按原设置隐藏规则保留。
+- 页面按钮与 Android 返回共用同一回调：IME 先收起 → 原生确认/导入等弹层 → 历史/管理/注册/帮助子页 → 表单/本地确认 → 主态。主态返回不隐式激活账号；主动切换用明确的「取消切换，返回账号」。失效/退出/清原凭据无在线取消资格；离线查看与本地使用分别显示。
+- 认证阶段可显式取消，迟到响应不得准备空间/提交身份；空间准备与提交临界区不可取消。失败保留 Gate 与原数据，不跳 Main。成功、取消和离线查看均保持暂停，不自动播放/入房/恢复下载。
+- 全部输入使用 FocusVisibleScrollView/Action；Android 只用系统 resize，不重复减键盘高度；iOS 沿 KeyboardAvoidingView padding。返回期间保持祖先不透明，隐藏页不抢系统返回。注册提交也参与焦点动作可见性。

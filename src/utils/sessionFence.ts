@@ -4,6 +4,9 @@
 let generation = 0
 let frozen = false
 let preparedSync = false
+let offline = false
+export const setSessionOffline = (value: boolean) => { offline = value }
+export const isSessionOffline = () => offline
 export const sessionGeneration = () => generation
 export const sessionWritesFrozen = () => frozen
 export const freezeSession = () => { frozen = true; preparedSync = false; return ++generation }
@@ -15,6 +18,6 @@ let coordinatorEnabled = true
 export const isSessionCoordinatorEnabled = () => coordinatorEnabled
 export const selectSessionCoordinator = (enabled: boolean) => { if (!frozen) coordinatorEnabled = enabled }
 
-export const sessionRemoteWritesFrozen = () => frozen && !preparedSync
+export const sessionRemoteWritesFrozen = () => (offline || frozen) && !preparedSync
 export const allowPreparedSessionSync = () => { preparedSync = true }
 export const stopPreparedSessionSync = () => { preparedSync = false }

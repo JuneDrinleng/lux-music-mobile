@@ -505,6 +505,7 @@ const syncKeys = createLoginCredentialRepository({
 export const getSyncAuthKey = async(serverId: string) => syncKeys.get(serverId)
 export const setSyncAuthKey = async(serverId: string, info: LX.Sync.KeyInfo) => syncKeys.set(serverId, info)
 export const clearSyncAuthKey = async() => syncKeys.clear()
+export const clearSyncAuthKeyForMode = async(mode: LX.Sync.Mode) => syncKeys.clear(mode)
 /** Availability only: no credential values are copied into recent metadata. */
 export const getLoginCredentialAvailability = async(ref: CredentialRef): Promise<'available' | 'missing' | 'unavailable'> => {
   try {

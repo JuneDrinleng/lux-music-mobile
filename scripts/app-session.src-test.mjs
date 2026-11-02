@@ -297,3 +297,57 @@ test('playback pause barrier drains old native queue work and blocks external pl
   await paused
   assert.deepEqual(events, ['invalidate', 'pause'])
 })
+
+test('explicit cancellation ignores a late authenticated candidate and permits a fresh retry', async() => {
+  const h = harness(); const late = deferred()
+  await h.coordinator.begin(intent)
+  const submission = h.coordinator.complete(async() => late.promise)
+  const rejected = assert.rejects(submission, /Authentication cancelled/)
+  for (let i = 0; i < 10; i++) await Promise.resolve()
+  await h.coordinator.cancelAuthentication()
+  await rejected
+  late.resolve(h.candidate)
+  for (let i = 0; i < 10; i++) await Promise.resolve()
+  assert.equal(h.events.includes('prepare'), false)
+  assert.equal(h.events.includes('publish'), false)
+  assert.equal(h.disk().phase, 'gatePending')
+  await h.coordinator.complete(async() => h.candidate)
+  assert.equal(h.identity(), target)
+})
+
+test('cancellation during space preparation cannot interrupt the commit boundary', async() => {
+  const h = harness(); const preparing = deferred()
+  await h.coordinator.begin(intent)
+  const pending = h.coordinator.complete(async() => ({ ...h.candidate, prepare: async() => preparing.promise }))
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  await h.coordinator.cancelAuthentication()
+  assert.equal(h.disk().phase, 'preparing')
+  preparing.resolve()
+  await pending
+  assert.equal(h.identity(), target)
+})
+
+test('Gate draft selection replaces stale target identity without writing active identity', async() => {
+  const h = harness(); await h.coordinator.begin({ ...intent, targetIdentity: target })
+  await h.coordinator.selectTarget({ targetProvider: 'local', targetIdentity: undefined, targetRecentId: undefined, initialHost: null })
+  assert.equal(h.disk().intent.targetIdentity, undefined)
+  assert.equal(h.identity(), local)
+  assert.equal(h.events.includes('prepare'), false)
+})
+
+test('offline preparation publishes offline intent without remote activation', async() => {
+  const h = harness(); const published = []
+  h.deps.publish = async(identity, offline) => { published.push([identity, offline]) }
+  await h.coordinator.begin(intent)
+  await h.coordinator.complete(async() => ({ identity: target, offline: true, prepare: async() => {}, activate: async() => {} }))
+  assert.deepEqual(published, [[target, true]])
+})
+
+test('offline identity blocks remote writes while allowing local playback after release', () => {
+  fence.setSessionOffline(true)
+  fence.releaseSession()
+  assert.equal(fence.sessionWritesFrozen(), false)
+  assert.equal(fence.sessionRemoteWritesFrozen(), true)
+  fence.setSessionOffline(false)
+  assert.equal(fence.sessionRemoteWritesFrozen(), false)
+})

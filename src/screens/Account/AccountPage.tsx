@@ -1,3 +1,4 @@
+import { requestLogin } from '@/core/appSession'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
@@ -180,7 +181,9 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
           })
         })}{row(t('password_title'), undefined, () => { if (session) { setMessage(''); setPage('password') } })}</> : null}
         {section(t('account_switch_section'))}
-        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { setMessage(''); setPage('spaces') })}
+        {row(t('spaces_manage'), undefined, onManageData)}
+        {row(t('spaces_title'), undefined, () => { setPage('spaces') })}
+        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { void requestLogin({ reason: 'switch', source: 'E06-account', returnPolicy: 'restorePrevious' }) })}
         {rows.includes('logout') ? <View style={styles.logout}><SecondaryButton compact danger label={t('account_logout')} onPress={() => { void run(onLogout, 'account_logout_failed') }} disabled={busy} style={styles.button} /></View> : null}
       </> : page === 'spaces' ? <AccountSpaces onManageData={onManageData} /> : page === 'edit' ? <>
         <View style={styles.avatar}>{avatarCircle(96, draftAvatar, draft)}</View>

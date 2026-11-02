@@ -1,3 +1,4 @@
+import { requestLogin } from '@/core/appSession'
 import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
@@ -55,7 +56,8 @@ export default memo(({ componentId }: { componentId: string }) => {
     if (!allRequiredChecked || confirming) return
     setConfirming(true)
 
-    setStep(2)
+    await completeOnboarding(false)
+    await requestLogin({ reason: 'boot', source: 'E01-welcome', initialHost: null, returnPolicy: 'none' })
     setConfirming(false)
   }, [allRequiredChecked, confirming])
 
@@ -89,8 +91,8 @@ export default memo(({ componentId }: { componentId: string }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.progress} accessibilityLabel={t('onboard_step', { step })}>
-          {[1, 2, 3].map(segment => <View key={segment} style={[styles.segment, { backgroundColor: segment <= step ? r.ink : r.hairline }]} />)}
+        <View style={styles.progress} accessibilityLabel={t('login_gate_onboard_step', { step })}>
+          {[1, 2].map(segment => <View key={segment} style={[styles.segment, { backgroundColor: segment <= step ? r.ink : r.hairline }]} />)}
         </View>
         <Text size={11} color={r.eyebrow} style={styles.stepLabel}>{t('onboard_step', { step })}</Text>
         {step === 2 ? <>

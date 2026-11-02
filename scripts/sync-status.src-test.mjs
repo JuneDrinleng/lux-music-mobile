@@ -128,7 +128,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
   deps['@/utils/tools'].toast = value => { events.push(['toast', value]) }
   const noop = () => {}; const asyncNoop = async() => {}
   Object.assign(deps, {
-    '@/screens/SyncLogin': { default: 'SyncLogin' },
+    '@/screens/SyncLogin': { default: 'SyncLogin', LegacySyncLoginHost: 'SyncLogin' },
     '@/screens/SyncStatus': { default: 'SyncStatusPage', SyncStatusPill: 'SyncStatusPill', SyncConnectionInfo: 'SyncConnectionInfo' },
     '@/screens/Login/ServerStep': { default: 'ServerStep' },
     '@/plugins/sync/client/client': { reconnectNow: () => { events.push(['retry']); return hasSocket } },
@@ -172,6 +172,7 @@ const settingsHarness = (status = { status: true, message: '', lastSyncedAt: 100
     '@/plugins/sync/data': { getSyncHostHistory: async() => ['https://server', 'http://older'], removeSyncHostHistory: async index => { events.push(['deleteHost', index]) } },
     '@/plugins/sync/client/credentials': {},
     '@/plugins/sync/client/userErrors': {},
+    '@/core/appSession': { requestLogin: async intent => { events.push(['gate', intent]) } },
     '@/plugins/sync': { connectLuxServer: async host => { events.push(['connectLux', host]) }, connectServer: async host => { events.push(['connectLx', host]) }, disconnectServer: async() => { events.push(['disconnect']) } },
     '@/store/setting/hook': { useSettingValue: key => key === 'sync.enable' ? options.enabled !== false : undefined },
     '@/core/common': { updateSetting: value => { events.push(['setting', value]) }, setNavActiveId: value => { events.push(['nav', value]) } },
@@ -224,58 +225,19 @@ test('actual Settings row routes each current state to the specified page/settin
   }
 })
 
-test('merged address/format entry opens editable current host and keeps both protocol choices', async() => {
-  const h = settingsHarness()
-  h.render(); await settle(); h.render()
-  assert.equal(h.find('SettingRow', p => p.title === zh.setting_sync_format), undefined)
-  h.find('SettingRow', p => p.title === '同步地址与格式').onPress()
-  h.render(); await settle(); h.render()
-  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lx))
-  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lux))
-  const edit = nodes(h.render()).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.type === 'Text' && child.props.children === zh.setting_fill_sync_address))
-  edit.props.onPress(); h.render()
-  const dialog = h.find('MagDialog', p => p.title === zh.setting_sync_host_label)
-  assert.equal(dialog.visible, true)
-  assert.equal(dialog.children.props.value, 'https://server')
-  dialog.children.props.onChangeText('https://edited'); h.render()
-  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).onConfirm(); await settle()
-  assert.ok(h.events.some(([name, value]) => name === 'saveHost' && value === 'https://edited'))
-  h.find('OptionRow', p => p.label === zh.setting_sync_format_lx).onPress(); await settle()
-  assert.ok(h.events.some(([name, value]) => name === 'mode' && value === 'lx'))
+test('merged address/format entry requests root Gate without changing host or protocol', async() => {
+  const h = settingsHarness(); h.render(); await settle(); h.render()
+  h.find('SettingRow', p => p.title === zh.sync_state_address_format).onPress(); await settle()
+  assert.deepEqual(h.events, [['gate', { reason: 'switch', source: 'E11-address-format', targetProvider: undefined, initialHost: undefined, initialUsername: undefined, returnPolicy: 'restorePrevious' }]])
 })
 
 
-test('merged entry retains validation, history selection/toggle/delete and protocol hints', async() => {
-  const h = settingsHarness()
-  h.render(); await settle(); h.render()
-  h.find('SettingRow', p => p.title === zh.sync_state_address_format).onPress()
-  h.render(); await settle(); h.render()
-  const tapText = text => {
-    const target = nodes(h.render()).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.type === 'Text' && child.props.children === text))
-    assert.ok(target, text)
-    target.props.onPress(); h.render()
-  }
-  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lx))
-  assert.ok(h.find('OptionRow', p => p.label === zh.setting_sync_format_lux))
-  tapText(zh.setting_fill_sync_address)
-  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).children.props.onChangeText('invalid')
-  h.render()
-  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).onConfirm()
-  assert.ok(h.events.some(([name, value]) => name === 'toast' && value === zh.setting_sync_host_value_error_tip))
-  assert.ok(!h.events.some(([name]) => name === 'saveHost'))
-  h.find('MagDialog', p => p.title === zh.setting_sync_host_label).onCancel(); h.render()
-  tapText('https://server'); await settle()
-  assert.ok(h.events.some(([name]) => name === 'disconnect'))
-  assert.ok(h.events.some(([name, value]) => name === 'setting' && value['sync.enable'] === false))
-  tapText('http://older'); await settle(); h.render()
-  assert.ok(h.events.some(([name, value]) => name === 'saveHost' && value === 'http://older'))
-  assert.ok(h.events.some(([name, value]) => name === 'history' && value === 'http://older'))
-  tapText(zh.setting_manage_records)
-  h.find('IconButton', p => p.accessibilityLabel === zh.delete).onPress(); await settle(); h.render()
-  assert.ok(h.events.some(([name, index]) => name === 'deleteHost' && index === 0))
-  assert.ok(!nodes(h.render()).some(node => node.type === 'Text' && node.props.children === 'https://server'))
-  h.find('IconButton', p => p.accessibilityLabel === zh.delete).onPress(); await settle(); h.render()
-  assert.ok(h.events.some(([name, value]) => name === 'saveHost' && value === ''))
+test('status detail retains protocol choices and history; choices now request Gate drafts', async() => {
+  const h = settingsHarness(); h.render(); await settle(); h.render()
+  h.find('SyncStatusPill').onPress(); h.render(); await settle(); h.render()
+  h.find('OptionRow', p => p.label === zh.setting_sync_format_lx).onPress(); await settle()
+  assert.equal(h.events.at(-1)[0], 'gate'); assert.equal(h.events.at(-1)[1].targetProvider, 'lx'); assert.equal(h.events.at(-1)[1].initialHost, null)
+  assert.ok(!h.events.some(([name]) => ['mode', 'saveHost', 'connectLx'].includes(name)))
 })
 
 test('Settings display clock only rerenders the existing deadline without connecting', async() => {
@@ -295,8 +257,8 @@ test('unreachable actions use immediate reconnect, prefilled ServerStep and Home
   h.find('SyncStatusPage').onRetry()
   assert.deepEqual(h.events, [['retry']])
   h.find('SyncStatusPage').onCheckAddress(); h.render()
-  assert.equal(h.find('ServerStep').initialHost, 'https://server')
-  h.find('ServerStep').onBack(); h.render()
+  assert.equal(h.events.at(-1)[0], 'gate')
+  assert.equal(h.events.at(-1)[1].initialHost, 'https://server')
   h.find('SyncStatusPage').onHome()
   assert.deepEqual(h.events.at(-1), ['nav', 'nav_search'])
 })
@@ -336,8 +298,9 @@ test('pill is a single accessible action; expired relogin uses cached username',
   h.find('SyncStatusPage').onLogin(); await settle(); h.render()
   assert.ok(h.find('SyncStatusPage'), 'status remains underneath login for hierarchical back')
   h.render()
-  assert.equal(h.find('SyncLogin').initialHost, 'https://server')
-  assert.equal(h.find('SyncLogin').initialUsername, 'june')
+  assert.equal(h.events.at(-1)[0], 'gate')
+  assert.equal(h.events.at(-1)[1].initialHost, 'https://server')
+  assert.equal(h.events.at(-1)[1].initialUsername, 'june')
 })
 
 
@@ -486,18 +449,18 @@ test('search filters account but preserves sync capsule, clear restores profile 
   const previousEvents = global.app_event
   global.app_event = { on() {}, off() {}, settingsSearchStateUpdated() {} }
   try {
-  const h = settingsHarness()
-  h.render(); await settle(); h.render()
-  h.find('IconButton', p => p.name === 'magnify').onPress(); h.render()
-  h.find('UnderlineInput', p => p.placeholder === zh.setting_search_topbar_placeholder).onChangeText('no-matching-profile')
-  h.render()
-  assert.equal(h.find('Image'), undefined)
-  assert.ok(h.find('SyncStatusPill'))
-  h.find('IconButton', p => p.name === 'close').onPress(); h.render()
-  assert.ok(h.find('Image'))
-  h.find('TouchableOpacity', p => p.accessibilityLabel === zh.setting_profile).onPress(); h.render()
-  assert.ok(h.find('AccountPage'))
-  assert.equal(h.find('SyncStatusPage'), undefined)
+    const h = settingsHarness()
+    h.render(); await settle(); h.render()
+    h.find('IconButton', p => p.name === 'magnify').onPress(); h.render()
+    h.find('UnderlineInput', p => p.placeholder === zh.setting_search_topbar_placeholder).onChangeText('no-matching-profile')
+    h.render()
+    assert.equal(h.find('Image'), undefined)
+    assert.ok(h.find('SyncStatusPill'))
+    h.find('IconButton', p => p.name === 'close').onPress(); h.render()
+    assert.ok(h.find('Image'))
+    h.find('TouchableOpacity', p => p.accessibilityLabel === zh.setting_profile).onPress(); h.render()
+    assert.ok(h.find('AccountPage'))
+    assert.equal(h.find('SyncStatusPage'), undefined)
   } finally { global.app_event = previousEvents }
 })
 

@@ -16,8 +16,11 @@ export interface SessionCandidate {
   identity: ActiveSession
   prepare: () => Promise<void>
   activate: () => Promise<void>
+  offline?: boolean
 }
 export interface CoordinatorDependencies {
+  activated?: () => void
+  changed?: () => void
   read: () => Promise<SessionJournal | null>
   write: (journal: SessionJournal) => Promise<void>
   clear: () => Promise<void>
@@ -30,7 +33,7 @@ export interface CoordinatorDependencies {
   leave: () => Promise<void>
   disconnect: () => Promise<void>
   gate: (intent: LoginIntent) => Promise<void>
-  publish: (identity: ActiveSession) => Promise<void>
+  publish: (identity: ActiveSession, offline?: boolean) => Promise<void>
   main: () => Promise<void>
 }
 
@@ -39,11 +42,13 @@ export class AppSessionCoordinator {
   private journal: SessionJournal | null = null
   private beginning: Promise<void> | null = null
   private submitting: Promise<void> | null = null
+  private abortAuthentication: (() => void) | null = null
   private readyForMain = true
   private barriersReady = false
   constructor(private readonly deps: CoordinatorDependencies) {}
   get pending() { return this.journal }
   get canEnterMain() { return this.readyForMain }
+  get canCancelAuthentication() { return this.abortAuthentication !== null }
 
   async recover(): Promise<boolean> {
     const journal = await this.deps.read()
@@ -110,6 +115,21 @@ export class AppSessionCoordinator {
     return run
   }
 
+  /** Draft selection is durable, but never changes the active identity/host. */
+  async selectTarget(target: Pick<LoginIntent, 'targetProvider' | 'targetIdentity' | 'targetRecentId' | 'initialHost' | 'initialUsername'>): Promise<void> {
+    if (!this.journal || this.submitting) throw new Error('Login selection unavailable')
+    this.journal.intent = { ...this.journal.intent, ...target }
+    await this.deps.write(this.journal)
+  }
+
+  async cancelAuthentication(): Promise<void> {
+    if (this.journal?.phase !== 'authenticating' || !this.abortAuthentication) return
+    // Invalidate HTTP/refresh continuations as well as the candidate promise.
+    this.journal.generation = this.deps.freeze()
+    this.abortAuthentication()
+    await this.submitting?.catch(() => {})
+  }
+
   // eslint-disable-next-line @typescript-eslint/promise-function-async
   complete(authenticate: () => Promise<SessionCandidate>): Promise<void> {
     if (this.submitting) return this.submitting
@@ -127,7 +147,13 @@ export class AppSessionCoordinator {
         }
         journal.phase = 'authenticating'
         await this.deps.write(journal)
-        const candidate = await authenticate()
+        const cancelled = new Promise<never>((resolve, reject) => {
+          this.abortAuthentication = () => { reject(new Error('Authentication cancelled')) }
+          this.deps.changed?.()
+        })
+        let candidate: SessionCandidate
+        try { candidate = await Promise.race([authenticate(), cancelled]) } finally { this.abortAuthentication = null; this.deps.changed?.() }
+        // Late authentication responses cannot prepare/publish after explicit cancellation.
         const expected = journal.intent.targetIdentity
         if (expected) {
           const actual = candidate.identity
@@ -144,15 +170,19 @@ export class AppSessionCoordinator {
         journal.phase = 'committing'
         await this.deps.write(journal)
         await candidate.activate()
-        await this.deps.publish(candidate.identity)
+        await this.deps.publish(candidate.identity, candidate.offline)
         this.readyForMain = true
         await this.deps.main()
         await this.deps.clear()
         this.journal = null
         this.deps.release()
+        this.deps.activated?.()
       } catch (error) {
         this.readyForMain = false
         await this.deps.disconnect()
+        journal.phase = 'gatePending'
+        delete journal.candidate
+        await this.deps.write(journal)
         await this.deps.gate(journal.intent)
         throw error
       }
@@ -164,7 +194,6 @@ export class AppSessionCoordinator {
 
   async revokeReturn(): Promise<void> {
     if (this.journal) {
-      this.journal.previous = null
       this.journal.intent.returnPolicy = 'none'
       await this.deps.write(this.journal)
     }

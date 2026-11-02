@@ -7,19 +7,33 @@ import { getPosition } from '@/plugins/player'
 import { pauseForSessionSwitch, resetForSessionSwitch } from '@/plugins/player/utils'
 import { AppSessionCoordinator, type SessionJournal, type SessionCandidate } from './coordinator'
 import type { ActiveSession, LoginIntent } from '@/utils/loginSession'
-import { freezeSession, releaseSession, selectSessionCoordinator, allowPreparedSessionSync, stopPreparedSessionSync } from '@/utils/sessionFence'
+import { freezeSession, releaseSession, setSessionOffline, selectSessionCoordinator, allowPreparedSessionSync, stopPreparedSessionSync } from '@/utils/sessionFence'
 import { getActiveSpace, isDataSpaceReady, setActiveSpace, reloadActiveSpace, namespacedKey } from '@/utils/dataSpace'
 import { storageDataPrefix } from '@/config/constant'
 
 const JOURNAL = 'appSessionJournal:v1'
 const ACTIVE = 'appSessionActive:v1'
+const OFFLINE = 'appSessionOffline:v1'
+let offline = false
+let gateTransition: string | null = null
 let active: ActiveSession | null = null
 let intent: LoginIntent | null = null
 export const getLoginIntent = () => intent
 export const getActiveAppSession = () => active
 const pause = pauseForSessionSwitch
+const authenticationListeners = new Set<() => void>()
+export const subscribeAppSessionAuthentication = (listener: () => void) => {
+  authenticationListeners.add(listener)
+  return () => { authenticationListeners.delete(listener) }
+}
 
 export const appSession = new AppSessionCoordinator({
+  changed: () => { for (const listener of authenticationListeners) listener() },
+  activated: () => {
+    if (!global.lx.isShowingLaunchScreen) return
+    global.lx.isShowingLaunchScreen = false
+    void global.lx._onLoginConfirmed?.()
+  },
   read: async() => {
     const raw = await AsyncStorage.getItem(JOURNAL)
     if (!raw) return null
@@ -73,26 +87,32 @@ export const appSession = new AppSessionCoordinator({
     updateSetting({ 'sync.enable': false })
   },
   gate: async(nextIntent) => {
-    if (intent === nextIntent) return
+    const transition = appSession.pending?.transitionId ?? null
+    if (intent && gateTransition === transition) { intent = nextIntent; return }
     intent = nextIntent
+    gateTransition = transition
     const { replaceWithLoginGate } = await import('@/navigation/navigation')
     await Navigation.dismissAllModals()
     await replaceWithLoginGate(nextIntent)
     const { toast } = await import('@/utils/tools')
     toast(global.i18n.t('login_gate_paused'))
   },
-  publish: async(identity) => {
+  publish: async(identity, isOffline = false) => {
     const { setSyncLoginCompleted, recordSuccessfulLogin } = await import('@/utils/data')
     await AsyncStorage.setItem(ACTIVE, JSON.stringify(identity))
     await setSyncLoginCompleted(true)
+    await AsyncStorage.setItem(OFFLINE, JSON.stringify(isOffline))
+    offline = isOffline
+    setSessionOffline(isOffline)
     active = identity
     // Optional recent metadata must never invalidate a successfully prepared identity.
-    await recordSuccessfulLogin(identity).catch(() => {})
+    if (!isOffline) await recordSuccessfulLogin(identity).catch(() => {})
   },
   main: async() => {
     const { pushHomeScreen } = await import('@/navigation/navigation')
     await pushHomeScreen()
     intent = null
+    gateTransition = null
   },
 })
 
@@ -103,6 +123,8 @@ export const requestLogin = async(nextIntent: LoginIntent): Promise<void> => app
 })
 
 export const initializeAppSession = async(): Promise<boolean> => {
+  offline = await AsyncStorage.getItem(OFFLINE) === 'true'
+  setSessionOffline(offline)
   const raw = await AsyncStorage.getItem(ACTIVE)
   if (raw) { try { active = JSON.parse(raw) as ActiveSession } catch {} }
   if (!active) {
@@ -132,7 +154,7 @@ export const connectAppSession = async(mode: LX.Sync.Mode, host: string, usernam
       import('@/plugins/sync/client/auth'), import('@/plugins/sync/client/utils'), import('@/utils/data'), import('@/plugins/sync/client/client'),
     ])
     const url = parseUrl(host)
-    const candidate = mode === 'lux' ? await authenticateLuxCandidate(url, username, secret) : await authenticateLxCandidate(url, secret)
+    const candidate = mode === 'lux' ? await authenticateLuxCandidate(url, username, secret, appSession.pending?.intent.targetIdentity?.provider === 'lux' ? appSession.pending.intent.targetIdentity : undefined) : await authenticateLxCandidate(url, secret)
     return {
       identity: candidate.identity,
       prepare: async() => {
@@ -251,7 +273,7 @@ const restoreSessionPlayback = async(): Promise<void> => {
 /** Boot restoration never changes an identity. A pending transaction wins over all old callbacks. */
 export const restoreAppSessionConnection = async(mode: LX.Sync.Mode, host: string): Promise<void> => {
   const { sessionGeneration, sessionWritesFrozen, isSessionCoordinatorEnabled } = await import('@/utils/sessionFence')
-  if (sessionWritesFrozen() || appSession.pending) return
+  if (offline || sessionWritesFrozen() || appSession.pending) return
   if (!isSessionCoordinatorEnabled()) {
     const legacy = await import('@/plugins/sync/client')
     await (mode === 'lux' ? legacy.legacyConnectLuxServer(host) : legacy.legacyConnectServer(host))
@@ -270,4 +292,29 @@ export const restoreAppSessionConnection = async(mode: LX.Sync.Mode, host: strin
   if (generation !== sessionGeneration() || sessionWritesFrozen()) return
   // eslint-disable-next-line require-atomic-updates
   active = candidate.identity
+}
+
+/** Authentication can be cancelled only before preparation begins. */
+export const cancelAppSessionAuthentication = async(): Promise<void> => appSession.cancelAuthentication()
+
+/** Cached identity remains the same identity. No authentication, recent success or remote activation. */
+export const enterOfflineAppSession = async(): Promise<void> => {
+  const previous = appSession.pending?.previous
+  if (!previous || previous.provider === 'local') throw new Error('Previous account unavailable')
+  await appSession.selectTarget({ targetIdentity: previous, targetProvider: previous.provider, initialHost: previous.server.url })
+  await appSession.complete(async() => ({
+    identity: previous,
+    offline: true,
+    prepare: async() => {
+      if (!isDataSpaceReady()) throw new Error('Data space is not ready')
+      await setActiveSpace(previous.spaceId)
+      await reloadActiveSpace()
+      const data = await import('@/utils/data')
+      await data.commitSyncHost(previous.server.url)
+      await data.commitSyncMode(previous.provider)
+      await restoreSessionPlayback()
+      await pause()
+    },
+    activate: async() => {},
+  }))
 }

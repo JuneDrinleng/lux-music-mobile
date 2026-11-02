@@ -30,6 +30,7 @@ const present = createSessionExpiredDialog({
     setSyncStatus({ status: false, message: SYNC_CODE.luxSessionExpired })
   },
   show: async(account, later, login) => {
+    if (isSessionCoordinatorEnabled()) { await later(); return }
     await Navigation.showOverlay({
       component: {
         id: componentId,
@@ -39,7 +40,7 @@ const present = createSessionExpiredDialog({
       },
     })
   },
-  hide: async() => { await Navigation.dismissOverlay(componentId) },
+  hide: async() => { if (!isSessionCoordinatorEnabled()) await Navigation.dismissOverlay(componentId) },
   login: async(account) => {
     const { navigations } = await import('@/navigation')
     await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: account.host, initialUsername: account.username, targetProvider: 'lux' })

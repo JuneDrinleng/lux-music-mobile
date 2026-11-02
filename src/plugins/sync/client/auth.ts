@@ -1,4 +1,4 @@
-import { sessionGeneration, sessionWritesFrozen } from '@/utils/sessionFence'
+import { sessionGeneration, sessionWritesFrozen, isSessionOffline } from '@/utils/sessionFence'
 import { parseServerInfo, versionAtLeast } from '@/utils/serverCheck'
 import { request, generateRsaKey } from './utils'
 import { LuxRequestError } from './userErrors'
@@ -39,7 +39,10 @@ export const luxAuthApi = createLuxAuthClient({
     void import('./sessionExpired').then(async({ showSessionExpiredDialog }) => { if (generation === sessionGeneration()) await showSessionExpiredDialog(host, previous) })
   },
 })
-export const requestJson = luxAuthApi.request
+export const requestJson = async<T>(url: string, body?: unknown, token?: string, method?: string): Promise<T> => {
+  if (isSessionOffline() && !sessionWritesFrozen() && token) throw new Error(global.i18n.t('login_gate_offline_restricted'))
+  return luxAuthApi.request<T>(url, body, token, method)
+}
 
 const hello = async(urlInfo: LX.Sync.UrlInfo) => request(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/hello`)
   .then(({ text }) => {

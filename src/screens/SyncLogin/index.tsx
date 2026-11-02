@@ -398,7 +398,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 
-export default function SyncLogin({ onboarding = false, initialHost = '', initialUsername, initialProvider, onBack }: { onboarding?: boolean, initialHost?: string, initialUsername?: string, initialProvider?: LX.Sync.Mode, onBack?: () => void }) {
+export function LegacySyncLoginHost({ onboarding = false, initialHost = '', initialUsername, initialProvider, onBack }: { onboarding?: boolean, initialHost?: string, initialUsername?: string, initialProvider?: LX.Sync.Mode, onBack?: () => void }) {
   const t = useI18n()
   const { pages: hostPages, setPage: setHost, style: hostStyle } = useSettingsSubpage('', onBack != null, initialHost)
   const { pages: legacyPages, setPage: setLegacy, style: legacyStyle } = useSettingsSubpage(false, onBack != null)
@@ -440,3 +440,5 @@ export default function SyncLogin({ onboarding = false, initialHost = '', initia
     : <SettingsSubpage pages={hostPages} style={hostStyle}>{renderHost}</SettingsSubpage>
   }</SettingsSubpage>
 }
+
+export { default } from './LoginGate'

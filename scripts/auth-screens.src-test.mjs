@@ -13,7 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
-    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, isSessionOffline: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -186,7 +186,7 @@ const renderScreen = (client, host, connect) => {
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
-    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Keyboard: { isVisible: () => false }, Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/magazine': Object.fromEntries(['BackButton', 'OptionRow', 'PrimaryButton', 'TextButton', 'UnderlineInput'].map(key => [key, key])),

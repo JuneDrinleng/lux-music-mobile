@@ -1,6 +1,6 @@
 import {
   clearLuxAuth,
-  clearSyncAuthKey,
+  clearSyncAuthKeyForMode,
   clearSyncLoginDraft,
   getSyncLoginDrafts,
   setSyncLoginDrafts,
@@ -24,7 +24,7 @@ export const clearSavedSyncLoginCredentialsForMode = async(mode: LX.Sync.Mode) =
   if (nextDrafts) await setSyncLoginDrafts(nextDrafts)
   else await clearSyncLoginDraft()
   const { appSession } = await import('@/core/appSession')
-  await appSession.revokeReturn()
+  if (appSession.pending?.previous?.provider === mode) await appSession.revokeReturn()
   if (mode == 'lux') await clearLuxAuth()
-  else await clearSyncAuthKey()
+  await clearSyncAuthKeyForMode(mode)
 }
