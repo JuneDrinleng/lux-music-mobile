@@ -12,7 +12,7 @@ const load = (path, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports) {${source}\n})`).runInThisContext()(
-    name => { assert.ok(Object.hasOwn(deps, name), name); return deps[name] }, module, module.exports,
+    name => { if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }; assert.ok(Object.hasOwn(deps, name), name); return deps[name] }, module, module.exports,
   )
   return module.exports
 }
@@ -190,33 +190,15 @@ test('first-launch gate excludes existing accepted users and completion persists
   assert.equal(lifecycle.shouldShowOnboarding(await lifecycle.getOnboardingCompleted(), false, false), false)
 })
 
-test('local entry disconnects sync and activates local before writing its profile', async() => {
-  const events = []
-  let active = 'lux:server:alice'
-  const names = new Map([[active, 'Alice']])
-  const originalGlobalEvent = global.app_event
-  global.app_event = { userNameUpdated: value => { events.push(['nameEvent', value]) } }
-  try {
-    const local = load('src/utils/enterLocalSpace.ts', {
-      '@/core/common': { updateSetting: value => { events.push(['setting', value]) } },
-      '@/plugins/sync': { disconnectServer: async() => { events.push(['disconnect']) } },
-      '@/utils/dataSpace': { setActiveSpace: async value => { events.push(['space', value]); active = value } },
-      '@/utils/data': {
-        setSyncHost: async value => { events.push(['host', value]) },
-        saveUserName: async value => { events.push(['name', active]); names.set(active, value) },
-      },
-    })
-    await local.enterLocalSpace('Local user')
-    assert.equal(active, 'local')
-    assert.equal(names.get('local'), 'Local user')
-    assert.equal(names.get('lux:server:alice'), 'Alice')
-    assert.deepEqual(events, [
-      ['setting', { 'sync.enable': false }], ['disconnect'], ['space', 'local'],
-      ['host', ''], ['name', 'local'], ['nameEvent', 'Local user'],
-    ])
-  } finally { global.app_event = originalGlobalEvent }
+test('local entry delegates activation to the App session coordinator', async() => {
+  const labels = []
+  const local = load('src/utils/enterLocalSpace.ts', {
+    '@/core/appSession': { enterLocalAppSession: async label => { labels.push(label) } },
+    '@/utils/sessionFence': { isSessionCoordinatorEnabled: () => true },
+  })
+  await local.enterLocalSpace('Local user')
+  assert.deepEqual(labels, ['Local user'])
 })
-
 // Render the production login with native view/hook adapters; drive actual field/button callbacks.
 test('legacy login adapter prefills checked URL and completes only after successful Lux auth', async() => {
   const values = []
@@ -239,6 +221,7 @@ test('legacy login adapter prefills checked URL and completes only after success
   const snapshot = { host: 'https://previous-server', luxUsername: 'previous-user', luxPassword: 'previous-secret', lxAuthCode: '', hasSavedLuxSession: true, hasSavedLxKey: false }
   let authFails = true
   const screen = load('src/screens/SyncLogin/index.tsx', {
+    '@/core/appSession': { getLoginIntent: () => null },
     '@/utils/syncLoginRouting': {},
     './LocalAction': { default: 'LocalAction' },
     '../Login/AuthFlow': { default: 'AuthFlow' },
@@ -315,13 +298,16 @@ test('legacy login adapter prefills checked URL and completes only after success
     assert.equal(events.some(([type]) => type === 'home'), false)
     authFails = false
     tree = render()
+    assert.equal(find(tree, 'UnderlineInput', 'setting_sync_lux_password').props.value, '')
+    find(tree, 'UnderlineInput', 'setting_sync_lux_password').props.onChangeText('password')
+    tree = render()
     find(tree, 'PrimaryButton').props.onPress()
     await delay(0)
     assert.deepEqual(events.filter(([type]) => type === 'auth'), [
       ['auth', 'https://checked-server', 'alice', 'password'],
       ['auth', 'https://checked-server', 'alice', 'password'],
     ])
-    assert.deepEqual(events.slice(-2), [['complete'], ['home']])
+    assert.deepEqual(events.slice(-2), [['auth', 'https://checked-server', 'alice', 'password'], ['complete']])
     cleanup.forEach(fn => fn?.())
   } finally {
     global.app_event = oldEvent

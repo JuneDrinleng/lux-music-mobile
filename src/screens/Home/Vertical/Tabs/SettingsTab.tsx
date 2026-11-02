@@ -616,7 +616,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       next.unshift(host)
       return next
     })
-    updateSetting({ 'sync.enable': true })
     if (syncMode == 'lux') {
       setLuxLoginModalVisible(true)
     } else void connectServer(host)
@@ -650,7 +649,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         toast(t('setting_sync_lux_login_missing_tip'), 'long')
         return
       }
-      updateSetting({ 'sync.enable': true })
       void connectLuxServer(syncHost, username, luxPassword || undefined).then(async() => {
         await rememberSyncLoginForm({
           host: syncHost,
@@ -675,7 +673,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     } else {
       void saveSyncHost(host)
       setSyncHostLocal(host)
-      updateSetting({ 'sync.enable': true })
       void addSyncHostHistory(host)
       if (syncMode == 'lux') {
         setLuxLoginModalVisible(true)
@@ -691,8 +688,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       return next
     })
     if (host === syncHost) {
-      updateSetting({ 'sync.enable': false })
-      void disconnectServer()
       void saveSyncHost('')
       setSyncHostLocal('')
     }
@@ -1345,7 +1340,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           onLogin={() => { setLoginRequest({ host: syncHost, username: reloginUsername || undefined }) }}
           onLocal={() => {
             void enterLocalSpace(t('sync_login_local_user_name')).then(async() => {
-              await setSyncMode('lx')
               setSyncHostLocal('')
               setStatusPage(null)
               setNavActiveId('nav_search')
@@ -1363,7 +1357,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         }} />}
       </SettingsPage>
       <SettingsPage visible={loginRequest != null} onBack={() => { setLoginRequest(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
-        {back => <SyncLogin initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
+        {back => <SyncLogin initialProvider={syncMode} initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
       </SettingsPage>
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>

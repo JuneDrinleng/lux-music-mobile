@@ -1,3 +1,6 @@
+import { LIST_IDS } from '@/config/constant'
+import listState from '@/store/list/state'
+import { sessionWritesFrozen } from '@/utils/sessionFence'
 import { updateListMusics } from '@/core/list'
 import { setMaxplayTime, setNowPlayTime } from '@/core/player/progress'
 import { setCurrentTime, getDuration, getPosition } from '@/plugins/player'
@@ -12,6 +15,7 @@ import { AppState } from 'react-native'
 import { blockTogetherMemberControl } from '@/core/together/control'
 
 const delaySavePlayInfo = throttleBackgroundTimer(() => {
+  if (sessionWritesFrozen() || (playerState.playInfo.playerListId === LIST_IDS.TEMP && listState.tempListMeta.id.startsWith('play_queue__together_'))) return
   void savePlayInfo({
     time: playerState.progress.nowPlayTime,
     maxTime: playerState.progress.maxPlayTime,
@@ -31,7 +35,7 @@ export default () => {
     let id = playerState.musicInfo.id
     void getPosition().then(position => {
       if (!position || id != playerState.musicInfo.id) return
-      setNowPlayTime(position)
+      setNowPlayTime(Number(position))
       if (!playerState.isPlay) return
 
       if (settingState.setting['player.isSavePlayTime'] && !playerState.playMusicInfo.isTempPlay && isScreenOn) {
@@ -40,7 +44,7 @@ export default () => {
     })
   }
   const getMaxTime = async() => {
-    setMaxplayTime(await getDuration())
+    setMaxplayTime(Number(await getDuration()))
 
     if (playerState.playMusicInfo.musicInfo && 'source' in playerState.playMusicInfo.musicInfo && !playerState.playMusicInfo.musicInfo.interval) {
       // console.log(formatPlayTime2(playProgress.maxPlayTime))
@@ -119,7 +123,7 @@ export default () => {
     // void setCurrentTime(playerState.progress.nowPlayTime)
     // setMaxplayTime(playProgress.maxPlayTime)
     handlePause()
-    if (!playerState.playMusicInfo.isTempPlay) {
+    if (!sessionWritesFrozen() && !listState.tempListMeta.id.startsWith('play_queue__together_') && !playerState.playMusicInfo.isTempPlay) {
       void savePlayInfo({
         time: playerState.progress.nowPlayTime,
         maxTime: playerState.progress.maxPlayTime,

@@ -123,6 +123,8 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     if (modules.has(filename)) return modules.get(filename)
     assert.ok(sourceFiles.has(filename), `Unexpected source module: ${filename}`)
     const require = (specifier) => {
+      if (specifier === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true }
+      if (specifier === '@/core/appSession') return {}
       if (Object.hasOwn(dependencies, specifier)) return dependencies[specifier]
       const next = specifier === '@/utils'
         ? join(root, 'src/utils/index.ts')

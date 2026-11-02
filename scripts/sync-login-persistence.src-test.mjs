@@ -27,6 +27,7 @@ const evaluateTsModule = (filename, require) => {
 const loadPersistence = (dataMock = {}) => evaluateTsModule(
   join(root, 'src/utils/syncLoginCredentialPersistence.ts'),
   (specifier) => {
+    if (specifier === '@/core/appSession') return { appSession: { revokeReturn: async() => {} } }
     assert.equal(specifier, '@/utils/data')
     return dataMock
   },

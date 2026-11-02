@@ -121,7 +121,8 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
       return
     }
 
-    if (!await getSyncLoginCompleted()) {
+    const { appSession } = await import('@/core/appSession')
+    if (appSession.pending != null || !await getSyncLoginCompleted()) {
       await pushSyncLoginScreen()
       return
     }

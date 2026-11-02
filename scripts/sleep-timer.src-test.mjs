@@ -345,7 +345,7 @@ test('native bridge requires both methods and the capability, and forwards deadl
       'react-native-track-player': { __esModule: true, default: {}, Capability: {} },
       './volumeFade': math,
     }
-    const utils = load('src/plugins/player/utils.ts', name => deps[name] ?? {})
+    const utils = load('src/plugins/player/utils.ts', name => name === '@/utils/sessionFence' ? { sessionGeneration: () => 0, sessionWritesFrozen: () => false } : deps[name] ?? {})
     assert.equal(utils.isNativeFadeOutSupported, variant === 'supported')
     await utils.startNativeFadeOut(30000, 90000, true, 'request-1')
     await utils.cancelNativeFadeOut()

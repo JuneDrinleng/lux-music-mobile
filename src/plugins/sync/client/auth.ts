@@ -1,13 +1,15 @@
+import { sessionGeneration, sessionWritesFrozen } from '@/utils/sessionFence'
 import { parseServerInfo, versionAtLeast } from '@/utils/serverCheck'
 import { request, generateRsaKey } from './utils'
 import { LuxRequestError } from './userErrors'
 import { createLuxAuthClient } from '@/utils/luxAuthApi'
 import { getSyncAuthKey, setSyncAuthKey } from '../data'
-import { getLuxAuth, getLuxRefreshToken, setLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer, recordSuccessfulLogin } from '@/utils/data'
+import { getLuxAuth, listLuxAuthSessions, getLuxRefreshToken, commitLuxAuth, findLuxAuthForHost, rotateLuxAuth, clearLuxAuthForServer, recordSuccessfulLogin } from '@/utils/data'
 import log from '../log'
 import { luxCredentialRef, syncCredentialRef } from '@/utils/loginCredentialRepository'
 import { luxSpaceId } from '@/utils/dataSpace'
 import type { ActiveSession } from '@/utils/loginSession'
+import type { SessionCandidate } from '@/core/appSession/coordinator'
 import { aesDecrypt, aesEncrypt, rsaDecrypt } from '../utils'
 import { getDeviceName } from '@/utils/nativeModules/utils'
 import { toMD5 } from '@/utils/tools'
@@ -26,12 +28,15 @@ export const recordAuthenticatedLogin = async(keyInfo: LX.Sync.KeyInfo): Promise
 
 export const luxAuthApi = createLuxAuthClient({
   send: request,
+  generation: sessionGeneration,
   getRefreshToken: getLuxRefreshToken,
   find: findLuxAuthForHost,
   rotate: rotateLuxAuth,
   clear: clearLuxAuthForServer,
   expired: (host, previous) => {
-    void import('./sessionExpired').then(async({ showSessionExpiredDialog }) => showSessionExpiredDialog(host, previous))
+    if (sessionWritesFrozen()) return
+    const generation = sessionGeneration()
+    void import('./sessionExpired').then(async({ showSessionExpiredDialog }) => { if (generation === sessionGeneration()) await showSessionExpiredDialog(host, previous) })
   },
 })
 export const requestJson = luxAuthApi.request
@@ -120,7 +125,7 @@ const keyAuth = async(urlInfo: LX.Sync.UrlInfo, keyInfo: LX.Sync.KeyInfo) => {
   })
 }
 
-const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string) => {
+const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string, candidateOnly = false) => {
   const currentKey = credentialStorageKey(serverId, 'lx', '')
   const legacy = await getSyncAuthKey(serverId)
   const codeHash = authCode ? toMD5(`${await getSyncDeviceId()}\n${authCode}`) : ''
@@ -133,14 +138,15 @@ const auth = async(urlInfo: LX.Sync.UrlInfo, serverId: string, authCode?: string
       if (!authCode) throw new Error(SYNC_CODE.missingAuthCode)
       return { ...await codeAuth(urlInfo, authCode), lxAuthCodeHash: codeHash }
     },
-    save: async(info) => setSyncAuthKey(accountKey, info),
+    save: async(info) => { if (!candidateOnly) await setSyncAuthKey(accountKey, info) },
   })
+  if (candidateOnly) return { keyInfo, currentKey, accountKey, serverId }
   await setSyncAuthKey(currentKey, keyInfo)
   await setSyncAuthKey(serverId, keyInfo)
   try {
     authenticatedLogins.set(keyInfo, { provider: 'lx', spaceId: 'local', server: { serverId, url: urlInfo.href }, deviceId: await getSyncDeviceId(), credentialRef: syncCredentialRef(currentKey) })
   } catch { /* Optional metadata/device-ID failure must not fail the old login. */ }
-  return keyInfo
+  return { keyInfo, currentKey, accountKey, serverId }
 }
 
 const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string, clientId?: string) => {
@@ -148,14 +154,20 @@ const getLuxSyncKey = async(urlInfo: LX.Sync.UrlInfo, token: string, clientId?: 
   return requestJson<LX.Sync.KeyInfo>(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/sync/key`, body, token)
 }
 
-export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
+export const authenticateLuxCandidate = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string, expected?: Extract<ActiveSession, { provider: 'lux' }>): Promise<SessionCandidate & { keyInfo: LX.Sync.KeyInfo }> => {
+  const generation = sessionGeneration()
+  const assertCurrent = () => { if (generation !== sessionGeneration()) throw new Error('Session changed') }
   username = username?.trim()
   console.log('lux connect: ', urlInfo.href, username)
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
 
+  if (expected && expected.server.serverId !== serverId) throw new Error('Login identity mismatch')
   let authInfo = await getLuxAuth(serverId)
+  if (username && (!authInfo || authInfo.user.username !== username)) {
+    authInfo = (await listLuxAuthSessions()).find(session => session.serverId === serverId && session.user.username === username) ?? null
+  }
   if (username != null && !password && !canReuseLuxSession(authInfo, username)) {
     throw new Error(global.i18n.t('setting_sync_lux_login_missing_tip'))
   }
@@ -171,6 +183,7 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
   }
   if (!authInfo?.token) throw new Error(SYNC_CODE.luxSessionExpired)
   const session = authInfo
+  if (expected && session.user.id !== expected.account.userId) throw new Error('Login identity mismatch')
   // A reusable socket key does not prove that its bearer session is still valid.
   if (!password) {
     await requestJson(`${urlInfo.httpProtocol}//${urlInfo.hostPath}/api/auth/me`, undefined, session.token).catch((error: unknown) => {
@@ -190,32 +203,40 @@ export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, passwo
       ...await getLuxSyncKey(urlInfo, session.token, previousClientId ?? legacyClientId),
       luxUserId: session.user.id,
     }),
-    save: async(info) => setSyncAuthKey(accountKey, info),
+    save: async() => {},
   }).catch((error: unknown) => {
     if (error instanceof LuxRequestError && error.status == 401) throw new Error(SYNC_CODE.luxSessionExpired)
     throw error
   })
-  await setSyncAuthKey(serverId, keyInfo)
-  // Commit login state after obtaining the matching key, so a failed account
-  // switch cannot leave a new session paired with the previous account's key.
-  const committedSession = !password ? await getLuxAuth(serverId) ?? session : session
-  await setLuxAuth({ ...committedSession, serverId, serverUrl: urlInfo.href })
-  // Resolve first-login import BEFORE opening the socket (lists/history can upload
-  // as soon as it connects). No local-space data is exposed without consent.
-  const { offerLocalImport } = await import('@/utils/accountDataDialogs')
-  const importedProfile = await offerLocalImport({ ...committedSession, serverId, serverUrl: urlInfo.href }, requestJson)
-  if (importedProfile) {
-    const { pushLuxProfileToServer } = await import('./profile')
-    await pushLuxProfileToServer()
-  }
-  authenticatedLogins.set(keyInfo, {
+  const latestSession = !password ? await getLuxAuth(serverId) : null
+  const committedSession = latestSession?.user.id === session.user.id ? latestSession : session
+  if (keyInfo.luxUserId !== session.user.id || committedSession.user.id !== session.user.id) throw new Error('Login identity mismatch')
+  const identity: ActiveSession = {
     provider: 'lux',
-    spaceId: luxSpaceId(serverId, committedSession.user.id) as `lux:${string}:${string}`,
+    spaceId: luxSpaceId(serverId, session.user.id) as `lux:${string}:${string}`,
     server: { serverId, url: urlInfo.href },
-    account: { userId: committedSession.user.id, username: committedSession.user.username, displayName: committedSession.user.displayName },
-    credentialRef: luxCredentialRef(serverId, committedSession.user.id),
-  })
-  return keyInfo
+    account: { userId: session.user.id, username: session.user.username, displayName: session.user.displayName },
+    credentialRef: luxCredentialRef(serverId, session.user.id),
+  }
+  return {
+    keyInfo,
+    identity,
+    prepare: async() => {
+      assertCurrent()
+      await setSyncAuthKey(accountKey, keyInfo)
+      await setSyncAuthKey(serverId, keyInfo)
+      assertCurrent()
+      await commitLuxAuth({ ...committedSession, serverId, serverUrl: urlInfo.href })
+      assertCurrent()
+      const { offerLocalImport } = await import('@/utils/accountDataDialogs')
+      const importedProfile = await offerLocalImport({ ...committedSession, serverId, serverUrl: urlInfo.href }, requestJson)
+      if (importedProfile) {
+        const { pushLuxProfileToServer } = await import('./profile')
+        await pushLuxProfileToServer()
+      }
+    },
+    activate: async() => {},
+  }
 }
 
 export default async(urlInfo: LX.Sync.UrlInfo, authCode?: string) => {
@@ -224,5 +245,34 @@ export default async(urlInfo: LX.Sync.UrlInfo, authCode?: string) => {
   if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
   const serverId = await getServerId(urlInfo)
   if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
-  return auth(urlInfo, serverId, authCode)
+  return (await auth(urlInfo, serverId, authCode)).keyInfo
+}
+
+export const authLux = async(urlInfo: LX.Sync.UrlInfo, username?: string, password?: string) => {
+  const generation = sessionGeneration()
+  const candidate = await authenticateLuxCandidate(urlInfo, username, password)
+  if (sessionWritesFrozen() || generation !== sessionGeneration()) throw new Error('Session changed')
+  await candidate.prepare()
+  authenticatedLogins.set(candidate.keyInfo, candidate.identity)
+  return candidate.keyInfo
+}
+
+export const authenticateLxCandidate = async(urlInfo: LX.Sync.UrlInfo, authCode?: string): Promise<SessionCandidate & { keyInfo: LX.Sync.KeyInfo }> => {
+  const generation = sessionGeneration()
+  const assertCurrent = () => { if (generation !== sessionGeneration()) throw new Error('Session changed') }
+  if (!await hello(urlInfo)) throw new Error(SYNC_CODE.connectServiceFailed)
+  const serverId = await getServerId(urlInfo)
+  if (!serverId) throw new Error(SYNC_CODE.getServiceIdFailed)
+  const { keyInfo, currentKey, accountKey } = await auth(urlInfo, serverId, authCode, true)
+  return {
+    keyInfo,
+    identity: { provider: 'lx', spaceId: 'local', server: { serverId, url: urlInfo.href }, deviceId: await getSyncDeviceId(), credentialRef: syncCredentialRef(currentKey) },
+    prepare: async() => {
+      assertCurrent()
+      await setSyncAuthKey(accountKey, keyInfo)
+      await setSyncAuthKey(currentKey, keyInfo)
+      await setSyncAuthKey(serverId, keyInfo)
+    },
+    activate: async() => {},
+  }
 }

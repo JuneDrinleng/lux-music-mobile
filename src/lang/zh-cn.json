@@ -1918,5 +1918,8 @@
   "import_lux_sort_hint": "按歌单 ID 中的创建时间排序；时间未知的歌单放在末尾。",
   "import_lux_available": "{num} 首可导入",
   "import_lux_done": "已导入 {num} 首歌曲",
-  "import_lux_choose": "选择其他歌单"
+  "import_lux_choose": "选择其他歌单",
+  "login_gate_paused": "切换期间播放和下载已暂停",
+  "login_gate_pause_failed": "无法暂停播放，请重试",
+  "login_gate_leave_failed": "未能离开一起听，请重试"
 }

@@ -1,3 +1,4 @@
+import { sessionWritesFrozen } from '@/utils/sessionFence'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { retryDelayMs } from '@/utils/syncStatus'
@@ -79,7 +80,7 @@ const heartbeatTools = {
     // })
 
     this.delayRetryTimeout = setTimeout(() => {
-      if (client !== socket || getSession()?.id != sessionId) return
+      if (sessionWritesFrozen() || client !== socket || getSession()?.id != sessionId) return
       this.delayRetryTimeout = null
       console.log(dateFormat(new Date()), 'reconnect...')
       sendSyncStatus({
@@ -344,6 +345,7 @@ export const disconnect = async() => {
 }
 
 export const reconnectNow = (): boolean => {
+  if (sessionWritesFrozen()) return false
   if (!client) return false
   const { urlInfo, keyInfo } = client.data
   sendSyncStatus({ status: false, message: SYNC_CODE.connecting, attempts: heartbeatTools.failedNum })

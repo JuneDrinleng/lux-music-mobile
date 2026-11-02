@@ -1,3 +1,4 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
@@ -25,8 +26,7 @@ import { parseServerInfo, type ServerInfo } from '@/utils/serverCheck'
 import { luxAuthApi, requestJson } from '@/plugins/sync/client/auth'
 import { connectLuxServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
-import { updateSetting } from '@/core/common'
-import { findLuxAuthForHost, addSyncHostHistory, setSyncHost, setSyncMode, setSyncLoginCompleted } from '@/utils/data'
+import { findLuxAuthForHost, setSyncHost, setSyncMode, addSyncHostHistory, setSyncLoginCompleted } from '@/utils/data'
 import { completeOnboarding } from '@/utils/onboarding'
 import { navigations } from '@/navigation'
 
@@ -115,10 +115,13 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     setMessage('')
     try {
       if (page === 'register') await luxAuthApi.register(host, form)
-      await setSyncMode('lux')
-      await setSyncHost(host)
+      if (!isSessionCoordinatorEnabled()) {
+        await setSyncMode('lux')
+        await setSyncHost(host)
+        const { updateSetting } = await import('@/core/common')
+        updateSetting({ 'sync.enable': true })
+      }
       await addSyncHostHistory(host)
-      updateSetting({ 'sync.enable': true })
       // connectLuxServer commits the session and activates its account data space.
       // Recheck ownership at submit time; a different username cannot reuse this session.
       const saved = await findLuxAuthForHost(host)
@@ -127,11 +130,14 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
       await rememberSyncLoginForm({ host, mode: 'lux', luxUsername: form.username.trim() })
       await syncLuxProfileOnLogin(host).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       if (onboarding) await completeOnboarding()
-      await setSyncLoginCompleted(true)
-      await navigations.pushHomeScreen()
+      if (!isSessionCoordinatorEnabled()) {
+        await setSyncLoginCompleted(true)
+        await navigations.pushHomeScreen()
+      }
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {
+      setForm(previous => ({ ...previous, password: '', confirm: '' }))
       if (error instanceof Error && error.message === SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(host)
       else setMessage(error instanceof Error ? error.message : String(error))
     } finally {

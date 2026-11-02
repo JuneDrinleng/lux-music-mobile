@@ -13,6 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -261,9 +262,12 @@ test('mock server: invite valid/invalid/used, username taken, mismatch, success 
     screen.find('PrimaryButton').props.onPress(); await delay(30); screen.render()
     assert.ok(screen.nodes().some(node => node.props?.children === 'Username taken'))
     assert.equal(screen.events.some(([event]) => event === 'login'), false)
-    screen.find('UnderlineInput', '用户名').props.onChangeText('xiaolin'); screen.render()
+    screen.find('UnderlineInput', '用户名').props.onChangeText('xiaolin')
+    assert.equal(screen.find('UnderlineInput', '密码').props.value, '')
+    screen.find('UnderlineInput', '密码').props.onChangeText('password')
+    screen.find('UnderlineInput', '再输一次').props.onChangeText('password'); screen.render()
     screen.find('PrimaryButton').props.onPress(); await delay(30); screen.render()
-    assert.deepEqual(screen.events.slice(-3), [['login', host, 'xiaolin', 'password'], ['complete'], ['home']])
+    assert.deepEqual(screen.events.slice(-2), [['login', host, 'xiaolin', 'password'], ['complete']])
     screen.find('BackButton').props.onPress(); screen.render()
     screen.find('TextButton', '忘记密码？').props.onPress(); screen.render()
     screen.find('PrimaryButton').props.onPress()

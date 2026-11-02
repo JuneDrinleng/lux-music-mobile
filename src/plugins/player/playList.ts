@@ -1,3 +1,4 @@
+import { sessionWritesFrozen, sessionGeneration } from '@/utils/sessionFence'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import TrackPlayer, { State } from 'react-native-track-player'
@@ -36,7 +37,7 @@ const playGaplessMusic = async(musicInfo: LX.Player.PlayMusic, url: string, time
   if (global.lx.restorePlayInfo) {
     await TrackPlayer.pause()
     global.lx.restorePlayInfo = null
-  } else await TrackPlayer.play()
+  } else if (!sessionWritesFrozen()) await TrackPlayer.play()
   if (index > 0) await TrackPlayer.remove(Array.from({ length: index }, (_, i) => i))
 }
 
@@ -214,14 +215,14 @@ const handlePlayMusic = async(musicInfo: LX.Player.PlayMusic, url: string, time:
         // startupAutoPlay is handled in core/init/player/playInfo.ts after restore.
         global.lx.restorePlayInfo = null
       } else {
-        await TrackPlayer.play()
+        if (!sessionWritesFrozen()) await TrackPlayer.play()
       }
     }
   } else {
     await TrackPlayer.pause()
     if (!isTempTrack(track.id as string)) {
       await TrackPlayer.seekTo(time)
-      await TrackPlayer.play()
+      if (!sessionWritesFrozen()) await TrackPlayer.play()
     }
   }
 
@@ -232,9 +233,10 @@ const handlePlayMusic = async(musicInfo: LX.Player.PlayMusic, url: string, time:
 let playPromise = Promise.resolve()
 let actionId = Math.random()
 export const playMusic = (musicInfo: LX.Player.PlayMusic, url: string, time: number) => {
+  const generation = sessionGeneration()
   const id = actionId = Math.random()
   void playPromise.finally(() => {
-    if (id != actionId) return
+    if (sessionWritesFrozen() || generation !== sessionGeneration() || id != actionId) return
     playPromise = handlePlayMusic(musicInfo, url, time)
   })
 }
@@ -372,3 +374,18 @@ export const delayUpdateMusicInfo = debounceUpdateMetaInfoTools.init()
 //   console.log('+++++delayUpdateMusicPic+++++', track.artwork)
 //   updateMetaInfo(track)
 // })
+
+/** A native reset must also discard the JS track tail and notification ownership. */
+export const clearSessionPlayerQueue = () => {
+  list.splice(0, list.length)
+  nativeQueue = false
+  state.isPlaying = false
+  state.prevDuration = -1
+  global.lx.playerTrackId = ''
+  global.lx.gettingUrlId = ''
+}
+
+export const quiesceSessionPlayer = async(): Promise<void> => {
+  actionId = Math.random()
+  await playPromise.catch(() => {})
+}

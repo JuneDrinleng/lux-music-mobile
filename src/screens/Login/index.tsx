@@ -1,3 +1,4 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -18,7 +19,6 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
-import { setSyncMode } from '@/utils/data'
 import { enterLocalSpace } from '@/utils/enterLocalSpace'
 import { completeOnboarding } from '@/utils/onboarding'
 import ServerStep from './ServerStep'
@@ -64,9 +64,8 @@ export default memo(({ componentId }: { componentId: string }) => {
     setConfirming(true)
     try {
       await enterLocalSpace(t('sync_login_local_user_name'))
-      await setSyncMode('lux')
       await completeOnboarding()
-      await navigations.pushHomeScreen()
+      if (!isSessionCoordinatorEnabled()) await navigations.pushHomeScreen()
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {
