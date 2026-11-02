@@ -35,9 +35,9 @@ const COVER_TRANSITION_DURATION = 280
 /** Eyebrow marginTop 10 + nominal 14pt line (11pt font, native metrics) + top gap 24. */
 const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
-/** Keep the pre-three-line disc budget; extra lyric height uses spare space below the preview. */
+/** Keep the pre-three-line disc budget; actual preview height is measured independently. */
 const PLAYER_RESERVED_LYRIC = 124
-/** Keep the pre-three-line disc budget (actual lyric gap can relax to 12). */
+/** Record-to-title 30 + title-to-lyrics 18 + fixed lyrics-to-transport 18. */
 const PLAYER_RESERVED_GAPS = 30 + 18 + 18
 const PLAYER_DISC_MIN = 200
 
@@ -542,7 +542,7 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     textTransform: 'uppercase',
     marginTop: 10,
   },
-  /** Keep the #165 top / record weights; the lyric gap also absorbs spare height. */
+  /** Only the gaps above / below the record share spare height, at the #165 ratio of 2:1. */
   flexGapSm: {
     flexGrow: 2,
     flexShrink: 0,
@@ -559,9 +559,9 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     minHeight: 18,
   },
   flexGapLyric: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
-    minHeight: 12,
+    minHeight: 18,
   },
   recordWrap: {
     alignSelf: 'center',

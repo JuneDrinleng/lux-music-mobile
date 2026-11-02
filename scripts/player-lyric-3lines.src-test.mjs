@@ -113,6 +113,7 @@ test('only foreground consecutive advances animate; cancellation and completion 
 test('three-line preview keeps its full height independently of the historical disc budget', () => {
   const pic = readFileSync(new URL('../src/screens/PlayDetail/Vertical/Pic.tsx', import.meta.url), 'utf8')
   assert.match(pic, /const PLAYER_RESERVED_LYRIC = 124\b/)
+  assert.match(pic, /flexGapLyric: \{\s*flexGrow: 0,\s*flexShrink: 0,\s*minHeight: 18,\s*\}/)
   const h = harness()
   const lines = [{ text: 'current', translation: 'translation', roma: 'roma' }]
   const props = { lines, index: 0, active: true, onPress() {} }
