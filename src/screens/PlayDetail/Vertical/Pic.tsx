@@ -32,11 +32,13 @@ const TONEARM_PIVOT_Y = 15
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
 /** Non-record content above the pinned transport (eyebrow / title / lyrics + min gaps). */
-const PLAYER_RESERVED_ABOVE = 38
+/** Eyebrow marginTop 10 + nominal 14pt line (11pt font, native metrics) + top gap 24. */
+const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
+/** Conservative lyric content allowance; the extra 14 is not the external flexGapLyric. */
 const PLAYER_RESERVED_LYRIC = 110 + 14
 /** Min flex gaps: after record / title / lyric. */
-const PLAYER_RESERVED_GAPS = 30 + 18 + 14
+const PLAYER_RESERVED_GAPS = 30 + 18 + 18
 const PLAYER_DISC_MIN = 200
 
 const sourceShortKey = (source: string): keyof Message => {
@@ -540,11 +542,11 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     textTransform: 'uppercase',
     marginTop: 10,
   },
-  /** Absorb leftover height so the control row sits near the bottom on tall screens. */
+  /** Split leftover height 2:1 above / below the record; title and lyric gaps stay fixed. */
   flexGapSm: {
-    flexGrow: 1,
+    flexGrow: 2,
     flexShrink: 0,
-    minHeight: 8,
+    minHeight: 24,
   },
   flexGapRecord: {
     flexGrow: 1,
@@ -552,14 +554,14 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     minHeight: 30,
   },
   flexGapTitle: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
     minHeight: 18,
   },
   flexGapLyric: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
-    minHeight: 14,
+    minHeight: 18,
   },
   recordWrap: {
     alignSelf: 'center',
