@@ -16,12 +16,12 @@ const constant = name => {
   return runInNewContext(match[1])
 }
 
-test('vertical player keeps the lowered record and a flexible lyric gap with a safe minimum', () => {
+test('vertical player shares spare height only around the record and fixes the lyric gap at 18', () => {
   for (const [name, grow, min] of [
     ['flexGapSm', 2, 24],
     ['flexGapRecord', 1, 30],
     ['flexGapTitle', 0, 18],
-    ['flexGapLyric', 1, 12],
+    ['flexGapLyric', 0, 18],
   ]) {
     const gap = style(name)
     assert.equal(gap.flexGrow, grow, name)
