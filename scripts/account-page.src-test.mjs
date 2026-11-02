@@ -114,7 +114,7 @@ const renderAccount = ({ server = true, failSave = false, saveWait } = {}) => {
       if (!old || deps.some((value, j) => value !== old.deps[j])) effects[i] = { deps, effect, pending: true, cleanup: old?.cleanup }
     },
   }
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const screen = load('src/screens/Account/AccountPage.tsx', {
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
@@ -300,7 +300,7 @@ const renderDataDialog = kind => {
     useRef: initial => { const index = cursor++; return slots[index] ??= { current: initial } },
     useEffect() {},
   }
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const component = load('src/navigation/components/AccountDataDialog.tsx', {
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,

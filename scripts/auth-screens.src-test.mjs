@@ -173,7 +173,7 @@ const renderScreen = (client, host, connect) => {
       if (!previous || !deps || deps.some((value, i) => value !== previous.deps?.[i])) effects[index] = { deps, effect, cleanup: previous?.cleanup, pending: true }
     },
   }
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const events = []
   const screen = load('src/screens/Login/AuthFlow.tsx', {
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },

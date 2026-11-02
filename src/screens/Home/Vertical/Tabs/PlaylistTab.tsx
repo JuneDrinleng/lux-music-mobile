@@ -1,6 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsSubpage } from '@/components/common/SettingsPage'
+import { SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
 // Lux Proprietary
 import { type ImportCandidate, buildLocalCandidates } from '@/utils/playlistImport/local'
 import SmartPlaylistEditor, { newSmartPlaylist } from '@/components/playlist/SmartPlaylistEditor'
@@ -202,7 +202,7 @@ export default () => {
   const [searchText, setSearchText] = useState('')
   const [searchSource, setSearchSource] = useState<SourceMenu['action']>('all')
   const [isSourceMenuVisible, setSourceMenuVisible] = useState(false)
-  const { page: isSearchMode, setPage: setSearchMode, style: searchPageStyle } = useSettingsSubpage(false)
+  const { page: isSearchMode, pages: searchPages, setPage: setSearchMode, style: searchPageStyle } = useSettingsSubpage(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
@@ -1482,9 +1482,7 @@ export default () => {
   const searchAssistList = useMemo(() => {
     return searchAssistKeyword ? searchTipList : searchHistoryList
   }, [searchAssistKeyword, searchHistoryList, searchTipList])
-  if (isSearchMode) {
-    return (
-      <Animated.View style={[{ flex: 1 }, searchPageStyle]}><PlaylistSearchScene
+  const searchScene = <PlaylistSearchScene
         styles={styles}
         t={t}
         statusBarHeight={statusBarHeight}
@@ -1524,9 +1522,7 @@ export default () => {
         onClearSearchHistoryList={handleClearSearchHistoryList}
         onPickSearchKeyword={handlePickSearchKeyword}
         onRemoveSearchHistoryItem={handleRemoveSearchHistoryItem}
-      /></Animated.View>
-    )
-  }
+      />
 
   const profileHeroCard = (
     <View style={{ marginTop: 18, marginBottom: 22 }}>
@@ -1689,7 +1685,7 @@ export default () => {
   const shouldRenderDetailScene = Boolean(selectedOnlineDetail ?? selectedListInfo)
 
   return (
-    <View style={styles.sceneRoot}>
+    <SettingsSubpage pages={searchPages} style={searchPageStyle}>{search => search ? searchScene : <View style={styles.sceneRoot}>
       {smartDraft ? <SmartPlaylistEditor initial={smartDraft} onClose={() => { setSmartDraft(null) }} /> : null}
       <Animated.View
         pointerEvents={shouldRenderDetailScene ? 'none' : 'auto'}
@@ -1713,7 +1709,7 @@ export default () => {
             </Animated.View>
           </>
         : null}
-    </View>
+    </View>}</SettingsSubpage>
   )
 }
 

@@ -2,7 +2,7 @@
 
 import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity, View } from 'react-native'
 import ImagePicker from 'react-native-image-crop-picker'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
@@ -20,7 +20,7 @@ import { saveEditedProfile } from '@/plugins/sync/client/profile'
 import { findLuxAuthForHost, getUserAvatarDataUrl, getUserGender, getUserSignature } from '@/utils/data'
 import { getActiveSpace, listSpaces } from '@/utils/dataSpace'
 import { accountRows, createSessionService, relativeActivity, type AccountSession } from '@/utils/accountPage'
-import { useSettingsBack, useSettingsSubpage } from '@/components/common/SettingsPage'
+import { SettingsSubpage, useSettingsBack, useSettingsSubpage } from '@/components/common/SettingsPage'
 import AccountSpaces from './AccountSpaces'
 import ChangePassword from '@/screens/Login/ChangePassword'
 
@@ -39,7 +39,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const { page, setPage, style: pageStyle } = useSettingsSubpage<'account' | 'edit' | 'devices' | 'password' | 'spaces'>('account')
+  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<'account' | 'edit' | 'devices' | 'password' | 'spaces'>('account')
   const [session, setSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [sessions, setSessions] = useState<AccountSession[] | null>(null)
   const [others, setOthers] = useState('')
@@ -146,8 +146,9 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     <UnderlineInput accessibilityLabel={label} value={value} onChangeText={onChangeText} maxLength={maxLength} editable={!readOnly && !busy} autoCorrect={false} style={{ fontWeight: '400', borderBottomWidth: 1.5, borderBottomColor: r.ink }} />
     <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text>
   </View>
-  const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
-  return <Animated.View style={[{ flex: 1 }, pageStyle]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const renderPage = (page: typeof pages[number]) => {
+    const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
+    return <KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
     {page === 'edit' ? <View style={styles.content}>
       <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
@@ -209,7 +210,9 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
     </FocusVisibleScrollView>
     {page === 'password' && session ? <ChangePassword host={host.replace(/\/+$/, '')} session={session} onBack={() => { setPage('account'); void run(refreshSessions) }} /> : null}
-  </KeyboardAvoidingView></Animated.View>
+  </KeyboardAvoidingView>
+  }
+  return <SettingsSubpage pages={pages} style={pageStyle}>{renderPage}</SettingsSubpage>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({

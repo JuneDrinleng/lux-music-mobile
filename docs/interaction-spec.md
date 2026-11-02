@@ -64,7 +64,8 @@
 
 - 独立二级页：持久渲染 `<SettingsPage visible={...} onBack={...} bottomInset={...}>`，其 children 为接收 `back` 的函数。页内返回必须调用这个 `back`；组件保留退出内容，在动画完成后调用 onBack 并卸载。父层主动设置 visible=false 时也保留最后一帧内容到退出结束。
 - 已有独立挂载的页面（音效）：`useSettingsTransition()` 提供 `style` 与 `requestClose`；用 `requestClose(onBack)`，完成后才通知 host 卸载。
-- 内部状态子页：`useSettingsSubpage(root)` 提供 page / setPage / style。前进时右侧进入，退回 root 时先完整退出当前内容，再恢复父页。重复设置当前页不触发动画。管理员的栈回退通过同一 `useSettingsTransition(false)` 实现。
+- 内部状态子页：`useSettingsSubpage(root)` 提供 page / pages / setPage / style，配合 `<SettingsSubpage pages={pages} style={style}>{page => …}</SettingsSubpage>` 渲染整个祖先栈。前进时保留父页的原生视图、滚动位置和组件实例，新页叠在上方；只给最顶层子页施加共享过渡，祖先页保持完整不透明、原位可见，不使用条件卸载、display:none 或 opacity=0。返回按钮、三键和系统边缘返回手势走同一 requestClose，248ms 结束后才移除出栈页；返回到任一已有祖先均适用，连续返回不重复出栈，每次完成后解除共享 closing 防重入锁，下一层仍能正常退出。初始深链也渲染根父页；独立登录/引导 enabled=false 仍即时切换。管理员沿用自己的 routeStack / useSettingsTransition(false)，同样交给 SettingsSubpage 渲染，不再只渲染当前 route。
+- SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定。资料编辑标题右侧勾按钮及各功能入口位置不变。
 - 已有自己的返回拦截的内容传 `hardwareBack={false}`，由内容把按钮和硬件返回汇入同一个回调。无自定义逻辑时使用 SettingsPage 默认硬件返回处理。
 - 重复返回合并；再次打开会使旧的退出回调失效；卸载时停止动画并使未完成的回调失效。
 
@@ -141,7 +142,7 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 
 ## 维护与验证
 
-`settings-navigation.src-test.mjs` 审核设置入口清单，检查全部选项 renderer 位于 SettingsPage，屏幕挂载与下级页引用公共 helper，横竖屏均衡器 host 均存在；新增入口或绕过 helper 应让测试失败，更新审计后才能修改清单。该文件还用真实 helper 和可控动画时钟验证按钮/硬件返回的参数、延迟卸载、重复返回、重新打开取消旧回调及子页恢复。
+`settings-navigation.src-test.mjs` 审核设置入口清单，检查全部选项 renderer 位于 SettingsPage，屏幕挂载与下级页引用公共 helper，横竖屏均衡器 host 均存在；新增入口或绕过 helper 应让测试失败，更新审计后才能修改清单。该文件还用真实 helper 和可控动画时钟验证按钮/硬件返回的参数、延迟卸载、重复返回、重新打开取消旧回调及子页恢复；多层叠栈断言覆盖打开/返回中间帧的祖先视图、背景/位置/可见性、触摸与无障碍隔离、初始深链、连续逐层退出和取消过期回调。
 
 每次改导航后运行 `node scripts/run-src-unit-tests.mjs`、改动文件 eslint、TypeScript 基线差异检查。静态与模拟时钟不替代真机：仍需 Android 按钮/手势返回、快速连点、键盘、旋转、长内容及 Dock 点击的设备验证。
 
