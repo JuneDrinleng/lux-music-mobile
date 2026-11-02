@@ -101,13 +101,14 @@ const base = {
   '@/utils/tools': { createStyle: value => value },
 }
 
-test('6.3 preview renders two lines, independent pills, unavailable disabled state, and lyric navigation in all locales', () => {
+test('6.3 preview renders three lines, independent pills, unavailable disabled state, and lyric navigation in all locales', () => {
   for (const lang of ['zh-cn', 'zh-tw', 'en-us']) {
     const locale = JSON.parse(read(`src/lang/${lang}.json`))
     const values = []; let cursor = 0; let opened = 0
     const component = load('src/components/lyric/LyricPreview.tsx', {
       ...base,
-      react: { memo: value => value, useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in values)) values[index] = initial; return [values[index], fn => { values[index] = fn(values[index]) }] } },
+      'react-native': { ...base['react-native'], Animated: { View: 'AnimatedView', Value: class { constructor(value) { this.value = value } } } },
+      react: { useLayoutEffect: () => {}, useRef: value => ({ current: value }), memo: value => value, useMemo: fn => fn(), useState: initial => { const index = cursor++; if (!(index in values)) values[index] = initial; return [values[index], fn => { values[index] = fn(values[index]) }] } },
       '@/lang': { useI18n: () => key => { assert.ok(locale[key]); return locale[key] } },
       '@/plugins/lyricWords': math,
       './KaraokeLine': { default: 'KaraokeLine' },
@@ -117,7 +118,7 @@ test('6.3 preview renders two lines, independent pills, unavailable disabled sta
     let nodes = render()
     const text = nodes => nodes.filter(node => node.type === 'Text').map(node => node.props.children)
     const pills = () => nodes.filter(node => node.type === 'SecondaryButton')
-    assert.deepEqual(text(nodes).slice(0, 2), ['translated', 'next'])
+    assert.deepEqual(text(nodes).slice(0, 3), ['', 'translated', 'next'])
     assert.equal(nodes.find(node => node.type === 'KaraokeLine').props.line.text, 'current')
     nodes.find(node => node.type === 'TouchableOpacity').props.onPress(); assert.equal(opened, 1)
     pills()[1].props.onPress(); nodes = render(); assert.ok(text(nodes).includes('romaji'))

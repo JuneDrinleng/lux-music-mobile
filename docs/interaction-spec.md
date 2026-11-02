@@ -245,3 +245,5 @@ L1 页面规则：
 - 页面按钮与 Android 返回共用同一回调：IME 先收起 → 原生确认/导入等弹层 → 历史/管理/注册/帮助子页 → 表单/本地确认 → 主态。主态返回不隐式激活账号；主动切换用明确的「取消切换，返回账号」。失效/退出/清原凭据无在线取消资格；离线查看与本地使用分别显示。
 - 认证阶段可显式取消，迟到响应不得准备空间/提交身份；空间准备与提交临界区不可取消。失败保留 Gate 与原数据，不跳 Main。成功、取消和离线查看均保持暂停，不自动播放/入房/恢复下载。
 - 全部输入使用 FocusVisibleScrollView/Action；Android 只用系统 resize，不重复减键盘高度；iOS 沿 KeyboardAvoidingView padding。返回期间保持祖先不透明，隐藏页不抢系统返回。注册提交也参与焦点动作可见性。
+
+竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。前台且同一歌词数组连续前进一句时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；跳句、倒退、歌词数组替换、active=false 或重回前台均直接定位并停止旧动画。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`。

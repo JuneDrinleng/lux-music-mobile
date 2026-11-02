@@ -35,8 +35,8 @@ const COVER_TRANSITION_DURATION = 280
 /** Eyebrow marginTop 10 + nominal 14pt line (11pt font, native metrics) + top gap 24. */
 const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
-/** Conservative lyric content allowance; the extra 14 is not the external flexGapLyric. */
-const PLAYER_RESERVED_LYRIC = 110 + 14
+/** Three fixed rows + both optional extras + actions (8 gap / 44 touch height). */
+const PLAYER_RESERVED_LYRIC = 22 + 28 + 22 + 18 + 18 + 8 + 44
 /** Min flex gaps: after record / title / lyric. */
 const PLAYER_RESERVED_GAPS = 30 + 18 + 18
 const PLAYER_DISC_MIN = 200
@@ -86,7 +86,7 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
 
   const currentLyric = lyricLines[line]?.text ?? ''
   const nextLyric = lyricLines[line + 1]?.text ?? ''
-  const hasLyricPreview = Boolean(currentLyric || nextLyric)
+  const hasLyricPreview = Boolean(lyricLines[line - 1]?.text || currentLyric || nextLyric)
 
   const discSize = useMemo(() => {
     const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
