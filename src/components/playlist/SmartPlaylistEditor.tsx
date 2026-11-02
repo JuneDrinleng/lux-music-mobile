@@ -1,8 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useBottomPopupTransition } from '@/components/common/bottomPopupTransition'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Animated, FlatList, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Animated, useWindowDimensions, FlatList, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import { SubpageSurface } from '@/components/common/SubpageSurface'
 import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
 import Text from '@/components/common/Text'
@@ -29,7 +29,8 @@ export const newSmartPlaylist = (name: string): SmartPlaylistDefinition => ({
 
 type Picker = { kind: 'field' | 'operator' | 'value', index: number } | { kind: 'sort' | 'preview' }
 export default ({ initial, onClose: finishClose }: { initial: SmartPlaylistDefinition, onClose: () => void }) => {
-  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const { height } = useWindowDimensions()
+  const { style: pageStyle, requestClose, backdropOpacity } = useBottomPopupTransition(height, 'modal', true)
   const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const { colors } = useLuxTheme()
@@ -84,7 +85,7 @@ export default ({ initial, onClose: finishClose }: { initial: SmartPlaylistDefin
     return `${item.value}${item.field == 'playCount' ? label('times') : item.operator == 'withinDays' || item.operator == 'notWithinDays' ? label('days') : item.field == 'duration' ? label('seconds') : ''}`
   }
   const pill = (text: string, action: () => void, accessibilityLabel = text) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }} style={styles.pill} onPress={action}><Text size={13} color={r.ink} numberOfLines={1} style={{ fontWeight: '700' }}>{text}</Text></TouchableOpacity>
-  return <Modal transparent visible animationType="none" onRequestClose={onClose}><Animated.View style={[{ flex: 1 }, pageStyle]}>
+  return <Modal transparent visible animationType="none" onRequestClose={onClose}><Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.shadow.black, opacity: backdropOpacity }} /><Animated.View style={[{ flex: 1 }, pageStyle]}>
     <SubpageSurface coversDock style={[styles.root, { paddingTop: status }]}>
       <FocusVisibleScrollView contentContainerStyle={styles.page}>
         <MagTopBar onBack={onClose} trailing={<FocusVisibleAction><TextButton compact label={label('save')} disabled={!valid || saving} onPress={() => { void save() }} /></FocusVisibleAction>} />

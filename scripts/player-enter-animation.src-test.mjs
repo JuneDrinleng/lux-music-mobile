@@ -17,7 +17,7 @@ const load = (file, modules) => {
   }, module, module.exports)
   return module.exports
 }
-const harness = () => {
+export const harness = () => {
   let cursor = 0; let effects = []
   const slots = []; const animations = []; const listeners = new Map(); const closes = new Map()
   const common = { bgPic: 'original-cover', componentIds: {} }
@@ -31,12 +31,17 @@ const harness = () => {
     memo: fn => fn,
     useRef(value) { const index = cursor++; return slots[index] ??= { current: value } },
     useState(value) { const index = cursor++; slots[index] ??= { value }; return [slots[index].value, next => { slots[index].value = next }] },
-    useMemo: fn => fn(), useCallback: fn => fn, useEffect: effect, useLayoutEffect: effect,
+    useMemo(fn, deps) {
+      const index = cursor++; const prev = slots[index]
+      if (!prev || deps.some((dep, i) => dep !== prev.deps[i])) slots[index] = { deps, value: fn() }
+      return slots[index].value
+    },
+    useCallback(fn, deps) { return react.useMemo(() => fn, deps) }, useEffect: effect, useLayoutEffect: effect,
   }
   let hardware; let appear; let disappear; let pops = 0; let resolvePop
   const modules = {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { View: 'View', Easing: { cubic: 'cubic', back: n => ['back', n], out: curve => ['out', curve] }, Animated: {
+    'react-native': { NativeModules: { UtilsModule: { modalSlideDuration: 173 } }, View: 'View', Easing: { cubic: 'cubic', back: n => ['back', n], out: curve => ['out', curve] }, Animated: {
       View: 'AnimatedView', Value: class {
         constructor(value) { this.value = value }
         setValue(value) { this.value = value }
@@ -71,11 +76,13 @@ const harness = () => {
   }
   for (const path of ['./Vertical', './Horizontal', '@/components/PageContent', '@/components/common/StatusBar', '@/screens/Home/Vertical/PlayQueueSheet']) modules[path] = { default: path, __esModule: true }
   modules['./context'] = { PlayDetailContext: { Provider: 'Provider' } }
+  const bottom = load('src/components/common/bottomPopupTransition.ts', modules)
+  modules['@/components/common/bottomPopupTransition'] = bottom
   const api = load(overlayFile, modules).default
   const player = load(playerFile, modules).default
   const event = { on: (name, fn) => listeners.set(name, fn), off: name => listeners.delete(name) }
   return {
-    animations, common, closes, player,
+    animations, common, closes, player, bottom,
     render(fn = () => api({ componentId: 'home' })) {
       cursor = 0
       const saved = global.app_event; global.app_event = event

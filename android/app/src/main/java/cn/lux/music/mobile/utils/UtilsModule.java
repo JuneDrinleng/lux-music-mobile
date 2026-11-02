@@ -46,6 +46,8 @@ import com.facebook.react.bridge.WritableNativeArray;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -77,6 +79,14 @@ public class UtilsModule extends ReactContextBaseJavaModule {
   @Override
   public String getName() {
     return "UtilsModule";
+  }
+
+  // Match React Native Modal's catalyst_slide_up/down resource on this device.
+  @Override
+  public Map<String, Object> getConstants() {
+    Map<String, Object> constants = new HashMap<>();
+    constants.put("modalSlideDuration", reactContext.getResources().getInteger(android.R.integer.config_shortAnimTime));
+    return constants;
   }
 
   @ReactMethod

@@ -1,8 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useBottomPopupTransition } from '@/components/common/bottomPopupTransition'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import { Animated, FlatList, Keyboard, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Animated, useWindowDimensions, FlatList, Keyboard, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
 import { renderFocusVisibleScroll } from '@/components/common/FocusVisibleScrollView'
@@ -38,7 +38,8 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
   onImported?: (id: string) => void
   local?: { render: (header: ReactElement) => ReactElement, footer: ReactElement, submitting: boolean }
 }) {
-  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const { height } = useWindowDimensions()
+  const { style: pageStyle, requestClose, backdropOpacity } = useBottomPopupTransition(height, 'modal', true)
   const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const styles = useStyles()
@@ -170,7 +171,7 @@ export default function PlaylistImportFlow({ initialTab, targetListId, targetLis
           </> : null}
           {error ? <Text accessibilityRole="alert" size={12} color={r.danger} style={{ marginTop: 8 }}>{error}</Text> : null}
         </>
-  return <Modal transparent visible animationType="none" onRequestClose={close}><Animated.View style={[{ flex: 1 }, pageStyle]}>
+  return <Modal transparent visible animationType="none" onRequestClose={close}><Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.shadow.black, opacity: backdropOpacity }} /><Animated.View style={[{ flex: 1 }, pageStyle]}>
     <SubpageSurface coversDock style={[styles.root, { paddingTop: statusBar }]}>
       {tab === 'lux' && local ? local.render(header) : <FlatList
         renderScrollComponent={renderFocusVisibleScroll}
