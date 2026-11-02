@@ -6,19 +6,28 @@ import { useTimeoutExitTimeInfo } from '@/core/player/timeoutExit'
 import { sleepTimerPill } from '@/core/player/sleepTimerOptions'
 import { useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
+import { setSpText } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
+import { estimateTimerLabelWidth, shouldCompactSleepTimer } from './playerChromeLayout'
 import SleepTimerSheet from './SleepTimerSheet'
 
-export default () => {
+export default ({ layout }: { layout?: { windowWidth: number, tabsWidth: number, shareWidth: number, gutter: number } } = {}) => {
   const [visible, setVisible] = useState(false)
   const info = useTimeoutExitTimeInfo()
   const { colors } = useLuxTheme()
   const t = useI18n()
   const pill = sleepTimerPill(info.time, info.isPlayedStop)
+  const compact = layout ? shouldCompactSleepTimer({
+    ...layout,
+    active: !!pill,
+    fullPillWidth: estimateTimerLabelWidth(pill, setSpText(13)) + 20 + 3,
+    minGap: 8,
+  }) : false
+  const showPill = !!pill && !compact
   return (
     <>
       <TouchableOpacity
-        style={[styles.button, pill ? { borderWidth: 1.5, borderColor: colors.ink.strong, paddingHorizontal: 10 } : { width: 28 }]}
+        style={[styles.button, showPill ? { borderWidth: 1.5, borderColor: colors.ink.strong, paddingHorizontal: 10 } : { width: 28 }]}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -26,7 +35,7 @@ export default () => {
         accessibilityState={{ selected: !!pill }}
         onPress={() => { setVisible(true) }}
       >
-        {pill
+        {showPill
           ? <Text size={13} color={colors.ink.strong} style={styles.label}>{pill}</Text>
           : <MdiIcon name="weather-night" size={22} color={colors.ink.strong} />}
       </TouchableOpacity>

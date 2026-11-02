@@ -419,6 +419,8 @@ const uiFixture = () => {
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { ink: { strong: 'ink' } } }), sharedLuxStyles: () => () => ({}) },
     '@/theme/magazineRoles': { magazineRoles: () => roles },
     '@/utils/tools': { createStyle: value => value },
+    '@/utils/pixelRatio': { setSpText: size => size },
+    './playerChromeLayout': load('src/screens/PlayDetail/Vertical/playerChromeLayout.ts'),
     './SleepTimerSheet': 'SleepTimerSheet',
   }
   const sheet = load('src/screens/PlayDetail/Vertical/SleepTimerSheet.tsx', name => { assert.ok(name in deps, name); return deps[name] }).default

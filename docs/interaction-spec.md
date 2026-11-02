@@ -71,6 +71,8 @@
 | 导入流程（`PlaylistImportFlow.tsx`，歌单库/各详情→PlaylistImportPanel；Lux/文本/CSV/平台/匹配审核） | 同上，系统短动画时长及 cosine easing，底部→原位 | 同上，原位→底部 | 原为不透明 Modal slide；同一底部 hook、0.5 压暗、退出完成后卸载；保留提交保护、取消匹配、审核返回、焦点滚动及 coversDock |
 | MagazineSheet 及其播放队列、歌词选句、下载、去重等调用方 | 原有 translateY 底部→0，220ms，`Easing.out(Easing.cubic)` | 原位→底部，同为220ms与同一 easing | 原有遮罩和临时任务返回规则保留；播放器评论/播放/歌词 Pager 是页内横向切换，不改为整页纵移 |
 
+竖屏 `PlayerChrome.tsx` 的评论 / 播放 / 歌词 Tabs 使用独立全宽绝对定位层，以屏幕中线居中；与 44 高按钮行同顶距并垂直居中，睡眠定时状态不改变 Tab 位置。层容器使用 `pointerEvents="box-none"`，保留返回 / 睡眠定时 / 分享点击；Tab 点按、Pager 左右滑动及选中下划线继续共用原页码状态，无障碍 tab 角色与 selected 状态保留。文字 15/20、选中 800 / 未选 600，gap 20、底部留白 6、下划线 3；不改变上述进出过渡或横屏播放器。窄屏空间不足时，睡眠定时按钮只显示月亮，倒计时在定时面板查看；Tab 始终以屏幕中线居中。
+
 原参数依据 `git show 6dc3b7d3^:<路径>` 与 `git show 6dc3b7d3 -- <路径>`：三个任务页均直接使用原生 Modal slide，调用方没有额外动画。RN 0.73 Android 的 `catalyst_slide_up/down.xml` 使用 `@android:integer/config_shortAnimTime`（设备资源，通常为 200ms，不写死数值）、默认 `AccelerateDecelerateInterpolator`，无内容 alpha；原非透明 Modal 由窗口压暗 0.5。为确保退出完成才卸载，现关闭原生动画，复用 #162 底部生命周期作等参数 JS native-driver 纵移；`UtilsModule.modalSlideDuration` 直接导出设备资源，cosine 公式与 Android 默认插值一致；透明 Modal 内用主题黑色及 0↔0.5 进度压暗恢复底页可见性，不叠加另一段动画。系统返回由 Modal.onRequestClose 汇入原页面关闭逻辑；退出中重复关闭合并、重开和卸载使旧完成回调失效。独立评论、白噪音混音器等仍为共享横向子页；不因播放器入口更改其转场。共享祖先栈、键盘/Dock/FocusVisible、登录根与 LoginGate 事务均保持原规则。
 
 使用方式：
