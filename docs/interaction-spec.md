@@ -246,4 +246,4 @@ L1 页面规则：
 - 认证阶段可显式取消，迟到响应不得准备空间/提交身份；空间准备与提交临界区不可取消。失败保留 Gate 与原数据，不跳 Main。成功、取消和离线查看均保持暂停，不自动播放/入房/恢复下载。
 - 全部输入使用 FocusVisibleScrollView/Action；Android 只用系统 resize，不重复减键盘高度；iOS 沿 KeyboardAvoidingView padding。返回期间保持祖先不透明，隐藏页不抢系统返回。注册提交也参与焦点动作可见性。
 
-竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。前台且同一歌词数组连续前进一句时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；跳句、倒退、歌词数组替换、active=false 或重回前台均直接定位并停止旧动画。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`。
+竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。前台且同一歌词数组连续前进一句时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；跳句、倒退、歌词数组替换、active=false 或重回前台均直接定位并停止旧动画。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。唱片直径沿用三行改动前的 124 歌词预算；预览实际高度独立于预算，歌词下方弹性空隙最小 12（设计基准，由 createStyle 缩放），与唱片上 / 下空隙按 1:2:1 分配剩余空间；不足时保持各块完整并沿用 ScrollView 滚动，PlayerTransport 固定在滚动区外。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`、`player-vertical-spacing.src-test.mjs`。

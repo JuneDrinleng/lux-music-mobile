@@ -109,3 +109,19 @@ test('only foreground consecutive advances animate; cancellation and completion 
   assert.match(source, /outputRange: \[0, -step\]/)
   assert.match(source, /outputRange: \[step \+ extraHeight, 0\]/)
 })
+
+test('three-line preview keeps its full height independently of the historical disc budget', () => {
+  const pic = readFileSync(new URL('../src/screens/PlayDetail/Vertical/Pic.tsx', import.meta.url), 'utf8')
+  assert.match(pic, /const PLAYER_RESERVED_LYRIC = 124\b/)
+  const h = harness()
+  const lines = [{ text: 'current', translation: 'translation', roma: 'roma' }]
+  const props = { lines, index: 0, active: true, onPress() {} }
+  let nodes = h.render(props)
+  nodes.find(node => node.type === 'Pill' && node.props.label === 'player_lyric_roma_pill').props.onPress()
+  nodes = h.render(props)
+  const viewport = nodes.find(node => Array.isArray(node.props?.style) && node.props.style[0]?.overflow === 'hidden')
+  assert.equal(viewport.props.style[1].height, 22 + 28 + 22 + 18 + 18)
+  const actions = nodes.find(node => node.props?.style?.minHeight === 44)
+  assert.equal(actions.props.style.marginTop, 8)
+  assert.equal(viewport.props.style[1].height + actions.props.style.marginTop + actions.props.style.minHeight, 160)
+})
