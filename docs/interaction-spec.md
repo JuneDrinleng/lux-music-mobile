@@ -47,7 +47,7 @@
 
 ## 所有非一级页统一过渡（唯一共用实现）
 
-入口：`src/components/common/SettingsPage.tsx`。底层唯一时钟为 `components/common/overlaySlideTransition.ts`，所有非一级页（二级、三级、四级及更深）共用同一参数与实现，不限于设置。页面、层级、原动画、处理及逐页真机清单见 [subpage-animation-audit.md](subpage-animation-audit.md)。原生 stack 通过 `navigation/SubpageScreen.tsx` 包装，默认关闭平台 push/pop，公共 pop 等待 JS 退出；原生全屏任务 Modal 关闭平台动画，内部使用同一共享过渡。
+入口：`src/components/common/SettingsPage.tsx`。底层唯一时钟为 `components/common/overlaySlideTransition.ts`，除下述底部弹出页例外外，所有非一级页（二级、三级、四级及更深）共用同一参数与实现，不限于设置。页面、层级、原动画、处理及逐页真机清单见 [subpage-animation-audit.md](subpage-animation-audit.md)。原生 stack 通过 `navigation/SubpageScreen.tsx` 包装，默认关闭平台 push/pop，公共 pop 等待 JS 退出；原生全屏任务 Modal 关闭平台动画，内部使用同一共享过渡。
 
 | 参数 | 打开 | 返回 |
 | --- | --- | --- |
@@ -58,7 +58,17 @@
 | easing | `Easing.bezier(0.22, 0.84, 0.22, 1)` | 同一个 easing 实例 |
 | driver | native | native |
 
-这是二级设置页的打开/返回模式；所有其他非一级页使用同参数的反向插值。不要复制 `Animated.timing` 到各页面，或再加独立的 fade / native slide。
+这是二级设置页的打开/返回模式；除底部弹出页外，所有其他非一级页使用同参数的反向插值。不要复制 `Animated.timing` 到各页面，或再加独立的 fade / native slide。
+
+**例外：底部弹出页**（播放详情页，以及原有播放队列、歌词选句等播放器临时抽屉）不属于二级页同款横向转场，保持从下往上进入、往下退出。此次历史核对只有播放详情需要恢复；其他抽屉未被 #158–#161 改成横向，不新增动画改写。
+
+| 路径 | 进入 | 退出 | 背景与返回 |
+| --- | --- | --- | --- |
+| 播放详情竖屏持久 overlay（`Home/Vertical/PlayDetailOverlay.tsx`） | translateY 当前窗口高度→0，420ms，`Easing.out(Easing.back(1.05))` | translateY 0→窗口高度，300ms，`Easing.out(Easing.cubic)` | native driver；独立 `colors.scrim.mask` 遮罩 opacity 随 progress 0↔1；退出完成才隐藏、恢复 bgPic 与清 componentId；快速重复关闭合并，退出中重开从当前位置反向，旧回调失效，保留懒挂载 |
+| 播放详情原生 stack（横屏/启动直接打开） | 原生 content.translationY 高度→0，420ms spring；alpha 0.92→1 | 原生 content.translationY 0→高度，300ms 平台默认插值；alpha 1→0.92 | 黑色 componentBackgroundColor 防白闪；显式 enabled 覆盖全局禁用动画，skipAnimation=true 时 push/pop 均禁用；不包 SubpageScreen，无第二段 JS 动画；按钮/Android 三键/系统边缘返回共用 pop，注册表只合并原生 pop，不等待 JS 时钟；平台独立横向 popGesture 保持关闭 |
+| MagazineSheet 及其播放队列、歌词选句、下载、去重等调用方 | 原有 translateY 底部→0，220ms，`Easing.out(Easing.cubic)` | 原位→底部，同为220ms与同一 easing | 原有遮罩和临时任务返回规则保留；播放器评论/播放/歌词 Pager 是页内横向切换，不改为整页纵移 |
+
+分享卡片预览（包括播放器入口）、智能歌单编辑、导入流程原为 Modal slide，但 #158 已明确统一为共享横向任务页；是否扩展底部例外待 June 决定，此次保留 248ms。独立评论、白噪音混音器等仍为共享横向子页；不因播放器入口更改其转场。共享祖先栈、键盘/Dock/FocusVisible、登录根与 LoginGate 事务均保持原规则。
 
 使用方式：
 

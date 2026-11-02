@@ -22,6 +22,8 @@ import playerState from '@/store/player/state'
 import { getStatusBarStyle } from './utils'
 import { setBgPic } from '@/core/common'
 import { resolveImageUri } from '@/utils/imageCache'
+import { windowSizeTools } from '@/utils/windowSizeTools'
+import { peekBootedLuxTheme } from '@/theme/LuxTheme'
 
 
 // const store = getStore()
@@ -280,7 +282,7 @@ export async function pushHomeScreen(options?: { immediate?: boolean, background
     },
   })
 }
-export function pushPlayDetailScreen(componentId: string, _skipAnimation = false) {
+export function pushPlayDetailScreen(componentId: string, skipAnimation = false) {
   // 立即设置 bgPic 为当前歌曲封面，避免 PageContent 白底闪烁
   const pic = playerState.musicInfo.pic
   if (pic) {
@@ -328,7 +330,8 @@ export function pushPlayDetailScreen(componentId: string, _skipAnimation = false
       component: {
         name: PLAY_DETAIL_SCREEN,
         options: {
-          ...subpageNavigationOptions,
+          // Native player owns the entire transition; disable the platform horizontal gesture.
+          popGesture: false,
           topBar: {
             visible: false,
             height: 0,
@@ -345,7 +348,41 @@ export function pushPlayDetailScreen(componentId: string, _skipAnimation = false
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: 'transparent',
+            // 使用黑色背景避免推入动画过程中的白屏闪烁
+            componentBackgroundColor: peekBootedLuxTheme().colors.shadow.black,
+          },
+          animations: {
+            push: skipAnimation ? { enabled: false } : {
+              enabled: true,
+              content: {
+                translationY: {
+                  from: windowSizeTools.getSize().height,
+                  to: 0,
+                  duration: 420,
+                  interpolation: { type: 'spring' },
+                },
+                alpha: {
+                  from: 0.92,
+                  to: 1,
+                  duration: 420,
+                },
+              },
+            },
+            pop: skipAnimation ? { enabled: false } : {
+              enabled: true,
+              content: {
+                translationY: {
+                  from: 0,
+                  to: windowSizeTools.getSize().height,
+                  duration: 300,
+                },
+                alpha: {
+                  from: 1,
+                  to: 0.92,
+                  duration: 300,
+                },
+              },
+            },
           },
         },
       },

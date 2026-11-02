@@ -378,7 +378,6 @@ test('all depths and module adapters use the Settings curve, opacity, width and 
   }
   for (const file of [
     'src/screens/Home/Vertical/SearchPage.tsx',
-    'src/screens/Home/Vertical/PlayDetailOverlay.tsx',
     'src/components/playlist/PlaylistDetailOverlay.tsx',
     'src/components/playlist/detailSceneTransition.ts',
     'src/components/playlist/SmartPlaylistEditor.tsx',
@@ -396,12 +395,17 @@ test('all depths and module adapters use the Settings curve, opacity, width and 
   assert.match(library, /useSettingsSubpage\(false\)/)
 })
 
-test('native stack registration defaults to shared pages and every native push disables platform animation', () => {
+test('native stack registration defaults to shared pages; bottom player owns native animation', () => {
   const register = read('src/navigation/registerScreens.tsx')
   assert.match(register, /subpage = true/)
   assert.match(register, /<SubpageScreen componentId={props.componentId}/)
   const ast = parse('src/navigation/navigation.ts')
   for (const call of descendants(ast).filter(node => ts.isCallExpression(node) && node.expression.getText() === 'Navigation.push')) {
+    if (/name: PLAY_DETAIL_SCREEN/.test(call.arguments[1].getText())) {
+      assert.match(call.arguments[1].getText(), /translationY/)
+      assert.doesNotMatch(call.arguments[1].getText(), /subpageNavigationOptions/)
+      continue
+    }
     assert.match(call.arguments[1].getText(), /\.\.\.subpageNavigationOptions/)
     assert.doesNotMatch(call.arguments[1].getText(), /translation[XY]|duration:/)
   }

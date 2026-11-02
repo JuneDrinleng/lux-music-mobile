@@ -87,12 +87,13 @@ export default memo(({
   }
 
   useBackHandler(useCallback(() => {
+    if (!active) return false
     if (pageIndex === 0) {
       setPage(1)
       return true
     }
     return false
-  }, [pageIndex, setPage]))
+  }, [active, pageIndex, setPage]))
 
   useEffect(() => {
     const appstateListener = AppState.addEventListener('change', state => {
