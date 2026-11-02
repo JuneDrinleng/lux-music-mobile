@@ -68,6 +68,8 @@
 | 播放详情原生 stack（横屏/启动直接打开） | 原生 content.translationY 高度→0，420ms spring；alpha 0.92→1 | 原生 content.translationY 0→高度，300ms 平台默认插值；alpha 1→0.92 | 黑色 componentBackgroundColor 防白闪；显式 enabled 覆盖全局禁用动画，skipAnimation=true 时 push/pop 均禁用；不包 SubpageScreen，无第二段 JS 动画；按钮/Android 三键/系统边缘返回共用 pop，注册表只合并原生 pop，不等待 JS 时钟；平台独立横向 popGesture 保持关闭 |
 | MagazineSheet 及其播放队列、歌词选句、下载、去重等调用方 | 原有 translateY 底部→0，220ms，`Easing.out(Easing.cubic)` | 原位→底部，同为220ms与同一 easing | 原有遮罩和临时任务返回规则保留；播放器评论/播放/歌词 Pager 是页内横向切换，不改为整页纵移 |
 
+竖屏 `PlayerChrome.tsx` 的评论 / 播放 / 歌词 Tabs 使用独立全宽绝对定位层，以屏幕中线居中；与 44 高按钮行同顶距并垂直居中，睡眠定时状态不改变 Tab 位置。层容器使用 `pointerEvents="box-none"`，保留返回 / 睡眠定时 / 分享点击；Tab 点按、Pager 左右滑动及选中下划线继续共用原页码状态，无障碍 tab 角色与 selected 状态保留。文字 15/20、选中 800 / 未选 600，gap 20、底部留白 6、下划线 3；不改变上述进出过渡或横屏播放器。窄屏空间不足时，睡眠定时按钮只显示月亮，倒计时在定时面板查看；Tab 始终以屏幕中线居中。
+
 分享卡片预览（包括播放器入口）、智能歌单编辑、导入流程原为 Modal slide，但 #158 已明确统一为共享横向任务页；是否扩展底部例外待 June 决定，此次保留 248ms。独立评论、白噪音混音器等仍为共享横向子页；不因播放器入口更改其转场。共享祖先栈、键盘/Dock/FocusVisible、登录根与 LoginGate 事务均保持原规则。
 
 使用方式：
