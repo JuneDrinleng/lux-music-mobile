@@ -132,7 +132,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 
 ### 所有非一级页动效
 
-所有非一级页（二级及更深）统一使用 `components/common/SettingsPage.tsx` / `overlaySlideTransition.ts` 的右侧过渡，设置及其他应用内页保留 Dock / 播放条；全屏任务页沿用覆盖 Dock 的语义。资料编辑的返回、刊头及标题固定在表单上方，保存为标题右侧 28 图标 / 44 点击区的 IconButton 勾按钮，无修改或保存中禁用，保存中加载；不再有底部固定保存区。页面动效、返回与触达规则以 [软件交互规范](interaction-spec.md) 为唯一维护入口。
+除播放详情及既有底部弹出页例外（见交互规范）外，所有非一级页（二级及更深）统一使用 `components/common/SettingsPage.tsx` / `overlaySlideTransition.ts` 的右侧过渡，设置及其他应用内页保留 Dock / 播放条；全屏任务页沿用覆盖 Dock 的语义。资料编辑的返回、刊头及标题固定在表单上方，保存为标题右侧 28 图标 / 44 点击区的 IconButton 勾按钮，无修改或保存中禁用，保存中加载；不再有底部固定保存区。页面动效、返回与触达规则以 [软件交互规范](interaction-spec.md) 为唯一维护入口。
 
 ### 同步登录
 

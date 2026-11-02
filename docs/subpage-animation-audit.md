@@ -2,7 +2,7 @@
 
 # 非一级页动画盘点（2026-11-01）
 
-基线为 #155、#156 已合入的 dev。首页、歌单、设置三个 Tab 为一级；同一内容因入口不同可以更深。所有页面共用 `common/overlaySlideTransition.ts`：248ms、同一 bezier(0.22, 0.84, 0.22, 1)、opacity 0.92↔1、当前窗口宽度↔0、native driver；`SettingsPage` / `useSettingsTransition` / `useSettingsSubpage` 为宿主及状态路由入口。退出完成才释放内容；快速重复返回合并，重开/卸载取消旧回调。
+基线为 #155、#156 已合入的 dev。首页、歌单、设置三个 Tab 为一级；同一内容因入口不同可以更深。除下文底部弹出页例外外，所有非一级页面共用 `common/overlaySlideTransition.ts`：248ms、同一 bezier(0.22, 0.84, 0.22, 1)、opacity 0.92↔1、当前窗口宽度↔0、native driver；`SettingsPage` / `useSettingsTransition` / `useSettingsSubpage` 为宿主及状态路由入口。退出完成才释放内容；快速重复返回合并，重开/卸载取消旧回调。
 
 | 页面 | 层级 | 原动画实现 | 处理 |
 | --- | --- | --- | --- |
@@ -31,22 +31,41 @@
 | 一起听 | 二级；其他入口可更深 | overlaySlideTransition 248/220ms | 公共默认对称；点歌搜索单独使用 SearchPage；邀请/点歌队列/成员为 sheet |
 | 每日推荐 | 二级 | 直接挂载/卸载 | useSettingsTransition，按钮和硬件返回同回调 |
 | 白噪音混音器 | 二级；播放详情入口可更深 | 直接挂载/卸载 | useSettingsTransition；保留 Dock、音量及播放逻辑 |
-| 播放详情（竖屏持久 overlay） | 二级 | 纵向420ms back easing进、300ms cubic退，独立遮罩 | 公共横向过渡；删除原独立遮罩，保留播放器布局及背景恢复 |
-| 播放详情（原生 stack，含横屏/启动打开） | 二级 | 原生纵移420/300ms | SubpageScreen；关闭原生 push/pop，pop 注册表等待同一 JS 退出 |
+| 播放详情（竖屏持久 overlay） | 二级 | 纵向420ms back easing进、300ms cubic退，独立遮罩 | 底部弹出例外：恢复 translateY 高度→0 的420ms Easing.out(Easing.back(1.05))进入、300ms Easing.out(Easing.cubic)下退、colors.scrim.mask 跟随进度遮罩；保留懒挂载、背景恢复，退出完成才隐藏，支持退出中重开 |
+| 播放详情（原生 stack，含横屏/启动打开） | 二级 | 原生纵移420/300ms | 底部弹出例外：不包 SubpageScreen；显式启用原生 translationY push 420ms spring / pop 300ms默认插值、alpha 0.92↔1；skipAnimation 禁用两侧；黑底防白闪，pop 注册表仅合并原生返回，无 JS 等待 |
 | 独立评论（热评/最新） | 播放详情下级，三级或更深 | 原生横移300ms | SubpageScreen；按钮与系统返回共用退出 |
 | 原生排行榜详情 | 二级或更深 | 原生横移300ms | 同上 |
 | 协议文档（push 路径） | 二级或更深 | 原生默认过渡 | 同上；首次启动根流程、协议临时 overlay 不套页面过渡 |
 
-`navigation/registerScreens.tsx` 默认把新注册页面包进 `SubpageScreen`；根屏和临时 overlay 显式排除。`navigation/index.ts` 默认关闭平台 push/pop 及平台独立 pop 手势，防止与 JS 动画叠加。Android 系统边缘手势仍从 hardwareBackPress 进入同一回调；没有新增随手指拖动进度的 App 内返回手势。`useBackHandler` 固定监听注册顺序，父组件重渲染只更新回调，不抢深层页面优先级。
+`navigation/registerScreens.tsx` 默认把新注册页面包进 `SubpageScreen`；根屏、播放详情和临时 overlay 显式排除。`navigation/index.ts` 默认关闭平台 push/pop 及平台独立 pop 手势，防止与 JS 动画叠加。Android 系统边缘手势仍从 hardwareBackPress 进入同一回调；没有新增随手指拖动进度的 App 内返回手势。`useBackHandler` 固定监听注册顺序，父组件重渲染只更新回调，不抢深层页面优先级。
 
 播放详情内部评论/播放/歌词 Pager、统计风格/时段、搜索类型、导入标签、智能规则选择等是页内切换；临时 MagDialog / MagazineSheet、下载/去重/播放队列、系统文件选择/图库裁切不是页面，保留自身动效。切一级 Tab、退出登录、切空间等主动重置不属于返回。
+
+## 底部类页面历史复核（#158–#161）
+
+依据 `git show 6dc3b7d3` 与 `git log -p 6dc3b7d3~1..HEAD -- <path>` 逐项核对：
+
+| 页面 / 文件 | 历史结果与决定 |
+| --- | --- |
+| `Home/Vertical/PlayQueueSheet.tsx` | 无变更；原 MagazineSheet 底部纵移仍在，无需恢复 |
+| `PlayDetail/Vertical/Lyric.tsx`、`PlayDetail/Horizontal/Lyric.tsx`、`components/lyric/LyricPreview.tsx` | 无变更；歌词为页内/Pager内容或原预览，未被套共享横向整页动画 |
+| `PlayDetail/Vertical/index.tsx` 评论/播放/歌词 Pager | 无历史变更；原有横向页内切换保留，本次仅避免不活跃播放器消费系统返回 |
+| `components/magazine/MagazineSheet.tsx` | 无变更；220/220ms cubic-out 纵移与遮罩保留 |
+| `components/download/PlaylistDownloadSheet.tsx` | 无变更；原 MagazineSheet 保留 |
+| `components/playlist/PlaylistDedupeSheet.tsx` | 无变更；原 MagazineSheet 保留 |
+| `components/shareCard/LyricSelectionSheet.tsx`、`PlayDetail/Vertical/SleepTimerSheet.tsx` | 无变更；原 MagazineSheet 保留 |
+| `components/recommend/SimilarSongsSheet.tsx`、`Home/Vertical/ListenTogether/InviteSheet.tsx`、`RequestSheet.tsx` | 无变更；原临时 sheet 保留 |
+| `components/shareCard/ShareCardPage.tsx` | #158 从 Modal slide 改共享横向；含播放器入口，按本次要求默认不改，待 June 决定是否扩展例外 |
+| `components/playlist/SmartPlaylistEditor.tsx` | #158 明确统一的任务页，原 Modal slide；默认不改，待 June 决定 |
+| `components/playlist/PlaylistImportFlow.tsx` | #158 明确统一的任务页，原 Modal slide；默认不改，待 June 决定 |
+| 独立评论、白噪音、歌单/排行榜详情 | 原横向子页或直接挂载内容；不属于原底部弹出播放器覆盖页，保持公共248ms |
 
 ## 界面移动、删除
 
 - 编辑资料：从播放栏上方的固定底部保存区移到「编辑资料」标题右侧；文字按钮替换为 28 图标 / 44 点击区的公共 IconButton 勾按钮，沿用 `account_save` 三语无障碍标签和 saveEditedProfile。无修改/保存中禁用，保存中显示加载。底部保存区连同主线、留白删除，避免继续占用输入视口。
 - 编辑资料：原随表单滚动的返回、刊头及标题移到滚动区域外，以保持标题行勾按钮可见；其他账户页面保留原位置。共享焦点滚动只测量输入，不把固定标题按钮标成 FocusVisibleAction。
 - 歌单详情：删除父层装饰性 shade、底页视差和重复横移，避免与子页动画叠加；入口/内容不删除。
-- 播放详情 overlay：删除原独立渐暗遮罩，配合与设置一致的页面过渡；播放器内容不删除。
+- 播放详情 overlay：#158 曾删除独立渐暗遮罩；本次恢复遮罩及原有纵向进出。没有删除、隐藏或移动入口、按钮、文案或内容区域。
 
 ## 逐页真机检查（尚未执行）
 
