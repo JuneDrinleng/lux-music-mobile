@@ -25,9 +25,9 @@
 | 本地歌曲 | 二级 | overlaySlideTransition 248/220ms | 公共默认返回改为248ms、同一曲线 |
 | 听歌统计主页（杂志/Replay） | 二级 | overlaySlideTransition 248/220ms | 同上 |
 | 统计→回忆卡片/时间线、月报、年度回放；回忆→指定月份 | 三级及更深 | 布尔状态直接替换，无页面过渡 | 单一路由 useSettingsSubpage，退出后恢复统计；默认布局就是月报/回忆时，返回关闭统计主页 |
-| 月报/播放器→分享卡片预览 | 四级或更深 / 三级 | 原生 Modal slide | 原生动画关闭，使用公共 JS 过渡；完成/返回共用退出 |
-| 歌单库/详情→智能歌单新建/规则编辑 | 二/三级及更深 | 原生 Modal slide | 同上；保留 SubpageSurface coversDock、FocusVisibleScrollView、上方保存的 FocusVisibleAction |
-| 歌单库/详情→导入 Lux / 文本 / CSV / 平台，匹配审核 | 二/三级及更深 | 原生 Modal slide | 同上；页内标签/匹配状态不另建层级，保留提交/取消保护、焦点滚动 |
+| 月报/播放器→分享卡片预览 | 四级或更深 / 三级 | 原生 Modal slide | 底部弹出例外：按原 RN Modal slide 参数恢复纵移，设备 config_shortAnimTime / 默认 cosine easing，0.5 背景压暗；复用 #162 抽取的 bottomPopupTransition，完成/返回先退出再卸载 |
+| 歌单库/详情→智能歌单新建/规则编辑 | 二/三级及更深 | 原生 Modal slide | 同上底部弹出例外；保留 SubpageSurface coversDock、FocusVisibleScrollView、上方保存的 FocusVisibleAction |
+| 歌单库/详情→导入 Lux / 文本 / CSV / 平台，匹配审核 | 二/三级及更深 | 原生 Modal slide | 同上底部弹出例外；页内标签/匹配状态不另建层级，保留提交/取消保护、焦点滚动 |
 | 一起听 | 二级；其他入口可更深 | overlaySlideTransition 248/220ms | 公共默认对称；点歌搜索单独使用 SearchPage；邀请/点歌队列/成员为 sheet |
 | 每日推荐 | 二级 | 直接挂载/卸载 | useSettingsTransition，按钮和硬件返回同回调 |
 | 白噪音混音器 | 二级；播放详情入口可更深 | 直接挂载/卸载 | useSettingsTransition；保留 Dock、音量及播放逻辑 |
@@ -55,10 +55,12 @@
 | `components/playlist/PlaylistDedupeSheet.tsx` | 无变更；原 MagazineSheet 保留 |
 | `components/shareCard/LyricSelectionSheet.tsx`、`PlayDetail/Vertical/SleepTimerSheet.tsx` | 无变更；原 MagazineSheet 保留 |
 | `components/recommend/SimilarSongsSheet.tsx`、`Home/Vertical/ListenTogether/InviteSheet.tsx`、`RequestSheet.tsx` | 无变更；原临时 sheet 保留 |
-| `components/shareCard/ShareCardPage.tsx` | #158 从 Modal slide 改共享横向；含播放器入口，按本次要求默认不改，待 June 决定是否扩展例外 |
-| `components/playlist/SmartPlaylistEditor.tsx` | #158 明确统一的任务页，原 Modal slide；默认不改，待 June 决定 |
-| `components/playlist/PlaylistImportFlow.tsx` | #158 明确统一的任务页，原 Modal slide；默认不改，待 June 决定 |
+| `components/shareCard/ShareCardPage.tsx` | #158 从不透明 Modal slide 改共享横向；June 2026-11-01 决定恢复，月报与播放器歌词生成入口均走同一底部例外 |
+| `components/playlist/SmartPlaylistEditor.tsx` | #158 从不透明 Modal slide 改共享横向；June 2026-11-01 决定恢复，复用同一底部例外 |
+| `components/playlist/PlaylistImportFlow.tsx` | #158 从不透明 Modal slide 改共享横向；June 2026-11-01 决定恢复，复用同一底部例外 |
 | 独立评论、白噪音、歌单/排行榜详情 | 原横向子页或直接挂载内容；不属于原底部弹出播放器覆盖页，保持公共248ms |
+
+三个任务页的原生参数已从 RN 0.73 源码复核：`catalyst_slide_up/down.xml` 为 100%p↔0%p、`config_shortAnimTime`，默认 `AccelerateDecelerateInterpolator`；无自定义 easing/时长，无内容 alpha。原非透明 Modal 窗口 dimAmount=0.5。现在从 UtilsModule 读取同一设备时长，以 #162 抽取的底部 hook 复现纵移及默认 cosine easing，主题黑色进度压暗 0↔0.5；平台动画关闭，避免叠加，退出 finished 后通知父层卸载。分享仍保留 statusBarTranslucent。原生播放器 stack 与既有 MagazineSheet 不变。
 
 ## 界面移动、删除
 
@@ -66,6 +68,8 @@
 - 编辑资料：原随表单滚动的返回、刊头及标题移到滚动区域外，以保持标题行勾按钮可见；其他账户页面保留原位置。共享焦点滚动只测量输入，不把固定标题按钮标成 FocusVisibleAction。
 - 歌单详情：删除父层装饰性 shade、底页视差和重复横移，避免与子页动画叠加；入口/内容不删除。
 - 播放详情 overlay：#158 曾删除独立渐暗遮罩；本次恢复遮罩及原有纵向进出。没有删除、隐藏或移动入口、按钮、文案或内容区域。
+
+- 本次三个任务页仅把共享横向过渡恢复为原底部纵移与背景压暗；未删除、隐藏或移动任何功能、入口、按钮、文案或内容区域。
 
 ## 逐页真机检查（尚未执行）
 
