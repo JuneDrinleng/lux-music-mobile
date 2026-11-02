@@ -1,4 +1,3 @@
-import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 import { appSession, requestLogin } from '@/core/appSession'
 import type { LoginIntent } from '@/utils/loginSession'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
@@ -99,7 +98,6 @@ export async function pushLoginScreen() {
 }
 
 export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string | null, initialUsername?: string, targetProvider?: 'lx' | 'lux' }) {
-  if (!isSessionCoordinatorEnabled()) return replaceWithLoginGate({ reason: 'switch', source: 'legacy', initialHost: props?.initialHost, initialUsername: props?.initialUsername, returnPolicy: 'none' })
   return requestLogin({ reason: props?.onboarding ? 'boot' : 'switch', source: 'pushSyncLoginScreen', initialUsername: props?.initialUsername, targetProvider: props?.targetProvider, initialHost: props?.initialHost, returnPolicy: props?.onboarding ? 'none' : 'restorePrevious' })
 }
 

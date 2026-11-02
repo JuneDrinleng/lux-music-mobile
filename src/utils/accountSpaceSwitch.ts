@@ -19,5 +19,5 @@ export const loadAccountSpaces = async() => {
 export const switchAccountSpace = async(space: DataSpace, session?: LX.Sync.LuxAuth): Promise<void> => {
   if (space.id === getActiveSpace()) return
   const { requestLogin } = await import('@/core/appSession')
-  await requestLogin({ reason: 'switch', source: 'account-spaces', targetProvider: space.id === 'local' ? 'local' : 'lux', initialHost: space.host ?? session?.serverUrl, returnPolicy: 'restorePrevious' })
+  await requestLogin({ reason: 'switch', source: 'account-spaces', targetProvider: space.id === 'local' ? 'local' : 'lux', initialHost: space.host ?? session?.serverUrl, initialUsername: session?.user.username ?? space.username, targetIdentity: session?.serverId && session.serverUrl ? { provider: 'lux', spaceId: space.id as `lux:${string}:${string}`, server: { serverId: session.serverId, url: session.serverUrl }, account: { userId: session.user.id, username: session.user.username }, credentialRef: { kind: 'luxRefresh', id: JSON.stringify([session.serverId, session.user.id]) } } : undefined, returnPolicy: 'restorePrevious' })
 }

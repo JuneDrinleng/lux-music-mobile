@@ -5,7 +5,7 @@ import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/
 import { useSubpageActive, SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useEffect, useRef, useState } from 'react'
-import { BackHandler, KeyboardAvoidingView, Platform, View } from 'react-native'
+import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import SyncLoginLocalAction from '../SyncLogin/LocalAction'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm, syncHostCompareKey } from '@/utils/syncLoginPrefill'
@@ -33,7 +33,7 @@ import { navigations } from '@/navigation'
 type Page = 'login' | 'register' | 'forgot'
 const emptyForm: RegisterForm = { invite: '', username: '', displayName: '', password: '', confirm: '' }
 
-export default function AuthFlow({ host, onboarding, onBack, initialUsername, settings = false }: { host: string, onboarding: boolean, onBack: () => void, initialUsername?: string, settings?: boolean }) {
+export default function AuthFlow({ host, onboarding, onBack, initialUsername, settings = false, initialPage = 'login', cancelAuthentication, canCancelAuthentication = false }: { host: string, onboarding: boolean, onBack: () => void, initialUsername?: string, settings?: boolean, initialPage?: Page, cancelAuthentication?: () => void, canCancelAuthentication?: boolean }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -41,7 +41,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<Page>('login', settings)
+  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<Page>(initialPage, true)
   const [form, setForm] = useState(emptyForm)
   const [savedSession, setSavedSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [hasSavedLogin, setHasSavedLogin] = useState(false)
@@ -69,10 +69,11 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     return () => { active = false }
   }, [host, initialUsername])
   const back = () => {
+    if (Keyboard.isVisible()) { Keyboard.dismiss(); return }
     if (busy) return
     setMessage('')
     setTouched({})
-    if (page === 'login') onBack()
+    if (page === initialPage) onBack()
     else setPage('login')
   }
   useEffect(() => {
@@ -227,10 +228,11 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
         {hasSavedLogin ? <View style={styles.field}><TextButton compact style={{ minHeight: 28 }} muted label={t('sync_login_clear_saved')} disabled={busy || !prefillReady} onPress={() => { void clearSaved() }} /></View> : null}
         {!onboarding ? <SyncLoginLocalAction disabled={busy || !prefillReady} onBusyChange={setBusy} /> : null}
       </> : null}
+      {busy && cancelAuthentication ? <TextButton label={t('login_gate_cancel_auth')} disabled={!canCancelAuthentication} onPress={cancelAuthentication} /> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
     </FocusVisibleScrollView>
     {page === 'register' || (page === 'forgot' && adminOption) ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
-      {page === 'register' ? primary : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
+      {page === 'register' ? <FocusVisibleAction>{primary}</FocusVisibleAction> : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
     </View> : null}
   </KeyboardAvoidingView>
   }

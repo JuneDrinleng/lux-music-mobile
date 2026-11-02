@@ -116,6 +116,7 @@ const renderAccount = ({ server = true, failSave = false, saveWait } = {}) => {
   }
   const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const screen = load('src/screens/Account/AccountPage.tsx', {
+    '@/core/appSession': { requestLogin: async() => {} },
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },

@@ -16,7 +16,7 @@ const evaluate = (file, deps) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
-    if (name === '@/utils/sessionFence' && !(name in deps)) return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
+    if (name === '@/utils/sessionFence' && !(name in deps)) return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, isSessionOffline: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -775,7 +775,7 @@ test('401 refresh reads the actual secure backend and persists rotation without 
 
 // 5.7: exercise the production storage adapter, import gate, auth and connection order.
 const operationsFor = env => evaluate('src/utils/dataSpace/operations.ts', {
-  '@/utils/sessionFence': { sessionWritesFrozen: () => env.frozen === true },
+  '@/utils/sessionFence': { sessionWritesFrozen: () => env.frozen === true, isSessionOffline: () => false },
   'react-native': { NativeModules: { DownloadModule: { removeSpace: async space => { (env.deletedDownloadSpaces ??= []).push(space) } } } },
   '@react-native-async-storage/async-storage': env.storage,
   '@/config/constant': evaluate('src/config/constant.ts', {}),

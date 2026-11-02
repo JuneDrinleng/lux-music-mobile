@@ -11,7 +11,7 @@ const load = (path, deps = {}, globals = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports,global) {${source}\n})`).runInThisContext()(
-    name => { if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }; assert.ok(Object.hasOwn(deps, name), `Unexpected dependency: ${name}`); return deps[name] },
+    name => { if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, isSessionOffline: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }; assert.ok(Object.hasOwn(deps, name), `Unexpected dependency: ${name}`); return deps[name] },
     module, module.exports, globals,
   )
   return module.exports

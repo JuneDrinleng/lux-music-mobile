@@ -224,3 +224,14 @@ test('untrusted server indexes cannot alias object prototypes or leave undiscove
   await h.repo.clear()
   assert.equal(h.secure.tokens.size, 0)
 })
+
+test('provider credential clearing preserves the other protocol and its usable secure keys', async() => {
+  const h = credentialsHarness({})
+  await h.repo.set('lx-key', key())
+  await h.repo.set('lux-key', { ...key(), luxUserId: 'alice' })
+  await h.repo.clear('lx')
+  assert.equal(await h.repo.get('lx-key'), null)
+  assert.equal((await h.repo.get('lux-key')).luxUserId, 'alice')
+  await h.repo.clear('lux')
+  assert.equal(await h.repo.get('lux-key'), null)
+})

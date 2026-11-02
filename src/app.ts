@@ -92,7 +92,7 @@ void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize])
 
     const pushSyncLoginScreen = async() => {
       global.lx._onLoginConfirmed = handlePushedHomeScreen
-      await navigations.pushSyncLoginScreen().catch((err: any) => {
+      await navigations.pushSyncLoginScreen({ onboarding: true, initialHost: null }).catch((err: any) => {
         void tipDialog({
           title: 'Error',
           message: err.message,

@@ -221,6 +221,7 @@ test('legacy login adapter prefills checked URL and completes only after success
   const snapshot = { host: 'https://previous-server', luxUsername: 'previous-user', luxPassword: 'previous-secret', lxAuthCode: '', hasSavedLuxSession: true, hasSavedLxKey: false }
   let authFails = true
   const screen = load('src/screens/SyncLogin/index.tsx', {
+    './LoginGate': { default: 'LoginGate' },
     '@/core/appSession': { getLoginIntent: () => null },
     '@/utils/syncLoginRouting': {},
     './LocalAction': { default: 'LocalAction' },

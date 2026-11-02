@@ -57,17 +57,17 @@ test('clearSavedSyncLoginCredentialsForMode is the only path that wipes stored s
     setSyncLoginDrafts: async(next) => { drafts = next; events.push('setDrafts') },
     clearSyncLoginDraft: async() => { drafts = null; events.push('clearDrafts') },
     clearLuxAuth: async() => { events.push('clearLuxAuth') },
-    clearSyncAuthKey: async() => { events.push('clearSyncAuthKey') },
+    clearSyncAuthKeyForMode: async mode => { events.push(`clearSyncAuthKey:${mode}`) },
   })
 
   await persistence.clearSavedSyncLoginCredentialsForMode('lux')
   assert.deepEqual(drafts, { lx: { host: 'https://lx.example', lxAuthCode: 'code-123' } })
-  assert.deepEqual(events, ['setDrafts', 'clearLuxAuth'])
+  assert.deepEqual(events, ['setDrafts', 'clearLuxAuth', 'clearSyncAuthKey:lux'])
 
   events.length = 0
   await persistence.clearSavedSyncLoginCredentialsForMode('lx')
   assert.equal(drafts, null)
-  assert.deepEqual(events, ['clearDrafts', 'clearSyncAuthKey'])
+  assert.deepEqual(events, ['clearDrafts', 'clearSyncAuthKey:lx'])
 })
 
 test('skip sync preserves credentials; account logout clears its Lux session', () => {

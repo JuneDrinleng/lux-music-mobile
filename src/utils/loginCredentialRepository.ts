@@ -68,13 +68,18 @@ export const createLoginCredentialRepository = (storage: IndexStorage, secure: S
       const ref = await save(id, info)
       await storage.write({ ...index, [id]: ref })
     }),
-    clear: async(): Promise<void> => enqueue(async() => {
+    clear: async(mode?: 'lx' | 'lux'): Promise<void> => enqueue(async() => {
       const index = await storage.read() ?? {}
       // Clear secure entries before removing their discoverable index. Retry on failure.
-      for (const id of Object.keys(index)) {
+      const retained = { ...index }
+      for (const [id, entry] of Object.entries(index)) {
+        const provider = entry.luxUserId ? 'lux' : 'lx'
+        if (mode && mode !== provider) continue
         if (await secure.clear(service(id)) === false) throw new Error('Secure credential removal failed')
+        delete retained[id]
       }
-      await storage.remove()
+      if (Object.keys(retained).length) await storage.write(retained)
+      else await storage.remove()
     }),
   }
 }
