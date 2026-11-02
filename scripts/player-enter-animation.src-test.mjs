@@ -144,7 +144,11 @@ test('native player button, registered pop and Android back share one native exi
   assert.equal(h.animations.length, 0)
   h.finishPop(); await pending
   h.disappear(); assert.equal(h.back(), false)
-  render(true); h.appear(); render(false); assert.equal(h.back(), false)
+  const background = render(true)
+  const pager = background.props.children.props.children[1]
+  assert.equal(pager.props.active, true, 'native disappear must not simulate reopening the persistent pager')
+  assert.equal(pager.props.backActive, false)
+  h.appear(); render(false); assert.equal(h.back(), false)
   h.unmount(); assert.equal(h.closes.size, 0)
 })
 
@@ -175,5 +179,5 @@ test('native push overrides disabled defaults, uses vertical spring/alpha and ho
   }
   assert.match(read('src/navigation/registerScreens.tsx'), /PLAY_DETAIL_SCREEN, \(\) => WrappedComponent\(PlayDetail, false\)/)
   assert.doesNotMatch(read(overlayFile), /useSettingsTransition|translateX/)
-  assert.match(read('src/screens/PlayDetail/Vertical/index.tsx'), /if \(!active\) return false/)
+  assert.match(read('src/screens/PlayDetail/Vertical/index.tsx'), /if \(!active \|\| !backActive\) return false/)
 })

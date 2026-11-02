@@ -84,7 +84,7 @@ export default ({ componentId, onClose, visible = true }: { componentId: string,
           {
             isHorizontalMode
               ? <Horizontal componentId={componentId} />
-              : <Vertical componentId={componentId} active={visible && nativeActive} />
+              : <Vertical componentId={componentId} active={visible} backActive={nativeActive} />
           }
           <PlayQueueSheet
             systemGestureInsetBottom={bottomInset}
