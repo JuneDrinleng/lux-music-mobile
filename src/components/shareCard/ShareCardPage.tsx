@@ -1,8 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useBottomPopupTransition } from '@/components/common/bottomPopupTransition'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Animated, useWindowDimensions, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { BackButton, PrimaryButton, SecondaryButton, TextButton, TextTabs } from '@/components/magazine'
@@ -61,7 +61,8 @@ export const ShareCardPage = ({ sources, initialTab, onClose: finishClose, month
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
-  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const { height } = useWindowDimensions()
+  const { style: pageStyle, requestClose, backdropOpacity } = useBottomPopupTransition(height, 'modal', true)
   const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
@@ -146,7 +147,7 @@ export const ShareCardPage = ({ sources, initialTab, onClose: finishClose, month
     <View style={[styles.watermark, { borderTopColor: options.background === 'paper' ? r.hairline : muted }]}><Text size={10} color={muted} style={styles.brand}>LUX MUSIC</Text><Text size={10} color={muted} style={styles.brand}>{card.watermark}</Text></View>
   </>
   return (
-    <Modal transparent visible animationType="none" onRequestClose={onClose} statusBarTranslucent><Animated.View style={[{ flex: 1 }, pageStyle]}>
+    <Modal transparent visible animationType="none" onRequestClose={onClose} statusBarTranslucent><Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.shadow.black, opacity: backdropOpacity }} /><Animated.View style={[{ flex: 1 }, pageStyle]}>
       <View style={[styles.root, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
         <ScrollView style={styles.root} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} pointerEvents={busy ? 'none' : 'auto'}>
           <View style={styles.top}><BackButton onPress={onClose} accessibilityLabel={t('back')} /><TextButton labelSize={16} label={t('share_card_done')} onPress={onClose} /></View>
