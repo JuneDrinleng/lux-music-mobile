@@ -33,6 +33,6 @@ test('vertical player gives spare height to the top and keeps lyric gaps fixed',
 test('disc budget covers eyebrow and minimum gaps without lowering the 200dp floor', () => {
   assert.equal(constant('PLAYER_RESERVED_ABOVE'), 10 + 14 + 24)
   assert.equal(constant('PLAYER_RESERVED_GAPS'), 30 + 18 + 18)
-  assert.equal(constant('PLAYER_RESERVED_LYRIC'), 110 + 14)
+  assert.equal(constant('PLAYER_RESERVED_LYRIC'), 22 + 28 + 22 + 18 + 18 + 8 + 44)
   assert.equal(constant('PLAYER_DISC_MIN'), 200)
 })
