@@ -1,6 +1,6 @@
 # Lux Music 杂志风设计规范（Magazine / Editorial）· v0.4
 
-> 状态：**设计稿，仅文档**。没有改任何代码、没有开 PR。
+> 状态：保留历史设计稿；播放详情的已实现定稿以 §4.17「播放详情页定稿规则（以 v0.5.3 为准，不可回退）」为准。
 > 读取基准：`JuneDrinleng/lux-music-mobile@dev`（2026-10-09 PT），重点参照 `docs/design-system.md`、`docs/theme-tokens.md`、`docs/page-hierarchy.md`、`docs/project-structure.md`，以及已经落地的杂志风听歌统计 `src/components/stats/ListeningStatsMagazine.tsx`（June 指定的参考页）。
 > v0.4（2026-10-09 PT）：播放详情定稿 **22A-v4**：唱臂用 v3a 白臂墨边；去掉唱片与歌名之间的分隔线；喜欢旁的评论按钮换成「添加到歌单」。稿件 `pages-v2/22A-v4-player-vinyl.png`、`53-v4-warm-player-vinyl.png`、`56-v4-dark-player-vinyl.png`，对比表 `v4-22.png`。
 > v0.3（2026-10-09 PT）：June 选定共用抽屉 **B 刊头**；播放详情以 **22A-v3** 为准（唱臂高对比 + 歌词移到歌手与进度条之间），v3a / v3b 两种唱臂对比方案待定。对比表 `v3-22.png`。
@@ -362,16 +362,44 @@
 - 子页、详情页保留 Dock（现状如此），全屏层（播放详情、搜索输入聚焦时的键盘态、多选模式）隐藏导航或替换为操作栏（多选：添加到… / 移动到… / 移除）。
 
 ### 4.17 播放详情 / 歌词 / 评论
-- 播放 Tab 的 `LyricPreview.tsx` 固定三行槽位 22 / 28 / 22；当前句下面按已启用且可用的翻译 / 罗马音各预留 18，缺少邻句或附加文字时留空，胶囊及进入歌词提示保留。正常前进一句时三行以 280ms cubic 缓出向上滚动并交叉淡入淡出；跳句、换歌词数组、非前台时直接定位。`Pic.tsx` 唱片计算的歌词预留恢复为 124；三行歌词仍完整保留最多 160 的实际高度（含两种附加文字和 52 操作区），不压缩唱片。播放页歌词末尾 spacer 为 0（flexGrow 0），PlayerTransport 仅在播放页传 `seekOverlapTop={21}`，以面板负 marginTop 21 叠入滚动区；胶囊下方约 4 + spacer 0 + 面板 paddingTop 8 + 轨道上方透明区 21 − 上叠 21 = 可见约 12（设计基准，经 createStyle 缩放）。SeekBar 内部仍为 44 高；交叠顶部约 13 由滚动区优先接收，保护译 / 音胶囊及进入歌词提示，轨道与下方拖动区域可用；此处不能同时满足顶部交叠区也接收拖动。歌词 Tab 不传此参数，位置及外观不变。唱片间距预算从 66 降至 48，面板释放 21 高度，不缩小 dev.22 唱片；#165 唱片上方最小 24 / 下方最小 30 及 2:1 弹性权重、唱片 200 下限保持，剩余高度只分给唱片上下，使唱片—歌名—歌词整体贴近进度区；矮屏溢出沿用 ScrollView，控制行仍固定在滚动区外。
+
+#### 播放详情页定稿规则（以 v0.5.3 为准，不可回退）
+
+核对日期：**2026-11-03（北京时间）**。基准为 `a8005421`（v0.5.3-dev.23，即正式版 v0.5.3 的代码）。本节是从当前源码反向写入的定稿规则，优先于本文件旧设计稿及旧行为描述；**改动这些值或行为须先经 June 确认**。守护测试为 `scripts/player-locked-rules.src-test.mjs`，原有 player-* 测试继续保留。
+
+1. **底部弹出页（#158 / #162）。** 播放详情、分享卡片预览、智能歌单编辑、导入流程从下往上进入、向下退出，不使用二级页右进右退的统一转场。`Home/Vertical/PlayDetailOverlay.tsx` 调用 `useBottomPopupTransition(screenHeight, 'player')`；共享 `components/common/bottomPopupTransition.ts` 用 progress 0↔1 对应 translateY `[窗口高度, 0]`，播放详情进入 **420ms / out(back(1.05))**、退出 **300ms / out(cubic)**，native driver。`ShareCardPage.tsx`、`SmartPlaylistEditor.tsx`、`PlaylistImportFlow.tsx` 用同一 hook 的 `modal, true`：时长读 `UtilsModule.modalSlideDuration`（Android `config_shortAnimTime`，不是固定 248ms），双向 cosine 插值 `cos((v + 1)π) / 2 + 0.5`，遮罩 0↔0.5、内容无淡入淡出，退出完成再卸载。播放详情原生 stack 的 `navigation/navigation.ts` 仍是 translationY 进入 420ms spring、退出 300ms，alpha 0.92↔1，`skipAnimation` 时关闭。详见交互规范的底部弹出页表。
+2. **22A-v4 顶栏（#164）。** `PlayerChrome.tsx` 的「评论 / 播放 / 歌词」是独立绝对定位层，left/right=0，以屏幕中线居中，不随右侧按钮宽度偏移；与 **44** 高按钮行同顶距（状态栏高度 + **8**）。`TextTabs.tsx` 使用 `magType.tab` 的 **15 号 / 行高 20**，选中 **800** / 未选 **600**；播放顶栏覆盖 gap 为 **20**、paddingBottom **6**、选中下划线 **3**，不是共享默认 gap 22 或 small 字号 13。
+   睡眠定时没有固定屏宽断点：`playerChromeLayout.ts` 在有有效 pill 时，以 `windowWidth / 2 - tabsWidth / 2 < fullPillWidth + shareWidth + gutter + minGap` 判定紧凑，相等不收起。tabsWidth 优先 onLayout 实测，未测量时为 `6 * setSpText(15) + 2 * styles.tabsInner.gap`；shareWidth 为缩放后的 44，gutter 为缩放后的 PAGE_GUTTER 22，minGap 为字面量 **8**。`SleepTimerBtn.tsx` 的完整胶囊宽预算为 `setSpText(13) * (3.2 + max(0, pill.length - 7) * 0.55) + 20 + 3`，即使已收起也按完整文案预算判断。空间足够显示 **「☾ MM:SS」**（可超两位分钟），不足只显示 `weather-night` **22** 月亮；无定时也显示月亮。胶囊文字 13/700，按钮高 28、圆角 14；月亮态宽 28，hitSlop 四边 8。两态都可打开定时面板看倒计时，无障碍标签仍含倒计时。
+3. **竖屏纵向间距（#165 / #168 / #169）。** `src/screens/PlayDetail/Vertical/Pic.tsx` 的值如下；全部 `flexShrink: 0`，不能恢复旧的歌词末尾弹性空白。
+
+   | 间隙 | 位置 | minHeight | flexGrow |
+   | --- | --- | --- | --- |
+   | flexGapSm | 眉题→唱片 | 24 | 2 |
+   | flexGapRecord | 唱片→歌名 | 30 | 1 |
+   | flexGapTitle | 标题→歌词 | 18 | 0 |
+   | flexGapLyric | 歌词→底部控制面板 | 0 | 0 |
+
+   `scrollContent.flexGrow=1`，剩余高度只按 **2:1** 分给唱片上下空隙；不足时保留最小间距和内容，沿用 ScrollView 滚动。PlayerTransport 固定在 ScrollView 外。
+4. **唱片尺寸预算（#167 / #168 / #169）。** 同一 `Pic.tsx`：`PLAYER_RESERVED_ABOVE=48`（眉题上距 10 + 名义行高 14 + 上间隙 24）、`PLAYER_RESERVED_TITLE=90`、`PLAYER_RESERVED_LYRIC=124`、`PLAYER_RESERVED_GAPS=30+18+0=48`、`PLAYER_DISC_MIN=200`。宽预算 `width - PAGE_GUTTER * 2 - 16`（PAGE_GUTTER=22）；高预算为实测 scrollHeight 减 ABOVE、TITLE、有预览时的 LYRIC、GAPS，未测得高度则用宽预算；直径为 `max(200, min(宽预算, 高预算))`。hasLyricPreview 按上一句 / 当前句 / 下一句任一句文本存在判断。**三行歌词实际高度与历史 124 预算独立，不得把实际最多 160 写入预算再压缩唱片。**
+5. **进度条上叠（#169）。** 仅播放页 `Pic.tsx` 向 `PlayerTransport` 传 **seekOverlapTop={21}**；歌词页 `Lyric.tsx` 不传，默认 **0**。正值生成 `marginTop: -seekOverlapTop, zIndex: 1`；播放页滚动区 **zIndex=2**。`SeekBar.tsx` 保持 **44** 高触摸区、轨道 **2**、已播 **4**，transport paddingTop **8**。375 设计基准下，当前 `SecondaryButton.tsx` 紧凑胶囊高 **28**（组件内字面量，非 36），居中于 44 操作行，底部留 8；可见胶囊底→轨道空白约 **8 + 0 + 8 + (44-2)/2 - 21 = 16**。触摸区顶部约 **21-8=13** 被滚动区优先接收，留给「译 / 音」胶囊与进入歌词提示，该条带不能同时拖动进度；**这是 June 接受的取舍**。轨道与下方仍可点拖，歌词页不启用此上叠。这是源码布局的基准推算，并非真机像素实测；createStyle 样式随屏宽缩放，SecondaryButton 内联高度 28 不走 createStyle，其他屏宽下须按实际布局计算。旧规范及 #170 的约 12 使用了胶囊高 36 的假设，现有 player-vertical-spacing 测试也只用该假设做算术，并未读取胶囊源码；本次保留旧测试，由新增守护检查真实胶囊高度。
+6. **三行迷你歌词（#166）。** `src/components/lyric/LyricPreview.tsx` 固定上一句 / 当前句 / 下一句，槽位 **22 / 28 / 22**；邻句 **14 / faint / 单行省略**，缺句为空串留位；当前句 **KaraokeLine 19 / 800** 逐字高亮、单行。翻译默认开、罗马音默认关；按整份歌词数组的可用性与开关各预留 **18** 高、**13** 号附加槽，当前句缺附加文字仍留空，不随换句抖动；操作行 marginTop **8**、minHeight **44**，最大预览总高 **22+28+22+18+18+8+44=160**。整块与提示点击进入歌词 Tab，两胶囊独立切换。
+   每次 effect 先停止旧动画；**只有 `active && before.active && before.lines === lines && index === before.index + 1` 且前后两句存在才播放换句动画**。动画 **280ms / Easing.out(Easing.cubic) / useNativeDriver=true**，只变 transform/opacity：旧层上移 25 并淡出，新层从 `25 + extraHeight` 上移到 0 并淡入（25 是缩放后 22 与 28 的均值）。其他情况（倒退、跨多句、数组引用变化、active=false 或此前 inactive、句子不存在）清 outgoing 并直接定位。
+   **已知现状（June 接受）：向前拖动刚好跨一句时也会播放动画；从后台返回若只前进一句，也可能播放动画。** 组件没有 seek 或 AppState 抑制输入；`PlayDetail/index.tsx` 的 visible → `Vertical/index.tsx` 的 `active && pageIndex === 1` → Pic → LyricPreview 才是 active 链路。AppState 监听只管理常亮，nativeActive 仅用于 backActive；不能把源码注释里的 foreground 等同于系统前台，也不能承诺「所有拖动或后台返回都直接跳」。
+
+#### 历史设计记录（非实施待办）
+
+以下保留设计历程；其中「现在没有入口」「没有文字 Tabs」等为旧稿写作时的状态，并非 v0.5.3 的现状。涉及以上规则时以定稿小节为准。
+
+- 播放 Tab 的 `LyricPreview.tsx` 固定三行槽位 22 / 28 / 22；当前句下面按已启用且可用的翻译 / 罗马音各预留 18，缺少邻句或附加文字时留空，胶囊及进入歌词提示保留。动画严格按上方定稿小节的 active / 数组引用 / 相邻索引条件执行，含相邻前拖与后台返回可能动画的已知现状。`Pic.tsx` 唱片计算的歌词预留恢复为 124；三行歌词仍完整保留最多 160 的实际高度（含两种附加文字和 52 操作区），不压缩唱片。播放页歌词末尾 spacer 为 0（flexGrow 0），PlayerTransport 仅在播放页传 `seekOverlapTop={21}`，以面板负 marginTop 21 叠入滚动区；胶囊下方约 8 + spacer 0 + 面板 paddingTop 8 + 轨道上方透明区 21 − 上叠 21 = 可见约 16（375 基准，当前紧凑胶囊高 28，详见定稿第 5 条）。SeekBar 内部仍为 44 高；交叠顶部约 13 由滚动区优先接收，保护译 / 音胶囊及进入歌词提示，轨道与下方拖动区域可用；此处不能同时满足顶部交叠区也接收拖动。歌词 Tab 不传此参数，位置及外观不变。唱片间距预算从 66 降至 48，面板释放 21 高度，不缩小 dev.22 唱片；#165 唱片上方最小 24 / 下方最小 30 及 2:1 弹性权重、唱片 200 下限保持，剩余高度只分给唱片上下，使唱片—歌名—歌词整体贴近进度区；矮屏溢出沿用 ScrollView，控制行仍固定在滚动区外。
 - 顶部：返回（chevron-down）+ 居中文字 Tabs「评论 · 播放 · 歌词」（对应现有 Pager 0/1/2）+ 睡眠定时 + 分享。Tab 以屏幕中线居中，不受右侧按钮数量影响；使用 15/20、选中 800 / 未选 600，gap 20、底部留白 6、选中下划线 3。窄屏空间不足时，睡眠定时按钮只显示月亮，倒计时在定时面板查看；Tab 始终以屏幕中线居中。
 - **保留黑胶（June 已拍板）**，但改成杂志语言：纸色背景，去掉封面模糊染色、径向光晕和底部白色圆角面板；唱片本身、纹路、封面圆标、唱臂和旋转动画都保留。
-- 唱片：直径取 `min(屏宽 − 2×22 − 16, 可用高度 − 非唱片预留)`（下限 200），高屏会略放大、矮屏会缩小以免顶出；底色 `surface.vinyl`，外圈 3px `scrim.vinylRing`（墨夜改 `hairline`，否则深底上看不见边），纹路 `line.white` 低透明（沿用 `vinylGrooves`），一道 `glass.line16` 弧形高光，中心封面圆标约 66%（沿用 `recordInner`）+ `scrim.vinylInner` 细边 + 纸色中心孔。不加投影。竖屏播放页的剩余高度按 2:1 分给眉题→唱片（最小 24）与唱片→歌名（最小 30），优先留在顶部；歌名→歌词固定 18，播放页胶囊底边→进度细线约 12（上叠与点击优先级见本节首条），控制行贴在底部安全区之上约 24pt，避免高屏底部大块留白。
+- 唱片：直径取 `min(屏宽 − 2×22 − 16, 可用高度 − 非唱片预留)`（下限 200），高屏会略放大、矮屏会缩小以免顶出；底色 `surface.vinyl`，外圈 3px `scrim.vinylRing`（墨夜改 `hairline`，否则深底上看不见边），纹路 `line.white` 低透明（沿用 `vinylGrooves`），一道 `glass.line16` 弧形高光，中心封面圆标约 66%（沿用 `recordInner`）+ `scrim.vinylInner` 细边 + 纸色中心孔。不加投影。竖屏播放页的剩余高度按 2:1 分给眉题→唱片（最小 24）与唱片→歌名（最小 30），优先留在顶部；歌名→歌词固定 18，播放页胶囊底边→进度细线约 16（上叠与点击优先级见本节首条），控制行贴在底部安全区之上约 24pt，避免高屏底部大块留白。
 - 唱臂（v3，高对比，June 要求唱臂必须明显跳出唱片）：唱片底色接近纯黑，所以唱臂一律用**「浅色芯 + 深色边」或「深色芯 + 浅色光圈」**的双层描边，保证压在唱片上和压在纸上都看得清。只用现有令牌：
   - **✔ v3a 白臂墨边（`22A-v3a`，June 选定，用于 22A-v4）**：浅色主题臂芯 4px `surface`（`#ffffff` / 暖米 `#ffffff`）+ 外描 7px `ink`；支点 30 圆，`surface` 底 + 2px `ink` 边 + `ink` 轴心；唱头 20×24 r2.5 `surface` + 1.5px `ink` 边，唱针 10×4 `accent`。压在黑唱片上是白线，压在纸上是墨线轮廓，两种背景对比都最高。
   - **v3b 墨臂纸边（`22A-v3b`，未选，存档）**：臂芯 4px `ink` + 外描 8px `paper` 光圈；支点 `paper` 底 + 2px `ink` 边；唱头 `ink` + 2.5px `paper` 边，唱针 `accent`。保持「墨色」杂志语言，靠纸色光圈把唱臂从黑唱片上切出来。
   - **墨夜**：`ink` 本身就是浅色（`#f3f4f8`），所以两种方案都变成浅色臂 + `paper`（`#12141c`）深色边；区别只在支点（v3a 浅底深轴，v3b 深底浅边）。外圈仍用 `hairline` 描边，让唱片边缘在深底上可见。
   - 不再使用 `decor.tonearm*` 令牌（它们与唱片、纸的对比都太低，正是 v2 被退回的原因）；这三个令牌只留给横屏。抬起 / 落下沿用 `TONEARM_OUT_ANGLE 18° / IN -2°`。`decor.tonearm*` 三个令牌保留给横屏，竖屏杂志版改读 `ink` / `paper` / `accent`。
-- **定稿 22A-v4「居中唱片 + 唱臂」（June 已拍板；默认 / 暖米 53 / 墨夜 56 均按此出稿）：** 眉题 `NOW PLAYING · 来自「歌单名」` → 唱片居中、v3a 唱臂在右上 → **（不画分隔线，唱片下留 30 空白直接接歌名）** → 歌名 32/800 左对齐 + 来源标 + 歌手 · 专辑；右侧两个按钮：**添加到歌单 `playlist-plus` 26 `ink`** + 喜欢 `heart` 26 `like`（未喜欢时 `heart-outline` `ink`）→ 歌词三行（上一句 / 当前句 / 下一句；当前句 KaraokeLine 19/800 逐字高亮，邻句 14 `faint` 单行省略，左侧 3px `accent` 竖条）→ 进度 → 控制行。间距：唱片下 30 → 标题块 → 18 → 歌词 → 固定可见空隙约 12（胶囊底边起算）→ 进度 → 10 → 控制行。
+- **定稿 22A-v4「居中唱片 + 唱臂」（June 已拍板；默认 / 暖米 53 / 墨夜 56 均按此出稿）：** 眉题 `NOW PLAYING · 来自「歌单名」` → 唱片居中、v3a 唱臂在右上 → **（不画分隔线，唱片下留 30 空白直接接歌名）** → 歌名 32/800 左对齐 + 来源标 + 歌手 · 专辑；右侧两个按钮：**添加到歌单 `playlist-plus` 26 `ink`** + 喜欢 `heart` 26 `like`（未喜欢时 `heart-outline` `ink`）→ 歌词三行（上一句 / 当前句 / 下一句；当前句 KaraokeLine 19/800 逐字高亮，邻句 14 `faint` 单行省略，左侧 3px `accent` 竖条）→ 进度 → 控制行。间距：唱片下 30 → 标题块 → 18 → 歌词 → 固定可见空隙约 16（胶囊底边起算）→ 进度 → 10 → 控制行。
 - **添加到歌单按钮（替换评论按钮）：** 点按后用当前曲目打开 `MusicAddModal`，即共用抽屉 `MagazineSheet` B 版（`26B`），参数为 `{ musicInfo, listId: '', isMove: false }`，与 `PlayQueueSheet.handleShowMusicAddModal` 相同。竖屏 `Pic.tsx` 现在没有这个入口，需要在 Pic 里挂一个 `MusicAddModal` ref（横屏 `PlayDetail/Horizontal/MoreBtn/MusicAddBtn.tsx` 已有同样的做法，可参考）。图标 `playlist-plus` 在本页唯一：控制行右侧的队列按钮是 `playlist-music`，分享是 `share-variant-outline`，没有重复；它和队列行尾的「添加到歌单」用的是同一个图标，全 App 含义一致。
 - **评论入口仍然保留（已核对代码）：** `src/screens/PlayDetail/Vertical/index.tsx` 是 `PagerView`（`initialPage={1}`），第 0 页是 `<Comment embedded …>`，第 1 页是 `Pic`，第 2 页是 `Lyric`。在播放页**向右滑**就到评论页（进入第 0 页时会 `triggerCommentRefresh`），评论页返回走 `onCommentBack → setPage(1)`。杂志版顶部的「评论 · 播放 · 歌词」文字 Tabs 直接映射到 `setPage(0/1/2)`，所以点「评论」也能到。⚠️ 现行代码的 Pic 顶部只有返回和分享、**没有**文字 Tabs，Tabs 是本规范新增的；迁移时如果 Tabs 还没做，就会丢掉评论的点按入口（只能滑动），所以去掉评论按钮和加 Tabs **必须在同一个 PR**。去掉评论按钮后，`Pic` 的 `onCommentPress` prop 和 index 里的 `onPicCommentPress` 可以改为供 Tabs 使用，或者删掉。
 - 22A（v2 版，唱臂低对比 + 歌词在底部）作废：`pages-v2/22A-player-vinyl.png`、`53-warm-player-vinyl.png`、`56-dark-player-vinyl.png` 只作记录。
