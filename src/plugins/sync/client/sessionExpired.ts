@@ -1,3 +1,4 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { SYNC_CODE } from '../constants'
@@ -17,13 +18,19 @@ const present = createSessionExpiredDialog({
   disconnect: async(account) => {
     const [{ updateSetting }, { disconnectServer }] = await Promise.all([import('@/core/common'), import('@/plugins/sync')])
     if (!isActive(account)) return
-    updateSetting({ 'sync.enable': false })
-    await disconnectServer()
+    if (isSessionCoordinatorEnabled()) {
+      const { requestLogin } = await import('@/core/appSession')
+      await requestLogin({ reason: 'reauth', source: 'session-expired', targetProvider: 'lux', initialHost: account.host, initialUsername: account.username, returnPolicy: 'none' })
+    } else {
+      updateSetting({ 'sync.enable': false })
+      await disconnectServer()
+    }
     const { setSyncStatus } = await import('@/core/sync')
     if (!isActive(account)) return
     setSyncStatus({ status: false, message: SYNC_CODE.luxSessionExpired })
   },
   show: async(account, later, login) => {
+    if (isSessionCoordinatorEnabled()) { await later(); return }
     await Navigation.showOverlay({
       component: {
         id: componentId,
@@ -33,10 +40,10 @@ const present = createSessionExpiredDialog({
       },
     })
   },
-  hide: async() => { await Navigation.dismissOverlay(componentId) },
+  hide: async() => { if (!isSessionCoordinatorEnabled()) await Navigation.dismissOverlay(componentId) },
   login: async(account) => {
     const { navigations } = await import('@/navigation')
-    await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: account.host, initialUsername: account.username })
+    await navigations.pushSyncLoginScreen({ onboarding: false, initialHost: account.host, initialUsername: account.username, targetProvider: 'lux' })
   },
 })
 

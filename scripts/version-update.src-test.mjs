@@ -89,6 +89,8 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
     './secureCredentials': {},
+    './loginCredentialRepository': { createLoginCredentialRepository: () => ({}) },
+    './loginRecents': { createLoginRecents: () => ({}) },
     './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
     '@/utils/simplify-chinese-main': {},
@@ -121,6 +123,8 @@ const createUpdates = ({ disk = new Map(), currentVersion = '0.5.0', channel = n
     if (modules.has(filename)) return modules.get(filename)
     assert.ok(sourceFiles.has(filename), `Unexpected source module: ${filename}`)
     const require = (specifier) => {
+      if (specifier === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true }
+      if (specifier === '@/core/appSession') return {}
       if (Object.hasOwn(dependencies, specifier)) return dependencies[specifier]
       const next = specifier === '@/utils'
         ? join(root, 'src/utils/index.ts')

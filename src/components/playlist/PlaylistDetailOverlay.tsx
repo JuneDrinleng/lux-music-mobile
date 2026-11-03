@@ -1,8 +1,9 @@
+import { useSettingsTransition } from '@/components/common/SettingsPage'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import {
   Animated,
   Dimensions,
-  Easing,
   FlatList,
   Image as RNImage,
   InteractionManager,
@@ -13,6 +14,7 @@ import {
 } from 'react-native'
 
 import MusicMultiAddModal, { type MusicMultiAddModalType } from '@/components/MusicMultiAddModal'
+import { useVisibleDockHeight } from '@/components/common/VisibleDockHeight'
 import PromptDialog, { type PromptDialogType } from '@/components/common/PromptDialog'
 import Text from '@/components/common/Text'
 import { LIST_IDS } from '@/config/constant'
@@ -38,9 +40,6 @@ import { usePlaylistImport } from './hooks/usePlaylistImport'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
-const BOTTOM_DOCK_BASE_HEIGHT = 164
-const DETAIL_TRANSITION_FORWARD_DURATION = 268
-const DETAIL_TRANSITION_BACKWARD_DURATION = 220
 
 const isUserListInfo = (listInfo: LX.List.MyListInfo | null): listInfo is LX.List.UserListInfo => {
   return Boolean(listInfo && 'locationUpdateTime' in listInfo)
@@ -66,9 +65,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
     if (Platform.OS == 'android') return Math.max(0, extraInset - statusBarHeight)
     return extraInset
   }, [statusBarHeight])
-  const detailSceneWidth = Dimensions.get('window').width
-  const detailSceneAnim = useRef(new Animated.Value(0)).current
-  const detailTransitionTokenRef = useRef(0)
+  const { style: sceneStyle, requestOpen, requestClose } = useSettingsTransition(false)
 
   const detailData = usePlaylistDetailData(detail, playlists)
   const drag = useSongDragReorder({
@@ -94,50 +91,27 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   const pendingDeleteSongRef = useRef<LX.Music.MusicInfo | null>(null)
 
   const musicMultiAddModalRef = useRef<MusicMultiAddModalType>(null)
+  const visibleDockHeight = useVisibleDockHeight()
   const renameListDialogRef = useRef<PromptDialogType>(null)
   const removeListDialogRef = useRef<PromptDialogType>(null)
   const removeSongDialogRef = useRef<PromptDialogType>(null)
 
-  const [isDetailTransitioning, setDetailTransitioning] = useState(false)
   const [pendingDeleteSong, setPendingDeleteSong] = useState<LX.Music.MusicInfo | null>(null)
 
   useEffect(() => {
     pendingDeleteSongRef.current = pendingDeleteSong
   }, [pendingDeleteSong])
 
-  const detailSceneTranslateX = useMemo(() => detailSceneAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [detailSceneWidth, 0],
-  }), [detailSceneAnim, detailSceneWidth])
-
   const setKeepPlayBarVisible = (visible: boolean) => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', visible)
+    setKeepPlayBarOnKeyboard(visible)
   }
-
-  const animateDetailScene = useCallback((toValue: 0 | 1, onFinish?: () => void) => {
-    const token = ++detailTransitionTokenRef.current
-    setDetailTransitioning(true)
-    detailSceneAnim.stopAnimation()
-    Animated.timing(detailSceneAnim, {
-      toValue,
-      duration: toValue ? DETAIL_TRANSITION_FORWARD_DURATION : DETAIL_TRANSITION_BACKWARD_DURATION,
-      easing: toValue
-        ? Easing.bezier(0.36, 0.66, 0.04, 1)
-        : Easing.bezier(0.32, 0.72, 0, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (token !== detailTransitionTokenRef.current) return
-      if (finished) onFinish?.()
-      setDetailTransitioning(false)
-    })
-  }, [detailSceneAnim])
 
   const handleCloseDetail = useCallback(() => {
     detailData.detailRequestIdRef.current += 1
     drag.resetSongDragState()
     imprt.setImportDrawerVisible(false)
-    animateDetailScene(0, onClose)
-  }, [animateDetailScene, onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef])
+    requestClose(onClose)
+  }, [requestClose, onClose, drag.resetSongDragState, imprt.setImportDrawerVisible, detailData.detailRequestIdRef])
 
   const handlePlaySong = useCallback(async(listId: string, song: LX.Music.MusicInfo, fallbackIndex: number) => {
     setActiveList(listId)
@@ -339,16 +313,15 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
 
   useEffect(() => {
     setKeepPlayBarVisible(false)
-    detailSceneAnim.setValue(0)
     const interactionHandle = InteractionManager.createInteractionHandle()
-    animateDetailScene(1, () => {
+    requestOpen(() => {
       InteractionManager.clearInteractionHandle(interactionHandle)
     })
     return () => {
       InteractionManager.clearInteractionHandle(interactionHandle)
       setKeepPlayBarVisible(false)
     }
-  }, [animateDetailScene, detailSceneAnim, detailData.selectedDetailCacheKey])
+  }, [requestOpen, detailData.selectedDetailCacheKey])
 
   useEffect(() => {
     if (!detailData.selectedListId) return
@@ -384,13 +357,9 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
   return (
     <View style={styles.root} pointerEvents="box-none">
       <Animated.View
-        renderToHardwareTextureAndroid={isDetailTransitioning}
-        shouldRasterizeIOS={isDetailTransitioning}
         style={[
           styles.scene,
-          {
-            transform: [{ translateX: detailSceneTranslateX }],
-          },
+          sceneStyle,
         ]}
       >
         <View
@@ -403,7 +372,7 @@ const PlaylistDetailOverlay = ({ detail, onClose }: PlaylistDetailOverlayProps) 
           <FlatList
             ref={drag.detailListRef}
             style={styles.container}
-            contentContainerStyle={[styles.detailContent, { paddingBottom: BOTTOM_DOCK_BASE_HEIGHT }]}
+            contentContainerStyle={[styles.detailContent, { paddingBottom: visibleDockHeight + 42 }]}
             data={detailData.detailSongs}
             renderItem={renderSongItem}
             keyExtractor={(item, index) => drag.getSongRowKey(item, index)}

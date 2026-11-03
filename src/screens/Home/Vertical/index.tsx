@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { type LayoutChangeEvent, View } from 'react-native'
 import { setSystemBarIconStyle } from '@/utils/nativeModules/utils'
 import Content from './Content'
-import { Dock, DockPlayerSlot, type DockNavItem } from '@/components/magazine'
+import DockContainer from './DockContainer'
+import { DockPlayerSlot, type DockNavItem } from '@/components/magazine'
 import Image from '@/components/common/Image'
 import PlayQueueSheet from './PlayQueueSheet'
 import WhiteNoisePage from './WhiteNoisePage'
@@ -25,10 +26,15 @@ import { shouldHoldSplashChrome, subscribeHomeBootSplashHidden } from '@/utils/h
 import { setNavActiveId } from '@/core/common'
 import type { InitState } from '@/store/common/state'
 import { useI18n } from '@/lang'
-import { useIsPlay, usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { useIsPlay, usePlayerMusicInfo } from '@/store/player/hook'
 import { togglePlay } from '@/core/player/player'
 import { useKeyboard } from '@/utils/hooks'
+import { useKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
 import { useSettingValue } from '@/store/setting/hook'
+import { DOCK_PLAYER_HEIGHT, DOCK_NAV_HEIGHT } from '@/components/magazine/Dock'
+import { scaleSizeH } from '@/utils/pixelRatio'
+import { VisibleDockHeightContext } from '@/components/common/VisibleDockHeight'
+import { isDockHidden, visibleDockHeight } from '@/components/common/dockLayoutMath'
 
 const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   container: {
@@ -71,7 +77,6 @@ export default () => {
   const componentIds = useComponentIds()
   const activeId = useNavActiveId()
   const musicInfo = usePlayerMusicInfo()
-  const { progress } = useProgress()
   const isPlay = useIsPlay()
   const { keyboardShown } = useKeyboard()
   const autoHidePlayBar = useSettingValue('common.autoHidePlayBar')
@@ -81,7 +86,7 @@ export default () => {
   const [listeningStatsOpen, setListeningStatsOpen] = useState(false)
   const [listenTogetherOpen, setListenTogetherOpen] = useState(false)
   const togetherActive = useTogetherActive()
-  const [bottomLayerHeight, setBottomLayerHeight] = useState(0)
+  const [measuredDockHeight, setMeasuredDockHeight] = useState(0)
   const [holdSplashChrome, setHoldSplashChrome] = useState(shouldHoldSplashChrome)
 
   useEffect(() => {
@@ -195,24 +200,19 @@ export default () => {
     setNavActiveId(id as TabId)
   }, [activeId])
 
-  const normalizedProgress = useMemo(() => {
-    if (!musicInfo.id || !Number.isFinite(progress)) return 0
-    if (progress <= 0) return 0
-    if (progress >= 1) return 1
-    return progress
-  }, [musicInfo.id, progress])
-
   const showPlayDetail = useCallback(() => {
     if (!musicInfo.id) return
     global.app_event.showPlayDetail()
   }, [musicInfo.id])
 
-  const keepPlayBarOnKeyboard = Reflect.get(global.lx, 'keepPlayBarOnKeyboard') === true
-  const hideDock = autoHidePlayBar && keyboardShown && !keepPlayBarOnKeyboard
+  const keepPlayBarOnKeyboard = useKeepPlayBarOnKeyboard()
+  const hideDock = isDockHidden(autoHidePlayBar, keyboardShown, keepPlayBarOnKeyboard)
+  const bottomLayerHeight = visibleDockHeight(hideDock, measuredDockHeight, scaleSizeH(DOCK_PLAYER_HEIGHT) + scaleSizeH(DOCK_NAV_HEIGHT) + scaleSizeH(1) + bottomInset)
 
   const subtitle = [musicInfo.singer, musicInfo.album].filter(Boolean).join(' · ')
 
   return (
+    <VisibleDockHeightContext.Provider value={bottomLayerHeight}>
     <View style={styles.container}>
       <StatusBar barStyle={holdSplashChrome || mode !== 'dark' ? 'dark-content' : 'light-content'} />
       <Content />
@@ -260,10 +260,10 @@ export default () => {
           <View
             style={styles.bottomLayer}
             pointerEvents="box-none"
-            onLayout={(e: LayoutChangeEvent) => { setBottomLayerHeight(e.nativeEvent.layout.height) }}
+            onLayout={(e: LayoutChangeEvent) => { setMeasuredDockHeight(e.nativeEvent.layout.height) }}
           >
-            <Dock
-              progress={normalizedProgress}
+            <DockContainer
+              musicId={musicInfo.id}
               insetBottom={bottomInset}
               navItems={navItems}
               activeNavId={activeId}
@@ -286,5 +286,6 @@ export default () => {
       <PlayQueueSheet systemGestureInsetBottom={bottomInset} enabled={!componentIds.playDetail} />
       <PlayDetailOverlay componentId={componentIds.home ?? ''} />
     </View>
+    </VisibleDockHeightContext.Provider>
   )
 }

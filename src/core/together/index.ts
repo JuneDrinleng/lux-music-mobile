@@ -1,3 +1,4 @@
+import { sessionWritesFrozen } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getReadySyncSocket, onSyncSocketReady } from '@/plugins/sync/client/client'
@@ -91,7 +92,7 @@ const syncRole = (previousRole: typeof togetherState.role, forceApply = false) =
         void refreshRoom()
       },
       onAck: (ack, kind) => {
-        if (!togetherState.room) return
+        if (sessionWritesFrozen() || !togetherState.room) return
         if (kind == 'playback') togetherActions.patchRoom({ playbackVersion: Math.max(togetherState.room.playbackVersion, ack.subVersion) })
         else togetherActions.patchRoom({ queueVersion: Math.max(togetherState.room.queueVersion, ack.subVersion) })
         // Only advance when nothing was missed; otherwise the next push detects the gap and resyncs.
@@ -136,13 +137,14 @@ const clearRoom = (message?: string) => {
 
 /** Full resync with getRoom(). A null room while we still think we are in one means it ended. */
 export const refreshRoom = async(): Promise<void> => {
+  if (sessionWritesFrozen()) return
   if (refreshing) return refreshing
   const sessionId = getSession()?.id
   const revision = roomRevision.capture()
   const run = (async() => {
     try {
       const result = await callTogether('together:getRoom')
-      if (!isCurrentSession(sessionId)) return
+      if (sessionWritesFrozen() || !isCurrentSession(sessionId)) return
       if (!result.ok) {
         log.warn('together getRoom failed:', result.code, result.message)
         return
@@ -167,7 +169,7 @@ export const refreshRoom = async(): Promise<void> => {
 }
 
 const handlePush = (event: TogetherPush) => {
-  if (!isCurrentSession(event.sessionId)) return
+  if (sessionWritesFrozen() || !isCurrentSession(event.sessionId)) return
   const revision = roomRevision.capture()
   const room = togetherState.room
   if (!room || event.push.roomId != room.roomId) return
@@ -282,6 +284,7 @@ const appendGateHint = async(message: string): Promise<string> => {
 }
 
 const ensureOnline = async(): Promise<string | null> => {
+  if (sessionWritesFrozen()) return t('login_gate_paused')
   syncTogetherConnectionFromSocket()
   const mode = await getSyncMode().catch(() => 'lx' as LX.Sync.Mode)
   if (mode != 'lux') return appendGateHint(t('together_need_lux'))
@@ -399,4 +402,12 @@ export const initTogether = () => {
     if (mode != 'lux') clearRoom()
     syncTogetherConnectionFromSocket()
   })
+}
+
+export const quiesceTogetherForSwitch = async(): Promise<void> => {
+  stopHostReporting()
+  stopMemberSync()
+  stopClockSync()
+  const result = await leaveTogetherRoom()
+  if (!result.ok) throw new Error(result.message || t('login_gate_leave_failed'))
 }

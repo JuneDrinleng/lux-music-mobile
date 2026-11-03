@@ -1,7 +1,9 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSubpageActive } from '@/components/common/SettingsPage'
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { BackHandler, ScrollView, View } from 'react-native'
+import { BackHandler, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import { getSyncHostHistory } from '@/utils/data'
 import Text from '@/components/common/Text'
@@ -19,6 +21,7 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
+  const pageActive = useSubpageActive()
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const [address, setAddress] = useState(initialHost)
@@ -33,9 +36,9 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
     return () => { active = false }
   }, [showHistory])
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!blocked) onBack(); return true })
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!pageActive) return false; if (!blocked) onBack(); return true })
     return () => { subscription.remove() }
-  }, [onBack, blocked])
+  }, [onBack, blocked, pageActive])
   const checker = useMemo(() => createServerChecker({
     clientVersion: process.versions.app,
     onChange: setState,
@@ -57,7 +60,7 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
   return (
     <View style={[styles.page, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
       <StatusBar />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <FocusVisibleScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.top}><BackButton onPress={() => { if (!blocked) onBack() }} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
         <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('onboard_connect')}</Text>
         <Text size={32} color={r.display} style={styles.title}>{t('onboard_server_title')}</Text>
@@ -89,13 +92,13 @@ export default function ServerStep({ onBack, onReady, showHistory = false, disab
         </View>
         <Text size={12} color={r.muted} style={styles.hint}>{t('onboard_check_hint')}</Text>
         {children}
-      </ScrollView>
+      </FocusVisibleScrollView>
       <View style={[styles.footer, { borderTopColor: r.ink }]}>
         <SecondaryButton compact label={t('onboard_recheck')} disabled={!address.trim() || blocked} onPress={() => { void checker.check(address) }} />
         <PrimaryButton compact style={styles.next} label={t('onboard_next_login')} disabled={state.status !== 'ok' || blocked} onPress={() => {
           if (onReady) { onReady(state.url); return }
           setOpening(true)
-          void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url }).catch(() => { setOpening(false) })
+          void navigations.pushSyncLoginScreen({ onboarding: true, initialHost: state.url, targetProvider: 'lux' }).catch(() => { setOpening(false) })
         }} />
       </View>
     </View>

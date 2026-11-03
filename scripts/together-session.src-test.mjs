@@ -14,7 +14,7 @@ const load = (path, require = () => { throw new Error('unexpected import') }, gl
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports,${Object.keys(globals).join(',')}) {${source}\n})`, { filename: path })
-    .runInThisContext()(require, module, module.exports, ...Object.values(globals))
+    .runInThisContext()(name => name === '@/utils/sessionFence' ? { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false } : require(name), module, module.exports, ...Object.values(globals))
   return module.exports
 }
 const deferred = () => {
@@ -133,7 +133,7 @@ test('negotiation never sends a transient feature disable during reconnect or re
   const h = harness()
   const handler = load('src/plugins/sync/client/sync/handler.ts', specifier => {
     if (specifier == '../session') return h.session
-    if (specifier == '@/utils/data') return { getSyncMode: async() => 'lux' }
+    if (specifier == '@/utils/data') return { getPlayInfo: async() => null, savePlayInfo: async() => {}, getSyncMode: async() => 'lux' }
     if (specifier == '../../playHistoryFlag') return { setPlayHistoryFeatureEnabled() {} }
     if (specifier == '../syncReady') return { notifySyncReady() {} }
     if (specifier == '../modules') return { featureVersion: { together: 1 } }
@@ -180,6 +180,7 @@ const coreHarness = () => {
     if (specifier == '@/plugins/sync/client/session') return h.session
     if (specifier == '@/store/together/state') return { default: state }
     if (specifier == '@/plugins/sync/client/modules/together/api') return api
+    if (specifier == '@/core/player/playInfo') return { setPlayMusicInfo() {} }
     if (specifier == '@/store/player/state') return { default: playerState }
     if (specifier == '@/utils/log') return { log: { warn: noop } }
     if (specifier == './math') return math
@@ -196,12 +197,13 @@ const coreHarness = () => {
   const played = []
   const member = load('src/core/together/member.ts', specifier => shared(specifier) ?? {
     '@/config/constant': { LIST_IDS: { TEMP: 'temp' } },
-    '@/core/list': { setTempList: (...args) => setTempList(...args) },
+    '@/utils/data': { getPlayInfo: async() => null, savePlayInfo: async() => {} },
+    '@/core/list': { getListMusics: async() => [], setTempList: (...args) => setTempList(...args) },
     '@/core/player/player': { playList: (...args) => { played.push(args) } },
     '@/core/player/playStatus': {},
     '@/core/player/progress': {},
     '@/plugins/player': {},
-    '@/store/list/state': { default: {} },
+    '@/store/list/state': { default: { tempListMeta: { id: '' } } },
     './control': { setTogetherBlockedHandler: noop, runAsTogetherApply: fn => fn() },
   }[specifier], globals)
   const core = load('src/core/together/index.ts', specifier => shared(specifier) ?? {

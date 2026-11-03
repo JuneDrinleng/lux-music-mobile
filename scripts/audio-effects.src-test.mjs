@@ -263,7 +263,7 @@ const hookHost = () => {
   }
 }
 const nodes = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)]
-const jsx = (type, props) => ({ type, props })
+const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
 const flush = async() => { for (let i = 0; i < 30; i++) await Promise.resolve() }
 // Band top sits at pageY 1000; locationY is only trusted at grant (Android may report it relative to another view on move).
 const eventAt = (y, locationY = y) => ({ nativeEvent: { locationY, locationX: 500, pageY: 1000 + y } })
@@ -450,7 +450,6 @@ test('Main mounts audio above Pager, preserves Dock navigation, and restores swi
       '@/screens/AudioEffects': { default: 'AudioEffectsPage', __esModule: true },
       '@/components/recommend/DailyRecommendationPage': { DailyRecommendationPage: 'DailyRecommendationPage' },
       './SearchPage': { default: 'SearchPage', __esModule: true },
-      './SharedTopBar': { default: 'SharedTopBar', __esModule: true },
       './Tabs/HomeTab': { default: 'HomeTab', __esModule: true },
       './Tabs/PlaylistTab': { default: 'PlaylistTab', __esModule: true },
       './Tabs/SettingsTab': { default: 'SettingsTab', __esModule: true },

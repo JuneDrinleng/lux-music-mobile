@@ -1,3 +1,4 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 import { useRef, useState } from 'react'
 import { View } from 'react-native'
 import Text from '@/components/common/Text'
@@ -6,7 +7,7 @@ import { useI18n } from '@/lang'
 import { useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { enterLocalSpace } from '@/utils/enterLocalSpace'
-import { setSyncMode, setSyncLoginCompleted } from '@/utils/data'
+import { setSyncLoginCompleted } from '@/utils/data'
 import { navigations } from '@/navigation'
 
 export default function SyncLoginLocalAction({ disabled = false, onBusyChange }: { disabled?: boolean, onBusyChange?: (busy: boolean) => void }) {
@@ -24,9 +25,10 @@ export default function SyncLoginLocalAction({ disabled = false, onBusyChange }:
     setMessage('')
     try {
       await enterLocalSpace(t('sync_login_local_user_name'))
-      await setSyncMode('lx')
-      await setSyncLoginCompleted(true)
-      await navigations.pushHomeScreen()
+      if (!isSessionCoordinatorEnabled()) {
+        await setSyncLoginCompleted(true)
+        await navigations.pushHomeScreen()
+      }
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {

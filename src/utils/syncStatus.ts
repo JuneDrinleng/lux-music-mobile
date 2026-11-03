@@ -3,7 +3,7 @@
 import { SYNC_CODE, SYNC_CLOSE_CODE } from '../plugins/sync/constants'
 import { type ServerCheckState } from './serverCheck'
 
-export type SyncStatusKind = 'synced' | 'unreachable' | 'incompatible' | 'expired'
+export type SyncStatusKind = 'synced' | 'unsynced' | 'local' | 'connecting' | 'syncing' | 'unreachable' | 'incompatible' | 'expired'
 export interface SyncFailure { message?: string, code?: string, status?: number, serverVersion?: string, requiredVersion?: string }
 /** Ordered mapping: session/version failures take precedence over transport failures.
  * HTTP 403 alone is not proof of expiry (blocked IP / permissions also use it).
@@ -17,20 +17,19 @@ export const SYNC_ERROR_MAPPING = [
 
 export const retryDelayMs = (failedNum: number): number => Math.min(2000 + Math.floor(failedNum / 2) * 3000, 30000)
 export const retrySeconds = (retryAt: number | undefined, now: number): number | null => retryAt == null ? null : Math.max(0, Math.ceil((retryAt - now) / 1000))
-export const syncStatusRoute = (kind: SyncStatusKind): 'sync' | 'unreachable' | 'incompatible' | 'expired' => kind === 'synced' ? 'sync' : kind
+export const syncStatusRoute = (kind: SyncStatusKind): 'sync' | 'unreachable' | 'incompatible' | 'expired' => kind === 'unreachable' || kind === 'incompatible' || kind === 'expired' ? kind : 'sync'
 export const syncHostname = (host: string): string => host.replace(/^https?:\/\//i, '').split('/')[0]
 
 export const mapSyncStatus = ({ enabled, local = false, mode, status, check, now = Date.now() }: {
   enabled: boolean
   local?: boolean
   mode: 'lx' | 'lux'
-  status: { status: boolean, message: string, error?: SyncFailure, closeCode?: number, attempts?: number, retryAt?: number, lastSyncedAt?: number }
+  status: { status: boolean, message: string, error?: SyncFailure, closeCode?: number, attempts?: number, retryAt?: number, lastSyncedAt?: number, syncing?: boolean }
   check?: ServerCheckState
   now?: number
 }) => {
   const error = status.error ?? { message: status.message }
   let kind: SyncStatusKind | null = null
-  if (local) return null
   if (error.message === SYNC_CODE.luxSessionExpired || (mode === 'lux' && [SYNC_CODE.authFailed, SYNC_CODE.missingAuthCode].some(message => message === error.message))) kind = 'expired'
   for (const row of SYNC_ERROR_MAPPING) {
     if (kind) break
@@ -39,15 +38,19 @@ export const mapSyncStatus = ({ enabled, local = false, mode, status, check, now
   }
   if (check?.compatible === false) kind = 'incompatible'
   // Expiry is retained when the existing expired-session flow disables sync.
-  if (!enabled && kind !== 'expired') return null
+  if (local) kind = 'local'
+  else if (!enabled && kind !== 'expired') kind = 'unsynced'
+  // Only an explicit task signal may report syncing. Socket open/handshake is connecting.
+  if (!kind && status.syncing === true) kind = 'syncing'
+  if (!kind && (status.message === SYNC_CODE.connecting || status.message === 'Wait syncing...')) kind = 'connecting'
   if (!kind && status.status) kind = 'synced'
   if (!kind && ([error.message, error.code, error.status, status.message].some(Boolean) || status.retryAt != null || check?.reachable === false)) kind = 'unreachable'
-  // Explicit disconnect / no configured session has no row.
-  if (!kind) return null
+  if (!kind) kind = 'unsynced'
   return {
     kind,
     route: syncStatusRoute(kind),
-    titleKey: `sync_state_${kind}` as const,
+    titleKey: kind === 'local' ? 'sync_state_local_mode' as const : `sync_state_${kind}` as const,
+    pillKey: kind === 'local' ? 'sync_state_local_mode' as const : kind === 'unreachable' ? 'sync_state_pill_failed' as const : kind === 'expired' ? 'sync_state_pill_expired' as const : `sync_state_${kind}` as const,
     seconds: retrySeconds(status.retryAt, now),
     attempts: status.attempts ?? 0,
     lastSyncedAt: status.lastSyncedAt,

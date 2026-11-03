@@ -1,7 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { useBottomPopupTransition } from '@/components/common/bottomPopupTransition'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Animated, useWindowDimensions, Modal, ScrollView, TouchableOpacity, View } from 'react-native'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import { BackButton, PrimaryButton, SecondaryButton, TextButton, TextTabs } from '@/components/magazine'
@@ -51,7 +52,7 @@ const useStyles = sharedLuxStyles(() => createStyle({
 }))
 
 /** A full-page modal keeps Android back local and preserves the underlying player/report. */
-export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }: {
+export const ShareCardPage = ({ sources, initialTab, onClose: finishClose, monthlyFallback }: {
   sources: ShareCardSources
   initialTab: ShareCardTab
   onClose: () => void
@@ -60,6 +61,9 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const { height } = useWindowDimensions()
+  const { style: pageStyle, requestClose, backdropOpacity } = useBottomPopupTransition(height, 'modal', true)
+  const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const t = useI18n()
   const statusBarHeight = useStatusbarHeight()
   const [options, setOptions] = useState(() => initialShareCardOptions(initialTab))
@@ -143,7 +147,7 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
     <View style={[styles.watermark, { borderTopColor: options.background === 'paper' ? r.hairline : muted }]}><Text size={10} color={muted} style={styles.brand}>LUX MUSIC</Text><Text size={10} color={muted} style={styles.brand}>{card.watermark}</Text></View>
   </>
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible animationType="none" onRequestClose={onClose} statusBarTranslucent><Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.shadow.black, opacity: backdropOpacity }} /><Animated.View style={[{ flex: 1 }, pageStyle]}>
       <View style={[styles.root, { backgroundColor: r.paper, paddingTop: statusBarHeight }]}>
         <ScrollView style={styles.root} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} pointerEvents={busy ? 'none' : 'auto'}>
           <View style={styles.top}><BackButton onPress={onClose} accessibilityLabel={t('back')} /><TextButton labelSize={16} label={t('share_card_done')} onPress={onClose} /></View>
@@ -170,6 +174,6 @@ export const ShareCardPage = ({ sources, initialTab, onClose, monthlyFallback }:
           <PrimaryButton style={{ ...styles.footerButton, ...styles.primary }} labelNumberOfLines={1} label={t('share_card_share')} onPress={() => { void share() }} disabled={!card.canExport || !cardLayout.width || busy} />
         </View>
       </View>
-    </Modal>
+    </Animated.View></Modal>
   )
 }

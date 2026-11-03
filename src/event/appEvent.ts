@@ -265,6 +265,10 @@ export class AppEvent extends Event {
     this.emit('syncModeUpdated', mode)
   }
 
+  syncHostUpdated(host: string) {
+    this.emit('syncHostUpdated', host)
+  }
+
   togglePlayQueuePanel() {
     this.emit('togglePlayQueuePanel')
   }

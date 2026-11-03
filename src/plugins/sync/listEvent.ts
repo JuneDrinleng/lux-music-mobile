@@ -1,3 +1,4 @@
+import { sessionGeneration, sessionRemoteWritesFrozen } from '@/utils/sessionFence'
 import { getActiveSpace } from '@/utils/dataSpace'
 import { LIST_IDS } from '@/config/constant'
 import { getListMusics } from '@/core/list'
@@ -16,6 +17,7 @@ export const buildUserListInfoFull = ({ id, name, source, sourceListId, list, lo
 }
 
 export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => {
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   const lists = [...userLists]
   return Promise.all([
@@ -24,7 +26,7 @@ export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => {
     // eslint-disable-next-line @typescript-eslint/promise-function-async
     ...lists.map(l => getListMusics(l.id)),
   ]).then(([defaultList, loveList, ...userList]) => {
-    if (space != getActiveSpace()) throw new Error('Data space changed during list sync read')
+    if ((generation !== sessionGeneration() || sessionRemoteWritesFrozen() || space != getActiveSpace())) throw new Error('Data space changed during list sync read')
     return {
       defaultList,
       loveList,
@@ -34,6 +36,7 @@ export const getLocalListData = async(): Promise<LX.Sync.List.ListData> => {
 }
 
 export const setLocalListData = async(listData: LX.Sync.List.ListData) => {
+  if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
   await global.list_event.list_data_overwrite(listData, true)
 }
 
@@ -117,7 +120,7 @@ export const registerListActionEvent = (sendListAction: (action: LX.Sync.List.Ac
 }
 
 export const handleRemoteListAction = async({ action, data }: LX.Sync.List.ActionList) => {
-  // console.log('handleRemoteListAction', action)
+  if (sessionRemoteWritesFrozen()) return
 
   switch (action) {
     case 'list_data_overwrite':

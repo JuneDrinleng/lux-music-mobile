@@ -24,7 +24,7 @@ const engine = createRecommendationEngine({
 
 onDataSpaceWillChange(engine.clearSessionCache)
 
-export const { getDailyRecommendations, getSimilar, getRadioNext } = engine
+export const { peekDailyRecommendations, getDailyRecommendations, getSimilar, getRadioNext } = engine
 export { createRecommendationEngine } from './service'
 export type { RecommendationOptions, RecommendationBatch, RecommendationCache, RecommendationDependencies } from './service'
 export type { Candidate, CandidateSource, CandidateOrigin, Recommendation, RecommendationReason, Song, SourceContext } from './types'

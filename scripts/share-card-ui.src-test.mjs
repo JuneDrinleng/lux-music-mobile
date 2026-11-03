@@ -1,3 +1,4 @@
+import { settingsTransitionMock } from './settings-transition-mock.mjs'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
@@ -38,10 +39,15 @@ export const shareCardFixture = (file = 'src/components/shareCard/ShareCardPage.
     return messages[key].replace(/\{(\w+)\}/g, (_, name) => args[name])
   }
   const roles = { paper: '#eef0fb', paperRaised: '#fff', ink: '#111827', onInk: '#fff', onAccent: '#111827', accent: '#c8e600', muted: '#767d89', display: '#16181f', eyebrow: '#838995', quiet: '#a9aeb8', hairline: '#e1e6ef', list: '#20242d' }
+  hooks.useCallback = (fn, deps) => hooks.useMemo(() => fn, deps)
   const deps = {
+    '@/components/common/SettingsPage': settingsTransitionMock(hooks),
+    '@/components/common/bottomPopupTransition': { useBottomPopupTransition: () => ({ style: {}, backdropOpacity: 0.5, requestClose: done => done?.() }) },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': {
+      Animated: { View: 'AnimatedView' },
+      useWindowDimensions: () => ({ height: 800, width: 375 }),
       ...Object.fromEntries(['Modal', 'ScrollView', 'View', 'FlatList', 'TouchableOpacity'].map(name => [name, name])),
       Share: { share: async value => { env.textShares.push(value) } },
       Platform: env.platform,
@@ -59,7 +65,7 @@ export const shareCardFixture = (file = 'src/components/shareCard/ShareCardPage.
     '@/components/magazine': Object.fromEntries(['BackButton', 'MagSegmented', 'PrimaryButton', 'SecondaryButton', 'TextButton', 'TextTabs', 'MagazineSheet', 'Hairline', 'SectionHeader', 'Rule'].map(name => [name, name])),
     '@/lang': { useI18n: () => t },
     '@/store/common/hook': { useStatusbarHeight: () => 44 },
-    '@/theme/LuxTheme': { sharedLuxStyles: builder => () => builder({}), useLuxTheme: () => ({ colors: {} }) },
+    '@/theme/LuxTheme': { sharedLuxStyles: builder => () => builder({}), useLuxTheme: () => ({ colors: { shadow: { black: 'theme-black' } } }) },
     '@/theme/magazineRoles': { magazineRoles: () => roles },
     '@/utils/tools': { createStyle: value => value, toast: value => { env.toasts.push(value) } },
     '@/utils/data': { getUserName: () => env.name },

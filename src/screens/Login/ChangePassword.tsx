@@ -1,7 +1,8 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, Platform, StyleSheet, ScrollView, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native'
 import { useSettingsBack } from '@/components/common/SettingsPage'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
@@ -86,7 +87,7 @@ export default function ChangePassword({ host, session, onBack }: { host: string
   const subtitle = sessionCountMessage(count)
   return <View style={StyleSheet.absoluteFillObject}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <FocusVisibleScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t('password_eyebrow')}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t('password_title')}</Text>
@@ -101,7 +102,7 @@ export default function ChangePassword({ host, session, onBack }: { host: string
         <Toggle compact value={revoke} onChange={setRevoke} disabled={busy} accessibilityLabel={t('password_revoke')} />
       </View>
       {message ? <Text size={12} color={r.danger} style={styles.hint} accessibilityLiveRegion="polite">{message}</Text> : null}
-    </ScrollView>
+    </FocusVisibleScrollView>
     <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
       <PrimaryButton compact label={t('password_submit')} onPress={() => { void submit() }} disabled={busy || invalid} />
     </View>

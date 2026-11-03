@@ -10,6 +10,7 @@ const load = (path, deps) => {
   const module = { exports: {} }
   const js = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)

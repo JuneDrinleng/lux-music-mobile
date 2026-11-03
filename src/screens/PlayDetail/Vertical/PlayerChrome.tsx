@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { memo } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { memo, useState } from 'react'
+import { TouchableOpacity, useWindowDimensions, View } from 'react-native'
 
 import { MdiIcon } from '@/components/common/MdiIcon'
 import { TextTabs, type MagTabItem } from '@/components/magazine'
@@ -9,7 +9,8 @@ import { useI18n } from '@/lang'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
-import { PAGE_GUTTER } from '@/theme/magazineType'
+import { magType, PAGE_GUTTER } from '@/theme/magazineType'
+import { setSpText } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 
 import SleepTimerBtn from './SleepTimerBtn'
@@ -34,6 +35,10 @@ export const PlayerChrome = memo(({
   const r = magazineRoles(colors)
   const statusBarHeight = useStatusbarHeight()
   const t = useI18n()
+  const { width } = useWindowDimensions()
+  const [measuredTabsWidth, setTabsWidth] = useState(0)
+  // Six CJK glyphs at 15 plus two gaps until the row reports its actual width.
+  const tabsWidth = measuredTabsWidth || 6 * setSpText(15) + 2 * styles.tabsInner.gap
 
   const tabs: MagTabItem[] = [
     { id: 'comment', label: t('player_tab_comment') },
@@ -52,25 +57,30 @@ export const PlayerChrome = memo(({
       >
         <MdiIcon name="chevron-down" size={22} color={r.ink} />
       </TouchableOpacity>
-      <View style={styles.tabs}>
-        <TextTabs
-          items={tabs}
-          value={page}
-          onChange={(id) => { onPageChange(id as PlayerPageId) }}
-          small
-          style={styles.tabsInner}
-        />
+      <View pointerEvents="box-none" style={[styles.tabs, { top: statusBarHeight + 8 }]}>
+        <View onLayout={({ nativeEvent }) => { setTabsWidth(nativeEvent.layout.width) }}>
+          <TextTabs
+            items={tabs}
+            value={page}
+            onChange={(id) => { onPageChange(id as PlayerPageId) }}
+            style={styles.tabsInner}
+            tabStyle={styles.tab}
+            labelStyle={styles.tabLabel}
+          />
+        </View>
       </View>
-      <SleepTimerBtn />
-      <TouchableOpacity
-        style={styles.iconBtn}
-        activeOpacity={0.7}
-        onPress={onShare}
-        accessibilityRole="button"
-        accessibilityLabel={t('player_share')}
-      >
-        <MdiIcon name="share-variant-outline" size={22} color={r.ink} />
-      </TouchableOpacity>
+      <View style={styles.actions}>
+        <SleepTimerBtn layout={{ windowWidth: width, tabsWidth, shareWidth: styles.iconBtn.width, gutter: styles.wrap.paddingHorizontal }} />
+        <TouchableOpacity
+          style={styles.iconBtn}
+          activeOpacity={0.7}
+          onPress={onShare}
+          accessibilityRole="button"
+          accessibilityLabel={t('player_share')}
+        >
+          <MdiIcon name="share-variant-outline" size={22} color={r.ink} />
+        </TouchableOpacity>
+      </View>
     </View>
   )
 })
@@ -81,6 +91,7 @@ const useStyles = sharedLuxStyles((colors) => {
     wrap: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: PAGE_GUTTER,
       zIndex: 2,
     },
@@ -95,13 +106,26 @@ const useStyles = sharedLuxStyles((colors) => {
       backgroundColor: 'transparent',
     },
     tabs: {
-      flex: 1,
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: PLAYER_ICON_TAP,
       alignItems: 'center',
-      paddingHorizontal: 8,
+      justifyContent: 'center',
     },
     tabsInner: {
       borderBottomWidth: 0,
-      gap: 18,
+      gap: 20,
+    },
+    tab: {
+      paddingBottom: 6,
+    },
+    tabLabel: {
+      lineHeight: magType.tab.lineHeight,
+    },
+    actions: {
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     iconBtn: {
       width: PLAYER_ICON_TAP,

@@ -55,12 +55,12 @@ const useStyles = sharedLuxStyles(colors => {
 })
 
 // Keep the detail page's compact cover independent of the home card redesign.
-export const DailyCover = memo(({ items, compact = false }: { items: Recommendation[], compact?: boolean }) => {
+export const DailyCover = memo(({ items, compact = false, active = true }: { items: Recommendation[], compact?: boolean, active?: boolean }) => {
   const t = useI18n()
   const language = useSettingValue('common.langId')
   const r = magazineRoles(useLuxTheme().colors)
   const styles = useHomeStyles()
-  const day = useCoverDate()
+  const day = useCoverDate(active)
   const date = useMemo(() => new Date(day), [day])
   const covered = useMemo(() => coveredRecommendations(items).slice(0, 3), [items])
   const metrics = dayNumberMetrics(setSpText, scaleSizeH)

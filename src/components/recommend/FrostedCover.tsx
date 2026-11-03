@@ -2,10 +2,11 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
 import { defaultHeaders } from '@/components/common/Image'
-import { cacheImageUri, peekCachedImageUri } from '@/utils/imageCache'
+import { cacheImageUri, forgetCachedImageUri, peekCachedImageUri } from '@/utils/imageCache'
 import { sharedLuxStyles } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { rgbaHex } from '@/theme/luxColorMath'
+import { noteRecommendationBootCoverLoaded } from '@/utils/recommendationCoverBoot'
 
 export const FrostedCover = memo(({ uri }: { uri?: string }) => {
   const styles = useStyles()
@@ -35,8 +36,9 @@ export const FrostedCover = memo(({ uri }: { uri?: string }) => {
     <View pointerEvents="none" style={styles.background}>
       {usable ? <>
         {/* Resize to the laid-out card before Android's bitmap blur; keep the v5B radius. */}
-        <Image key={displayUri} source={source} blurRadius={14} resizeMode="cover" resizeMethod="resize" style={StyleSheet.absoluteFillObject}
-          onError={() => { setFailedUri(uri) }} />
+        <Image key={displayUri} source={source} blurRadius={14} fadeDuration={0} resizeMode="cover" resizeMethod="resize" style={StyleSheet.absoluteFillObject}
+          onLoad={() => { if (uri) noteRecommendationBootCoverLoaded(uri) }}
+          onError={() => { if (remote && uri) forgetCachedImageUri(uri); setFailedUri(uri) }} />
         <View style={styles.tint} />
       </> : null}
     </View>

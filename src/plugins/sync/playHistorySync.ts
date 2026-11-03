@@ -1,3 +1,4 @@
+import { sessionGeneration, sessionRemoteWritesFrozen } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { getActiveSpace } from '@/utils/dataSpace'
@@ -67,14 +68,15 @@ const rememberCursor = async(identity: { serverKey: string, userId: string }, cu
  * An old server, or a server that replies "playHistory is not enabled", keeps the local store.
  */
 export const syncPlayHistory = async(): Promise<void> => {
-  if (unsupported || !isPlayHistoryFeatureEnabled()) return
+  if (sessionRemoteWritesFrozen() || unsupported || !isPlayHistoryFeatureEnabled()) return
   if (syncing) return syncing
   const socket = getReadySyncSocket()
   if (!socket) return
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   const run = (async() => {
     const identity = await serverIdentity()
-    if (!identity || !isPlayHistoryFeatureEnabled() || space != getActiveSpace()) return
+    if (!identity || !isPlayHistoryFeatureEnabled() || (generation !== sessionGeneration() || sessionRemoteWritesFrozen() || space != getActiveSpace())) return
     const saved = getPlayHistoryCursor()
     const sameServer = saved != null && saved.serverKey == identity.serverKey && saved.userId == identity.userId
     let since = sameServer ? saved.cursor : undefined

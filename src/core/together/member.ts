@@ -1,3 +1,6 @@
+import { sessionWritesFrozen } from '@/utils/sessionFence'
+import { getPlayInfo, savePlayInfo } from '@/utils/data'
+import { setPlayMusicInfo, setPlayListId } from '@/core/player/playInfo'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import BackgroundTimer from 'react-native-background-timer'
@@ -7,7 +10,7 @@ import { LIST_IDS } from '@/config/constant'
 import { getListMusics, setTempList } from '@/core/list'
 import { isPlayQueueMetaId, pause, play, playList } from '@/core/player/player'
 import { setStatusText } from '@/core/player/playStatus'
-import { setNowPlayTime } from '@/core/player/progress'
+import { setNowPlayTime, setMaxplayTime } from '@/core/player/progress'
 import { getPosition, setCurrentTime } from '@/plugins/player'
 import listState from '@/store/list/state'
 import playerState from '@/store/player/state'
@@ -90,11 +93,25 @@ const applyPlayState = (playback: LX.Sync.Together.Playback) => {
 const loadSong = async(room: LX.Sync.Together.RoomSnapshot, song: LX.Music.MusicInfoOnline) => {
   const token = ++applyToken
   const sessionId = getSession()?.id
-  const valid = () => active && token == applyToken && isCurrentSession(sessionId) && togetherState.room?.roomId == room.roomId
+  const valid = () => !sessionWritesFrozen() && active && token == applyToken && isCurrentSession(sessionId) && togetherState.room?.roomId == room.roomId
   loadingSong = { id: song.id, source: song.source, at: Date.now() }
   const list = queueFor(room, song)
   const index = Math.max(0, list.findIndex(item => isSameSong(item, song)))
   try {
+    const saved = await getPlayInfo()
+    if (!valid()) return
+    if (!saved?.personalQueue && !isRoomQueueActive()) {
+      const personal = await getListMusics(LIST_IDS.TEMP)
+      if (!valid()) return
+      await savePlayInfo({
+        time: playerState.progress.nowPlayTime,
+        maxTime: playerState.progress.maxPlayTime,
+        listId: playerState.playMusicInfo.listId ?? '',
+        index: playerState.playInfo.playIndex,
+        personalQueue: { list: [...personal], metaId: listState.tempListMeta.id, info: { ...playerState.playMusicInfo }, time: playerState.progress.nowPlayTime, maxTime: playerState.progress.maxPlayTime, index: playerState.playInfo.playIndex },
+      })
+    }
+    if (!valid()) return
     await runAsTogetherApply(async() => {
       await setTempList(`${QUEUE_META_PREFIX}${room.roomId}_${Date.now()}`, [...list])
       if (!valid()) return
@@ -138,7 +155,7 @@ const restoreRoomQueue = () => {
 }
 
 export const applyPlayback = async(room: LX.Sync.Together.RoomSnapshot, forceReload = false) => {
-  if (!active) return
+  if (sessionWritesFrozen() || !active) return
   const { musicInfo } = room.playback
   if (!musicInfo) {
     applyToken += 1
@@ -207,4 +224,19 @@ export const stopMemberSync = () => {
   setTogetherBlockedHandler(null)
   if (driftId != null) BackgroundTimer.clearInterval(driftId)
   driftId = null
+}
+
+/** Restore the personal context before the coordinator flushes; never resume a room or playback. */
+export const restorePersonalQueueForSwitch = async(): Promise<boolean> => {
+  stopMemberSync()
+  const saved = await getPlayInfo()
+  const personal = saved?.personalQueue
+  if (!personal) return false
+  await setTempList(personal.metaId, personal.list)
+  setPlayListId(personal.info.listId)
+  setPlayMusicInfo(personal.info.listId, personal.info.musicInfo, personal.info.isTempPlay)
+  setNowPlayTime(personal.time)
+  setMaxplayTime(personal.maxTime)
+  await savePlayInfo({ time: personal.time, maxTime: personal.maxTime, listId: personal.info.listId ?? '', index: personal.index })
+  return true
 }

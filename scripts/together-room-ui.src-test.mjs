@@ -180,7 +180,7 @@ test('SearchPage selection routes to request picking only when supplied; normal 
   visit(source)
   assert.ok(initializer)
   // Execute the production callback, keeping React and unrelated screen dependencies out of this unit test.
-  const callbackSource = ts.transpileModule(`(function(useCallback, onSelectSong, addMusicToQueueAndPlay) { return ${initializer} })`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText
+  const callbackSource = ts.transpileModule(`(function(useCallback, onSelectSong, addMusicToQueueAndPlay, handleClose = () => {}) { return ${initializer} })`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText
   const callback = new Script(callbackSource).runInThisContext()
   const song = { id: 'song' }
   const played = []
@@ -190,6 +190,11 @@ test('SearchPage selection routes to request picking only when supplied; normal 
   await callback(useCallback, async item => { picked.push(item) }, async item => { played.push(item) })(song)
   assert.deepEqual(played, [song])
   assert.deepEqual(picked, [song])
+  let closed = 0
+  await callback(useCallback, async() => false, async item => { played.push(item) }, () => { closed++ })(song)
+  assert.equal(closed, 0, 'failed selection retains the search page')
+  await callback(useCallback, async() => true, async item => { played.push(item) }, () => { closed++ })(song)
+  assert.equal(closed, 1, 'successful selection uses animated handleClose')
   await assert.rejects(callback(useCallback, async() => { throw new Error('request failed') }, async item => { played.push(item) })(song), /request failed/)
   assert.deepEqual(played, [song])
 })

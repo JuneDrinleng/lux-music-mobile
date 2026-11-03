@@ -1,22 +1,30 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AppState } from 'react-native'
-import { getDailyRecommendations, getSimilar, type Song } from '@/utils/recommend'
+import { getDailyRecommendations, peekDailyRecommendations, getSimilar, type Song } from '@/utils/recommend'
 import { createRecommendationLoader, type RecommendationLoadState } from '@/utils/recommend/loadState'
 import { onDataSpaceChanged, onDataSpaceWillChange } from '@/utils/dataSpace'
 
-export const useRecommendations = (anchor?: Song) => {
-  const [state, setState] = useState<RecommendationLoadState>({ batch: null, loading: true, failed: false })
+export const useRecommendations = (anchor?: Song, active = true) => {
+  const [state, setState] = useState<RecommendationLoadState>(() => {
+    const batch = anchor ? null : peekDailyRecommendations()
+    return { batch, loading: !batch, failed: false }
+  })
   const loader = useMemo(() => createRecommendationLoader(setState), [])
   const reload = useCallback(async(retryFailedSources = false) => {
-    await loader.load(async onProgress => anchor ? getSimilar(anchor) : getDailyRecommendations({ retryFailedSources, onProgress }))
+    await loader.load(async onProgress => anchor ? getSimilar(anchor) : getDailyRecommendations({ retryFailedSources, onProgress }), anchor ? null : peekDailyRecommendations())
   }, [anchor, loader])
   useEffect(() => {
-    void reload()
     const invalidate = onDataSpaceWillChange(loader.invalidate)
-    const changed = onDataSpaceChanged(() => { void reload() })
-    const sourceAvailabilityChanged = () => { void reload() }
+    const changed = onDataSpaceChanged(() => { if (active) void reload() })
+    const sourceAvailabilityChanged = () => { if (active) void reload() }
     global.state_event.on('syncStatusUpdated', sourceAvailabilityChanged)
+    return () => { invalidate(); changed(); global.state_event.off('syncStatusUpdated', sourceAvailabilityChanged) }
+  }, [active, loader, reload])
+  useEffect(() => () => { loader.invalidate() }, [loader])
+  useEffect(() => {
+    if (!active) return
+    void reload()
     let day = new Date().toDateString()
     const refreshDay = () => {
       const next = new Date().toDateString()
@@ -24,8 +32,7 @@ export const useRecommendations = (anchor?: Song) => {
     }
     const timer = setInterval(refreshDay, 60_000)
     const appState = AppState.addEventListener('change', state => { if (state === 'active') refreshDay() })
-    const cancelRequests = loader.invalidate
-    return () => { cancelRequests(); invalidate(); changed(); clearInterval(timer); appState.remove(); global.state_event.off('syncStatusUpdated', sourceAvailabilityChanged) }
-  }, [anchor, loader, reload])
+    return () => { clearInterval(timer); appState.remove() }
+  }, [active, anchor, reload])
   return { ...state, reload }
 }

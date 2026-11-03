@@ -15,11 +15,11 @@ export const createRecommendationLoader = (publish: (state: RecommendationLoadSt
   }
   return {
     invalidate,
-    load: async(load: (progress: (batch: RecommendationBatch) => void) => Promise<RecommendationBatch>) => {
+    load: async(load: (progress: (batch: RecommendationBatch) => void) => Promise<RecommendationBatch>, initial: RecommendationBatch | null = null) => {
       cancel?.()
       const request = ++generation
-      let batch: RecommendationBatch | null = null
-      publish({ batch, loading: true, failed: false })
+      let batch: RecommendationBatch | null = initial
+      publish({ batch, loading: !batch, failed: false })
       const progress = (next: RecommendationBatch) => {
         if (generation != request) return
         batch = next

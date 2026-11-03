@@ -10,7 +10,6 @@ import { type NAV_ID_Type } from '@/config/constant'
 import { DailyRecommendationPage } from '@/components/recommend/DailyRecommendationPage'
 import AudioEffectsPage from '@/screens/AudioEffects'
 import SearchPage, { type SearchPageRequest } from './SearchPage'
-import SharedTopBar from './SharedTopBar'
 import HomeTab from './Tabs/HomeTab'
 import PlaylistTab from './Tabs/PlaylistTab'
 import SettingsTab from './Tabs/SettingsTab'
@@ -190,21 +189,12 @@ const Main = () => {
     global.app_event.settingsSearchStateUpdated({ keyword: '' })
   }, [activeNavId])
 
-  // Home, Library, and Settings own MagTopBar (scrolls with content). Legacy
-  // SharedTopBar settings search is retired; hide whenever overlays cover the pager.
-  const sharedTopBarVisible = false
-
   const handleCloseSearchPage = useCallback(() => {
     setSearchPageVisible(false)
   }, [])
 
   return (
     <View style={styles.root}>
-      <SharedTopBar
-        visible={sharedTopBarVisible}
-        mode={activeNavId === 'nav_setting' ? 'settings' : 'music'}
-        hideAvatar={activeNavId !== 'nav_search'}
-      />
       <PagerView
         ref={pagerViewRef}
         initialPage={activeIndexRef.current}

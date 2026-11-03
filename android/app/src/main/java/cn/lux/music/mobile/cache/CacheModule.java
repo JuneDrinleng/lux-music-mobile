@@ -11,7 +11,6 @@ import java.io.File;
 
 import static cn.lux.music.mobile.cache.Utils.clearCacheFolder;
 import static cn.lux.music.mobile.cache.Utils.getDirSize;
-import static cn.lux.music.mobile.cache.Utils.isMethodsCompat;
 
 // https://github.com/midas-gufei/react-native-clear-app-cache/tree/master/android/src/main/java/com/learnta/clear
 public class CacheModule extends ReactContextBaseJavaModule {
@@ -36,11 +35,8 @@ public class CacheModule extends ReactContextBaseJavaModule {
     File cacheDir = getReactApplicationContext().getCacheDir();// /data/data/package_name/cache
     // fileSize += getDirSize(filesDir);
     fileSize += getDirSize(cacheDir);
-    // 2.2版本才有将应用缓存转移到sd卡的功能
-    if (isMethodsCompat(android.os.Build.VERSION_CODES.FROYO)) {
-      File externalCacheDir = Utils.getExternalCacheDir(getReactApplicationContext());//"<sdcard>/Android/data/<package_name>/cache/"
-      fileSize += getDirSize(externalCacheDir);
-    }
+    File externalCacheDir = getReactApplicationContext().getExternalCacheDir();//"<sdcard>/Android/data/<package_name>/cache/"
+    fileSize += getDirSize(externalCacheDir);
 
     promise.resolve(String.valueOf(fileSize));
   }
@@ -66,10 +62,7 @@ public class CacheModule extends ReactContextBaseJavaModule {
     //清除数据缓存
     // clearCacheFolder(getReactApplicationContext().getFilesDir(), System.currentTimeMillis());
     clearCacheFolder(getReactApplicationContext().getCacheDir(), System.currentTimeMillis());
-    //2.2版本才有将应用缓存转移到sd卡的功能
-    if (isMethodsCompat(android.os.Build.VERSION_CODES.FROYO)) {
-      clearCacheFolder(Utils.getExternalCacheDir(getReactApplicationContext()), System.currentTimeMillis());
-    }
+    clearCacheFolder(getReactApplicationContext().getExternalCacheDir(), System.currentTimeMillis());
 
   }
 

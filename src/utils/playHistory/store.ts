@@ -118,3 +118,12 @@ onDataSpaceChanged(async() => {
   await flush?.()
   await loadPlayHistoryStore()
 })
+
+/** The pending closure already owns the source physical key. Await it before routing changes. */
+export const flushPlayHistory = async(): Promise<void> => {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = null
+  const pending = flushPending
+  await pending?.()
+  if (flushPending === pending) flushPending = null
+}

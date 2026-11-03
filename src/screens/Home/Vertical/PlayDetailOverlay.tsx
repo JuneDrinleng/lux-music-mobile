@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Easing, View } from 'react-native'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Animated, View } from 'react-native'
 import PlayDetail from '@/screens/PlayDetail'
 import { APP_LAYER_INDEX, COMPONENT_IDS } from '@/config/constant'
 import { setBgPic, setComponentId } from '@/core/common'
@@ -8,36 +8,22 @@ import commonState from '@/store/common/state'
 import { sharedLuxStyles } from '@/theme/LuxTheme'
 import { type LuxColors } from '@/theme/luxTokens'
 
-const ANIM_IN_DURATION = 420
-const ANIM_OUT_DURATION = 300
+import { useBottomPopupTransition } from '@/components/common/bottomPopupTransition'
 
 export default memo(
   ({ componentId }: { componentId: string }) => {
     const styles = useLuxStyles()
 
-    const animValue = useRef(new Animated.Value(0)).current
     const prevBgPicRef = useRef<string | null>(null)
     const [isVisible, setVisible] = useState(false)
     const [hasEverShown, setHasEverShown] = useState(false)
     const windowSize = useWindowSize()
     const screenHeight = windowSize.height
 
-    const translateY = useMemo(() => animValue.interpolate({
-      inputRange: [0, 1],
-      outputRange: [screenHeight, 0],
-      extrapolate: 'clamp',
-    }), [animValue, screenHeight])
+    const { style: pageStyle, progress: animValue, phase, requestOpen, requestClose } = useBottomPopupTransition(screenHeight, 'player')
 
     const hidePlayDetail = useCallback(() => {
-      if (!isVisible) return
-      animValue.stopAnimation()
-      Animated.timing(animValue, {
-        toValue: 0,
-        duration: ANIM_OUT_DURATION,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished) return
+      requestClose(() => {
         setVisible(false)
         // 关闭后恢复 bgPic（但若 init 代码已设置了新的就不再覆盖）
         if (commonState.bgPic === null) {
@@ -45,25 +31,20 @@ export default memo(
         }
         setComponentId(COMPONENT_IDS.playDetail, '')
       })
-    }, [isVisible, animValue])
+    }, [requestClose])
 
     const showPlayDetail = useCallback(() => {
-      if (isVisible) return
-      if (!hasEverShown) setHasEverShown(true)
-      // 保存并清除全局 bgPic，防止 Home 背景变暗，避免黑色遮罩叠加显得更黑
-      prevBgPicRef.current = commonState.bgPic
-      setBgPic(null)
-      setVisible(true)
-      setComponentId(COMPONENT_IDS.playDetail, componentId)
-      animValue.stopAnimation()
-      animValue.setValue(0)
-      Animated.timing(animValue, {
-        toValue: 1,
-        duration: ANIM_IN_DURATION,
-        easing: Easing.out(Easing.back(1.05)),
-        useNativeDriver: true,
-      }).start()
-    }, [isVisible, animValue, hasEverShown, componentId])
+      requestOpen(wasHidden => {
+        setHasEverShown(true)
+        // 重开退出中的页面时保留原背景快照，从当前位置反向进入。
+        if (wasHidden) {
+          prevBgPicRef.current = commonState.bgPic
+          setBgPic(null)
+        }
+        setVisible(true)
+        setComponentId(COMPONENT_IDS.playDetail, componentId)
+      })
+    }, [requestOpen, componentId])
 
     useEffect(() => {
       global.app_event.on('showPlayDetail', showPlayDetail)
@@ -73,6 +54,13 @@ export default memo(
         global.app_event.off('hidePlayDetail', hidePlayDetail)
       }
     }, [hidePlayDetail, showPlayDetail])
+
+    useEffect(() => () => {
+      if (phase.current !== 'hidden') {
+        if (commonState.bgPic === null) setBgPic(prevBgPicRef.current)
+        setComponentId(COMPONENT_IDS.playDetail, '')
+      }
+    }, [phase])
 
     return (
       <View
@@ -86,7 +74,7 @@ export default memo(
         <Animated.View
           style={[
             styles.content,
-            { transform: [{ translateY }] },
+            pageStyle,
           ]}
         >
           {hasEverShown ? (

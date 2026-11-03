@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { BackHandler, ScrollView, TouchableOpacity, View } from 'react-native'
+import { useSettingsTransition } from '@/components/common/SettingsPage'
+import { useCallback, useEffect, useState } from 'react'
+import { Animated, BackHandler, ScrollView, TouchableOpacity, View } from 'react-native'
 import Slider from '@react-native-community/slider'
 import Text from '@/components/common/Text'
 import { BackButton } from '@/components/magazine'
@@ -14,7 +15,9 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 
-export default ({ onClose, bottomPadding }: { onClose: () => void, bottomPadding: number }) => {
+export default ({ onClose: finishClose, bottomPadding }: { onClose: () => void, bottomPadding: number }) => {
+  const { style: pageStyle, requestClose } = useSettingsTransition()
+  const onClose = useCallback(() => { requestClose(finishClose) }, [requestClose, finishClose])
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
@@ -37,7 +40,7 @@ export default ({ onClose, bottomPadding }: { onClose: () => void, bottomPadding
     <MixerSlider value={value} disabled={disabled} onChange={onChange} label={label} thumb={thumb} onPreview={onPreview} />
   )
   return (
-    <ScrollView style={[styles.page, { paddingTop: statusBarHeight }]} contentContainerStyle={{ paddingBottom: bottomPadding + 22 }}>
+    <Animated.View style={[{ flex: 1 }, pageStyle]}><ScrollView style={[styles.page, { paddingTop: statusBarHeight }]} contentContainerStyle={{ paddingBottom: bottomPadding + 22 }}>
       <View style={styles.top}>
         <BackButton onPress={onClose} />
         <TouchableOpacity hitSlop={8} accessibilityRole="button" onPress={() => { run(stopWhiteNoise()) }}>
@@ -70,7 +73,7 @@ export default ({ onClose, bottomPadding }: { onClose: () => void, bottomPadding
         {slider(volume, false, value => { run(setVolume(value)); updateSetting({ 'player.volume': value }) }, t('noise_music_volume'), false, value => { run(setVolume(value)) })}
         <Text size={12} color={r.muted}>{Math.round(volume * 100)}%</Text>
       </View>
-    </ScrollView>
+    </ScrollView></Animated.View>
   )
 }
 const MixerSlider = ({ value, disabled, onChange, label, thumb, onPreview }: { value: number, disabled: boolean, onChange: (value: number) => void, label: string, thumb: boolean, onPreview?: (value: number) => void }) => {

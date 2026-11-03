@@ -1,3 +1,4 @@
+import { initializeAppSession } from '@/core/appSession'
 import { initDownloads } from '@/core/download'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
@@ -84,6 +85,8 @@ export default async() => {
   bootLog('Initing...')
   await migrateStoredLuxCredentials()
   await initializeDataSpaces()
+  const { primeSessionRecovery } = await import('@/core/appSession')
+  await primeSessionRecovery()
   commonActions.setFontSize(global.lx.fontSize)
   bootLog('Font size changed.')
   const setting = await initSetting()
@@ -128,6 +131,7 @@ export default async() => {
   initVersionLifecycle()
   bootLog('Version lifecycle inited.')
 
+  await initializeAppSession()
   initTogether()
   void initSync(setting)
   bootLog('Sync inited.')

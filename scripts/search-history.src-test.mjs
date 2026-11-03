@@ -206,10 +206,13 @@ test('storage cache keeps a clear made during disk loading, including the deferr
     '../../assets/img/DefaultAvatar.png': { default: 0 },
     '@react-native-async-storage/async-storage': { default: {} },
     './secureCredentials': {},
+    './loginCredentialRepository': { createLoginCredentialRepository: () => ({}) },
+    './loginRecents': { createLoginRecents: () => ({}) },
     './secureCredentialMigration': {},
     '@/plugins/sync/client/credentials': { createCredentialStore: () => ({}) },
   }
   const storage = evaluateModule(join(root, 'src/utils/data.ts'), (specifier) => {
+    if (specifier === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true }
     assert.ok(Object.hasOwn(dependencies, specifier), `Unexpected dependency: ${specifier}`)
     return dependencies[specifier]
   })

@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo } from 'react'
-import { ScrollView, TouchableOpacity, View, type ViewStyle } from 'react-native'
+import { ScrollView, TouchableOpacity, View, type TextStyle, type ViewStyle } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -53,6 +53,7 @@ export const TextTabs = memo(({
   scroll = false,
   style,
   tabStyle,
+  labelStyle,
 }: {
   items: readonly MagTabItem[]
   value: string
@@ -62,6 +63,8 @@ export const TextTabs = memo(({
   style?: ViewStyle
   /** Per-tab spacing for approved page previews; existing tabs keep their defaults. */
   tabStyle?: ViewStyle
+  /** Optional page-specific typography; omitted styles preserve existing rendering. */
+  labelStyle?: TextStyle
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
@@ -85,7 +88,7 @@ export const TextTabs = memo(({
             <Text
               size={size}
               color={on ? r.ink : r.quiet}
-              style={on ? styles.labelOn : styles.label}
+              style={[on ? styles.labelOn : styles.label, labelStyle]}
             >{item.label}</Text>
           </TouchableOpacity>
         )

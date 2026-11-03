@@ -1,10 +1,13 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { type RefObject } from 'react'
-import { FlatList, TextInput, TouchableOpacity, View, type ListRenderItem } from 'react-native'
+import { FlatList, type TextInput, TouchableOpacity, View, type ListRenderItem } from 'react-native'
 
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
+import { FocusVisibleInput } from '@/components/common/FocusVisibleInput'
+import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
+import { renderFocusVisibleScroll } from '@/components/common/FocusVisibleScrollView'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import {
   Chip,
@@ -70,7 +73,6 @@ export interface PlaylistSearchSceneProps {
 export default ({
   t,
   statusBarHeight,
-  bottomDockHeight,
   searchInputRef,
   isSearchInputEditing,
   searchText,
@@ -94,13 +96,14 @@ export default ({
 
   return (
     <>
-      <View style={{ flex: 1, backgroundColor: r.paper }}>
+      <SubpageSurface>
         <FlatList
+          renderScrollComponent={renderFocusVisibleScroll}
           style={{ flex: 1 }}
           contentContainerStyle={{
             paddingTop: statusBarHeight,
             paddingHorizontal: PAGE_GUTTER,
-            paddingBottom: 16 + bottomDockHeight,
+            paddingBottom: 16,
           }}
           data={searchResults}
           renderItem={renderSearchResultItem}
@@ -128,7 +131,7 @@ export default ({
                 <MdiIcon name="magnify" size={24} color={r.ink} />
                 {isSearchInputEditing
                   ? (
-                    <TextInput
+                    <FocusVisibleInput
                       ref={searchInputRef}
                       style={{
                         flex: 1,
@@ -243,7 +246,7 @@ export default ({
           alwaysBounceVertical={false}
           overScrollMode="never"
         />
-      </View>
+      </SubpageSurface>
       <MusicAddModal ref={musicAddModalRef} />
     </>
   )

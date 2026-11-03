@@ -1,25 +1,6 @@
-/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
-
-import SyncLogin from '@/screens/SyncLogin'
-import SyncStatusPage, { SyncStatusRow } from '@/screens/SyncStatus'
-import ServerStep from '@/screens/Login/ServerStep'
-import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
-import { reconnectNow } from '@/plugins/sync/client/client'
-import { enterLocalSpace } from '@/utils/enterLocalSpace'
-import { expiredAccountUsername, showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
-
-// Lux Proprietary
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
-import Text from '@/components/common/Text'
-import { showLogoutOptions } from '@/utils/accountDataDialogs'
-import AccountPage from '@/screens/Account/AccountPage'
-import AiTokenStatusPage from '@/screens/AiTokenStatus'
-import { MdiIcon } from '@/components/common/MdiIcon'
-import Image from '@/components/common/Image'
+import { confirmDialog, clipboardWriteText, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import {
-  BackButton,
-  DOCK_BASE_HEIGHT,
+  TextButton,
   EmptyState,
   Hairline,
   IconButton,
@@ -31,14 +12,34 @@ import {
   SettingRow,
   UnderlineInput,
 } from '@/components/magazine'
-import { clipboardWriteText, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
+import { requestLogin } from '@/core/appSession'
+/* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
+
+import { setKeepPlayBarOnKeyboard } from '@/utils/hooks/useKeepPlayBarOnKeyboard'
+import { LegacySyncLoginHost as SyncLogin } from '@/screens/SyncLogin'
+import SyncStatusPage, { SyncStatusPill, SyncConnectionInfo } from '@/screens/SyncStatus'
+import ServerStep from '@/screens/Login/ServerStep'
+import { mapSyncStatus, type SyncStatusModel } from '@/utils/syncStatus'
+import { reconnectNow } from '@/plugins/sync/client/client'
+import { expiredAccountUsername, showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
+
+// Lux Proprietary
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import Text from '@/components/common/Text'
+import { showLogoutOptions } from '@/utils/accountDataDialogs'
+import AccountPage from '@/screens/Account/AccountPage'
+import AiTokenStatusPage from '@/screens/AiTokenStatus'
+import { isAiAssistantAvailable } from '@/utils/aiAssistantEntry'
+import { MdiIcon } from '@/components/common/MdiIcon'
+import Image from '@/components/common/Image'
 import { applySyncAccountLogout } from '@/utils/syncLogout'
 import { useStatus } from '@/store/sync/hook'
 import { SYNC_CODE } from '@/plugins/sync/constants'
 import { setSyncMessage } from '@/core/sync'
 import { sizeFormate } from '@/utils'
 import { SettingsPage } from '@/components/common/SettingsPage'
-import { useSystemGestureInsetBottom } from '@/utils/hooks'
+import { useVisibleDockHeight } from '@/components/common/VisibleDockHeight'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { APP_LAYER_INDEX } from '@/config/constant'
 import Source, { type SourceType } from '@/screens/Home/Views/Setting/settings/Basic/Source'
@@ -46,7 +47,7 @@ import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { removeUserApi } from '@/core/userApi'
 import settingState from '@/store/setting/state'
-import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserName, getUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, setSyncMode, clearSyncConflictMode } from '@/utils/data'
+import { DEFAULT_USER_AVATAR, DEFAULT_USER_NAME, findLuxAuthForHost, getUserAvatar, getUserName, getUserSignature, getSyncHost, setSyncHost as saveSyncHost, addSyncHostHistory, getSyncMode, reloadSyncHostFromStorage, clearSyncConflictMode } from '@/utils/data'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm } from '@/utils/syncLoginPrefill'
 import { getSyncHostHistory, removeSyncHostHistory } from '@/plugins/sync/data'
 import { canReuseLuxSession } from '@/plugins/sync/client/credentials'
@@ -86,12 +87,10 @@ import { AdminConsoleLayer } from '@/screens/AdminConsole'
 
 /**
  * Settings group-to-group rhythm (design numbers).
- * After #55: ruleGap 22 + headGap 12 ≈ 34. Target visual ≈ 16–20.
- * Now: ruleGap 12 + headGap 6 ≈ 18.
+ * Approved settings B: ruleGap 22, headGap 6 (including the first appearance rule).
  */
-const SETTINGS_SECTION_GAP = 12
+const SETTINGS_SECTION_GAP = 22
 const SETTINGS_SECTION_HEAD_GAP = 6
-const BOTTOM_DOCK_BASE_HEIGHT = DOCK_BASE_HEIGHT
 const currentVer = process.versions.app
 const syncHostRxp = /^https?:\/\/\S+/i
 const languageOptions = [
@@ -121,15 +120,13 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     }
   }
   const statusBarHeight = useStatusbarHeight()
-  const gestureInsetBottom = useSystemGestureInsetBottom()
-  const bottomDockHeight = dockHeight ?? BOTTOM_DOCK_BASE_HEIGHT + gestureInsetBottom
+  const bottomDockHeight = useVisibleDockHeight(dockHeight)
   const topPadding = statusBarHeight
   const sourceRef = useRef<SourceType>(null)
   const backupPathRef = useRef<ChoosePathType>(null)
   const backupModeRef = useRef<'export' | 'import'>('export')
   const [isAdminConsoleVisible, setAdminConsoleVisible] = useState(false)
   const [togetherDebugPanelEnabled, setTogetherDebugPanelEnabledState] = useState(() => getTogetherDebugPanelEnabled())
-  const showTogetherDebugSection = isTogetherDebugPanelBuild()
   const [avatarUrl, setAvatarUrl] = useState<string | number | null>(DEFAULT_USER_AVATAR)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [nickname, setNickname] = useState(DEFAULT_USER_NAME)
@@ -147,6 +144,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   const [authCode, setAuthCode] = useState('')
   const [isAuthCodeModalVisible, setAuthCodeModalVisible] = useState(false)
   const [syncMode, setSyncModeLocal] = useState<LX.Sync.Mode>('lx')
+  const [syncServerLoaded, setSyncServerLoaded] = useState(false)
   const [isLuxLoginModalVisible, setLuxLoginModalVisible] = useState(false)
   const [luxUsername, setLuxUsername] = useState('')
   const [luxPassword, setLuxPassword] = useState('')
@@ -214,17 +212,46 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     { value: 'mg', label: t('source_real_mg') },
   ] as const, [t])
   useEffect(() => {
-    void getSyncMode().then(setSyncModeLocal)
-    void getSyncHost().then(host => { setSyncHostLocal(host ?? '') })
-    const refreshHost = () => { void getSyncHost().then(host => { setSyncHostLocal(host ?? '') }) }
-    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => { setSyncModeLocal(mode); refreshHost() }
+    let active = true
+    let modeRevision = 0
+    let hostRevision = 0
+    const refreshHost = () => {
+      const revision = ++hostRevision
+      void getSyncHost().then(host => {
+        if (active && revision === hostRevision) setSyncHostLocal(host ?? '')
+      })
+    }
+    const handleSyncHostUpdated = (host: string) => {
+      hostRevision++
+      setSyncHostLocal(host)
+    }
+    const handleSyncModeUpdated = (mode: LX.Sync.Mode) => {
+      modeRevision++
+      setSyncModeLocal(mode)
+      refreshHost()
+    }
     global.app_event.on('syncModeUpdated', handleSyncModeUpdated)
+    global.app_event.on('syncHostUpdated', handleSyncHostUpdated)
     global.app_event.on('focus', refreshHost)
+    void Promise.all([getSyncMode(), getSyncHost()]).then(([mode, host]) => {
+      if (!active) return
+      // A newer event must win over an in-flight initial storage read.
+      if (modeRevision === 0) setSyncModeLocal(mode)
+      if (hostRevision === 0) setSyncHostLocal(host ?? '')
+      setSyncServerLoaded(true)
+    }).catch(() => { /* Keep the entry hidden if storage could not be loaded. */ })
     return () => {
+      active = false
       global.app_event.off('syncModeUpdated', handleSyncModeUpdated)
+      global.app_event.off('syncHostUpdated', handleSyncHostUpdated)
       global.app_event.off('focus', refreshHost)
     }
   }, [])
+  const showAiAssistantEntry = isAiAssistantAvailable(syncServerLoaded ? syncMode : null, syncHost)
+  const showTogetherDebugSection = showAiAssistantEntry && isTogetherDebugPanelBuild()
+  useEffect(() => {
+    if (!showAiAssistantEntry) setAiTokensVisible(false)
+  }, [showAiAssistantEntry])
   const reloginUsername = expiredAccountUsername(syncHost) ?? luxUsername
   const showAdminConsoleEntry = syncMode == 'lux' && !!syncHost.trim()
 
@@ -363,11 +390,11 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   }, [])
 
   const handleSettingsSearchFocus = useCallback(() => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
+    setKeepPlayBarOnKeyboard(true)
   }, [])
 
   const handleSettingsSearchBlur = useCallback(() => {
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
+    setKeepPlayBarOnKeyboard(false)
   }, [])
 
   const handleToggleSettingsSearch = useCallback(() => {
@@ -421,8 +448,8 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     activeApiSourceLabel,
   )
   const showDataSection = matchesSettingsSearch(
-    t('ai_tokens_title'),
-    t('ai_tokens_entry_subtitle'),
+    showAiAssistantEntry ? t('ai_tokens_title') : null,
+    showAiAssistantEntry ? t('ai_tokens_entry_subtitle') : null,
     t('setting_data_and_sync'),
     t('setting_sync'),
     activeSyncStatusLabel,
@@ -442,15 +469,16 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     t('setting_import_data_desc'),
     t('admin_console_entry_title'),
     t('admin_console_entry_subtitle'),
-    t('together_debug_panel_toggle'),
-    t('together_debug_panel_toggle_desc'),
-    t('together_readiness_copy_settings'),
-    t('setting_debug_section'),
+    showTogetherDebugSection ? t('together_debug_panel_toggle') : null,
+    showTogetherDebugSection ? t('together_debug_panel_toggle_desc') : null,
+    showTogetherDebugSection ? t('together_readiness_copy_settings') : null,
+    showTogetherDebugSection ? t('setting_debug_section') : null,
   )
   const showTogetherDebugSettingsSection = showTogetherDebugSection && matchesSettingsSearch(
     t('setting_debug_section'),
     t('together_debug_panel_toggle'),
     t('together_debug_panel_toggle_desc'),
+    t('together_readiness_copy_settings'),
   )
   const showAboutSection = matchesSettingsSearch(
     t('setting_about'),
@@ -554,7 +582,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       case SYNC_CODE.authFailed:
         toast(t('setting_sync_code_fail'))
       case SYNC_CODE.missingAuthCode:
-        setAuthCodeModalVisible(true)
+        // Automatic LX failures stay in status; repair is an explicit Gate action.
         break
       case SYNC_CODE.msgBlockedIp:
         toast(t('setting_sync_code_blocked_ip'))
@@ -567,10 +595,10 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   const handleAddSource = () => {
     sourceRef.current?.showAddPicker()
   }
-  const handleOpenSyncHostModal = () => {
-    setSyncHostDraft(syncHost)
-    setSyncHostModalVisible(true)
+  const openGate = (source: string, provider?: 'lux' | 'lx' | 'local', host?: string | null, username?: string) => {
+    void requestLogin({ reason: source === 'E18-reauth' ? 'reauth' : source === 'E17-check-address' || source === 'E13-address' ? 'changeServer' : 'switch', source, targetProvider: provider, initialHost: host, initialUsername: username, returnPolicy: source === 'E18-reauth' ? 'none' : 'restorePrevious' }).catch(() => {})
   }
+  const handleOpenSyncHostModal = () => { openGate('E13-address', syncMode, null) }
   const handleCloseSyncHostModal = () => {
     setSyncHostDraft('')
     setSyncHostModalVisible(false)
@@ -589,7 +617,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       next.unshift(host)
       return next
     })
-    updateSetting({ 'sync.enable': true })
     if (syncMode == 'lux') {
       setLuxLoginModalVisible(true)
     } else void connectServer(host)
@@ -623,7 +650,6 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         toast(t('setting_sync_lux_login_missing_tip'), 'long')
         return
       }
-      updateSetting({ 'sync.enable': true })
       void connectLuxServer(syncHost, username, luxPassword || undefined).then(async() => {
         await rememberSyncLoginForm({
           host: syncHost,
@@ -639,36 +665,17 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
       })
     })
   }, [syncHost, luxUsername, luxPassword, t])
-  const handleSelectSyncHost = (host: string) => {
-    if (isManagingSyncHosts) return
-    if (host === syncHost && isSyncEnabled) {
-      updateSetting({ 'sync.enable': false })
-      void disconnectServer()
-      toast(t('sync_status_disabled'))
-    } else {
-      void saveSyncHost(host)
-      setSyncHostLocal(host)
-      updateSetting({ 'sync.enable': true })
-      void addSyncHostHistory(host)
-      if (syncMode == 'lux') {
-        setLuxLoginModalVisible(true)
-      } else void connectServer(host)
-    }
-  }
+  const handleSelectSyncHost = (host: string) => { if (!isManagingSyncHosts) openGate('E14-history', syncMode, host) }
   const handleDeleteSyncHost = (index: number) => {
     const host = syncHostHistory[index]
-    void removeSyncHostHistory(index)
-    setSyncHostHistoryLocal(prev => {
-      const next = [...prev]
-      next.splice(index, 1)
-      return next
-    })
-    if (host === syncHost) {
-      updateSetting({ 'sync.enable': false })
-      void disconnectServer()
-      void saveSyncHost('')
-      setSyncHostLocal('')
-    }
+    void (async() => {
+      if (host === syncHost) {
+        if (!await confirmDialog({ title: t('login_gate_delete_current'), message: t('login_gate_delete_current_scope'), cancelButtonText: t('cancel'), confirmButtonText: t('remove_recent_only'), confirmDanger: true })) return
+        await requestLogin({ reason: 'changeServer', source: 'E15-delete-current', targetProvider: syncMode, initialHost: null, returnPolicy: 'restorePrevious' })
+      }
+      await removeSyncHostHistory(index)
+      setSyncHostHistoryLocal(previous => previous.filter((value, at) => at !== index))
+    })().catch(error => { toast(String(error.message)) })
   }
   const handleToggleSyncManage = () => {
     setIsManagingSyncHosts(prev => !prev)
@@ -691,12 +698,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
   const handleOpenSyncDetail = () => {
     setActiveOptionDetail('sync')
   }
-  const handleSelectSyncFormat = (value: string) => {
-    const mode = value == 'lux' ? 'lux' : 'lx'
-    void setSyncMode(mode)
-    setSyncModeLocal(mode)
-    if (mode == 'lux' && syncHost) setLuxLoginModalVisible(true)
-  }
+  const handleSelectSyncFormat = (value: string) => { openGate('E12-format', value === 'lux' ? 'lux' : 'lx', null) }
   const handleSelectApiSource = (id: string) => {
     if (isManagingApiSources) return
     setApiSource(id)
@@ -853,16 +855,12 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
-        <MagTopBar
-          leading={<BackButton compact onPress={() => { setNavActiveId('nav_search') }} accessibilityLabel={t('back')} />}
-          trailing={
-            <IconButton
-              name="magnify"
-              accessibilityLabel={t('action_search')}
-              onPress={handleToggleSettingsSearch}
-            />
-          }
-        />
+        <MagTopBar masthead={t('sync_state_settings_eyebrow')} style={styles.settingsMasthead} />
+        <View style={styles.titleActionRow}>
+          <Text size={magType.h1.size} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
+          <IconButton name="magnify" size={28} style={styles.settingsSearchButton}
+            accessibilityLabel={t('action_search')} onPress={handleToggleSettingsSearch} />
+        </View>
         {isSettingsSearchOpen
           ? (
             <View style={styles.settingsSearchRow}>
@@ -890,25 +888,27 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
             </View>
             )
           : null}
-        <Text size={11} color={r.eyebrow} style={styles.statusEyebrow}>{t('sync_state_settings_eyebrow')}</Text>
-        <Text size={32} color={r.display} style={styles.settingsTitle}>{t('nav_setting')}</Text>
-        {statusModel ? <SyncStatusRow model={statusModel} name={nickname} host={syncHost} now={now} onPress={() => {
-          if (statusModel.route === 'sync') handleOpenSyncDetail()
-          else setStatusPage(statusModel)
-        }} /> : null}
-
-        {showProfileHero
-          ? (
-            <TouchableOpacity style={styles.profileHeroRow} activeOpacity={0.82} onPress={handleOpenProfileDetail} accessibilityRole="button">
-              <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
-              <View style={styles.profileHeroText}>
-                <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1}>{nickname}</Text>
-                <Text size={magType.meta.size} color={r.muted} numberOfLines={2}>{signature || defaultSignature}</Text>
-              </View>
-              <MdiIcon name="chevron-right" size={18} color={r.quiet} />
-            </TouchableOpacity>
-            )
-          : null}
+        <View style={styles.profileHeroRow}>
+          {showProfileHero ? <TouchableOpacity activeOpacity={0.7} onPress={handleOpenProfileDetail}
+            accessibilityRole="button" accessibilityLabel={t('setting_profile')}>
+            <Image style={styles.profileHeroAvatar} url={avatarDisplayUrl} resizeMode="contain" />
+          </TouchableOpacity> : null}
+          <View style={styles.profileHeroText}>
+            {showProfileHero ? <TouchableOpacity style={styles.profileInfoTarget} activeOpacity={0.7}
+              onPress={handleOpenProfileDetail} accessibilityRole="button">
+              <Text size={22} color={r.display} style={styles.profileHeroName} numberOfLines={1} ellipsizeMode="tail">{nickname}</Text>
+              <Text size={magType.meta.size} color={r.muted} style={styles.profileHeroSignature} numberOfLines={1}>{signature || defaultSignature}</Text>
+            </TouchableOpacity> : null}
+            <SyncStatusPill model={statusModel} onPress={() => {
+              if (statusModel.route === 'sync') handleOpenSyncDetail()
+              else setStatusPage(statusModel)
+            }} />
+          </View>
+          {showProfileHero ? <TouchableOpacity style={styles.profileArrowTarget} activeOpacity={0.7}
+            onPress={handleOpenProfileDetail} accessibilityRole="button" accessibilityLabel={t('setting_profile')}>
+            <MdiIcon name="chevron-right" size={18} color={r.quiet} />
+          </TouchableOpacity> : null}
+        </View>
 
         {showAppearanceSection
           ? (
@@ -937,8 +937,12 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           ? (
             <View style={styles.sectionBlock}>
               <SectionHeader title={t('setting_data_and_sync')} meta={t('settings_meta_data_sync')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
-              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={handleOpenSyncDetail} />
-              <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
+              <SettingRow icon="server-network" iconBg={r.iconWrap.purple} title={t('sync_state_address_format')} subtitle={`${syncHost} · ${syncMode == 'lux' ? t('setting_sync_format_lux') : t('setting_sync_format_lx')}`} onPress={() => { openGate('E11-address-format') }} />
+              {showAiAssistantEntry
+                ? (
+                  <SettingRow icon="shield-account-outline" iconBg={r.iconWrap.purple} title={t('ai_tokens_title')} subtitle={t('ai_tokens_entry_subtitle')} onPress={() => { setAiTokensVisible(true) }} />
+                  )
+                : null}
               {showAdminConsoleEntry
                 ? (
                   <SettingRow
@@ -1024,7 +1028,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           : null}
 
       </ScrollView>
-      <SettingsPage visible={aiTokensVisible} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
+      <SettingsPage visible={aiTokensVisible && showAiAssistantEntry} onBack={() => { setAiTokensVisible(false) }} bottomInset={bottomDockHeight}>
         {back => <AiTokenStatusPage host={syncHost} lux={syncMode === 'lux'} onBack={back} />}
       </SettingsPage>
       <SettingsPage visible={isProfileDetailVisible} onBack={handleCloseProfileDetail} bottomInset={bottomDockHeight} hardwareBack={false}>
@@ -1205,6 +1209,8 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
           {activeOptionDetail === 'sync'
             ? (
               <View style={styles.optionList}>
+                <SyncConnectionInfo model={statusModel} host={syncHost} username={reloginUsername || nickname} />
+                <TextButton label={t('login_gate_pause_sync')} onPress={() => { updateSetting({ 'sync.enable': false }); void disconnectServer() }} />
                 <OptionRow label={t('setting_sync_format_lx')} selected={syncMode == 'lx'} onPress={() => { handleSelectSyncFormat('lx') }} />
                 <OptionRow label={t('setting_sync_format_lux')} selected={syncMode == 'lux'} onPress={() => { handleSelectSyncFormat('lux') }} />
                 {syncHostHistory.map((host, index) => (
@@ -1305,22 +1311,15 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         bottomDockHeight={bottomDockHeight}
       />
       <SettingsPage visible={statusPage != null} onBack={() => { setStatusPage(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
-        {back => <SyncStatusPage model={statusModel ?? statusPage!} host={syncHost} username={reloginUsername || nickname}
+        {back => <SyncStatusPage model={statusModel.route !== 'sync' ? statusModel : statusPage!} connectionModel={statusModel} host={syncHost} username={reloginUsername || nickname}
           onBack={back}
           onHome={() => { setStatusPage(null); setNavActiveId('nav_search') }}
           onRetry={() => {
             if (!reconnectNow()) void (syncMode === 'lux' ? connectLuxServer(syncHost) : connectServer(syncHost)).catch(() => {})
           }}
-          onCheckAddress={() => { setCheckingAddress(true) }}
-          onLogin={() => { setLoginRequest({ host: syncHost, username: reloginUsername || undefined }) }}
-          onLocal={() => {
-            void enterLocalSpace(t('sync_login_local_user_name')).then(async() => {
-              await setSyncMode('lx')
-              setSyncHostLocal('')
-              setStatusPage(null)
-              setNavActiveId('nav_search')
-            }).catch(() => { toast(t('account_logout_failed')) })
-          }}
+          onCheckAddress={() => { openGate('E17-check-address', syncMode, syncHost) }}
+          onLogin={() => { openGate('E18-reauth', syncMode, syncHost, reloginUsername || undefined) }}
+          onLocal={() => { openGate('E19-local', 'local') }}
         />}
       </SettingsPage>
       <SettingsPage visible={checkingAddress} onBack={() => { setCheckingAddress(false) }} bottomInset={bottomDockHeight} hardwareBack={false}>
@@ -1333,7 +1332,7 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
         }} />}
       </SettingsPage>
       <SettingsPage visible={loginRequest != null} onBack={() => { setLoginRequest(null) }} bottomInset={bottomDockHeight} hardwareBack={false}>
-        {back => <SyncLogin initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
+        {back => <SyncLogin initialProvider={syncMode} initialHost={loginRequest!.host} initialUsername={loginRequest!.username} onBack={back} />}
       </SettingsPage>
       <ChoosePath ref={backupPathRef} onConfirm={handleBackupPath} />
     </View>
@@ -1355,8 +1354,10 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     elevation: APP_LAYER_INDEX.controls + 6,
     backgroundColor: colors.bg.app,
   },
-  statusEyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
-  settingsTitle: { lineHeight: 38, fontWeight: '800' },
+  settingsMasthead: { minHeight: 14, marginTop: 18 },
+  titleActionRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  settingsSearchButton: { marginRight: -8 },
+  settingsTitle: { lineHeight: magType.h1.lineHeight, fontWeight: magType.h1.weight, letterSpacing: magType.h1.letterSpacing },
   pageTitle: {
     fontWeight: '800',
     letterSpacing: -1,
@@ -1381,6 +1382,7 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 22,
+    minHeight: 68,
     // Group-to-group rhythm comes from SETTINGS_SECTION_GAP on SectionHeader rules.
     marginBottom: 0,
     gap: 14,
@@ -1395,11 +1397,16 @@ const useLuxStyles = sharedLuxStyles((colors: LuxColors) => (createStyle({
   profileHeroText: {
     flex: 1,
     minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
-  profileHeroName: {
-    fontWeight: '800',
-    marginBottom: 4,
-  },
+  // The pill reserves 8 above/below its 28pt face. Match the nickname's top
+  // inset so their centers align, while the account text keeps its compact rhythm.
+  profileInfoTarget: { flexShrink: 1, minWidth: 0, minHeight: 44, paddingTop: 8 },
+  profileHeroName: { fontWeight: '800', lineHeight: 28 },
+  profileHeroSignature: { marginTop: 2, lineHeight: magType.meta.lineHeight },
+  profileArrowTarget: { width: 18, minHeight: 44, justifyContent: 'center' },
   sectionBlock: {
     // Inter-group spacing is SETTINGS_SECTION_GAP on the section rule only.
     marginTop: 0,

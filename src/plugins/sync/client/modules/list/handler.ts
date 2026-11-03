@@ -1,3 +1,4 @@
+import { sessionRemoteWritesFrozen } from '@/utils/sessionFence'
 // 这个文件导出的方法将暴露给服务端调用，第一个参数固定为当前 socket 对象
 import { handleRemoteListAction, getLocalListData, setLocalListData } from '../../../listEvent'
 import log from '../../../log'
@@ -14,16 +15,19 @@ const logInfo = (eventName: string, success = false) => {
 // }
 const handler: LX.Sync.ClientSyncHandlerListActions<LX.Sync.Socket> = {
   async onListSyncAction(socket, action) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     if (!socket?.moduleReadys?.list) return
     await handleRemoteListAction(action)
   },
 
   async list_sync_get_md5(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('list:sync:list_sync_get_md5')
     return toMD5(JSON.stringify(await getLocalListData()))
   },
 
   async list_sync_get_sync_mode(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('list:sync:list_sync_get_sync_mode')
     const unsubscribe = socket.onClose(() => {
       removeSyncModeEvent()
@@ -32,16 +36,19 @@ const handler: LX.Sync.ClientSyncHandlerListActions<LX.Sync.Socket> = {
   },
 
   async list_sync_get_list_data(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('list:sync:list_sync_get_list_data')
     return getLocalListData()
   },
 
   async list_sync_set_list_data(socket, data) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('list:sync:list_sync_set_list_data')
     await setLocalListData(data)
   },
 
   async list_sync_finished(socket) {
+    if (sessionRemoteWritesFrozen()) throw new Error('SESSION_FROZEN')
     logInfo('list:sync:finished')
     if (!socket?.moduleReadys) return
     socket.moduleReadys.list = true

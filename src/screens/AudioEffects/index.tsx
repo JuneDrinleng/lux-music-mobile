@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Animated, NativeModules, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
-import { useSettingsTransition, useSettingsSubpage } from '@/components/common/SettingsPage'
+import { SettingsSubpage, useSettingsTransition, useSettingsSubpage } from '@/components/common/SettingsPage'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
 import { DOCK_BASE_HEIGHT, MagTopBar, OptionRow, Rule, TextButton, Toggle } from '@/components/magazine'
@@ -33,7 +33,7 @@ export default function AudioEffectsPage({ onBack, bottomInset }: { onBack: () =
   const bridge = NativeModules.TrackPlayerModule as AudioEffectsBridge | undefined
   const capabilities = audioEffectCapabilities(bridge)
   const { style: pageStyle, requestClose } = useSettingsTransition()
-  const { page: detail, setPage: setDetail, style: detailStyle } = useSettingsSubpage(false)
+  const { page: detail, pages, setPage: setDetail, style: detailStyle } = useSettingsSubpage(false)
   const [dragging, setDragging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -72,7 +72,7 @@ export default function AudioEffectsPage({ onBack, bottomInset }: { onBack: () =
   const gains = JSON.parse(setting['player.audio.equalizer.gains']) as number[]
   const eqDisabled = !capabilities.equalizer || !setting['player.audio.equalizer.enabled'] || busy
   return <Animated.View style={[styles.root, { backgroundColor: r.paper, bottom: bottomInset ?? DOCK_BASE_HEIGHT + bottom, overflow: 'hidden' }, pageStyle]}>
-    <Animated.View style={[{ flex: 1 }, detailStyle]}>
+    <SettingsSubpage pages={pages} style={detailStyle}>{detail => <>
     <StatusBar />
     <ScrollView ref={scroll} scrollEnabled={!dragging} style={{ backgroundColor: r.paper }} contentContainerStyle={[styles.content, { paddingTop: top, paddingBottom: 28 }]}>
       <MagTopBar onBack={back} />
@@ -124,7 +124,7 @@ export default function AudioEffectsPage({ onBack, bottomInset }: { onBack: () =
       </>}
       {failed ? <Text size={12} color={r.muted} accessibilityLiveRegion="polite">{t('audio_effects_failed')}</Text> : null}
     </ScrollView>
-    </Animated.View>
+    </>}</SettingsSubpage>
   </Animated.View>
 }
 

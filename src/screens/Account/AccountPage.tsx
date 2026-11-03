@@ -1,13 +1,15 @@
+import { requestLogin } from '@/core/appSession'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Animated, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Platform, TouchableOpacity, View } from 'react-native'
 import ImagePicker from 'react-native-image-crop-picker'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
 import StatusBar from '@/components/common/StatusBar'
 import { MdiIcon } from '@/components/common/MdiIcon'
-import { BackButton, OptionRow, Rule, SecondaryButton, TextButton, UnderlineInput } from '@/components/magazine'
+import { BackButton, OptionRow, Rule, IconButton, SecondaryButton, UnderlineInput } from '@/components/magazine'
 import { useLuxTheme, sharedLuxStyles } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle, confirmDialog } from '@/utils/tools'
@@ -19,7 +21,7 @@ import { saveEditedProfile } from '@/plugins/sync/client/profile'
 import { findLuxAuthForHost, getUserAvatarDataUrl, getUserGender, getUserSignature } from '@/utils/data'
 import { getActiveSpace, listSpaces } from '@/utils/dataSpace'
 import { accountRows, createSessionService, relativeActivity, type AccountSession } from '@/utils/accountPage'
-import { useSettingsBack, useSettingsSubpage } from '@/components/common/SettingsPage'
+import { SettingsSubpage, useSettingsBack, useSettingsSubpage } from '@/components/common/SettingsPage'
 import AccountSpaces from './AccountSpaces'
 import ChangePassword from '@/screens/Login/ChangePassword'
 
@@ -38,7 +40,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const { page, setPage, style: pageStyle } = useSettingsSubpage<'account' | 'edit' | 'devices' | 'password' | 'spaces'>('account')
+  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<'account' | 'edit' | 'devices' | 'password' | 'spaces'>('account')
   const [session, setSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [sessions, setSessions] = useState<AccountSession[] | null>(null)
   const [others, setOthers] = useState('')
@@ -49,6 +51,8 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
+  const originalProfile = useRef({ name: nickname, avatar: '', gender: 'unknown', signature: '' })
+  const dirty = draft.trim() !== originalProfile.current.name || (draftAvatar ?? '') !== originalProfile.current.avatar || draftGender !== originalProfile.current.gender || draftSignature.trim() !== originalProfile.current.signature
   const space = useRef(getActiveSpace()).current
   const server = lux && space !== 'local'
   const rows = accountRows(server)
@@ -97,6 +101,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
         setSession(auth)
       }
       const [currentAvatar, signature, gender] = await Promise.all([getUserAvatarDataUrl(), getUserSignature(), getUserGender()])
+      originalProfile.current = { name: nickname.trim(), avatar: currentAvatar ?? '', gender, signature: (signature ?? '').trim() }
       setDraft(nickname)
       setDraftSignature(signature ?? '')
       setDraftGender(gender)
@@ -105,6 +110,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     })
   }
   const save = () => {
+    if (!dirty || pending.current) return
     void run(async() => {
       const signature = draftSignature.trim().substring(0, 140)
       await saveEditedProfile({ displayName: draft.trim(), avatar: draftAvatar ?? '', gender: draftGender, signature: signature === t('me_profile_status') ? '' : signature }, server)
@@ -141,12 +147,25 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     <UnderlineInput accessibilityLabel={label} value={value} onChangeText={onChangeText} maxLength={maxLength} editable={!readOnly && !busy} autoCorrect={false} style={{ fontWeight: '400', borderBottomWidth: 1.5, borderBottomColor: r.ink }} />
     <Text size={12} color={r.muted} style={styles.hint}>{hint}</Text>
   </View>
-  const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
-  return <Animated.View style={[{ flex: 1 }, pageStyle]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const renderPage = (page: typeof pages[number]) => {
+    const eyebrow = page === 'spaces' ? 'spaces_eyebrow' : page === 'edit' ? 'account_edit_eyebrow' : page === 'devices' ? 'account_devices_eyebrow' : 'account_eyebrow'
+    return <KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
-      <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} />{page === 'edit' ? <TextButton compact label={t('account_save')} onPress={save} disabled={busy} /> : null}</View>
+    {page === 'edit' ? <View style={styles.content}>
+      <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(eyebrow)}</Text>
+      <View style={styles.titleRow}>
+        <Text size={32} color={r.display} style={[styles.title, styles.flex]}>{t('account_edit_title')}</Text>
+        <IconButton name="check" size={28} accessibilityLabel={t('account_save')} onPress={save} disabled={!dirty || busy} color={dirty && !busy ? r.ink : r.quiet}>
+          {busy ? <ActivityIndicator size="small" color={r.ink} accessibilityLabel={t('account_save')} /> : undefined}
+        </IconButton>
+      </View>
+    </View> : null}
+    <FocusVisibleScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
+      {page !== 'edit' ? <>
+        <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
+        <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(eyebrow)}</Text>
+      </> : null}
       {page === 'account' ? <>
         <View style={styles.hero}>{avatarCircle(72, avatar, nickname)}<View style={styles.flex}><Text size={28} color={r.display} style={[styles.heavy, styles.name]}>{nickname}</Text><Text size={12} color={r.muted}>{server ? `${session?.user.username ?? ''} • ${host.replace(/^https?:\/\//, '').replace(/\/+$/, '')} • ${t(session?.user.role === 'admin' ? 'account_admin' : 'account_member')}` : t('account_local')}</Text></View><SecondaryButton compact label={t('account_edit')} onPress={edit} disabled={busy} style={styles.button} /></View>
         {section(t('account_profile'))}
@@ -162,10 +181,11 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
           })
         })}{row(t('password_title'), undefined, () => { if (session) { setMessage(''); setPage('password') } })}</> : null}
         {section(t('account_switch_section'))}
-        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { setMessage(''); setPage('spaces') })}
+        {row(t('spaces_manage'), undefined, onManageData)}
+        {row(t('spaces_title'), undefined, () => { setPage('spaces') })}
+        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { void requestLogin({ reason: 'switch', source: 'E06-account', returnPolicy: 'restorePrevious' }) })}
         {rows.includes('logout') ? <View style={styles.logout}><SecondaryButton compact danger label={t('account_logout')} onPress={() => { void run(onLogout, 'account_logout_failed') }} disabled={busy} style={styles.button} /></View> : null}
       </> : page === 'spaces' ? <AccountSpaces onManageData={onManageData} /> : page === 'edit' ? <>
-        <Text size={32} color={r.display} style={styles.title}>{t('account_edit_title')}</Text>
         <View style={styles.avatar}>{avatarCircle(96, draftAvatar, draft)}</View>
         <View style={styles.pick}><SecondaryButton compact label={t('account_change_avatar')} onPress={pickAvatar} disabled={busy} style={{ paddingHorizontal: 14 }} /></View>
         {field(t('account_nickname'), draft, t('account_nickname_hint'))}
@@ -191,13 +211,16 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
         <View style={[styles.field, { alignItems: 'flex-start' }]}><SecondaryButton compact label={t('account_revoke')} onPress={() => { mutateSessions() }} disabled={busy || !service} style={styles.button} /></View>
       </> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
-    </ScrollView>
+    </FocusVisibleScrollView>
     {page === 'password' && session ? <ChangePassword host={host.replace(/\/+$/, '')} session={session} onBack={() => { setPage('account'); void run(refreshSessions) }} /> : null}
-  </KeyboardAvoidingView></Animated.View>
+  </KeyboardAvoidingView>
+  }
+  return <SettingsSubpage pages={pages} style={pageStyle}>{renderPage}</SettingsSubpage>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({
   page: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   content: { paddingHorizontal: 22 },
   top: { marginTop: 10, height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },

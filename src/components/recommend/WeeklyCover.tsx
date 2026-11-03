@@ -13,12 +13,12 @@ import { useCoverDate } from './useCoverDate'
 import { FrostedCover } from './FrostedCover'
 import { currentRecommendationWeek, recommendationMonths, weeklyCover } from './coverModel'
 
-export const WeeklyCover = memo(({ cover, count }: { cover: string | null, count?: number | null }) => {
+export const WeeklyCover = memo(({ cover, count, active = true }: { cover: string | null, count?: number | null, active?: boolean }) => {
   const t = useI18n()
   const language = useSettingValue('common.langId')
   const r = magazineRoles(useLuxTheme().colors)
   const styles = useStyles()
-  const day = useCoverDate()
+  const day = useCoverDate(active)
   const { week, heading } = useMemo(() => {
     const { monday, sunday, week } = currentRecommendationWeek(new Date(day))
     const english = language === 'en_us'

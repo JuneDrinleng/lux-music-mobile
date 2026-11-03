@@ -1,3 +1,4 @@
+import { requestLogin } from '@/core/appSession'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { useEffect, useRef, useState } from 'react'
@@ -11,7 +12,6 @@ import { createStyle } from '@/utils/tools'
 import { getActiveSpace } from '@/utils/dataSpace'
 import { spaceMeta } from '@/utils/dataSpace/operations'
 import { loadAccountSpaces, switchAccountSpace } from '@/utils/accountSpaceSwitch'
-import { pushSyncLoginScreen } from '@/navigation/navigation'
 
 export default function AccountSpaces({ onManageData }: { onManageData: () => void }) {
   const t = useI18n()
@@ -47,7 +47,7 @@ export default function AccountSpaces({ onManageData }: { onManageData: () => vo
         {!current ? <SecondaryButton compact label={t('spaces_switch')} disabled={busy} style={styles.button} onPress={() => { void run(async() => switchAccountSpace(space, session)) }} /> : null}
       </View>
     })}
-    <View style={styles.actions}><SecondaryButton compact label={t('spaces_add')} disabled={busy} style={styles.button} onPress={() => { void run(async() => pushSyncLoginScreen({ onboarding: false, initialHost: '', initialUsername: '' })) }} /><SecondaryButton compact label={t('spaces_manage')} disabled={busy} style={styles.button} onPress={onManageData} /></View>
+    <View style={styles.actions}><SecondaryButton compact label={t('spaces_add')} disabled={busy} style={styles.button} onPress={() => { void run(async() => requestLogin({ reason: 'add', source: 'E08-account-add', initialHost: null, returnPolicy: 'restorePrevious' })) }} /><SecondaryButton compact label={t('spaces_manage')} disabled={busy} style={styles.button} onPress={onManageData} /></View>
     {error ? <Text size={12} color={r.danger} style={styles.subtitle} accessibilityLiveRegion="polite">{error}</Text> : null}
   </>
 }

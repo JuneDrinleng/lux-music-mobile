@@ -13,6 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, isSessionOffline: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -172,7 +173,7 @@ const renderScreen = (client, host, connect) => {
       if (!previous || !deps || deps.some((value, i) => value !== previous.deps?.[i])) effects[index] = { deps, effect, cleanup: previous?.cleanup, pending: true }
     },
   }
-  const jsx = (type, props) => ({ type, props })
+  const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const events = []
   const screen = load('src/screens/Login/AuthFlow.tsx', {
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
@@ -184,7 +185,8 @@ const renderScreen = (client, host, connect) => {
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Keyboard: { isVisible: () => false }, Platform: { OS: 'android' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/magazine': Object.fromEntries(['BackButton', 'OptionRow', 'PrimaryButton', 'TextButton', 'UnderlineInput'].map(key => [key, key])),
@@ -260,9 +262,12 @@ test('mock server: invite valid/invalid/used, username taken, mismatch, success 
     screen.find('PrimaryButton').props.onPress(); await delay(30); screen.render()
     assert.ok(screen.nodes().some(node => node.props?.children === 'Username taken'))
     assert.equal(screen.events.some(([event]) => event === 'login'), false)
-    screen.find('UnderlineInput', '用户名').props.onChangeText('xiaolin'); screen.render()
+    screen.find('UnderlineInput', '用户名').props.onChangeText('xiaolin')
+    assert.equal(screen.find('UnderlineInput', '密码').props.value, '')
+    screen.find('UnderlineInput', '密码').props.onChangeText('password')
+    screen.find('UnderlineInput', '再输一次').props.onChangeText('password'); screen.render()
     screen.find('PrimaryButton').props.onPress(); await delay(30); screen.render()
-    assert.deepEqual(screen.events.slice(-3), [['login', host, 'xiaolin', 'password'], ['complete'], ['home']])
+    assert.deepEqual(screen.events.slice(-2), [['login', host, 'xiaolin', 'password'], ['complete']])
     screen.find('BackButton').props.onPress(); screen.render()
     screen.find('TextButton', '忘记密码？').props.onPress(); screen.render()
     screen.find('PrimaryButton').props.onPress()

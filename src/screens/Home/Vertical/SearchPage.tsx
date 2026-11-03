@@ -1,26 +1,28 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { useSettingsTransition } from '@/components/common/SettingsPage'
 // Lux Proprietary
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
-  Easing,
   FlatList,
   Keyboard,
   ScrollView,
   StyleSheet,
-  TextInput,
+  type TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
   type ListRenderItem,
 } from 'react-native'
+import { FocusVisibleInput } from '@/components/common/FocusVisibleInput'
+import { FocusVisibleScrollView } from '@/components/common/FocusVisibleScrollView'
+import { SubpageSurface } from '@/components/common/SubpageSurface'
 import Text from '@/components/common/Text'
 import { MdiIcon } from '@/components/common/MdiIcon'
 import MusicAddModal, { type MusicAddModalType } from '@/components/MusicAddModal'
 import {
   BackButton,
-  DOCK_BASE_HEIGHT,
   EmptyState,
   MagMenu,
   RankNumber,
@@ -49,7 +51,6 @@ import { type ListInfoItem as SearchSonglistItem } from '@/store/songlist/state'
 import { type VerticalSearchPagePayload, type VerticalSearchSource } from '@/event/appEvent'
 import { useBackHandler } from '@/utils/hooks/useBackHandler'
 import { isHomeScreenActive } from '@/utils/homeBackHandler'
-import useSystemGestureInsetBottom from '@/utils/hooks/useSystemGestureInsetBottom'
 import { createStyle } from '@/utils/tools'
 import { debounce } from '@/utils'
 import musicSdk from '@/utils/musicSdk'
@@ -87,7 +88,7 @@ export default function SearchPage({
 }: {
   visible: boolean
   covered: boolean
-  onSelectSong?: (song: LX.Music.MusicInfoOnline) => Promise<void>
+  onSelectSong?: (song: LX.Music.MusicInfoOnline) => Promise<boolean>
   request: SearchPageRequest | null
   onClose: () => void
 }) {
@@ -98,7 +99,6 @@ export default function SearchPage({
   const t = useI18n()
   const { width } = useWindowDimensions()
   const statusBarHeight = useStatusbarHeight()
-  const gestureInsetBottom = useSystemGestureInsetBottom()
   const defaultSearchSource = useSettingValue('search.defaultSource') as PageSearchSource
   const [pageSearchSource, setPageSearchSource] = useState<PageSearchSource>(defaultSearchSource ?? 'all')
   const [searchText, setSearchText] = useState('')
@@ -133,8 +133,7 @@ export default function SearchPage({
     music: '',
     songlist: '',
   })
-  const pageAnim = useRef(new Animated.Value(visible ? 1 : 0)).current
-  const bottomPad = DOCK_BASE_HEIGHT + gestureInsetBottom
+  const { style: pageStyle, requestOpen, requestClose } = useSettingsTransition(false)
 
   const sourceLabel = useMemo(() => {
     if (pageSearchSource === 'all') return t('search_source_all')
@@ -208,28 +207,15 @@ export default function SearchPage({
 
   useEffect(() => {
     if (visible) {
-      Reflect.set(global.lx, 'keepPlayBarOnKeyboard', true)
       setShouldRender(true)
-      Animated.timing(pageAnim, {
-        toValue: 1,
-        duration: 268,
-        easing: Easing.bezier(0.22, 0.84, 0.22, 1),
-        useNativeDriver: true,
-      }).start()
+      requestOpen()
       return
     }
-
-    Reflect.set(global.lx, 'keepPlayBarOnKeyboard', false)
-    resetSearchPageState()
-    Animated.timing(pageAnim, {
-      toValue: 0,
-      duration: 220,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setShouldRender(false)
+    requestClose(() => {
+      resetSearchPageState()
+      setShouldRender(false)
     })
-  }, [pageAnim, resetSearchPageState, visible])
+  }, [requestOpen, requestClose, resetSearchPageState, visible])
 
   const loadSearchHistoryList = useCallback(() => {
     const requestId = ++searchHistoryRequestIdRef.current
@@ -373,9 +359,12 @@ export default function SearchPage({
   }, [])
 
   const handleClose = useCallback(() => {
-    resetSearchPageState()
-    onClose()
-  }, [onClose, resetSearchPageState])
+    requestClose(() => {
+      resetSearchPageState()
+      setShouldRender(false)
+      onClose()
+    })
+  }, [onClose, requestClose, resetSearchPageState])
 
   const handleSearchInputBlur = useCallback(() => {
     requestAnimationFrame(() => {
@@ -497,9 +486,10 @@ export default function SearchPage({
   }, [loadSearchHistoryList, searchHistoryList])
 
   const handlePlaySearchSong = useCallback(async(song: LX.Music.MusicInfoOnline) => {
-    if (onSelectSong) await onSelectSong(song)
-    else await addMusicToQueueAndPlay(song)
-  }, [onSelectSong])
+    if (onSelectSong) {
+      if (await onSelectSong(song)) handleClose()
+    } else await addMusicToQueueAndPlay(song)
+  }, [onSelectSong, handleClose])
 
   const handleToggleSearchLoved = useCallback(async(song: LX.Music.MusicInfoOnline) => {
     const songId = String(song.id)
@@ -734,7 +724,7 @@ export default function SearchPage({
           <MdiIcon name="magnify" size={24} color={r.ink} />
           {isSearchInputEditing
             ? (
-              <TextInput
+              <FocusVisibleInput
                 ref={searchInputRef}
                 style={styles.searchInput}
                 value={searchText}
@@ -823,15 +813,6 @@ export default function SearchPage({
     t,
   ])
 
-  const panelTranslateX = useMemo(() => pageAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [width, 0],
-  }), [pageAnim, width])
-  const panelOpacity = useMemo(() => pageAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.86, 1],
-  }), [pageAnim])
-
   const searchHeaderHeight = statusBarHeight + 10 + 40 + 14 + 40 + 18 + 36
 
   const renderSuggestionItem = useCallback((keyword: string, index: number) => {
@@ -855,7 +836,7 @@ export default function SearchPage({
         style={styles.initialScroll}
         contentContainerStyle={[
           styles.initialContent,
-          { paddingTop: searchHeaderHeight, paddingBottom: 22 + bottomPad },
+          { paddingTop: searchHeaderHeight, paddingBottom: 22 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -929,7 +910,6 @@ export default function SearchPage({
       </ScrollView>
     )
   }, [
-    bottomPad,
     handleClearSearchHistoryList,
     handlePickSearchKeyword,
     handleRemoveSearchHistoryItem,
@@ -980,16 +960,13 @@ export default function SearchPage({
     <Animated.View
       style={[
         styles.overlayRoot,
-        {
-          opacity: panelOpacity,
-          transform: [{ translateX: panelTranslateX }],
-        },
+        pageStyle,
       ]}
       pointerEvents={visible ? 'auto' : 'none'}
     >
-      <View style={styles.searchModeRoot}>
-        <View style={styles.searchResultHeaderFloating}>
-          {searchHeader}
+      <SubpageSurface style={styles.searchModeRoot}>
+        <View style={[styles.searchResultHeaderFloating, { height: searchHeaderHeight, maxHeight: '100%' }]}>
+          <FocusVisibleScrollView showsVerticalScrollIndicator={false}>{searchHeader}</FocusVisibleScrollView>
         </View>
         {showInitialPage
           ? initialView
@@ -999,7 +976,7 @@ export default function SearchPage({
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 },
                 ]}
                 data={songlistSearchResults}
                 renderItem={renderSonglistResultItem}
@@ -1028,7 +1005,7 @@ export default function SearchPage({
                 style={styles.searchResultList}
                 contentContainerStyle={[
                   styles.searchResultContent,
-                  { paddingTop: searchHeaderHeight, paddingBottom: 16 + bottomPad },
+                  { paddingTop: searchHeaderHeight, paddingBottom: 16 },
                 ]}
                 data={musicSearchResults}
                 renderItem={renderSearchResultItem}
@@ -1052,7 +1029,7 @@ export default function SearchPage({
                 overScrollMode="never"
               />
               )}
-      </View>
+      </SubpageSurface>
       <MagMenu
         visible={sourceMenuVisible}
         onClose={() => { setSourceMenuVisible(false) }}

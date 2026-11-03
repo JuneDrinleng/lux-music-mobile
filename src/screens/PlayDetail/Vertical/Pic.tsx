@@ -32,11 +32,13 @@ const TONEARM_PIVOT_Y = 15
 const RECORD_SPIN_DURATION = 30000
 const COVER_TRANSITION_DURATION = 280
 /** Non-record content above the pinned transport (eyebrow / title / lyrics + min gaps). */
-const PLAYER_RESERVED_ABOVE = 38
+/** Eyebrow marginTop 10 + nominal 14pt line (11pt font, native metrics) + top gap 24. */
+const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
-const PLAYER_RESERVED_LYRIC = 110 + 14
-/** Min flex gaps: after record / title / lyric. */
-const PLAYER_RESERVED_GAPS = 30 + 18 + 14
+/** Keep the pre-three-line disc budget; actual preview height is measured independently. */
+const PLAYER_RESERVED_LYRIC = 124
+/** Record-to-title 30 + title-to-lyrics 18; the lyric spacer no longer reserves height. */
+const PLAYER_RESERVED_GAPS = 30 + 18 + 0
 const PLAYER_DISC_MIN = 200
 
 const sourceShortKey = (source: string): keyof Message => {
@@ -84,7 +86,7 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
 
   const currentLyric = lyricLines[line]?.text ?? ''
   const nextLyric = lyricLines[line + 1]?.text ?? ''
-  const hasLyricPreview = Boolean(currentLyric || nextLyric)
+  const hasLyricPreview = Boolean(lyricLines[line - 1]?.text || currentLyric || nextLyric)
 
   const discSize = useMemo(() => {
     const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
@@ -493,6 +495,7 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
       </ScrollView>
 
       <PlayerTransport
+        seekOverlapTop={21}
         progress={progress}
         duration={maxPlayTime}
         nowPlayTimeStr={nowPlayTimeStr}
@@ -529,6 +532,8 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   },
   scroll: {
     flex: 1,
+    // The actions win the unavoidable overlap with the transparent seek area.
+    zIndex: 2,
   },
   scrollContent: {
     flexGrow: 1,
@@ -540,11 +545,11 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     textTransform: 'uppercase',
     marginTop: 10,
   },
-  /** Absorb leftover height so the control row sits near the bottom on tall screens. */
+  /** Only the gaps above / below the record share spare height, at the #165 ratio of 2:1. */
   flexGapSm: {
-    flexGrow: 1,
+    flexGrow: 2,
     flexShrink: 0,
-    minHeight: 8,
+    minHeight: 24,
   },
   flexGapRecord: {
     flexGrow: 1,
@@ -552,14 +557,15 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
     minHeight: 30,
   },
   flexGapTitle: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
     minHeight: 18,
   },
+  // Visible clearance comes from the action row and transport, not another spacer.
   flexGapLyric: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
-    minHeight: 14,
+    minHeight: 0,
   },
   recordWrap: {
     alignSelf: 'center',

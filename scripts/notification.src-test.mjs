@@ -23,7 +23,7 @@ const optionsFixture = (timer = true) => {
     './volumeFade': { createVolumeFade: () => ({}) },
     '@/config': {},
   }
-  const utils = load('src/plugins/player/utils.ts', name => deps[name] ?? {}, { global: { i18n: { t: key => key } } })
+  const utils = load('src/plugins/player/utils.ts', name => name === '@/utils/sessionFence' ? { sessionGeneration: () => 0, sessionWritesFrozen: () => false } : deps[name] ?? {}, { global: { i18n: { t: key => key } } })
   return { utils, calls, Capability }
 }
 

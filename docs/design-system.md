@@ -23,7 +23,7 @@
 | 顶栏 | `src/components/magazine/MagTopBar.tsx`（随内容滚动，不浮动） |
 | 播放详情 | `src/screens/PlayDetail/Vertical/Pic.tsx` |
 
-容器关系见 `src/screens/Home/Vertical/Main.tsx`：Pager 三页为首页、歌单、设置；搜索与设置子页、歌单详情等盖在内容之上。`SharedTopBar` 在 `Main.tsx` 中 **`visible={false}`**，顶栏搜索胶囊已退役；首页 / 歌单 / 设置各自用 `MagTopBar` + 图标入口打开搜索或设置内 `UnderlineInput`。
+容器关系见 `src/screens/Home/Vertical/Main.tsx`：Pager 三页为首页、歌单、设置；搜索与设置子页、歌单详情等盖在内容之上。恒隐藏的 `SharedTopBar` 挂载及其专用 `GlassSearchField` 已删除，顶栏搜索胶囊已退役；首页 / 歌单 / 设置各自用 `MagTopBar` + 图标入口打开搜索或设置内 `UnderlineInput`。
 
 上游遗留表面（横屏 `src/screens/Home/Horizontal/` 仍用玻璃 `PlayerBar`、旧 `BottomNav`；`src/screens/Home/Views/`、`src/components/modern/`）视觉走上游 `useTheme()`。新竖屏页面不要照着它们抄。
 
@@ -92,7 +92,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 | `OPTION_ROW_MIN_HEIGHT` | 58 | 单选行 |
 | `ICON_BLOCK` | 34 | 设置行图标方底（圆角 8） |
 
-滚动底部让位：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。`SearchPage.tsx` 与三 Tab 统一用 `DOCK_BASE_HEIGHT`，不再使用 112 / 164 两套常量。
+滚动底部让位的设计基准：**`DOCK_BASE_HEIGHT = 122`**（播放条 64 + 导航 58，`src/components/magazine/Dock.tsx`），再加 `useSystemGestureInsetBottom()`。首页和歌单根页以 `DOCK_BASE_HEIGHT` 为设计基准；非一级搜索/设置页与一起听通过 `components/common/VisibleDockHeight.tsx` 订阅主壳实际可见高度，隐藏为 0，可见时含实测分隔线及系统 inset。
 
 ### 圆角与阴影
 
@@ -115,23 +115,24 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 3. 底部绝对定位 **`Dock`**：`DockPlayerSlot`（封面 44 r4、歌名 15/700、播放键 44 墨圆）+ 三 Tab 图标（`home-variant-outline` / `folder-music-outline` / `cog-outline`），顶缘 **3px  accent 进度** + 拇指。
 4. 键盘弹出且 `common.autoHidePlayBar` 时可隐藏 Dock。
 
-首页顶栏右侧：搜索 `IconButton` + 圆形头像进设置。设置顶栏右侧：搜索图标展开 **UnderlineInput** 行（非顶栏胶囊）。
+首页顶栏右侧：搜索 `IconButton` + 圆形头像进设置。设置采用 B 版：刊头「SETTINGS · LUX MUSIC」，下方 H1 右侧搜索图标展开 **UnderlineInput** 行，输入位于标题行后，正常下推内容。
 
 ### 设置主页
 
 `SettingsTab.tsx`：
 
-- MagTopBar masthead + 可选设置内搜索行。
-- H1「设置」。
-- 可选 **资料 hero 行**（头像 + 名 + 签名 + chevron），不是旧版独立「资料」分组 eyebrow。
-- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
+- 一级页无返回键，系统返回逻辑不变；二级及更深页保留共享返回。B 版 MagTopBar 刊头「SETTINGS · LUX MUSIC」，顶距 18、行高 14；18 间距后 H1「设置」（magType.h1）与搜索同排（28 图标 / 44 容器，右外移 8）；可选 UnderlineInput 在标题行后。
+- **资料 hero 行**：上距 22，56 头像、14 间距、22/800 单行昵称；独立同步胶囊在昵称右侧，水平间距 8、与昵称垂直居中；昵称和签名共用账户按钮，先单行省略，胶囊不收缩、不换行。签名单独在下一行（12/16），距昵称 2；无签名沿用默认签名。搜索过滤资料时仍显示胶囊，本地/关闭同步也保留入口。
+- `SyncStatusPill`（`screens/SyncStatus/index.tsx`）视觉最小高 28、内边距 8、11/700 字 + 12 图标，独立 44 最小触达容器（上下各 8 实际布局留位，与账户文字按钮横向分离），账户文字上留 8 与胶囊面顶边对齐。hero 保留最小高 68、头像 56 并垂直居中，状态刷新不改变布局；放大字体允许整体增高。成功/进行中为 accent.soft + ink.olive；本地/未同步为 paper + hairline 描边 + ink.secondary；错误为 paper + danger 描边与字。无新增主题色。账户其余区域仍进 AccountPage；胶囊只打开同步详情。
+- 原独立同步主线、标题及状态整行移除，服务器/账号/连接状态/最近成功同步或活跃在成功与错误详情共享的 `SyncConnectionInfo` 展示；没有时间戳显示「暂无记录」，时间戳不代表在线。
+- 各 **`SectionHeader`**（主线 + 22 号标题 + 右侧 12 号 meta 英文）+ 多行 **`SettingRow`**（34 图标底 + 16 标题 + 12 副标题 + chevron）。分组：外观（`iconWrap.orange`）、搜索与播放（`iconWrap.green`）、数据与同步（`iconWrap.purple`）、开发调试（条件显示，`iconWrap.blue`）、关于（`iconWrap.amber`）。账户至外观及其余组主线上距 22、栏目头距线 6。账户列表行及空分组已移除；资料 hero 打开完整 AccountPage，退出登录仍在该页。
 - 子页：`MagTopBar` + `BackButton` + H2；单选用 **`OptionRow`**（选中 10×10 accent 圆点，浅色主题带墨边）。
 
 弹窗 / 输入：杂志组件 `MagDialog`、`UnderlineInput`、`PrimaryButton`（墨底）等；缓存 **`ResourceCacheSection`** 为 Section + SettingRow + `CacheLimitSlider`，**无**整页白卡片容器。
 
-### 设置子页动效
+### 所有非一级页动效
 
-设置子页统一使用 `components/common/SettingsPage.tsx` 的应用内右侧过渡，保留 Dock / 播放条。页面动效、返回与触达规则以 [软件交互规范](interaction-spec.md) 为唯一维护入口。
+除播放详情及既有底部弹出页例外（见交互规范）外，所有非一级页（二级及更深）统一使用 `components/common/SettingsPage.tsx` / `overlaySlideTransition.ts` 的右侧过渡，设置及其他应用内页保留 Dock / 播放条；全屏任务页沿用覆盖 Dock 的语义。资料编辑的返回、刊头及标题固定在表单上方，保存为标题右侧 28 图标 / 44 点击区的 IconButton 勾按钮，无修改或保存中禁用，保存中加载；不再有底部固定保存区。页面动效、返回与触达规则以 [软件交互规范](interaction-spec.md) 为唯一维护入口。
 
 ### 同步登录
 
@@ -151,7 +152,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 | `SectionHeader` + `Rule` / `Hairline` | 设置与列表分节 |
 | `SettingRow` | 设置入口行 |
 | `OptionRow` | 单选列表 |
-| `Dock` / `DockPlayerSlot` | 仅主壳；子页留出 `DOCK_BASE_HEIGHT` |
+| `Dock` / `DockPlayerSlot` | 仅主壳；设置子页用共享可见高度留位 |
 | `TextTabs`、`UnderlineInput`、`PrimaryButton`、`MagDialog`、`MagazineSheet` | 表单、面板、抽屉 |
 | `RankedRow`、`SongRow`、`SourceTag` | 首页 / 搜索 / 歌单行 |
 | `Text`、`MdiIcon`、`Image` | 文案与图标（设置行图标 **18**，色 **`ink`**，色相在图标底） |
@@ -159,7 +160,7 @@ MagTopBar 刊头：`SETTINGS · LUX MUSIC 1.8.0` 一类，11 号眉题色、大�
 
 样式：`sharedLuxStyles` + `createStyle`。文案：`useI18n()`，三语 JSON。
 
-**不要**在新竖屏页复用：`SharedTopBar` 胶囊搜索、`Home/Vertical/BottomNav` 玻璃轨（竖屏未接）、`src/components/modern/*` 主题卡片。
+**不要**在新竖屏页复用：已退役的胶囊搜索、`Home/Vertical/BottomNav` 玻璃轨（竖屏未接）、`src/components/modern/*` 主题卡片。
 
 ## 图标规则
 
@@ -183,7 +184,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 
 - 纸底：`useLuxTheme()` / `magazineRoles`，**不写 hex**。
 - 左右 **22**，Section + SettingRow / OptionRow，MagTopBar 子页 + BackButton。
-- 底部留白 **122 + gesture inset**。
+- 一级页之外的所有层级页面使用 SettingsPage / SubpageSurface 及共享焦点滚动；底部留位从 `useVisibleDockHeight()` 读取：Dock 隐藏为 0，可见为实测高度（含分隔线及 gesture inset）；设计基准仍为 122。
 - 复用杂志组件；删除/隐藏既有 UI 时在 **PR 描述**单独列出（见 AGENTS.md）。
 
 改规范时：**先对代码，再改本文**，并写上文件路径。
@@ -191,7 +192,7 @@ MDI 经 `MdiIcon` / `mdiIconMap.ts`；`logo` 仍走 IcoMoon。Dock / 设置：**
 ## 已知不一致
 
 - `SettingsTab.tsx` 样式表仍保留未使用的玻璃搜索、`headerFloating`、18  padding 等旧类名。
-- `PlaylistDetailOverlay.tsx` 仍写死 `BOTTOM_DOCK_BASE_HEIGHT = 164`，与 `DOCK_BASE_HEIGHT` 122 不一致。
+- `PlaylistDetailOverlay.tsx` 底部歌曲留白使用实际可见 Dock + 42 内容留白；全屏导入覆盖 Dock，不重复让位。
 - 横屏 `Home/Horizontal` 仍用旧 `PlayerBar` + 玻璃 `BottomNav`。
 - `docs/design-system-magazine.md` 文首仍写「仅文档、未改代码」——**与 `dev` 实现不符**；以本文与代码为准。
 - 强调黄绿、墨色、弱文字仍有多套近邻 hex（见 `luxTokens`）；不要「整理合并」默认主题字面量。

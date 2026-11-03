@@ -12,6 +12,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -72,6 +73,7 @@ const renderScreen = env => {
     '@/components/common/SettingsPage': { ...settingsTransitionMock(hooks), useSettingsBack: handler => { hardwareBack = handler } },
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
     'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, ...Object.fromEntries(['View', 'Modal', 'ScrollView', 'KeyboardAvoidingView'].map(key => [key, key])), Platform: { OS: 'android' } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },

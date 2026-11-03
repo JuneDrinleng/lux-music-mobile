@@ -1,9 +1,11 @@
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
-import { useSettingsSubpage } from '@/components/common/SettingsPage'
+import { FocusVisibleScrollView, FocusVisibleAction } from '@/components/common/FocusVisibleScrollView'
+import { useSubpageActive, SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
 import { showSessionExpiredDialog } from '@/plugins/sync/client/sessionExpired'
 import { useEffect, useRef, useState } from 'react'
-import { Animated, BackHandler, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native'
+import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, View } from 'react-native'
 import LanguageSwitch from '@/components/common/LanguageSwitch'
 import SyncLoginLocalAction from '../SyncLogin/LocalAction'
 import { loadSyncLoginFormSnapshot, rememberSyncLoginForm, syncHostCompareKey } from '@/utils/syncLoginPrefill'
@@ -24,22 +26,22 @@ import { parseServerInfo, type ServerInfo } from '@/utils/serverCheck'
 import { luxAuthApi, requestJson } from '@/plugins/sync/client/auth'
 import { connectLuxServer, syncLuxProfileOnLogin } from '@/plugins/sync'
 import { profileSyncErrorMessage } from '@/plugins/sync/client/userErrors'
-import { updateSetting } from '@/core/common'
-import { findLuxAuthForHost, addSyncHostHistory, setSyncHost, setSyncMode, setSyncLoginCompleted } from '@/utils/data'
+import { findLuxAuthForHost, setSyncHost, setSyncMode, addSyncHostHistory, setSyncLoginCompleted } from '@/utils/data'
 import { completeOnboarding } from '@/utils/onboarding'
 import { navigations } from '@/navigation'
 
 type Page = 'login' | 'register' | 'forgot'
 const emptyForm: RegisterForm = { invite: '', username: '', displayName: '', password: '', confirm: '' }
 
-export default function AuthFlow({ host, onboarding, onBack, initialUsername, settings = false }: { host: string, onboarding: boolean, onBack: () => void, initialUsername?: string, settings?: boolean }) {
+export default function AuthFlow({ host, onboarding, onBack, initialUsername, settings = false, initialPage = 'login', cancelAuthentication, canCancelAuthentication = false }: { host: string, onboarding: boolean, onBack: () => void, initialUsername?: string, settings?: boolean, initialPage?: Page, cancelAuthentication?: () => void, canCancelAuthentication?: boolean }) {
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const styles = useStyles()
+  const pageActive = useSubpageActive()
   const t = useI18n()
   const statusHeight = useStatusbarHeight()
   const bottom = useSystemGestureInsetBottom()
-  const { page, setPage, style: pageStyle } = useSettingsSubpage<Page>('login', settings)
+  const { page, pages, setPage, style: pageStyle } = useSettingsSubpage<Page>(initialPage, true)
   const [form, setForm] = useState(emptyForm)
   const [savedSession, setSavedSession] = useState<LX.Sync.LuxAuth | null>(null)
   const [hasSavedLogin, setHasSavedLogin] = useState(false)
@@ -67,14 +69,15 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     return () => { active = false }
   }, [host, initialUsername])
   const back = () => {
+    if (Keyboard.isVisible()) { Keyboard.dismiss(); return }
     if (busy) return
     setMessage('')
     setTouched({})
-    if (page === 'login') onBack()
+    if (page === initialPage) onBack()
     else setPage('login')
   }
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { back(); return true })
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { if (!pageActive) return false; back(); return true })
     return () => { subscription.remove() }
   })
   useEffect(() => {
@@ -113,10 +116,13 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     setMessage('')
     try {
       if (page === 'register') await luxAuthApi.register(host, form)
-      await setSyncMode('lux')
-      await setSyncHost(host)
+      if (!isSessionCoordinatorEnabled()) {
+        await setSyncMode('lux')
+        await setSyncHost(host)
+        const { updateSetting } = await import('@/core/common')
+        updateSetting({ 'sync.enable': true })
+      }
       await addSyncHostHistory(host)
-      updateSetting({ 'sync.enable': true })
       // connectLuxServer commits the session and activates its account data space.
       // Recheck ownership at submit time; a different username cannot reuse this session.
       const saved = await findLuxAuthForHost(host)
@@ -125,11 +131,14 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
       await rememberSyncLoginForm({ host, mode: 'lux', luxUsername: form.username.trim() })
       await syncLuxProfileOnLogin(host).catch(error => { toast(profileSyncErrorMessage(error), 'long') })
       if (onboarding) await completeOnboarding()
-      await setSyncLoginCompleted(true)
-      await navigations.pushHomeScreen()
+      if (!isSessionCoordinatorEnabled()) {
+        await setSyncLoginCompleted(true)
+        await navigations.pushHomeScreen()
+      }
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {
+      setForm(previous => ({ ...previous, password: '', confirm: '' }))
       if (error instanceof Error && error.message === SYNC_CODE.luxSessionExpired) void showSessionExpiredDialog(host)
       else setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -179,10 +188,11 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
     </View>
   }
   const help = helpMessage(form.username, hostname, t)
-  const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
-  return <Animated.View style={[{ flex: 1 }, settings ? pageStyle : null]}><KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const renderPage = (page: Page) => {
+    const primary = <PrimaryButton compact label={t(page === 'register' ? 'auth_register_submit' : 'auth_login')} disabled={busy || !prefillReady || invalid} onPress={() => { void submit() }} />
+    return <KeyboardAvoidingView style={[styles.page, { backgroundColor: r.paper, paddingTop: statusHeight }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar />
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <FocusVisibleScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton onPress={back} accessibilityLabel={t('back')} /><LanguageSwitch /></View>
       <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{page === 'forgot' ? t('auth_forgot_eyebrow') : hostname.toUpperCase()}</Text>
       <Text size={32} color={r.display} style={styles.title}>{t(page === 'forgot' ? 'auth_recover' : page === 'register' ? 'auth_register' : 'auth_login')}</Text>
@@ -207,7 +217,7 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
             <TextButton compact label={t('auth_forgot_link')} disabled={busy} onPress={() => { setPage('forgot'); setMessage('') }} />
             <TextButton compact label={t('auth_change_server')} disabled={busy} onPress={back} />
           </View>
-          <View style={styles.loginButton}>{primary}</View>
+          <FocusVisibleAction style={styles.loginButton}>{primary}</FocusVisibleAction>
           {info?.registration.enabled ? <View style={styles.registerLink}>
             <Text size={14} color={r.ink}>{t('auth_no_account')}</Text>
             <TextButton compact label={t('auth_register_link')} disabled={busy} onPress={() => { setPage('register'); setTouched({}); setMessage('') }} />
@@ -218,12 +228,15 @@ export default function AuthFlow({ host, onboarding, onBack, initialUsername, se
         {hasSavedLogin ? <View style={styles.field}><TextButton compact style={{ minHeight: 28 }} muted label={t('sync_login_clear_saved')} disabled={busy || !prefillReady} onPress={() => { void clearSaved() }} /></View> : null}
         {!onboarding ? <SyncLoginLocalAction disabled={busy || !prefillReady} onBusyChange={setBusy} /> : null}
       </> : null}
+      {busy && cancelAuthentication ? <TextButton label={t('login_gate_cancel_auth')} disabled={!canCancelAuthentication} onPress={cancelAuthentication} /> : null}
       {message ? <Text size={12} color={r.danger} style={styles.field} accessibilityLiveRegion="polite">{message}</Text> : null}
-    </ScrollView>
+    </FocusVisibleScrollView>
     {page === 'register' || (page === 'forgot' && adminOption) ? <View style={[styles.footer, { borderTopColor: r.ink, paddingBottom: 26 + bottom }]}>
-      {page === 'register' ? primary : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
+      {page === 'register' ? <FocusVisibleAction>{primary}</FocusVisibleAction> : <PrimaryButton compact label={t('auth_copy_help')} onPress={() => { clipboardWriteText(help); toast(t('auth_copied')) }} />}
     </View> : null}
-  </KeyboardAvoidingView></Animated.View>
+  </KeyboardAvoidingView>
+  }
+  return <SettingsSubpage pages={pages} style={pageStyle}>{renderPage}</SettingsSubpage>
 }
 
 const useStyles = sharedLuxStyles(() => createStyle({

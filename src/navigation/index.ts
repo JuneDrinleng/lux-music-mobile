@@ -1,5 +1,6 @@
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { subpageNavigationOptions } from './pageTransitionRegistry'
 import { Navigation } from 'react-native-navigation'
 import * as screenNames from './screenNames'
 import * as navigations from './navigation'
@@ -17,6 +18,7 @@ const init = (callback: () => void | Promise<void>) => {
   if (unRegisterEvent) unRegisterEvent.remove()
 
   Navigation.setDefaultOptions({
+    ...subpageNavigationOptions,
     layout: {
       orientation: ['portrait'],
     },

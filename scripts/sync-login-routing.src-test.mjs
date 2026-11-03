@@ -13,6 +13,7 @@ const load = (file, deps = {}) => {
   }).outputText
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
+    if (name === '@/utils/sessionFence') return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
     assert.ok(name in deps, `Unexpected dependency: ${name}`)
     return deps[name]
   }, module, module.exports)
@@ -22,7 +23,7 @@ const routing = load('src/utils/syncLoginRouting.ts')
 const credentials = load('src/plugins/sync/client/credentials.ts')
 const userErrors = load('src/plugins/sync/client/userErrors.ts')
 const api = load('src/utils/luxAuthApi.ts', { '@/plugins/sync/client/userErrors': userErrors })
-const jsx = (type, props) => ({ type, props })
+const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
 const children = node => !node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(children)]
 
 // Run the actual screen functions with stateful hooks and inspect their rendered callbacks.
@@ -62,10 +63,12 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
     setSyncLoginCompleted: async() => {},
   }
   const deps = {
+    '@/core/appSession': { getLoginIntent: () => null, cancelAppSessionSwitch: async() => { events.push(['home']) } },
     '@/components/common/SettingsPage': settingsTransitionMock(react),
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
-    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, View: 'View', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'android' }, BackHandler: { addEventListener: (_, fn) => { hardware = fn; return { remove() { if (hardware === fn) hardware = null } } } } },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'View' },
+    'react-native': { Animated: { View: 'AnimatedView' }, StyleSheet: { absoluteFillObject: {} }, View: 'View', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView', Keyboard: { isVisible: () => false }, Platform: { OS: 'android' }, BackHandler: { addEventListener: (_, fn) => { hardware = fn; return { remove() { if (hardware === fn) hardware = null } } } } },
     '@/components/common/Text': { default: 'Text' },
     '@/components/common/StatusBar': { default: 'StatusBar' },
     '@/components/common/LanguageSwitch': { default: 'LanguageSwitch' },
@@ -102,6 +105,7 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
     '@/navigation': { navigations: { pushLoginScreen: async() => { events.push(['onboarding']) }, pushHomeScreen: async() => { events.push(['home']) } } },
     '../Login/AuthFlow': { default: 'AuthFlow' },
     '../Login/ServerStep': { default: 'ServerStep' },
+    './LoginGate': { default: 'LoginGate' },
     './LocalAction': { default: 'LocalAction' },
     '../SyncLogin/LocalAction': { default: 'LocalAction' },
   }
@@ -109,7 +113,7 @@ const harness = (file, { mode = 'lux', savedHost = '', snapshotHost = savedHost,
   let tree
   return {
     events,
-    render(props = {}, Component = screen.default) {
+    render(props = {}, Component = screen.LegacySyncLoginHost ?? screen.default) {
       cursor = 0
       tree = Component(props)
       const pending = effects; effects = []; pending.forEach(effect => effect())
@@ -138,7 +142,7 @@ test('entry matrix: onboarding overrides LX, explicit hosts preserve saved LX mo
   }
 })
 
-test('Settings/Playlist: AuthFlow -> ServerStep -> Home; LX link opens LX and Lux tab returns', async() => {
+test('PR5 legacy compatibility: Settings/Playlist: AuthFlow -> ServerStep -> Home; LX link opens LX and Lux tab returns', async() => {
   const h = harness('src/screens/SyncLogin/index.tsx', { savedHost: 'https://saved' })
   h.render(); await settle()
   assert.equal(h.render().type, 'AuthFlow')
@@ -155,7 +159,7 @@ test('Settings/Playlist: AuthFlow -> ServerStep -> Home; LX link opens LX and Lu
   assert.ok(h.find('TextButton', 'sync_login_use_lx'))
 })
 
-test('onboarding has no LX/local/history entry and returns to onboarding only', () => {
+test('PR5 legacy compatibility: onboarding has no LX/local/history entry and returns to onboarding only', () => {
   const h = harness('src/screens/SyncLogin/index.tsx')
   const props = { onboarding: true, initialHost: 'https://explicit' }
   h.render(props)
@@ -235,7 +239,7 @@ test('Lux session prefill allows passwordless same-account reconnect, remembers 
   h.find('PrimaryButton', 'auth_login').onPress(); await settle()
   assert.ok(h.events.some(event => event[0] === 'connect' && event[2] === 'alice' && event[3] === undefined))
   assert.ok(h.events.some(event => event[0] === 'remember'))
-  assert.ok(h.events.some(event => event[0] === 'home'))
+  assert.equal(h.events.some(event => event[0] === 'home'), false, 'coordinator owns Main replacement')
   h.render(props)
   h.find('TextButton', 'sync_login_clear_saved').onPress(); await settle(); h.render(props)
   assert.ok(h.events.some(event => event[0] === 'clear' && event[1] === 'lux'))
@@ -256,7 +260,7 @@ test('local-use preserves credentials, selects local mode, completes login and e
   const h = harness('src/screens/SyncLogin/LocalAction.tsx')
   h.render()
   h.find('TextButton', 'sync_login_skip').onPress(); await settle()
-  assert.deepEqual(h.events, [['local'], ['mode', 'lx'], ['home']])
+  assert.deepEqual(h.events, [['local']])
 })
 
 
@@ -286,7 +290,7 @@ test('expired saved session opens the dialog and does not exit Home', async() =>
 
 test('expired Lux account reopens its host and username even if saved entry mode is LX', async() => {
   const h = harness('src/screens/SyncLogin/index.tsx', { mode: 'lx' })
-  const props = { onboarding: false, initialHost: 'https://expired-server', initialUsername: 'june' }
+  const props = { onboarding: false, initialHost: 'https://expired-server', initialUsername: 'june', initialProvider: 'lux' }
   h.render(props); await settle()
   const tree = h.render(props)
   assert.equal(tree.type, 'AuthFlow')
@@ -302,7 +306,7 @@ test('relogin username takes precedence over an old login draft', async() => {
 })
 
 
-test('embedded Settings login backs through server and LX without replacing the native Home root', async() => {
+test('PR5 legacy compatibility: embedded Settings login backs through server and LX without replacing the native Home root', async() => {
   const h = harness('src/screens/SyncLogin/index.tsx', { savedHost: 'https://saved' })
   let closed = 0
   const props = { initialHost: 'https://saved', onBack: () => { closed++ } }
@@ -320,4 +324,12 @@ test('embedded Settings login backs through server and LX without replacing the 
   findLegacy(h.render(props)).onBack()
   assert.equal(closed, 1)
   assert.deepEqual(h.events, [])
+})
+
+test('deleting the current server routes through the transaction before any disconnect', () => {
+  const source = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/SettingsTab.tsx', import.meta.url), 'utf8')
+  const deletion = source.slice(source.indexOf('const handleDeleteSyncHost'), source.indexOf('const handleToggleSyncManage'))
+  assert.match(deletion, /requestLogin\(\{ reason: 'changeServer'/)
+  assert.match(deletion, /confirmDialog/)
+  assert.doesNotMatch(deletion, /disconnectServer|updateSetting/)
 })

@@ -71,6 +71,9 @@ declare global {
       }
 
       interface SavedPlayInfo {
+        tempQueue?: PlayMusicInfo[]
+        tempListMetaId?: string
+        personalQueue?: { list: LX.Music.MusicInfo[], metaId: string, info: { listId: string | null, musicInfo: PlayMusic | null, isTempPlay: boolean }, time: number, maxTime: number, index: number }
         time: number
         maxTime: number
         listId: string

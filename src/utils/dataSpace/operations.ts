@@ -1,3 +1,4 @@
+import { sessionWritesFrozen } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { NativeModules } from 'react-native'
@@ -54,8 +55,8 @@ const spacePhysicalKeys = async(space: SpaceId): Promise<string[]> => {
   return [...owned]
 }
 
-export const deleteSpaceData = async(space: SpaceId): Promise<void> => {
-  if (space === 'local' || space === getActiveSpace()) throw new Error('Cannot delete active or local space')
+export const deleteSpaceData = async(space: SpaceId, quiescedLogout = false): Promise<void> => {
+  if (space === 'local' || (space === getActiveSpace() && !(quiescedLogout && sessionWritesFrozen()))) throw new Error('Cannot delete active or local space')
   const downloads = NativeModules.DownloadModule as { removeSpace?: (space: string) => Promise<void> } | undefined
   await downloads?.removeSpace?.(space)
   await AsyncStorage.multiRemove(await spacePhysicalKeys(space))

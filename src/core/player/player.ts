@@ -1,3 +1,4 @@
+import { sessionWritesFrozen, sessionGeneration } from '@/utils/sessionFence'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { isInitialized, initial as playerInitial, isEmpty, setPause, setPlay, setResource, setStop, initTrackInfo, setVolume, setPlaybackRate, updateOptions, isNotificationLikeSupported } from '@/plugins/player'
@@ -210,15 +211,18 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
 }
 
 export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh?: boolean) => {
+  if (sessionWritesFrozen()) return
+  const generation = sessionGeneration()
   // addLoadTimeout()
   if (!diffCurrentMusicInfo(musicInfo)) return
   if (cancelDelayRetry) cancelDelayRetry()
   const requestId = createGettingUrlId(musicInfo)
   global.lx.gettingUrlId = requestId
   void getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
-    if (!url) return
+    if (sessionWritesFrozen() || generation !== sessionGeneration() || !url) return
     setResource(musicInfo, url, playerState.progress.nowPlayTime)
   }).catch((err: any) => {
+    if (sessionWritesFrozen() || generation !== sessionGeneration()) return
     console.log(err)
     setStatusText(err.message as string)
     global.app_event.error()
@@ -333,6 +337,8 @@ const debounceGaplessDetails = debounceBackgroundTimer((musicInfo: LX.Player.Pla
 
 // 处理音乐播放
 const handlePlay = async() => {
+  const generation = sessionGeneration()
+  if (sessionWritesFrozen()) return
   if (!isInitialized()) {
     await checkNotificationPermission()
     void checkIgnoringBatteryOptimization()
@@ -345,6 +351,7 @@ const handlePlay = async() => {
     })
   }
   await syncPlayerOutputSetting()
+  if (sessionWritesFrozen() || generation !== sessionGeneration()) return
 
   global.lx.isPlayedStop &&= false
   resetRandomNextMusicInfo()
@@ -361,6 +368,7 @@ const handlePlay = async() => {
   if (!musicInfo) return
 
   await setStop()
+  if (sessionWritesFrozen() || generation !== sessionGeneration()) return
   global.app_event.pause()
 
   clearDelayNextTimeout()
@@ -378,6 +386,7 @@ const handlePlay = async() => {
  * @param id 歌曲id
  */
 export const playListById = async(listId: string, id: string) => {
+  if (sessionWritesFrozen()) return
   if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
@@ -395,6 +404,7 @@ export const playListById = async(listId: string, id: string) => {
  * @param index 播放的歌曲位置
  */
 export const playList = async(listId: string, index: number) => {
+  if (sessionWritesFrozen()) return
   if (blockTogetherMemberControl()) return
   const prevListId = playerState.playInfo.playerListId
   setPlayListId(listId)
@@ -408,6 +418,7 @@ export const playList = async(listId: string, index: number) => {
  * 将某个歌单完整复制到独立播放队列，再从目标索引播放
  */
 export const playListAsQueue = async(sourceListId: string, index: number) => {
+  if (sessionWritesFrozen()) return
   if (blockTogetherMemberControl()) return
   const sourceList = await getListMusics(sourceListId)
   if (!sourceList.length) return
@@ -442,6 +453,7 @@ export const addMusicToQueueAndPlay = async(musicInfo: LX.Music.MusicInfo) => {
 
 /** Recommendations use the same isolated queue and together-control guard as song actions. */
 export const playRecommendationQueue = async(musics: LX.Music.MusicInfo[]) => {
+  if (sessionWritesFrozen()) return
   if (!musics.length) return
   if (blockTogetherMemberControl()) throw new Error('Together member cannot modify recommendation queue')
   await setTempList(createPlayQueueMetaId('recommendations'), musics)
@@ -588,6 +600,7 @@ const handlePlayNext = async(playMusicInfo: LX.Player.PlayMusicInfo, isAutoToggl
  * @returns
  */
 export const playNext = async(isAutoToggle = false): Promise<void> => {
+  if (sessionWritesFrozen()) return
   if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   if (playerState.tempPlayList.length) { // 如果稍后播放列表存在歌曲则直接播放改列表的歌曲
     const playMusicInfo = playerState.tempPlayList[0]
@@ -688,6 +701,7 @@ export const playNext = async(isAutoToggle = false): Promise<void> => {
  * 上一曲
  */
 export const playPrev = async(isAutoToggle = false): Promise<void> => {
+  if (sessionWritesFrozen()) return
   if (isAutoToggle ? isTogetherMemberLocked() : blockTogetherMemberControl()) return
   const playMusicInfo = playerState.playMusicInfo
   if (playMusicInfo.musicInfo == null) return handleToggleStop()
@@ -776,9 +790,13 @@ export const playPrev = async(isAutoToggle = false): Promise<void> => {
  * 恢复播放
  */
 export const play = () => {
+  const generation = sessionGeneration()
+  if (sessionWritesFrozen()) return
+  if (isEmpty()) global.lx.restorePlayInfo = null
   const musicInfo = playerState.playMusicInfo.musicInfo
   if (!musicInfo) return
   void syncPlayerOutputSetting().finally(() => {
+    if (sessionWritesFrozen() || generation !== sessionGeneration()) return
     if (isEmpty()) {
       // Clear stale URL request lock before retrying current song.
       global.lx.gettingUrlId = ''

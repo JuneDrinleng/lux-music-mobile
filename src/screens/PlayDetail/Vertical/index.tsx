@@ -21,10 +21,13 @@ const PAGE_IDS: PlayerPageId[] = ['comment', 'play', 'lyric']
 export default memo(({
   componentId,
   active = true,
+  backActive = true,
 }: {
   componentId: string
   /** When the overlay re-opens from the mini bar, force the vinyl (play) page. */
   active?: boolean
+  /** A native stack screen covered by another page must not consume back. */
+  backActive?: boolean
 }) => {
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
@@ -87,12 +90,13 @@ export default memo(({
   }
 
   useBackHandler(useCallback(() => {
+    if (!active || !backActive) return false
     if (pageIndex === 0) {
       setPage(1)
       return true
     }
     return false
-  }, [pageIndex, setPage]))
+  }, [active, backActive, pageIndex, setPage]))
 
   useEffect(() => {
     const appstateListener = AppState.addEventListener('change', state => {

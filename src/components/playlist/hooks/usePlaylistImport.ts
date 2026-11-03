@@ -1,14 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { type ImportCandidate, buildLocalCandidates } from '@/utils/playlistImport/local'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { LIST_IDS } from '@/config/constant'
 import { addListMusics, getListMusics } from '@/core/list'
+import { useI18n } from '@/lang'
+import { toast } from '@/utils/tools'
 import settingState from '@/store/setting/state'
-
-export interface ImportCandidate {
-  id: string
-  musicInfo: LX.Music.MusicInfo
-  fromListName: string
-}
 
 interface UsePlaylistImportParams {
   selectedListId: string | null
@@ -23,12 +20,16 @@ export const usePlaylistImport = ({
   playlists,
   loadLocalDetailSongs,
 }: UsePlaylistImportParams) => {
+  const t = useI18n()
+  const submittingRef = useRef(false)
   const importRequestIdRef = useRef(0)
   const [isImportDrawerVisible, setImportDrawerVisible] = useState(false)
   const [importLoading, setImportLoading] = useState(false)
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importCandidates, setImportCandidates] = useState<ImportCandidate[]>([])
   const [importSelectedMap, setImportSelectedMap] = useState<Record<string, true>>({})
+
+  useEffect(() => () => { importRequestIdRef.current += 1 }, [selectedListId])
 
   const importSelectedCount = useMemo(() => Object.keys(importSelectedMap).length, [importSelectedMap])
   const areAllImportSongsSelected = useMemo(() => {
@@ -40,32 +41,20 @@ export const usePlaylistImport = ({
     setImportLoading(true)
     try {
       const currentSongs = await getListMusics(targetListId)
-      const existingSongIds = new Set(currentSongs.map(song => `${song.source}_${song.id}`))
       const otherLists = playlists.filter(list => list.id !== targetListId && list.id !== LIST_IDS.DEFAULT)
       const listSongs = await Promise.all(otherLists.map(async(list) => {
         const songs = await getListMusics(list.id)
-        return { listName: list.name, songs }
+        return { id: list.id, listName: list.name, songs }
       }))
-      const dedupeMap = new Set<string>()
-      const candidates: ImportCandidate[] = []
-      for (const { listName, songs } of listSongs) {
-        for (const song of songs) {
-          const songKey = `${song.source}_${song.id}`
-          if (existingSongIds.has(songKey) || dedupeMap.has(songKey)) continue
-          dedupeMap.add(songKey)
-          candidates.push({
-            id: songKey,
-            musicInfo: song,
-            fromListName: listName,
-          })
-        }
-      }
+      const candidates = buildLocalCandidates(currentSongs, listSongs)
       if (requestId !== importRequestIdRef.current) return
       setImportCandidates(candidates)
+    } catch {
+      if (requestId === importRequestIdRef.current) toast(t('import_error'))
     } finally {
       if (requestId === importRequestIdRef.current) setImportLoading(false)
     }
-  }, [playlists])
+  }, [playlists, t])
 
   const handleOpenImportDrawer = useCallback(() => {
     if (!selectedListId) return
@@ -76,9 +65,10 @@ export const usePlaylistImport = ({
   }, [loadImportCandidates, selectedListId])
 
   const handleCloseImportDrawer = useCallback(() => {
-    if (importSubmitting) return
+    if (submittingRef.current) return
+    importRequestIdRef.current += 1
     setImportDrawerVisible(false)
-  }, [importSubmitting])
+  }, [])
 
   const handleToggleImportSong = useCallback((songId: string) => {
     setImportSelectedMap((prev) => {
@@ -107,22 +97,30 @@ export const usePlaylistImport = ({
   }, [importCandidates])
 
   const handleImportSelectedSongs = useCallback(async() => {
-    if (!selectedListId || importSubmitting) return
+    if (!selectedListId || submittingRef.current) return
     const selectedSongs = importCandidates
       .filter(candidate => importSelectedMap[candidate.id])
       .map(candidate => candidate.musicInfo)
     if (!selectedSongs.length) return
+    submittingRef.current = true
     setImportSubmitting(true)
     try {
-      await addListMusics(selectedListId, selectedSongs, settingState.setting['list.addMusicLocationType'])
+      const current = await getListMusics(selectedListId)
+      const existing = new Set(current.map(song => `${song.source}_${song.id}`))
+      const songs = selectedSongs.filter(song => !existing.has(`${song.source}_${song.id}`))
+      await addListMusics(selectedListId, songs, settingState.setting['list.addMusicLocationType'])
+      toast(t('import_lux_done', { num: songs.length }))
       setImportDrawerVisible(false)
       setImportSelectedMap({})
       setImportCandidates([])
       void loadLocalDetailSongs(selectedListId)
+    } catch {
+      toast(t('import_error'))
     } finally {
+      submittingRef.current = false
       setImportSubmitting(false)
     }
-  }, [importCandidates, importSelectedMap, importSubmitting, loadLocalDetailSongs, selectedListId])
+  }, [importCandidates, importSelectedMap, loadLocalDetailSongs, selectedListId, t])
 
   return {
     isImportDrawerVisible,

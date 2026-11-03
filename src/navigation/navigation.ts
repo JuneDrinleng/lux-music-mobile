@@ -1,5 +1,8 @@
+import { appSession, requestLogin } from '@/core/appSession'
+import type { LoginIntent } from '@/utils/loginSession'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
+import { subpageNavigationOptions } from './pageTransitionRegistry'
 import { Navigation } from 'react-native-navigation'
 // import { InteractionManager } from 'react-native'
 
@@ -17,9 +20,10 @@ import {
 import themeState from '@/store/theme/state'
 import playerState from '@/store/player/state'
 import { getStatusBarStyle } from './utils'
-import { windowSizeTools } from '@/utils/windowSizeTools'
 import { setBgPic } from '@/core/common'
 import { resolveImageUri } from '@/utils/imageCache'
+import { windowSizeTools } from '@/utils/windowSizeTools'
+import { peekBootedLuxTheme } from '@/theme/LuxTheme'
 
 
 // const store = getStore()
@@ -95,7 +99,12 @@ export async function pushLoginScreen() {
   })
 }
 
-export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string, initialUsername?: string }) {
+export async function pushSyncLoginScreen(props?: { onboarding: boolean, initialHost: string | null, initialUsername?: string, targetProvider?: 'lx' | 'lux' }) {
+  return requestLogin({ reason: props?.onboarding ? 'boot' : 'switch', source: 'pushSyncLoginScreen', initialUsername: props?.initialUsername, targetProvider: props?.targetProvider, initialHost: props?.initialHost, returnPolicy: props?.onboarding ? 'none' : 'restorePrevious' })
+}
+
+export async function replaceWithLoginGate(intent: LoginIntent) {
+  const props = { onboarding: intent.reason === 'boot', initialProvider: intent.targetProvider === 'local' ? undefined : intent.targetProvider, initialHost: intent.initialHost ?? '', initialUsername: intent.targetIdentity?.provider === 'lux' ? intent.targetIdentity.account.username : intent.initialUsername, intent }
   const theme = themeState.theme
 
   await Navigation.setRoot({
@@ -143,6 +152,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
           docType: docType ?? 'pact',
         },
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -159,7 +169,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
+            componentBackgroundColor: 'transparent',
           },
         },
       },
@@ -168,6 +178,7 @@ export function pushAgreementScreen(componentId: string, docType?: 'pact' | 'che
 }
 
 export async function pushHomeScreen(options?: { immediate?: boolean, backgroundColor?: string }) {
+  if (!appSession.canEnterMain) throw new Error('Login transaction is incomplete')
   /*
     Navigation.setDefaultOptions({
       topBar: {
@@ -319,6 +330,8 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
       component: {
         name: PLAY_DETAIL_SCREEN,
         options: {
+          // Native player owns the entire transition; disable the platform horizontal gesture.
+          popGesture: false,
           topBar: {
             visible: false,
             height: 0,
@@ -336,10 +349,11 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
           },
           layout: {
             // 使用黑色背景避免推入动画过程中的白屏闪烁
-            componentBackgroundColor: '#000000',
+            componentBackgroundColor: peekBootedLuxTheme().colors.shadow.black,
           },
           animations: {
-            push: skipAnimation ? {} : {
+            push: skipAnimation ? { enabled: false } : {
+              enabled: true,
               content: {
                 translationY: {
                   from: windowSizeTools.getSize().height,
@@ -354,7 +368,8 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
                 },
               },
             },
-            pop: skipAnimation ? {} : {
+            pop: skipAnimation ? { enabled: false } : {
+              enabled: true,
               content: {
                 translationY: {
                   from: 0,
@@ -415,6 +430,7 @@ export function pushCommentScreen(componentId: string) {
       component: {
         name: COMMENT_SCREEN,
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -431,27 +447,7 @@ export function pushCommentScreen(componentId: string) {
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
-          },
-          animations: {
-            push: {
-              content: {
-                translationX: {
-                  from: windowSizeTools.getSize().width,
-                  to: 0,
-                  duration: 300,
-                },
-              },
-            },
-            pop: {
-              content: {
-                translationX: {
-                  from: 0,
-                  to: windowSizeTools.getSize().width,
-                  duration: 300,
-                },
-              },
-            },
+            componentBackgroundColor: 'transparent',
           },
         },
       },
@@ -468,6 +464,7 @@ export function pushLeaderboardDetailScreen(componentId: string, info: { source:
         name: LEADERBOARD_DETAIL_SCREEN,
         passProps: info,
         options: {
+          ...subpageNavigationOptions,
           topBar: {
             visible: false,
             height: 0,
@@ -484,27 +481,7 @@ export function pushLeaderboardDetailScreen(componentId: string, info: { source:
             backgroundColor: 'transparent',
           },
           layout: {
-            componentBackgroundColor: theme['c-content-background'],
-          },
-          animations: {
-            push: {
-              content: {
-                translationX: {
-                  from: windowSizeTools.getSize().width,
-                  to: 0,
-                  duration: 300,
-                },
-              },
-            },
-            pop: {
-              content: {
-                translationX: {
-                  from: 0,
-                  to: windowSizeTools.getSize().width,
-                  duration: 300,
-                },
-              },
-            },
+            componentBackgroundColor: 'transparent',
           },
         },
       },

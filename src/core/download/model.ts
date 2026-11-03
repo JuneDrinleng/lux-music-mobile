@@ -1,3 +1,4 @@
+import { sessionGeneration, sessionWritesFrozen } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md. */
 export type DownloadState = 'queued' | 'running' | 'paused' | 'failed' | 'done'
 export interface DownloadRequest {
@@ -19,6 +20,8 @@ export interface DownloadItem extends DownloadRequest {
   total?: number
 }
 export interface DownloadBridge {
+  pauseSpace?: (space: string) => Promise<string>
+  releaseSpace?: (space: string) => Promise<void>
   enqueue: (space: string, payload: string) => Promise<string>
   snapshot: (space: string) => Promise<string>
   reconcile: (space: string) => Promise<string>
@@ -57,6 +60,8 @@ export const createDownloadQueue = (deps: {
     for (const listener of listeners) listener()
   }
   const enqueueFor = async(requests: DownloadRequest[], space: string, refresh: boolean) => {
+    if (sessionWritesFrozen()) throw new Error('SESSION_FROZEN')
+    const sessionTicket = sessionGeneration()
     for (const request of requests) {
       if (!Number.isSafeInteger(request.estimatedSize) || request.estimatedSize < 0 || typeof request.wifiOnly != 'boolean' || (request.expectedSize != null && (!Number.isSafeInteger(request.expectedSize) || request.expectedSize < 0))) throw new Error('DOWNLOAD_INPUT')
     }
@@ -73,7 +78,7 @@ export const createDownloadQueue = (deps: {
       ...(refresh && 'workId' in request ? { refreshWorkId: request.workId } : {}),
       url: await deps.resolveUrl(request, refresh),
     })))
-    if (space != deps.space()) return
+    if (sessionWritesFrozen() || sessionTicket !== sessionGeneration() || space != deps.space()) return
     const ticket = generation == revision ? ++revision : -1
     publish(await deps.bridge.enqueue(space, JSON.stringify(payload)), space, ticket)
   }
@@ -91,11 +96,21 @@ export const createDownloadQueue = (deps: {
   const sync = async(reconcile = false) => {
     const space = deps.space()
     const ticket = ++revision
-    const raw = await (reconcile ? deps.bridge.reconcile(space) : deps.bridge.snapshot(space))
+    const raw = await ((reconcile && !sessionWritesFrozen()) ? deps.bridge.reconcile(space) : deps.bridge.snapshot(space))
     publish(raw, space, ticket)
-    if (space == deps.space() && ticket == revision) await refreshExpired(space)
+    if (!sessionWritesFrozen() && space == deps.space() && ticket == revision) await refreshExpired(space)
   }
   return {
+    pauseForSwitch: async(): Promise<string[]> => {
+      ++revision
+      const space = deps.space()
+      if (!deps.bridge.pauseSpace) throw new Error('DOWNLOAD_PAUSE_UNAVAILABLE')
+      const paused = JSON.parse(await deps.bridge.pauseSpace(space)) as DownloadItem[]
+      const snapshot = JSON.parse(await deps.bridge.snapshot(space)) as DownloadItem[]
+      if (snapshot.some(item => item.state === 'queued' || item.state === 'running')) throw new Error('DOWNLOAD_PAUSE_FAILED')
+      return paused.map(item => item.id)
+    },
+    releaseAfterSwitch: async() => { await deps.bridge.releaseSpace?.(deps.space()) },
     getSnapshot: () => items,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     clear: () => { ++revision; items = []; for (const listener of listeners) listener() },
@@ -116,6 +131,7 @@ export const createDownloadQueue = (deps: {
     },
     enqueue: async(requests: DownloadRequest[]) => enqueueFor(requests, deps.space(), false),
     command: async(key: string, action: 'pause' | 'resume' | 'retry') => {
+      if (sessionWritesFrozen()) return
       const item = items.find(item => item.key == key)
       if (!item || !canDownloadCommand(item.state, action)) return
       const space = deps.space()

@@ -2,6 +2,7 @@
 
 import { memo, useState } from 'react'
 import { ScrollView, View } from 'react-native'
+import { pop } from '@/navigation/utils'
 import { Navigation } from 'react-native-navigation'
 import Text from '@/components/common/Text'
 import StatusBar from '@/components/common/StatusBar'
@@ -53,7 +54,7 @@ const Agreement = ({ componentId, mode = 'push', docType: initialDocType = 'pact
     if (isOverlay) {
       void Navigation.dismissOverlay(componentId)
     } else {
-      void Navigation.pop(componentId)
+      void pop(componentId)
     }
   }
 

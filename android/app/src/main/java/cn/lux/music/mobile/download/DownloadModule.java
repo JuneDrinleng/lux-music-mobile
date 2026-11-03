@@ -15,6 +15,7 @@ import java.util.concurrent.*;
 
 public class DownloadModule extends ReactContextBaseJavaModule {
     private static WeakReference<ReactApplicationContext> events = new WeakReference<>(null);
+    private final java.util.Set<String> frozenSpaces = new java.util.HashSet<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     DownloadModule(ReactApplicationContext context) { super(context); events = new WeakReference<>(context); }
     @Override public String getName() { return "DownloadModule"; }
@@ -31,6 +32,7 @@ public class DownloadModule extends ReactContextBaseJavaModule {
     private Context context() { return getReactApplicationContext(); }
     @ReactMethod public void enqueue(String space, String payload, Promise promise) {
         run(promise, () -> {
+            if (frozenSpaces.contains(space)) throw new IllegalStateException("SESSION_FROZEN");
             JSONArray batch = new JSONArray(payload);
             // Validate the whole batch before mutating disk; URL and size fields are never work Data.
             for (int i = 0; i < batch.length(); i++) {
@@ -65,10 +67,36 @@ public class DownloadModule extends ReactContextBaseJavaModule {
             return DownloadStore.list(context(), space).toString();
         });
     }
+    /** Serialized with enqueue/reconcile/commands. Mark disk first, cancel WorkManager, then join worker locks. */
+    @ReactMethod public void pauseSpace(String space, Promise promise) {
+        run(promise, () -> {
+            frozenSpaces.add(space);
+            JSONArray paused = new JSONArray();
+            JSONArray items = DownloadStore.list(context(), space);
+            for (int i = 0; i < items.length(); i++) {
+                String id = items.getJSONObject(i).getString("id");
+                synchronized (DownloadStore.class) {
+                    JSONObject item = DownloadStore.read(context(), id);
+                    if (item == null || !("running".equals(item.optString("state")) || "queued".equals(item.optString("state")))) continue;
+                    paused.put(new JSONObject(item.toString()));
+                    item.put("state", "paused");
+                    DownloadStore.write(context(), item);
+                }
+                WorkManager.getInstance(context()).cancelUniqueWork(DownloadScheduler.name(id)).getResult().get();
+                synchronized (DownloadStore.lock(id)) { /* Worker has stopped touching partial/output files. */ }
+            }
+            emit();
+            return paused.toString();
+        });
+    }
+    @ReactMethod public void releaseSpace(String space, Promise promise) {
+        run(promise, () -> { frozenSpaces.remove(space); return null; });
+    }
     @ReactMethod public void snapshot(String space, Promise promise) { run(promise, () -> DownloadStore.list(context(), space).toString()); }
     @ReactMethod public void reconcile(String space, Promise promise) {
         run(promise, () -> {
             JSONArray items = DownloadStore.list(context(), space);
+            if (frozenSpaces.contains(space)) return items.toString();
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.getJSONObject(i);
                 String state = item.optString("state");
@@ -84,6 +112,7 @@ public class DownloadModule extends ReactContextBaseJavaModule {
     }
     @ReactMethod public void command(String space, String key, String action, Promise promise) {
         run(promise, () -> {
+            if (frozenSpaces.contains(space) && !"pause".equals(action)) throw new IllegalStateException("SESSION_FROZEN");
             String id = DownloadStore.id(space, key);
             synchronized (DownloadStore.class) {
                 JSONObject item = DownloadStore.read(context(), id);

@@ -1,3 +1,5 @@
+import { requestLogin } from '@/core/appSession'
+import { isSessionCoordinatorEnabled } from '@/utils/sessionFence'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -18,7 +20,6 @@ import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { createStyle } from '@/utils/tools'
-import { setSyncMode } from '@/utils/data'
 import { enterLocalSpace } from '@/utils/enterLocalSpace'
 import { completeOnboarding } from '@/utils/onboarding'
 import ServerStep from './ServerStep'
@@ -55,7 +56,8 @@ export default memo(({ componentId }: { componentId: string }) => {
     if (!allRequiredChecked || confirming) return
     setConfirming(true)
 
-    setStep(2)
+    await completeOnboarding(false)
+    await requestLogin({ reason: 'boot', source: 'E01-welcome', initialHost: null, returnPolicy: 'none' })
     setConfirming(false)
   }, [allRequiredChecked, confirming])
 
@@ -64,9 +66,8 @@ export default memo(({ componentId }: { componentId: string }) => {
     setConfirming(true)
     try {
       await enterLocalSpace(t('sync_login_local_user_name'))
-      await setSyncMode('lux')
       await completeOnboarding()
-      await navigations.pushHomeScreen()
+      if (!isSessionCoordinatorEnabled()) await navigations.pushHomeScreen()
       global.lx.isShowingLaunchScreen = false
       void global.lx._onLoginConfirmed?.()
     } catch (error) {
@@ -90,8 +91,8 @@ export default memo(({ componentId }: { componentId: string }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.progress} accessibilityLabel={t('onboard_step', { step })}>
-          {[1, 2, 3].map(segment => <View key={segment} style={[styles.segment, { backgroundColor: segment <= step ? r.ink : r.hairline }]} />)}
+        <View style={styles.progress} accessibilityLabel={t('login_gate_onboard_step', { step })}>
+          {[1, 2].map(segment => <View key={segment} style={[styles.segment, { backgroundColor: segment <= step ? r.ink : r.hairline }]} />)}
         </View>
         <Text size={11} color={r.eyebrow} style={styles.stepLabel}>{t('onboard_step', { step })}</Text>
         {step === 2 ? <>

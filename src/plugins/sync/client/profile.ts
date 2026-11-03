@@ -1,3 +1,4 @@
+import { sessionGeneration, acceptsSessionGeneration } from '@/utils/sessionFence'
 import { getActiveSpace } from '@/utils/dataSpace'
 import { getSyncHost, getLuxAuth, getSyncMode, getUserAvatarDataUrl, getUserName, getUserSignature, getUserGender, saveUserAvatarDataUrl, saveUserName, saveUserSignature, saveUserGender } from '@/utils/data'
 import { parseUrl } from './utils'
@@ -24,6 +25,7 @@ const getToken = async(host?: string) => {
 export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
   const displayName = profile.displayName.trim()
   const signature = profile.signature.trim()
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   const [avatar] = await Promise.all([
     saveUserAvatarDataUrl(profile.avatar || null),
@@ -31,7 +33,7 @@ export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
     saveUserSignature(signature || null),
     saveUserGender(profile.gender || 'unknown'),
   ])
-  if (space != getActiveSpace()) return
+  if (!acceptsSessionGeneration(generation) || space != getActiveSpace()) return
   global.app_event.userNameUpdated(displayName)
   global.app_event.userSignatureUpdated(signature)
   global.app_event.userGenderUpdated(profile.gender || 'unknown')
@@ -39,27 +41,30 @@ export const applyLuxProfile = async(profile: LX.Sync.LuxProfile) => {
 }
 
 export const pullLuxProfileFromServer = async(host?: string) => {
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
-  if (space != getActiveSpace()) return null
+  if (!acceptsSessionGeneration(generation) || space != getActiveSpace()) return null
   await applyLuxProfile(profile)
   return profile
 }
 
 export const syncLuxProfileOnLogin = async(host?: string) => {
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   const [url, token] = await Promise.all([getProfileUrl(host), getToken(host)])
   if (!url || !token) return null
   const { profile } = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, null, token)
-  if (space != getActiveSpace()) return null
+  if (!acceptsSessionGeneration(generation) || space != getActiveSpace()) return null
   // Login only pulls. Local profile upload requires an explicit import or edit.
   await applyLuxProfile(profile)
   return profile
 }
 
 export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   if (await getSyncMode() != 'lux') return null
   const [url, token] = await Promise.all([getProfileUrl(), getToken()])
@@ -70,20 +75,21 @@ export const pushLuxProfileToServer = async(profilePatch?: ProfilePatch) => {
     gender: await getUserGender(),
     signature: (await getUserSignature()) ?? '',
   }
-  if (space != getActiveSpace()) return null
+  if (!acceptsSessionGeneration(generation) || space != getActiveSpace()) return null
   return requestJson<{ profile: LX.Sync.LuxProfile }>(url, profile, token)
 }
 
 // The editor keeps its draft in memory. Never write local profile fields before PATCH succeeds.
 export const saveEditedProfile = async(profile: LX.Sync.LuxProfile, server: boolean) => {
+  const generation = sessionGeneration()
   const space = getActiveSpace()
   if (!server) {
     await applyLuxProfile(profile)
     return
   }
   const [url, token] = await Promise.all([getProfileUrl(), getToken()])
-  if (!url || !token || space != getActiveSpace()) throw new Error('Profile session unavailable')
+  if (!url || !token || !acceptsSessionGeneration(generation) || space != getActiveSpace()) throw new Error('Profile session unavailable')
   const result = await requestJson<{ profile: LX.Sync.LuxProfile }>(url, { displayName: profile.displayName, avatar: profile.avatar, signature: profile.signature, gender: profile.gender }, token, 'PATCH')
-  if (space != getActiveSpace()) throw new Error('Profile account changed')
+  if (!acceptsSessionGeneration(generation) || space != getActiveSpace()) throw new Error('Profile account changed')
   await applyLuxProfile(result.profile)
 }

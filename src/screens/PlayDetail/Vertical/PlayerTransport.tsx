@@ -14,7 +14,7 @@ import { PLAYER_TRANSPORT } from './playerTransportLayout'
 
 /**
  * Pinned bottom transport: seek bar, time labels, and a control row.
- * Play (vinyl) and lyric pages must use this so the dock Y cannot drift.
+ * Shared controls stay pinned; only the play page opts into a transparent seek overlap.
  */
 export const PlayerTransport = memo(({
   progress,
@@ -22,18 +22,24 @@ export const PlayerTransport = memo(({
   nowPlayTimeStr,
   maxPlayTimeStr,
   children,
+  seekOverlapTop = 0,
 }: {
   progress: number
   duration: number
   nowPlayTimeStr: string
   maxPlayTimeStr: string
   children: ReactNode
+  /** Design units; play page only. Actions retain priority in the overlap. */
+  seekOverlapTop?: number
 }) => {
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
+  const overlapStyle = seekOverlapTop > 0
+    ? createStyle({ overlap: { marginTop: -seekOverlapTop, zIndex: 1 } }).overlap
+    : undefined
   return (
-    <View style={[styles.panel, { backgroundColor: r.paper }]}>
+    <View style={[styles.panel, overlapStyle, { backgroundColor: r.paper }]}>
       <SeekBar progress={progress} duration={duration} />
       <View style={styles.timeRow}>
         <Text size={11} color={r.faint} style={styles.timeText}>{nowPlayTimeStr}</Text>
