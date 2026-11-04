@@ -102,7 +102,7 @@ test('profile PATCH is server-first; failure leaves local data and events unchan
   assert.deepEqual(raced.writes, [])
 })
 
-const renderAccount = ({ server = true, failSave = false, saveWait } = {}) => {
+const renderAccount = ({ server = true, syncHost = host, lux = server, failSave = false, saveWait } = {}) => {
   const values = []; const effects = []; const calls = []; let cursor = 0; let confirm = false
   let savedAuth = auth
   let currentDevices = devices.slice()
@@ -151,10 +151,47 @@ const renderAccount = ({ server = true, failSave = false, saveWait } = {}) => {
   }).default
   const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
   let tree
-  const render = () => { cursor = 0; tree = screen({ host, lux: server, nickname: 'Alice', avatar: null, onBack() {}, onLogout: async() => {} }); for (const effect of effects.filter(Boolean)) if (effect.pending) { effect.cleanup?.(); effect.cleanup = effect.effect(); effect.pending = false } }
+  const render = () => { cursor = 0; tree = screen({ host: syncHost, lux, nickname: 'Alice', avatar: null, onBack() {}, onLogout: async() => {}, onManageData: () => { calls.push(['manage-data']) } }); for (const effect of effects.filter(Boolean)) if (effect.pending) { effect.cleanup?.(); effect.cleanup = effect.effect(); effect.pending = false } }
   render()
   return { render, calls, setAuth: value => { savedAuth = value }, confirm: value => { confirm = value }, nodes: () => nodes(tree), find: (type, label) => nodes(tree).find(node => node.type === type && (!label || node.props.label === label || node.props.accessibilityLabel === label)), text: value => nodes(tree).find(node => node.props?.children === value), pressRow: value => nodes(tree).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.props?.children === value)).props.onPress() }
 }
+
+test('account source omits the local-data row and retains account-space data management', () => {
+  const source = readFileSync(new URL('../src/screens/Account/AccountPage.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /\brow\s*\(\s*t\s*\(\s*['"]spaces_manage['"]/)
+  assert.doesNotMatch(source, /管理本机数据/)
+  const switchGroup = source.match(/\{section\(t\('account_switch_section'\)\)\}([\s\S]*?)\{rows\.includes\('logout'\)/)?.[1]
+  assert.ok(switchGroup, 'the account switch group remains present')
+  assert.deepEqual([...switchGroup.matchAll(/\brow\(t\('([^']+)'/g)].map(match => match[1]), ['spaces_title', 'account_switch'])
+  assert.match(source, /page === 'spaces' \? <AccountSpaces onManageData=\{onManageData\}/)
+  const spaces = readFileSync(new URL('../src/screens/Account/AccountSpaces.tsx', import.meta.url), 'utf8')
+  assert.match(spaces, /<SecondaryButton\s+compact\s+label=\{t\('spaces_manage'\)\}[^>]+onPress=\{onManageData\}/)
+})
+
+test('local, LX and Lux accounts show two switch rows with one divider and preserve data-management access', async() => {
+  for (const [provider, options] of [
+    ['local', { server: false, syncHost: '', lux: false }],
+    ['lx', { server: false, syncHost: host, lux: false }],
+    ['lux', { server: true, syncHost: host, lux: true }],
+  ]) {
+    const view = renderAccount(options); await flush(); view.render()
+    assert.equal(view.text(zh.spaces_manage), undefined, `${provider}: no direct data-management row`)
+    const flatten = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(flatten) : [node, ...flatten(node.props?.children)]
+    const rows = view.nodes().filter(node => node.type === 'TouchableOpacity')
+    const titles = rows.map(row => flatten(row).find(node => node.type === 'Text').props.children)
+    assert.deepEqual(titles, [zh.account_nickname, zh.account_avatar, ...(options.server ? [zh.account_devices, zh.password_title] : []), zh.spaces_title, zh.account_switch], provider)
+    const switchRows = rows.slice(-2)
+    const styles = switchRows.map(row => Object.assign({}, ...row.props.style.flat(Infinity).filter(Boolean)))
+    assert.deepEqual(styles.map(style => style.borderTopWidth ?? 0), [0, 0], `${provider}: no leading divider`)
+    assert.deepEqual(styles.map(style => style.borderBottomWidth), [1, 0], `${provider}: only the divider between rows remains`)
+    assert.deepEqual(styles.map(style => style.minHeight), [56, 56], `${provider}: no empty row remains`)
+    view.pressRow(zh.spaces_title); view.render()
+    const spaces = view.find('AccountSpaces')
+    assert.ok(spaces, `${provider}: account spaces remain reachable`)
+    spaces.props.onManageData()
+    assert.deepEqual(view.calls.filter(call => call[0] === 'manage-data'), [['manage-data']], `${provider}: the nested management action retains its callback`)
+  }
+})
 
 test('Lux and local account rows, data-space labels, username read-only and explicit profile save failure', async() => {
   for (const server of [true, false]) {
