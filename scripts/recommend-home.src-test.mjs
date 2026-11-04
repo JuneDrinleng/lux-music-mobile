@@ -338,6 +338,16 @@ test('weekly cover uses playlist metadata and never the now-playing artwork; kee
   assert.doesNotMatch(home, /currentMusicInfo\?\.meta.picUrl/)
 })
 
+test('home hot daily playlists keep the compact gap after recommendation actions', () => {
+  const home = readFileSync(new URL('../src/screens/Home/Vertical/Tabs/HomeTab.tsx', import.meta.url), 'utf8')
+  const headers = [...home.matchAll(/<SectionHeader\b[\s\S]*?\/>/g)]
+    .map(match => match[0])
+    .filter(header => /title=\{t\('home_section_daily'\)\}/.test(header))
+  assert.equal(headers.length, 1)
+  assert.match(headers[0], /\bruleGap=\{14\}/)
+  assert.match(headers[0], /\bheadGap=\{8\}/)
+})
+
 test('native blur 14 and paper tint fall back to placeholder on missing cover or image error, then recover for new URI', () => {
   const env = setup()
   const { FrostedCover } = env.load('../../components/recommend/FrostedCover')
