@@ -364,6 +364,8 @@ const AllContent = memo(({
 
       <SectionHeader
         title={t('home_section_daily')}
+        ruleGap={14}
+        headGap={8}
         linkLabel={t('home_action_see_all_arrow')}
         onLinkPress={openLibrary}
       />
