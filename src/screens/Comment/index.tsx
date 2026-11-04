@@ -14,23 +14,25 @@ import { useI18n } from '@/lang'
 import { COMPONENT_IDS } from '@/config/constant'
 import { setComponentId } from '@/core/common'
 import PageContent from '@/components/PageContent'
-import playerState from '@/store/player/state'
-import { usePlayerMusicInfo, usePlayMusicInfo } from '@/store/player/hook'
+import { usePlayMusicInfo } from '@/store/player/hook'
 import { useSettingValue } from '@/store/setting/hook'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
 import { magazineRoles } from '@/theme/magazineRoles'
 import { PAGE_GUTTER, magType } from '@/theme/magazineType'
 import { PLAYER_ICON_TAP } from '@/screens/PlayDetail/Vertical/PlayerChrome'
+import useCommentMusicInfo from './useCommentMusicInfo'
 
 type ActiveId = 'hot' | 'new'
 
-const HotCommentPage = memo(({ activeId, musicInfo, onUpdateTotal, refreshKey }: {
+const HotCommentPage = memo(({ active, activeId, musicInfo, onUpdateTotal, refreshKey }: {
+  active: boolean
   activeId: ActiveId
   musicInfo: LX.Music.MusicInfoOnline
   onUpdateTotal: (total: number) => void
   refreshKey: number
 }) => {
   const initedRef = useRef(false)
+  if (!initedRef.current && !active) return null
   const el = <CommentHot musicInfo={musicInfo} onUpdateTotal={onUpdateTotal} refreshKey={refreshKey} />
   switch (activeId) {
     case 'hot':
@@ -41,13 +43,15 @@ const HotCommentPage = memo(({ activeId, musicInfo, onUpdateTotal, refreshKey }:
   }
 })
 
-const NewCommentPage = memo(({ activeId, musicInfo, onUpdateTotal, refreshKey }: {
+const NewCommentPage = memo(({ active, activeId, musicInfo, onUpdateTotal, refreshKey }: {
+  active: boolean
   activeId: ActiveId
   musicInfo: LX.Music.MusicInfoOnline
   onUpdateTotal: (total: number) => void
   refreshKey: number
 }) => {
   const initedRef = useRef(false)
+  if (!initedRef.current && !active) return null
   const el = <CommentNew musicInfo={musicInfo} onUpdateTotal={onUpdateTotal} refreshKey={refreshKey} />
   switch (activeId) {
     case 'new':
@@ -58,14 +62,10 @@ const NewCommentPage = memo(({ activeId, musicInfo, onUpdateTotal, refreshKey }:
   }
 })
 
-const getMusicInfo = (musicInfo: LX.Player.PlayMusic | null) => {
-  if (!musicInfo) return null
-  return 'progress' in musicInfo ? musicInfo.metadata.musicInfo : musicInfo
-}
-
-export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0 }: {
+export default memo(({ componentId, embedded, active = true, hideChrome, onBack, refreshKey = 0 }: {
   componentId?: string
   embedded?: boolean
+  active?: boolean
   hideChrome?: boolean
   onBack?: () => void
   refreshKey?: number
@@ -74,12 +74,8 @@ export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   const [activeId, setActiveId] = useState<ActiveId>('hot')
-  const [musicInfo, setMusicInfo] = useState<LX.Music.MusicInfo | null>(getMusicInfo(playerState.playMusicInfo.musicInfo))
-  const [internalRefreshKey, setInternalRefreshKey] = useState(0)
-  const combinedRefreshKey = refreshKey + internalRefreshKey
+  const { musicInfo, pic, total, setHotTotal, setNewTotal, refreshComment, combinedRefreshKey } = useCommentMusicInfo({ embedded, active, refreshKey })
   const t = useI18n()
-  const [total, setTotal] = useState({ hot: 0, new: 0 })
-  const playerMusicInfo = usePlayerMusicInfo()
   const playMusicInfo = usePlayMusicInfo()
   const shareType = useSettingValue('common.shareType')
   const downloadFileName = useSettingValue('download.fileName')
@@ -105,25 +101,6 @@ export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0
     if (id === 'hot' || id === 'new') setActiveId(id)
   }, [])
 
-  const refreshComment = useCallback(() => {
-    if (!playerState.playMusicInfo.musicInfo) return
-    let playerMusic = playerState.playMusicInfo.musicInfo
-    if ('progress' in playerMusic) playerMusic = playerMusic.metadata.musicInfo
-
-    if (musicInfo && (musicInfo.id != playerMusic.id || musicInfo.source != playerMusic.source)) {
-      setMusicInfo(playerMusic)
-    } else {
-      setInternalRefreshKey(k => k + 1)
-    }
-  }, [musicInfo])
-
-  const setHotTotal = useCallback((next: number) => {
-    setTotal(info => ({ ...info, hot: next }))
-  }, [])
-  const setNewTotal = useCallback((next: number) => {
-    setTotal(info => ({ ...info, new: next }))
-  }, [])
-
   const filterTabs = useMemo(() => ([
     { id: 'hot', label: t('player_comment_hot') },
     { id: 'new', label: t('player_comment_new') },
@@ -133,7 +110,7 @@ export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0
     return (
       <View style={styles.innerContainer}>
         <View style={styles.songHead}>
-          <Image style={styles.cover} url={playerMusicInfo.pic} />
+          <Image style={styles.cover} url={pic} />
           <View style={styles.songText}>
             <Text size={magType.rowTitle.size} color={r.ink} numberOfLines={1} style={styles.songName}>
               {musicInfo?.name ?? ''}
@@ -160,19 +137,21 @@ export default memo(({ componentId, embedded, hideChrome, onBack, refreshKey = 0
         />
 
         <View collapsable={false} style={[styles.pageStyle, activeId !== 'hot' && styles.hiddenPage]}>
-          <HotCommentPage activeId={activeId} musicInfo={musicInfo as LX.Music.MusicInfoOnline} onUpdateTotal={setHotTotal} refreshKey={combinedRefreshKey} />
+          <HotCommentPage active={!embedded || active} activeId={activeId} musicInfo={musicInfo as LX.Music.MusicInfoOnline} onUpdateTotal={setHotTotal} refreshKey={combinedRefreshKey} />
         </View>
         <View collapsable={false} style={[styles.pageStyle, activeId !== 'new' && styles.hiddenPage]}>
-          <NewCommentPage activeId={activeId} musicInfo={musicInfo as LX.Music.MusicInfoOnline} onUpdateTotal={setNewTotal} refreshKey={combinedRefreshKey} />
+          <NewCommentPage active={!embedded || active} activeId={activeId} musicInfo={musicInfo as LX.Music.MusicInfoOnline} onUpdateTotal={setNewTotal} refreshKey={combinedRefreshKey} />
         </View>
       </View>
     )
   }, [
+    active,
     activeId,
     combinedRefreshKey,
+    embedded,
     filterTabs,
     musicInfo,
-    playerMusicInfo.pic,
+    pic,
     r.display,
     r.ink,
     r.muted,
