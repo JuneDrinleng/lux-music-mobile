@@ -124,7 +124,8 @@ export default memo(({
       />
       <PagerView ref={pagerViewRef} initialPage={1} onPageSelected={onPageSelected} style={styles.pagerView}>
         <View collapsable={false} style={styles.page}>
-          <Comment embedded hideChrome onBack={() => { setPage(1) }} refreshKey={commentRefreshKey} />
+          {/* Reopening resets to play; do not activate the previous comment page in that render. */}
+          <Comment embedded active={active && wasActiveRef.current && pageIndex === 0} hideChrome onBack={() => { setPage(1) }} refreshKey={commentRefreshKey} />
         </View>
         <View collapsable={false} style={styles.page}>
           <Pic componentId={componentId} active={active && pageIndex === 1} onLyricPress={() => { setPage(2) }} />
