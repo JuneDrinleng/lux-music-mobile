@@ -8,8 +8,8 @@
 
 - 一级：Home 主壳的首页 / 歌单 / 设置。竖屏为 `Home/Vertical/Main.tsx` 的三页 Pager + Dock；横屏 `Home/Horizontal/Main.tsx` 复用三 Tab，使用侧栏与 PlayerBar。
 - 二级：设置选项、音效、AI 助手、账号、管理员控制台、同步状态。使用 Home 内的内容层，不创建独立原生窗口，不用原生 Modal 充当页面，也不调用 `Navigation.setRoot` 打开设置子页。
-- 更深一级：音效详情、账号编辑/设备/数据空间/密码、管理员的用户/邀请/歌单/服务。同步地址检查/登录/注册/忘记密码移至根 LoginGate 内部。打开后只返回上一层，不能越级关闭整个设置。
-- 弹层：创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
+- 更深一级：音效详情、账号设备/数据空间/密码、管理员的用户/邀请/歌单/服务。同步地址检查/登录/注册/忘记密码移至根 LoginGate 内部。打开后只返回上一层，不能越级关闭整个设置。
+- 弹层：账号单字段资料编辑、创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
 - 外部入口：GitHub Releases / 更新日志内 GitHub / 自定义源帮助交给 `openUrl`；图库裁切与系统文件授权由平台接管。它们不适用 App 内页面的固定过渡参数。
 
 完整设置页面清单（名字对应状态/路由，便于代码检索）：
@@ -26,7 +26,7 @@
 | 缓存/下载与数据管理 | `resourceCache` | 同上，ResourceCacheDetail |
 | 关于 → 当前版本 | `changelog` | 同上，VersionChangelogDetail；没有独立「关于」整页 |
 | AI 助手 | AiTokenStatusPage | SettingsTab → SettingsPage → 普通 View |
-| 资料 hero（头像；重复账户列表行已移除） | AccountPage → `edit` / `devices` / `spaces` / `password` | SettingsPage + useSettingsSubpage；ChangePassword 在账号的子页过渡面内 |
+| 设置资料 hero（头像；重复账户列表行已移除） | AccountPage → `devices` / `spaces` / `password`；四资料行分别开单字段面板 | 整页为 SettingsPage + useSettingsSubpage；字段编辑为 MagazineSheet；ChangePassword 在账号的子页过渡面内 |
 | 音效/均衡器 | AudioEffectsPage → 响度与无缝播放详情 | 横竖屏 Main 的应用内层；useSettingsTransition + useSettingsSubpage |
 | 管理员控制台（按条件显示） | dashboard → users / invites / playlists / service | AdminConsoleLayer → SettingsPage；内部 useSettingsTransition；loading / denied 是权限状态，不另算导航 |
 | 账户昵称右侧同步胶囊（全部状态可见） | 同步连接详情（成功/未同步/本地/进行中）或 SyncStatusPage（失败/过期/不兼容） | 状态与诊断保留持久 SettingsPage；修复地址/登录/换方式进入根 Gate |
@@ -45,6 +45,22 @@
 - mapSyncStatus 保留会话/版本/传输错误优先级；本地无服务器显示本地模式，已配置但关闭或断开显示未同步。Connecting... 与 Wait syncing... 仅是连接/握手阶段，显示连接中；status.status=true 显示已同步，不能推断正在传输。模型仅在显式 syncing 任务信号时展示同步中；当前 socket 没有该任务信号，不伪造。连接中、同步中点胶囊只开详情，不触发重连。
 - 成功/未同步/本地/进行中进入同步服务详情，保留地址历史管理、格式与暂停同步动作；身份、地址与凭据输入改走 Gate。失败/过期/不兼容沿原 SyncStatusPage 分流，保留重试、地址检查、离线、重新登录、本地用户与复制版本提示。两条路径均用 SyncConnectionInfo 展示服务器（可复制）、账号、连接状态及最近成功同步/活跃；没有有效时间戳显示暂无记录，历史时间戳不视为服务器在线证据。
 - 删除独立同步区的主线、标题与整行外形；信息及入口按上述位置迁移。状态刷新不自动打开新页或改变按钮分区，既有成功恢复关闭错误页行为保留。共享 SettingsPage 的 248ms 对称进出、逐层返回及 Dock 行为不变。
+
+## 账号二级页 B：点行即改
+
+June 于 **2026-11-06（北京时间）** 选定 `/workspace/dev-bot/account-redesign/plan.md` §6 的 B，视觉参考 `B.png`、`B-edit.png`。实现入口为 `src/screens/Account/AccountPage.tsx`，单项面板为 `AccountProfileSheet.tsx`，资料读写在 `src/plugins/sync/client/profile.ts`；本节替代旧三级「编辑资料」页及固定标题勾保存规则。
+
+- 二级账号页的标题为「SETTINGS · 账号」眉题、H2「账号」、只读身份行。「资料」依次有头像、昵称、个性签名、性别四行，各自显示当前值和明确字段编辑语义；昵称保留一起听用途说明，签名为空按既有默认文案显示，性别使用实际保存值。删除大头像／大昵称 hero、笼统「编辑」按钮和独立三级资料编辑页面壳；原字段、校验、裁切和保存功能全部迁到单项面板，不再有整页 `edit` 导航入口。
+- 点行只打开该字段的 `MagazineSheet`，同一时刻只允许一个编辑面板。打开时读取当前身份／资料空间和最新已保存资料作为内存草稿与 dirty 快照；不因头像选图、性别选择、失焦或关闭立即保存。头像保留系统图库 400×400、圆形辅助裁切、base64 仅在内存预览；取消图库不报错，图片必须再明确保存才应用。
+- 昵称提交 trim，保留一起听房间／分享水印说明，不新增必填或长度约束；空昵称沿用默认展示名。签名输入上限 140，并显示计数；提交 trim 后截取 140，等于默认签名文案时存空值，空签名展示时沿用默认。性别为男／女／未设置（`male` / `female` / `unknown`）。登录用户名保持只读，与昵称区别，不能在字段面板修改。
+- 面板保留当前保存范围、就近错误说明、取消与底部墨色「保存」按钮。无修改或提交中禁用保存，提交中加载；保存成功关闭面板，仍在原二级账号页，刷新字段行和设置主页个人卡。失败停留面板并保留草稿，可重试；远端失败不宣称已修改或已同步，不能降级为仅写本机。
+- 取消、右上关闭、遮罩及 Android 系统返回汇入同一关闭回调：IME 可见先收键盘；键盘已收起时，无修改直接关闭，脏草稿先确认「放弃修改」，取消确认继续编辑。提交和图库裁切期间锁住关闭／重复提交；保存完成前不能通过返回丢失在途任务。共享 `MagazineSheet` 保留原 220ms `out(cubic)` 底部进出和退出后卸载，未增加下拉跟手关闭。临时任务覆盖 Dock；输入、范围／错误、取消和保存位于可用面板视口内，小视口仍可滚动露出保存，不以固定键盘高度重复缩小 Android 视口。
+- 本地：只读本地用户／无需登录，四字段写本机 local 资料空间。LX：可见 LX Music 与本机范围，仍共用 local，资料不上传 LX。Lux：只读用户名／服务器／管理员或成员，面板说明服务端保存，仍走四字段 `PATCH /api/me/profile`；离线查看保留 Lux 身份与空间，允许查看和起草，但保存失败保留草稿，不伪装成本地模式。
+- 单项提交与后台资料拉取／应用按**同身份、同空间**共享串行队列。操作保留身份代次和空间快照，入队后及每次异步返回后验证仍匹配；仅替换当前编辑字段，再沿用服务端优先保存。Lux 提交前重新取得最新远端资料合并其余三项，重试也重新读取，避免超时或远端成功而本机部分落盘后把旧字段重发；队列中较早取得的后台响应不能在保存后覆盖它。没有对应会话／URL／token 或身份已改变时拒绝保存，旧任务不得落入新空间。
+- 保障边界：PATCH 失败不写本机；远端成功后的本机字段／头像落盘仍非原子，本机存储失败可能远端已更新，错误不能承诺所有字段均未修改。现有服务端没有版本冲突协议，即使先读取最新资料，也不能完全排除另一设备在读取与 PATCH 之间修改造成的覆盖；需要真机确认网络失败／重试和跨设备编辑边界。
+- 「切换」组保留「这台手机上的账号」「切换账号」原两个入口、账号列表与最近登录列表的区别、原 `resourceCache` 数据管理回调和 Gate 事务。为匹配已选 B 图，仅账号主页「切换」组改为 62 最小行高、16/22 主文、1px 主线与 `quiet` 箭头；这与旧 56／15／2px／`ink` 几何不同，以 `plan.md` B 节和 B 图优先，PR／结果须单列改样式及原因。Lux 安全组、设备数量未知提示、移除设备／退出其他设备确认、修改密码全部校验／token 轮换、退出时保留／删除本机数据确认保持原样式与去向。设置主页 hero、独立同步胶囊和管理员控制台入口不变。
+
+单项合并、Lux 并发／失败及账号页四行／无编辑 hero 的源码守护与单元测试随实现更新。Android IME、图库取消／裁切返回、脏确认、提交锁、大字长文、暗色主题、保存刷新及安全／切换仍须真机验收。
 
 ## 所有非一级页统一过渡（唯一共用实现）
 
@@ -81,7 +97,7 @@
 - 独立二级页：持久渲染 `<SettingsPage visible={...} onBack={...} bottomInset={...}>`，其 children 为接收 `back` 的函数。页内返回必须调用这个 `back`；组件保留退出内容，在动画完成后调用 onBack 并卸载。父层主动设置 visible=false 时也保留最后一帧内容到退出结束。
 - 已有独立挂载的页面（音效）：`useSettingsTransition()` 提供 `style` 与 `requestClose`；用 `requestClose(onBack)`，完成后才通知 host 卸载。
 - 内部状态子页：`useSettingsSubpage(root)` 提供 page / pages / setPage / style，配合 `<SettingsSubpage pages={pages} style={style}>{page => …}</SettingsSubpage>` 渲染整个祖先栈。前进时保留父页的原生视图、滚动位置和组件实例，新页叠在上方；只给最顶层子页施加共享过渡，祖先页保持完整不透明、原位可见，不使用条件卸载、display:none 或 opacity=0。返回按钮、三键和系统边缘返回手势走同一 requestClose，248ms 结束后才移除出栈页；返回到任一已有祖先均适用，连续返回不重复出栈，每次完成后解除共享 closing 防重入锁，下一层仍能正常退出。初始深链也渲染根父页；登录 Gate 内部所有深度同样启用共享转场；协议 welcome 到 Gate 是根替换。管理员沿用自己的 routeStack / useSettingsTransition(false)，同样交给 SettingsSubpage 渲染，不再只渲染当前 route。
-- SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定。资料编辑标题右侧勾按钮及各功能入口位置不变。
+- SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定；账号字段编辑按上文使用临时单项面板。
 - 已有自己的返回拦截的内容传 `hardwareBack={false}`，由内容把按钮和硬件返回汇入同一个回调。无自定义逻辑时使用 SettingsPage 默认硬件返回处理。
 - 重复返回合并；再次打开会使旧的退出回调失效；卸载时停止动画并使未完成的回调失效。
 
@@ -108,11 +124,11 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - `Home/Vertical/index.tsx` 是竖屏 Dock 显隐与占位的唯一来源，通过 `VisibleDockHeightContext` / `useVisibleDockHeight()` 共享同一帧的高度。开启 `common.autoHidePlayBar` 且键盘显示、没有保留请求时隐藏 Dock，占位立即为 0；关闭键盘或显式保留播放条/Dock 时使用包含导航、分隔线和系统 inset 的实际测量高度。保留最后一次非零测量供恢复使用，不在隐藏时清掉测量后等待再次 onLayout。首次测量前按 Dock 各段缩放高度估算，不能重复加 inset。
 - SettingsPage（背景及命中区）、设置主页、一起听聊天/邀请及其内联面板订阅这份高度，不再把固定 `122 + inset` 当作永远可见的空间。裁切后的设置子页不重复加 Dock；没有竖屏 provider 的横屏宿主仍使用 0，由横屏主壳布局。保留 Dock 时页面止于它的真实上沿，不能覆盖它的点击区域。
 - Android 保持窗口 resize，不在表单再次减键盘高度或新增 Android KAV height/padding。`FocusVisibleScrollView` 按实际原生视口测量；`UnderlineInput` 转发焦点并保留调用方 onFocus/onBlur，在聚焦、视口布局、内容高度及 keyboardDidShow 后重新检查。仅在被遮挡时做最小滚动，失焦/卸载使旧回调失效。`FocusVisibleAction` 标记滚动内容中的主要按钮（包括位于输入上方的保存，上下沿一起测量）；输入与按钮能同时容纳时一并显示，极小视口优先输入、按钮仍可滚动到达。固定 footer 位于滚动视口之外，不叠加键盘高度。
-- 已接入：资料昵称/签名、修改密码、服务器地址检查、Lux 登录/注册、LX 旧登录、管理员用户搜索，以及一起听邀请码。资料编辑的保存移到滚动区外的「编辑资料」标题行右侧，复用 28 可见 / 44 点击区的 IconButton 勾按钮及原 account_save 三语标签；无改动/保存中禁用，保存中加载。返回、刊头和标题随该标题行固定在表单上方，删除底部固定保存区。固定勾按钮不注册 FocusVisibleAction，焦点滚动无需露出它；其他页面原有提交位置保持。复用的独立登录/引导表单也获得焦点滚动能力。表单使用 `keyboardShouldPersistTaps="handled"`，包括管理员用户搜索。
+- 已接入：修改密码、服务器地址检查、Lux 登录/注册、LX 旧登录、管理员用户搜索，以及一起听邀请码。账号昵称／签名从三级表单移到单项 MagazineSheet，输入／保存可见和返回规则由上文账号 B 面板协议维护；旧「编辑资料」固定标题勾保存已移除。其他页面原有提交位置保持。复用的独立登录/引导表单也获得焦点滚动能力。表单使用 `keyboardShouldPersistTaps="handled"`，包括管理员用户搜索。
 - 全局搜索与歌单在线搜索遵循同一自动隐藏设置，不再因处于搜索模式强制保留 Dock；搜索与列表空间使用实际可见高度。其他既有显式保留请求仍通过 `setKeepPlayBarOnKeyboard` 通知主壳，本次不重构全局布尔值的并发所有权。
 - 收键盘后恢复 Dock 和原页面范围，保留草稿与合理滚动位置，不重播页面过渡。IME 可见时 Android 系统返回先由系统关闭键盘，再次返回沿既有逐层逻辑；提交期间的保护不变。
 - `scripts/ime-layout.src-test.mjs` 覆盖显隐组合、保留播放条、测量恢复、最小滚动、按钮可见、极小视口与 blur/unmount 清理。静态/模拟测试不能替代 Android resize、边到边 IME、候选栏变化、大字体、手势/三键导航及快速开合的真机验证。
-- MagDialog、PromptDialog、ConfirmAlert、MagazineSheet（原生 Modal 与 inline 的自身缩高逻辑）及横屏全屏输入法是后续单独问题，本次不调整其窗口/避让策略。临时原生 Modal / 系统选图仍可能遮住底栏。
+- MagDialog、PromptDialog、ConfirmAlert、MagazineSheet 的其他调用方（原生 Modal 与 inline 的自身缩高逻辑）及横屏全屏输入法保留现有窗口／避让策略；账号单项面板按上文单独接入输入／保存可见性。临时原生 Modal / 系统选图允许覆盖底栏。
 
 ## 点击与按压
 

@@ -102,13 +102,24 @@ test('profile PATCH is server-first; failure leaves local data and events unchan
   assert.deepEqual(raced.writes, [])
 })
 
-const renderAccount = ({ server = true, syncHost = host, lux = server, failSave = false, saveWait } = {}) => {
+const renderAccount = ({ server = true, syncHost = host, lux = server } = {}) => {
   const values = []; const effects = []; const calls = []; let cursor = 0; let confirm = false
+  const listeners = new Map()
+  const events = {
+    on(name, callback) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(callback) },
+    off(name, callback) { listeners.get(name)?.delete(callback) },
+  }
   let savedAuth = auth
   let currentDevices = devices.slice()
+  let profile = { displayName: 'Alice', avatar: '', signature: 'signature', gender: 'unknown' }
   const hooks = {
-    useState: initial => { const i = cursor++; if (!(i in values)) values[i] = initial; return [values[i], value => { values[i] = typeof value === 'function' ? value(values[i]) : value }] },
+    useState: initial => { const i = cursor++; if (!(i in values)) values[i] = typeof initial === 'function' ? initial() : initial; return [values[i], value => { values[i] = typeof value === 'function' ? value(values[i]) : value }] },
     useRef: initial => { const i = cursor++; values[i] ??= { current: initial }; return values[i] },
+    useCallback: (callback, deps) => {
+      const i = cursor++; const old = values[i]
+      if (!old || deps.some((value, j) => value !== old.deps[j])) values[i] = { deps, callback }
+      return values[i].callback
+    },
     useEffect: (effect, deps) => {
       const i = cursor++; const old = effects[i]
       if (!old || deps.some((value, j) => value !== old.deps[j])) effects[i] = { deps, effect, pending: true, cleanup: old?.cleanup }
@@ -116,7 +127,7 @@ const renderAccount = ({ server = true, syncHost = host, lux = server, failSave 
   }
   const jsx = (type, props) => type?.name === 'SettingsSubpage' ? type(props) : ({ type, props })
   const screen = load('src/screens/Account/AccountPage.tsx', {
-    '@/core/appSession': { requestLogin: async() => {} },
+    '@/core/appSession': { requestLogin: async intent => { calls.push(['login', intent]) } },
     '@/components/common/SettingsPage': settingsTransitionMock(hooks),
     react: hooks,
     'react/jsx-runtime': { jsx, jsxs: jsx },
@@ -129,7 +140,7 @@ const renderAccount = ({ server = true, syncHost = host, lux = server, failSave 
     '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
     '@/components/magazine': Object.fromEntries(['BackButton', 'Rule', 'PrimaryButton', 'IconButton', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
     '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder() },
-    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({ ink: 'ink', quiet: 'quiet' }) },
     '@/utils/tools': { createStyle: value => value, confirmDialog: async() => confirm },
     '@/store/common/hook': { useStatusbarHeight: () => 44 },
     '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 0 },
@@ -141,26 +152,32 @@ const renderAccount = ({ server = true, syncHost = host, lux = server, failSave 
         return { sessions: currentDevices }
       },
     },
-    '@/plugins/sync/client/profile': { saveEditedProfile: async(...args) => { calls.push(['save', ...args]); if (failSave) throw new Error('offline'); await saveWait } },
-    '@/utils/data': { findLuxAuthForHost: async() => savedAuth, getUserAvatarDataUrl: async() => '', getUserGender: async() => 'unknown', getUserSignature: async() => 'signature' },
+    '@/plugins/sync/client/profile': { captureProfileIdentity: () => ({ generation: 0, space: server ? 'lux:server:alice' : 'local' }) },
+    '@/utils/data': { DEFAULT_USER_NAME: 'Default user', DEFAULT_USER_AVATAR: 123, findLuxAuthForHost: async() => savedAuth, getUserName: async() => profile.displayName, getUserAvatar: async() => profile.avatar, getUserAvatarDataUrl: async() => profile.avatar, getUserGender: async() => profile.gender, getUserSignature: async() => profile.signature },
     '@/utils/dataSpace': { getActiveSpace: () => server ? 'lux:server:alice' : 'local', listSpaces: async() => [{ id: 'local', kind: 'local' }, { id: 'lux:server:alice', kind: 'lux', label: 'alice' }, { id: 'lux:server:bob', kind: 'lux', label: 'bob' }] },
     '@/utils/accountPage': api,
     './AccountSpaces': { default: 'AccountSpaces' },
+    './AccountProfileSheet': { default: 'AccountProfileSheet' },
     '@/navigation/navigation': { pushSyncLoginScreen: async args => { calls.push(['login', args]) } },
     '@/screens/Login/ChangePassword': { default: 'ChangePassword' },
   }).default
   const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)]
   let tree
-  const render = () => { cursor = 0; tree = screen({ host: syncHost, lux, nickname: 'Alice', avatar: null, onBack() {}, onLogout: async() => {}, onManageData: () => { calls.push(['manage-data']) } }); for (const effect of effects.filter(Boolean)) if (effect.pending) { effect.cleanup?.(); effect.cleanup = effect.effect(); effect.pending = false } }
+  const withEvents = action => {
+    const previousEvents = global.app_event
+    global.app_event = events
+    try { return action() } finally { global.app_event = previousEvents }
+  }
+  const render = () => withEvents(() => { cursor = 0; tree = screen({ host: syncHost, lux, nickname: 'Alice', avatar: null, onBack() {}, onLogout: async() => {}, onManageData: () => { calls.push(['manage-data']) } }); for (const effect of effects.filter(Boolean)) if (effect.pending) { effect.cleanup?.(); effect.cleanup = effect.effect(); effect.pending = false } })
   render()
-  return { render, calls, setAuth: value => { savedAuth = value }, confirm: value => { confirm = value }, nodes: () => nodes(tree), find: (type, label) => nodes(tree).find(node => node.type === type && (!label || node.props.label === label || node.props.accessibilityLabel === label)), text: value => nodes(tree).find(node => node.props?.children === value), pressRow: value => nodes(tree).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.props?.children === value)).props.onPress() }
+  return { render, calls, emit: (name, value) => { for (const listener of listeners.get(name) ?? []) listener(value) }, listenerCount: name => listeners.get(name)?.size ?? 0, unmount: () => withEvents(() => { for (const effect of effects.filter(Boolean)) effect.cleanup?.() }), setProfile: value => { profile = { ...profile, ...value } }, setAuth: value => { savedAuth = value }, confirm: value => { confirm = value }, nodes: () => nodes(tree), find: (type, label) => nodes(tree).find(node => node.type === type && (!label || node.props.label === label || node.props.accessibilityLabel === label)), text: value => nodes(tree).find(node => node.props?.children === value), pressRow: value => nodes(tree).find(node => node.type === 'TouchableOpacity' && nodes(node).some(child => child.props?.children === value)).props.onPress() }
 }
 
 test('account source omits the local-data row and retains account-space data management', () => {
   const source = readFileSync(new URL('../src/screens/Account/AccountPage.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /\brow\s*\(\s*t\s*\(\s*['"]spaces_manage['"]/)
   assert.doesNotMatch(source, /管理本机数据/)
-  const switchGroup = source.match(/\{section\(t\('account_switch_section'\)\)\}([\s\S]*?)\{rows\.includes\('logout'\)/)?.[1]
+  const switchGroup = source.match(/\{section\(t\('account_switch_section'\), undefined, true\)\}([\s\S]*?)\{rows\.includes\('logout'\)/)?.[1]
   assert.ok(switchGroup, 'the account switch group remains present')
   assert.deepEqual([...switchGroup.matchAll(/\brow\(t\('([^']+)'/g)].map(match => match[1]), ['spaces_title', 'account_switch'])
   assert.match(source, /page === 'spaces' \? <AccountSpaces onManageData=\{onManageData\}/)
@@ -179,12 +196,23 @@ test('local, LX and Lux accounts show two switch rows with one divider and prese
     const flatten = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(flatten) : [node, ...flatten(node.props?.children)]
     const rows = view.nodes().filter(node => node.type === 'TouchableOpacity')
     const titles = rows.map(row => flatten(row).find(node => node.type === 'Text').props.children)
-    assert.deepEqual(titles, [zh.account_nickname, zh.account_avatar, ...(options.server ? [zh.account_devices, zh.password_title] : []), zh.spaces_title, zh.account_switch], provider)
+    assert.deepEqual(titles, [zh.account_avatar, zh.account_nickname, zh.setting_profile_signature, zh.setting_profile_gender, ...(options.server ? [zh.account_devices, zh.password_title] : []), zh.spaces_title, zh.account_switch], provider)
     const switchRows = rows.slice(-2)
     const styles = switchRows.map(row => Object.assign({}, ...row.props.style.flat(Infinity).filter(Boolean)))
     assert.deepEqual(styles.map(style => style.borderTopWidth ?? 0), [0, 0], `${provider}: no leading divider`)
     assert.deepEqual(styles.map(style => style.borderBottomWidth), [1, 0], `${provider}: only the divider between rows remains`)
-    assert.deepEqual(styles.map(style => style.minHeight), [56, 56], `${provider}: no empty row remains`)
+    assert.deepEqual(styles.map(style => style.minHeight), [62, 62], `${provider}: both switch rows match B geometry`)
+    assert.deepEqual(switchRows.map(row => flatten(row).find(node => node.type === 'Text').props.size), [16, 16])
+    assert.ok(switchRows.every(row => flatten(row).find(node => node.type === 'MdiIcon').props.color === 'quiet'))
+    const profileRows = rows.slice(0, 4)
+    assert.ok(profileRows.every(row => Object.assign({}, ...row.props.style.flat(Infinity).filter(Boolean)).minHeight === 62))
+    assert.ok(profileRows.every(row => row.props.accessibilityLabel && row.props.accessibilityHint && row.props.activeOpacity === 0.7))
+    if (options.server) {
+      const securityRows = rows.slice(4, 6)
+      assert.deepEqual(securityRows.map(row => Object.assign({}, ...row.props.style.flat(Infinity).filter(Boolean)).minHeight), [56, 56], 'security retains original row height')
+      assert.deepEqual(securityRows.map(row => flatten(row).find(node => node.type === 'Text').props.size), [15, 15], 'security retains original typography')
+      assert.ok(securityRows.every(row => flatten(row).find(node => node.type === 'MdiIcon').props.color === 'ink'), 'security retains original chevron tone')
+    }
     view.pressRow(zh.spaces_title); view.render()
     const spaces = view.find('AccountSpaces')
     assert.ok(spaces, `${provider}: account spaces remain reachable`)
@@ -193,23 +221,90 @@ test('local, LX and Lux accounts show two switch rows with one divider and prese
   }
 })
 
-test('Lux and local account rows, data-space labels, username read-only and explicit profile save failure', async() => {
-  for (const server of [true, false]) {
-    const view = renderAccount({ server, failSave: true }); await flush(); view.render()
-    assert.ok(view.text('昵称')); assert.ok(view.text('头像')); assert.ok(view.text('切换账号'))
-    assert.equal(Boolean(view.text('我的设备')), server); assert.equal(Boolean(view.text('修改密码')), server)
-    assert.equal(Boolean(view.find('SecondaryButton', '退出登录')), server)
-    assert.ok(view.text(server ? '本机还有：本地用户、bob' : '本机还有：alice、bob'))
-    view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
-    assert.equal(view.find('UnderlineInput', '用户名').props.editable, false)
-    assert.equal(view.find('UnderlineInput', '用户名').props.value, server ? 'alice' : '本地用户')
-    assert.ok(view.text(server ? zh.account_save_note : zh.account_save_local_note))
-    view.find('SecondaryButton', '更换头像').props.onPress(); await flush(); view.render()
-    assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
-    assert.ok(view.text(zh.account_save_failed)); assert.ok(view.text('编辑资料'))
-    assert.equal(view.calls.find(call => call[0] === 'save')[2], server)
+test('account B has an H2 and read-only identity, four direct field rows, and unchanged security/switch destinations', async() => {
+  for (const [provider, options] of [
+    ['local', { server: false, syncHost: '', lux: false }],
+    ['lx', { server: false, syncHost: host, lux: false }],
+    ['lux', { server: true, syncHost: host, lux: true }],
+  ]) {
+    const view = renderAccount(options); await flush(); view.render()
+    assert.ok(view.text(zh.account_title), `${provider}: account H2`)
+    assert.equal(view.find('SecondaryButton', zh.account_edit), undefined, `${provider}: no generic edit button`)
+    assert.equal(view.find('UnderlineInput', zh.auth_username), undefined, `${provider}: identity is not an editable field`)
+    assert.equal(Boolean(view.text(zh.account_devices)), options.server, provider)
+    assert.equal(Boolean(view.text(zh.password_title)), options.server, provider)
+    assert.equal(Boolean(view.find('SecondaryButton', zh.account_logout)), options.server, provider)
+    assert.ok(view.text(options.server ? '本机还有：本地用户、bob' : '本机还有：alice、bob'), provider)
+    assert.ok(view.text(options.server ? 'alice · server/path · 成员' : zh[provider === 'lx' ? 'account_lx_identity' : 'account_local_identity']), `${provider}: mode identity`)
+    view.pressRow(zh.account_switch); await flush()
+    assert.deepEqual(view.calls.filter(call => call[0] === 'login'), [['login', { reason: 'switch', source: 'E06-account', returnPolicy: 'restorePrevious' }]], `${provider}: original LoginGate destination`)
+    for (const [label, field, initialValue] of [
+      [zh.account_avatar, 'avatar', ''],
+      [zh.account_nickname, 'displayName', 'Alice'],
+      [zh.setting_profile_signature, 'signature', 'signature'],
+      [zh.setting_profile_gender, 'gender', 'unknown'],
+    ]) {
+      view.pressRow(label); await flush(); view.render()
+      const sheet = view.find('AccountProfileSheet')
+      assert.ok(sheet?.props.visible, `${provider}: ${field} opens its sheet directly`)
+      assert.equal(sheet.props.field, field)
+      assert.equal(sheet.props.initialValue, initialValue)
+      assert.equal(sheet.props.server, options.server)
+      assert.deepEqual(sheet.props.identity, { generation: 0, space: options.server ? 'lux:server:alice' : 'local' })
+      assert.equal(view.text(zh.account_edit_title), undefined, `${provider}: no third-level profile editor`)
+      sheet.props.onClose(); view.render()
+      assert.equal(view.find('AccountProfileSheet')?.props.visible ?? false, false)
+    }
   }
+})
+
+test('saved profile values refresh the account rows and each reopened field reads current storage', async() => {
+  const view = renderAccount(); await flush(); view.render()
+  view.pressRow(zh.setting_profile_signature); await flush(); view.render()
+  view.setProfile({ signature: 'Updated signature', gender: 'female' })
+  await view.find('AccountProfileSheet').props.onSaved(); view.render()
+  assert.ok(view.text('Updated signature'))
+  assert.ok(view.text(zh.setting_profile_gender_female))
+  view.find('AccountProfileSheet').props.onClose(); view.render()
+  view.pressRow(zh.setting_profile_signature); await flush(); view.render()
+  assert.equal(view.find('AccountProfileSheet').props.initialValue, 'Updated signature')
+})
+
+test('clearing nickname refreshes to the default display name instead of the stale parent nickname', async() => {
+  const view = renderAccount(); await flush(); view.render()
+  view.pressRow(zh.account_nickname); await flush(); view.render()
+  view.setProfile({ displayName: null })
+  await view.find('AccountProfileSheet').props.onSaved(); view.render()
+  assert.ok(view.text(t('account_nickname_value', { name: 'Default user' })))
+  assert.equal(view.text(t('account_nickname_value', { name: 'Alice' })), undefined)
+})
+
+test('background profile events refresh the account without replacing an open field draft, and unsubscribe on unmount', async() => {
+  const view = renderAccount(); await flush(); view.render()
+  view.pressRow(zh.setting_profile_signature); await flush(); view.render()
+  view.emit('userSignatureUpdated', 'Background signature')
+  view.emit('userGenderUpdated', 'male')
+  view.emit('userNameUpdated', '')
+  view.emit('userAvatarUpdated', 'data:image/png;base64,background')
+  view.render()
+  assert.ok(view.text('Background signature'))
+  assert.ok(view.text(zh.setting_profile_gender_male))
+  assert.ok(view.text(t('account_nickname_value', { name: 'Default user' })))
+  assert.equal(view.find('Image').props.url, 'data:image/png;base64,background')
+  assert.equal(view.find('AccountProfileSheet').props.initialValue, 'signature', 'background pulls do not overwrite an active sheet snapshot')
+  for (const name of ['userNameUpdated', 'userAvatarUpdated', 'userSignatureUpdated', 'userGenderUpdated']) assert.equal(view.listenerCount(name), 1)
+  view.unmount()
+  for (const name of ['userNameUpdated', 'userAvatarUpdated', 'userSignatureUpdated', 'userGenderUpdated']) assert.equal(view.listenerCount(name), 0)
+})
+
+test('account B source guards the four-row order and direct signature editing without a profile hero or edit route', () => {
+  const source = readFileSync(new URL('../src/screens/Account/AccountPage.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /styles\.hero|hero:\s*\{|t\('account_edit'\)|setPage\('edit'\)|page === 'edit'|\| 'edit'/)
+  assert.match(source, /<Text size=\{32\}[^>]+>\{t\('account_title'\)\}/)
+  const fields = [...source.matchAll(/profileRow\('([^']+)'/g)].map(match => match[1])
+  assert.deepEqual(fields, ['avatar', 'displayName', 'signature', 'gender'])
+  assert.match(source, /<AccountProfileSheet/)
+  assert.doesNotMatch(source, /<UnderlineInput/)
 })
 
 test('normal-user devices screen marks current session and confirms destructive requests', async() => {
@@ -232,7 +327,11 @@ test('normal-user devices screen marks current session and confirms destructive 
 test('account text exists in all three languages', () => {
   for (const locale of ['zh-cn', 'zh-tw', 'en-us']) {
     const lang = JSON.parse(readFileSync(new URL(`../src/lang/${locale}.json`, import.meta.url), 'utf8'))
-    for (const key of Object.keys(zh).filter(key => key.startsWith('account_'))) assert.equal(typeof lang[key], 'string', `${locale}: ${key}`)
+    for (const key of Object.keys(zh).filter(key => key.startsWith('account_'))) {
+      assert.equal(typeof lang[key], 'string', `${locale}: ${key}`)
+      const params = value => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort()
+      assert.deepEqual(params(lang[key]), params(zh[key]), `${locale}: ${key} interpolation`)
+    }
   }
 })
 
@@ -272,49 +371,6 @@ test('session operations retain automatic refresh and retry through the shared r
   ])
   assert.equal(calls[2][1].headers.Authorization, 'Bearer renewed')
   assert.equal(calls[3][1].headers.Authorization, 'Bearer renewed')
-})
-
-test('14D loads signature and gender into an isolated draft and saves them together for Lux and local users', async() => {
-  for (const server of [true, false]) {
-    const view = renderAccount({ server }); await flush(); view.render()
-    view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
-    const signature = view.find('UnderlineInput', zh.setting_profile_signature)
-    assert.equal(signature.props.value, 'signature')
-    assert.equal(signature.props.maxLength, 140)
-    assert.ok(view.text(zh.setting_profile_signature_placeholder))
-    const options = view.nodes().filter(node => node.type === 'OptionRow')
-    assert.deepEqual(options.map(node => node.props.label), [zh.setting_profile_gender_male, zh.setting_profile_gender_female, zh.setting_profile_gender_unknown])
-    assert.equal(options[2].props.selected, true)
-    assert.ok(options.every(node => node.props.leading && node.props.compact))
-    signature.props.onChangeText('  New signature  ')
-    options[1].props.onPress(); view.render()
-    view.find('UnderlineInput', '昵称').props.onChangeText('New name'); view.render()
-    assert.equal(view.calls.filter(call => call[0] === 'save').length, 0)
-    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
-    assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', { displayName: 'New name', avatar: '', signature: 'New signature', gender: 'female' }, server])
-    assert.equal(view.text('编辑资料'), undefined)
-  }
-})
-
-test('14D failure retains signature/gender draft; cancel discards it; signature keeps old validation', async() => {
-  const view = renderAccount({ failSave: true }); await flush(); view.render()
-  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
-  view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('x'.repeat(150))
-  view.find('OptionRow', zh.setting_profile_gender_male).props.onPress(); view.render()
-  view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
-  assert.equal(view.calls.find(call => call[0] === 'save')[1].signature, 'x'.repeat(140))
-  assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'x'.repeat(150))
-  assert.equal(view.find('OptionRow', zh.setting_profile_gender_male).props.selected, true)
-  assert.ok(view.text(zh.account_save_failed))
-  view.find('BackButton').props.onPress(); view.render()
-  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
-  assert.equal(view.find('UnderlineInput', zh.setting_profile_signature).props.value, 'signature')
-  assert.equal(view.find('OptionRow', zh.setting_profile_gender_unknown).props.selected, true)
-  for (const value of ['   ', zh.me_profile_status]) {
-    view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText(value); view.render()
-    view.find('IconButton', '保存').props.onPress(); await flush(); view.render()
-    assert.equal(view.calls.filter(call => call[0] === 'save').at(-1)[1].signature, '')
-  }
 })
 
 test('5.7 login pulls an empty remote profile without automatically POSTing the local profile', async context => {
@@ -410,33 +466,184 @@ test('5.7 every new space/dialog string has matching interpolation fields in all
 })
 
 
-test('edit profile save is a 28pt header check outside scrolling, disabled until changed and busy during save', async() => {
+const renderProfileSheet = ({ field = 'signature', initialValue = 'signature', server = true, failSave = false, saveWait, pickerError } = {}) => {
+  const values = []; const effects = []; const calls = []; let cursor = 0; let confirmed = false; let keyboardVisible = false
+  const identity = { generation: 7, space: server ? 'lux:server:alice' : 'local' }
+  const hooks = {
+    useState: initial => { const i = cursor++; if (!(i in values)) values[i] = typeof initial === 'function' ? initial() : initial; return [values[i], value => { values[i] = typeof value === 'function' ? value(values[i]) : value }] },
+    useRef: initial => { const i = cursor++; values[i] ??= { current: initial }; return values[i] },
+    useEffect: (effect, deps = []) => { const i = cursor++; const old = effects[i]; if (!old || deps.some((value, j) => value !== old.deps[j])) effects[i] = { deps, effect, pending: true, cleanup: old?.cleanup } },
+    useMemo: (create, deps) => { const i = cursor++; const old = values[i]; if (!old || deps.some((value, j) => value !== old.deps[j])) values[i] = { deps, value: create() }; return values[i].value },
+    useCallback: callback => { cursor++; return callback },
+  }
+  const jsx = (type, props) => ({ type, props })
+  const screen = load('src/screens/Account/AccountProfileSheet.tsx', {
+    react: hooks,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': {
+      ...Object.fromEntries(['ActivityIndicator', 'View', 'TouchableOpacity', 'KeyboardAvoidingView'].map(key => [key, key])),
+      Platform: { OS: 'android' },
+      useWindowDimensions: () => ({ width: 375, height: 812 }),
+      Keyboard: { isVisible: () => keyboardVisible, dismiss: () => { keyboardVisible = false; calls.push(['dismiss-keyboard']) }, addListener: () => ({ remove() {} }) },
+    },
+    'react-native-image-crop-picker': { default: { openPicker: async options => { calls.push(['pick', options]); if (pickerError) throw pickerError; return { data: 'new', mime: 'image/png' } } } },
+    '@/components/common/FocusVisibleScrollView': { FocusVisibleScrollView: 'ScrollView', FocusVisibleAction: 'FocusVisibleAction' },
+    '@/components/common/Text': { default: 'Text' },
+    '@/components/common/Image': { default: 'Image' },
+    '@/components/common/MdiIcon': { MdiIcon: 'MdiIcon' },
+    '@/components/magazine': Object.fromEntries(['MagazineSheet', 'Rule', 'PrimaryButton', 'IconButton', 'SecondaryButton', 'TextButton', 'UnderlineInput', 'OptionRow'].map(key => [key, key])),
+    '@/theme/LuxTheme': { useLuxTheme: () => ({ colors: { surface: {} } }), sharedLuxStyles: builder => () => builder({ surface: {} }) },
+    '@/theme/magazineRoles': { magazineRoles: () => ({}) },
+    '@/utils/tools': { createStyle: value => value, confirmDialog: async options => { calls.push(['confirm', options]); return confirmed } },
+    '@/utils/hooks/useSystemGestureInsetBottom': { default: () => 0 },
+    '@/lang': { useI18n: () => t },
+    '@/plugins/sync/client/profile': { saveEditedProfileField: async(...args) => { calls.push(['save', ...args]); if (failSave) throw new Error('offline'); await saveWait; return { displayName: 'Alice', avatar: '', signature: 'signature', gender: 'unknown', [args[0]]: args[1] } } },
+  }).default
+  const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children), ...nodes(node.props?.footerContent), ...nodes(node.props?.subject), ...nodes(node.props?.toolExtra)]
+  let tree
+  const render = () => {
+    cursor = 0
+    tree = screen({ visible: true, field, initialValue, identity, server, nickname: 'Alice', onClose: () => { calls.push(['closed']) }, onSaved: async() => { calls.push(['refreshed']) } })
+    for (const effect of effects.filter(Boolean)) if (effect.pending) { effect.cleanup?.(); effect.cleanup = effect.effect(); effect.pending = false }
+  }
+  render(); render()
+  return { render, calls, identity, confirm: value => { confirmed = value }, keyboard: value => { keyboardVisible = value }, nodes: () => nodes(tree), find: (type, label) => nodes(tree).find(node => node.type === type && (!label || node.props.label === label || node.props.accessibilityLabel === label)), text: value => nodes(tree).find(node => node.props?.children === value) }
+}
+
+test('each account B sheet edits only its own field and exposes the current save scope', () => {
+  for (const server of [true, false]) {
+    for (const [field, initialValue, inputLabel] of [
+      ['avatar', '', null],
+      ['displayName', 'Alice', zh.account_nickname],
+      ['signature', 'signature', zh.setting_profile_signature],
+      ['gender', 'unknown', null],
+    ]) {
+      const view = renderProfileSheet({ field, initialValue, server })
+      const sheet = view.find('MagazineSheet')
+      assert.equal(sheet.props.visible, true)
+      assert.equal(sheet.props.profileLayout, true)
+      assert.equal(sheet.props.inlineBottomInset, undefined, 'a native temporary task covers Dock')
+      const inputs = view.nodes().filter(node => node.type === 'UnderlineInput')
+      assert.equal(inputs.length, inputLabel ? 1 : 0, field)
+      if (inputLabel) {
+        assert.equal(inputs[0].props.accessibilityLabel, inputLabel)
+        assert.equal(inputs[0].props.value, initialValue)
+      }
+      assert.equal(view.nodes().filter(node => node.type === 'OptionRow').length, field === 'gender' ? 3 : 0)
+      assert.equal(Boolean(view.find('SecondaryButton', zh.account_change_avatar)), field === 'avatar')
+      assert.ok(view.text(server ? zh.account_save_note : zh.account_save_local_note))
+      assert.equal(view.find('TouchableOpacity', zh.account_save).props.disabled, true)
+      assert.ok(view.find('FocusVisibleAction'), 'save/cancel participate in focus visibility scrolling')
+      assert.equal(view.find('ScrollView').props.keyboardShouldPersistTaps, 'handled')
+    }
+  }
+})
+
+test('signature sheet keeps 140-character input, count, normalization, and explicit per-field saves', async() => {
+  for (const server of [true, false]) {
+    for (const [draft, expected] of [['  New signature  ', 'New signature'], ['x'.repeat(150), 'x'.repeat(140)], ['   ', ''], [zh.me_profile_status, '']]) {
+      const view = renderProfileSheet({ server })
+      const signature = view.find('UnderlineInput', zh.setting_profile_signature)
+      assert.equal(signature.props.maxLength, 140)
+      assert.equal(signature.props.multiline, true)
+      assert.equal(signature.props.placeholder, zh.setting_profile_signature_placeholder)
+      signature.props.onChangeText(draft); view.render()
+      assert.ok(view.text(t('account_signature_count', { count: draft.length })))
+      assert.equal(view.find('TouchableOpacity', zh.account_save).props.disabled, false)
+      assert.equal(view.calls.some(call => call[0] === 'save'), false, 'typing does not save')
+      view.find('TouchableOpacity', zh.account_save).props.onPress(); await flush(); view.render()
+      assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', 'signature', expected, server, view.identity])
+      assert.deepEqual(view.calls.filter(call => ['refreshed', 'closed'].includes(call[0])), [['refreshed'], ['closed']])
+    }
+  }
+})
+
+test('nickname trims without a new required/length restriction, and gender remains three exclusive choices', async() => {
+  for (const draft of ['  Renamed  ', '', 'n'.repeat(200)]) {
+    const view = renderProfileSheet({ field: 'displayName', initialValue: 'Alice' })
+    const input = view.find('UnderlineInput', zh.account_nickname)
+    assert.equal(input.props.maxLength, undefined)
+    assert.ok(view.text(zh.account_nickname_hint))
+    input.props.onChangeText(draft); view.render()
+    view.find('TouchableOpacity', zh.account_save).props.onPress(); await flush()
+    assert.equal(view.calls.find(call => call[0] === 'save')[2], draft.trim())
+  }
+  const view = renderProfileSheet({ field: 'gender', initialValue: 'unknown' })
+  let options = view.nodes().filter(node => node.type === 'OptionRow')
+  assert.deepEqual(options.map(node => node.props.label), [zh.setting_profile_gender_male, zh.setting_profile_gender_female, zh.setting_profile_gender_unknown])
+  assert.ok(options.every(node => node.props.leading && node.props.compact))
+  assert.deepEqual(options.map(node => node.props.selected), [false, false, true])
+  options[1].props.onPress(); view.render()
+  options = view.nodes().filter(node => node.type === 'OptionRow')
+  assert.deepEqual(options.map(node => node.props.selected), [false, true, false])
+  assert.equal(view.calls.some(call => call[0] === 'save'), false)
+  view.find('TouchableOpacity', zh.account_save).props.onPress(); await flush()
+  assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', 'gender', 'female', true, view.identity])
+})
+
+test('avatar picking preserves the 400px circular crop and waits for explicit save; picker cancellation is harmless', async() => {
+  const view = renderProfileSheet({ field: 'avatar', initialValue: '' })
+  view.find('SecondaryButton', zh.account_change_avatar).props.onPress(); await flush(); view.render()
+  assert.deepEqual(view.calls.find(call => call[0] === 'pick')[1], { width: 400, height: 400, cropping: true, cropperCircleOverlay: true, mediaType: 'photo', includeBase64: true })
+  assert.equal(view.find('Image').props.url, 'data:image/png;base64,new')
+  assert.equal(view.calls.some(call => call[0] === 'save'), false)
+  assert.equal(view.find('TouchableOpacity', zh.account_save).props.disabled, false)
+  view.find('TouchableOpacity', zh.account_save).props.onPress(); await flush()
+  assert.deepEqual(view.calls.find(call => call[0] === 'save'), ['save', 'avatar', 'data:image/png;base64,new', true, view.identity])
+  const cancel = renderProfileSheet({ field: 'avatar', initialValue: '', pickerError: { code: 'E_PICKER_CANCELLED' } })
+  cancel.find('SecondaryButton', zh.account_change_avatar).props.onPress(); await flush(); cancel.render()
+  assert.equal(cancel.find('TouchableOpacity', zh.account_save).props.disabled, true)
+  assert.equal(cancel.text(zh.account_avatar_failed), undefined)
+  assert.equal(cancel.calls.some(call => call[0] === 'save'), false)
+})
+
+test('unchanged/reverted sheets disable save; submission prevents duplicate saves and every close path', async() => {
   let finish
-  const view = renderAccount({ saveWait: new Promise(resolve => { finish = resolve }) })
-  view.find('SecondaryButton', '编辑').props.onPress(); await flush(); view.render()
-  const save = () => view.find('IconButton', zh.account_save)
-  assert.equal(save().props.name, 'check')
-  assert.equal(save().props.size, 28)
+  const view = renderProfileSheet({ saveWait: new Promise(resolve => { finish = resolve }) })
+  const save = () => view.find('TouchableOpacity', zh.account_save)
   assert.equal(save().props.disabled, true)
-  assert.equal(view.find('PrimaryButton', zh.account_save), undefined)
-  const scroll = view.find('ScrollView')
-  const flatten = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(flatten) : [node, ...flatten(node.props?.children)]
-  assert.ok(!flatten(scroll).includes(save()), 'header stays outside focus scrolling')
-  assert.ok(!flatten(scroll).some(node => node.props?.children === zh.account_edit_title))
-  view.find('UnderlineInput', '昵称').props.onChangeText('Changed'); view.render()
+  save().props.onPress(); await flush()
+  assert.equal(view.calls.some(call => call[0] === 'save'), false)
+  view.find('UnderlineInput').props.onChangeText('Changed'); view.render()
   assert.equal(save().props.disabled, false)
-  view.find('UnderlineInput', '昵称').props.onChangeText('Alice'); view.render()
-  assert.equal(save().props.disabled, true, 'reverting draft disables save again')
-  view.find('UnderlineInput', zh.setting_profile_signature).props.onChangeText('new signature'); view.render()
+  view.find('UnderlineInput').props.onChangeText('signature'); view.render()
+  assert.equal(save().props.disabled, true)
+  view.find('UnderlineInput').props.onChangeText('Changed'); view.render()
   save().props.onPress(); view.render()
   assert.equal(save().props.disabled, true)
-  assert.equal(save().props.children.type, 'ActivityIndicator')
+  assert.equal(view.find('MagazineSheet').props.closeDisabled, true)
+  assert.equal(view.find('UnderlineInput').props.editable, false)
+  assert.equal(view.find('TouchableOpacity', zh.cancel).props.disabled, true)
+  assert.ok(view.find('ActivityIndicator'))
   save().props.onPress()
+  view.find('MagazineSheet').props.onClose()
+  view.find('TouchableOpacity', zh.cancel).props.onPress()
   assert.equal(view.calls.filter(call => call[0] === 'save').length, 1)
+  assert.equal(view.calls.some(call => ['closed', 'confirm'].includes(call[0])), false)
   finish(); await flush(); view.render()
-  assert.equal(view.find('IconButton', zh.account_save), undefined)
-  const source = readFileSync(new URL('../src/screens/Account/AccountPage.tsx', import.meta.url), 'utf8')
-  assert.doesNotMatch(source, /styles.footer|FocusVisibleAction|<PrimaryButton/)
-  const icon = readFileSync(new URL('../src/components/magazine/IconButton.tsx', import.meta.url), 'utf8')
-  assert.match(icon, /ICON_BUTTON_SIZE = 44/)
+  assert.equal(view.calls.filter(call => call[0] === 'closed').length, 1)
+})
+
+test('close/cancel first dismiss IME, then confirm dirty draft discard; failed saves retain the value and sheet', async() => {
+  const unchanged = renderProfileSheet()
+  unchanged.find('MagazineSheet').props.onClose(); await flush()
+  assert.deepEqual(unchanged.calls, [['closed']])
+  const view = renderProfileSheet({ failSave: true })
+  view.find('UnderlineInput').props.onChangeText('Failed draft'); view.render()
+  view.keyboard(true)
+  view.find('MagazineSheet').props.onClose(); await flush()
+  assert.deepEqual(view.calls, [['dismiss-keyboard']])
+  view.find('TouchableOpacity', zh.cancel).props.onPress(); await flush()
+  assert.equal(view.calls.filter(call => call[0] === 'confirm').length, 1)
+  assert.equal(view.calls.some(call => call[0] === 'closed'), false)
+  assert.equal(view.find('UnderlineInput').props.value, 'Failed draft')
+  view.find('TouchableOpacity', zh.account_save).props.onPress(); await flush(); view.render()
+  assert.equal(view.find('UnderlineInput').props.value, 'Failed draft')
+  assert.ok(view.text(zh.account_save_failed))
+  assert.equal(view.calls.some(call => ['refreshed', 'closed'].includes(call[0])), false)
+  assert.equal(view.find('TouchableOpacity', zh.account_save).props.disabled, false, 'draft can retry')
+  view.confirm(true)
+  view.find('MagazineSheet').props.onClose(); await flush()
+  assert.equal(view.calls.filter(call => call[0] === 'closed').length, 1)
+  assert.equal(view.calls.filter(call => call[0] === 'save').length, 1, 'discard does not save locally')
 })
