@@ -9,3 +9,5 @@
 界面文案同时写入 `src/lang/zh-cn.json`、`src/lang/zh-tw.json`、`src/lang/en-us.json`。不要在这类改动里修改 `package.json` 的版本号。
 
 新增或修改任何交互时，遵循并同步更新 [docs/interaction-spec.md](docs/interaction-spec.md)（软件交互规范）；页面过渡与返回行为复用其中指定的共享实现。
+
+改播放详情页相关实现（PlayDetail、PlayerTransport、SeekBar、LyricPreview、顶栏、底部弹出页转场）前，先读 [播放详情页定稿规则（以 v0.5.3 为准，不可回退）](docs/design-system-magazine.md#播放详情页定稿规则以-v053-为准不可回退)。不得改回旧值；确需改动须先经 June 确认，并在 PR 描述中单独列出每项改动及原因，明确说明 June 已确认。

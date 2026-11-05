@@ -36,6 +36,7 @@
 
 ## 设置一级页 B 版与同步入口
 
+- 账号主页 `AccountPage.tsx` 的「切换」组在本地、LX、Lux 服务端模式下均只显示「这台手机上的账号」「切换账号」两行；移除重复的「管理本机数据」行。两行紧邻，只有行间细线，首行上方不补分隔线或占位，末行不画底线。相同的数据管理页仍可从设置 →「数据管理与同步」→「缓存管理」（`SettingsTab.tsx` → `resourceCache` / `ResourceCacheDetail`）进入；账号 →「这台手机上的账号」子页（`AccountSpaces.tsx`）中的「管理本机数据」按钮及其回调也保留。功能、路由、三语翻译和共享过渡/返回规则保持原实现；守护见 `scripts/account-page.src-test.mjs`。
 - 仅 Lux Music 服务端模式显示的设置入口包括：AI 助手（含「AI / MCP 令牌与最近操作」副标题）、「一起听同步诊断面板」开关状态行和「复制一起听诊断」动作行。`SettingsTab.tsx` 直接复用 #151 的 `isAiAssistantAvailable()` 与 `showAiAssistantEntry` 结果：配置加载完成、同步格式 `LX.Sync.Mode` 为 `lux` 且同步地址非空；本地（空地址）、LX Music、读取未完成或失败时隐藏。诊断两行另保留原开发构建 / dev 发布渠道限制；数据与同步分组及开发调试分组中的重复入口、设置搜索索引均使用同一条件，复制诊断也可命中开发调试分组。模式/地址事件实时更新，整行及其自带 Hairline 一起卸载；空的开发调试分组一起卸载，数据分组末行、圆角和间距保持原实现，不留空行。不修改已保存的诊断开关或诊断数据。
 - 已打开 AI 助手时失去上述资格，通过持久 SettingsPage 的共享退出过渡返回设置主页并清除打开状态。当前两项诊断入口直接切换开关 / 复制文本，不产生诊断设置子页，因此无诊断子页残留或需关闭的路由；既有设置子页仍复用 SettingsPage 的过渡与返回。
 - 设置是一级 Tab，移除左上切首页的伪返回；二级及更深页按钮和系统返回处理不变，首页仍从 Dock 进入。顶部为 SETTINGS · LUX MUSIC 刊头，H1 与搜索同排。handleToggleSettingsSearch 展开原 UnderlineInput 到标题行之后，正常下推；查询、清除、结果点击逻辑保持。
@@ -71,7 +72,7 @@
 | 导入流程（`PlaylistImportFlow.tsx`，歌单库/各详情→PlaylistImportPanel；Lux/文本/CSV/平台/匹配审核） | 同上，系统短动画时长及 cosine easing，底部→原位 | 同上，原位→底部 | 原为不透明 Modal slide；同一底部 hook、0.5 压暗、退出完成后卸载；保留提交保护、取消匹配、审核返回、焦点滚动及 coversDock |
 | MagazineSheet 及其播放队列、歌词选句、下载、去重等调用方 | 原有 translateY 底部→0，220ms，`Easing.out(Easing.cubic)` | 原位→底部，同为220ms与同一 easing | 原有遮罩和临时任务返回规则保留；播放器评论/播放/歌词 Pager 是页内横向切换，不改为整页纵移 |
 
-竖屏 `PlayerChrome.tsx` 的评论 / 播放 / 歌词 Tabs 使用独立全宽绝对定位层，以屏幕中线居中；与 44 高按钮行同顶距并垂直居中，睡眠定时状态不改变 Tab 位置。层容器使用 `pointerEvents="box-none"`，保留返回 / 睡眠定时 / 分享点击；Tab 点按、Pager 左右滑动及选中下划线继续共用原页码状态，无障碍 tab 角色与 selected 状态保留。文字 15/20、选中 800 / 未选 600，gap 20、底部留白 6、下划线 3；不改变上述进出过渡或横屏播放器。窄屏空间不足时，睡眠定时按钮只显示月亮，倒计时在定时面板查看；Tab 始终以屏幕中线居中。
+竖屏 `PlayerChrome.tsx` 的评论 / 播放 / 歌词 Tabs 使用独立全宽绝对定位层，以屏幕中线居中；与 44 高按钮行同顶距并垂直居中，睡眠定时状态不改变 Tab 位置。层容器使用 `pointerEvents="box-none"`，保留返回 / 睡眠定时 / 分享点击；Tab 点按、Pager 左右滑动及选中下划线继续共用原页码状态，无障碍 tab 角色与 selected 状态保留。文字 15/20、选中 800 / 未选 600，gap 20、底部留白 6、下划线 3；不改变上述进出过渡或横屏播放器。睡眠定时按完整胶囊宽预算判断碰撞，没有固定屏宽断点：有 pill 且 `windowWidth / 2 - tabsWidth / 2 < fullPillWidth + shareWidth + gutter + minGap` 才只显示月亮，相等仍显示「☾ 倒计时」。tabsWidth 优先实测，回退为 `6 * setSpText(15) + 2 * styles.tabsInner.gap`；完整宽预算为 `setSpText(13) * (3.2 + max(0, pill.length - 7) * 0.55) + 20 + 3`，shareWidth=缩放后44、gutter=缩放后22、minGap=8，收起后仍用完整文案计算。无定时也显示月亮；两态都能打开定时面板查看倒计时，无障碍标签保留倒计时。Tab 始终以屏幕中线居中。
 
 原参数依据 `git show 6dc3b7d3^:<路径>` 与 `git show 6dc3b7d3 -- <路径>`：三个任务页均直接使用原生 Modal slide，调用方没有额外动画。RN 0.73 Android 的 `catalyst_slide_up/down.xml` 使用 `@android:integer/config_shortAnimTime`（设备资源，通常为 200ms，不写死数值）、默认 `AccelerateDecelerateInterpolator`，无内容 alpha；原非透明 Modal 由窗口压暗 0.5。为确保退出完成才卸载，现关闭原生动画，复用 #162 底部生命周期作等参数 JS native-driver 纵移；`UtilsModule.modalSlideDuration` 直接导出设备资源，cosine 公式与 Android 默认插值一致；透明 Modal 内用主题黑色及 0↔0.5 进度压暗恢复底页可见性，不叠加另一段动画。系统返回由 Modal.onRequestClose 汇入原页面关闭逻辑；退出中重复关闭合并、重开和卸载使旧完成回调失效。独立评论、白噪音混音器等仍为共享横向子页；不因播放器入口更改其转场。共享祖先栈、键盘/Dock/FocusVisible、登录根与 LoginGate 事务均保持原规则。
 
@@ -149,6 +150,9 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 
 ## 评论加载
 
+- **评论页跟随歌曲规则（June 2026-11-04 定）：** 竖屏播放详情的嵌入评论页以当前页码及详情页可见性判断是否 active。正在看评论页时切歌，保留该页原歌曲的评论、歌名、歌手、评论数与封面，不因播放歌曲变化清空或重新请求；封面优先使用该页歌曲的封面元数据，播放器封面仅在来源与歌曲 id 均匹配时取快照。评论页不可见期间切歌不触发评论请求。
+- 从播放页或歌词页返回评论页，或关闭详情后重新打开并进入评论页时，比较当前播放歌曲与评论页歌曲的 `source + id`；不同则在同一次渲染中切换歌曲并归零热门/最新评论数，清除旧列表、显示现有加载态并请求新歌曲。同一首歌保留原有静默刷新；详情重开仍按既有规则先落播放页，不为重开过程中的旧评论页码发请求。手动「刷新」仍立即切到当前播放歌曲，同歌时按原行为刷新。
+- 跟随只作用于嵌入评论页，独立评论页保持现有行为。切换歌曲不卸载重挂热门/最新容器，保留标签选择与惰性挂载状态；切到 `source === 'local'` 仍显示现有「不支持」状态。旧歌曲的迟到结果继续由下述请求代次保护隔离。
 - `screens/Comment/useCommentLoad.ts` 为热门/最新注入各自请求函数；请求身份包含来源与歌曲 id。换歌或卸载使旧代次失效，并清理全部延时；过期成功、失败及延时均不能更新列表、总数或状态。
 - 首次加载保留收到结果后 300ms 写列表、再 300ms 更新状态的展示节奏；期间阻止更多加载。下拉刷新取消旧加载/延时，同一刷新期间的重复下拉合并；分页保持追加与去重，刷新替换第一页。
 - 静默刷新保留当前列表与状态，忙碌期间跳过；热门/最新各自保存分页状态，切换沿用现有惰性挂载。失败显示原有重试状态。
@@ -246,4 +250,6 @@ L1 页面规则：
 - 认证阶段可显式取消，迟到响应不得准备空间/提交身份；空间准备与提交临界区不可取消。失败保留 Gate 与原数据，不跳 Main。成功、取消和离线查看均保持暂停，不自动播放/入房/恢复下载。
 - 全部输入使用 FocusVisibleScrollView/Action；Android 只用系统 resize，不重复减键盘高度；iOS 沿 KeyboardAvoidingView padding。返回期间保持祖先不透明，隐藏页不抢系统返回。注册提交也参与焦点动作可见性。
 
-竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。前台且同一歌词数组连续前进一句时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；跳句、倒退、歌词数组替换、active=false 或重回前台均直接定位并停止旧动画。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。唱片直径沿用三行改动前的 124 歌词预算；预览实际高度独立于预算，播放页歌词末尾 spacer 为 0；仅播放页传 `PlayerTransport.seekOverlapTop=21`（默认 0），面板以负 marginTop 21 与滚动区相叠，可见胶囊底边到轨道约 `4 + 0 + 8 + 21 − 21 = 12`。SeekBar 保持 44 高与原拖动逻辑；滚动区 zIndex 2 高于上叠面板的 1，交叠顶部约 13 优先响应译 / 音胶囊和进入歌词提示，避免误 seek；轨道及其下方仍可点拖，交叠部分无法同时作为 seek 命中区。歌词 Tab 不传参数，进度条位置、外观和命中区不变。唱片间距预算由 66 减到 48，播放滚动视口增加 21，唱片不会比 dev.22 缩小；剩余高度只按 2:1 分给唱片上 / 下空隙；不足时保持各块完整并沿用 ScrollView 滚动，PlayerTransport 固定在滚动区外。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`、`player-vertical-spacing.src-test.mjs`。
+竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。active 与 before.active 均为 true、同一歌词数组引用、index 恰为 before.index+1 且前后两句存在时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；不满足该条件（含倒退、跨多句、歌词数组替换、active=false 或此前 inactive、句子不存在）则直接定位并停止旧动画。**已知现状（v0.5.3，June 接受）：向前拖动刚好跨一句时会播动画；从后台返回若只前进一句也可能播动画。** LyricPreview 没有 seek / AppState 抑制条件；active 来自详情页 visible 与播放 Tab 选中状态，AppState 仅管理常亮，nativeActive 只用于 backActive，不能视为系统前台标志。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。唱片直径沿用三行改动前的 124 歌词预算；预览实际高度独立于预算，播放页歌词末尾 spacer 为 0；仅播放页传 `PlayerTransport.seekOverlapTop=21`（默认 0），面板以负 marginTop 21 与滚动区相叠，375 基准下，当前紧凑 SecondaryButton 高 28（不是旧描述假设的 36），44 高操作行下沿至胶囊底为 8，可见胶囊底边到轨道约 `8 + 0 + 8 + 21 − 21 = 16`（源码布局推算，非真机像素实测；胶囊内联高度不走 createStyle，其他屏宽按实际布局计算）。SeekBar 保持 44 高与原拖动逻辑；滚动区 zIndex 2 高于上叠面板的 1，交叠顶部约 13 优先响应译 / 音胶囊和进入歌词提示，避免误 seek；轨道及其下方仍可点拖，交叠部分无法同时作为 seek 命中区，这是 June 接受的取舍。歌词 Tab 不传参数，进度条位置、外观和命中区不变。唱片间距预算由 66 减到 48，播放滚动视口增加 21，唱片不会比 dev.22 缩小；剩余高度只按 2:1 分给唱片上 / 下空隙；不足时保持各块完整并沿用 ScrollView 滚动，PlayerTransport 固定在滚动区外。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`、`player-vertical-spacing.src-test.mjs`。
+
+以上播放详情相关交互按 2026-11-03（北京时间）核对的 v0.5.3 源码锁定，改动前须先经 June 确认；完整数值、#158 / #162 / #164–#169 来源及已知现状见 [播放详情页定稿规则](design-system-magazine.md#播放详情页定稿规则以-v053-为准不可回退)，统一守护见 `scripts/player-locked-rules.src-test.mjs`。

@@ -139,7 +139,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     {url ? <Image url={url} style={{ width: size, height: size, borderRadius: size / 2 }} resizeMode="cover" /> : <Text size={size === 96 ? 40 : size === 72 ? 30 : 13} color={r.ink} style={styles.heavy}>{name.slice(0, 1).toUpperCase()}</Text>}
   </View>
   const section = (title: string, count?: string) => <><Rule gapTop={22} style={{ height: 2, opacity: 1 }} /><View style={styles.section}><Text size={22} color={r.ink} style={styles.heavy}>{title}</Text>{count ? <Text size={12} color={r.muted} style={styles.bold}>{count}</Text> : null}</View></>
-  const row = (title: string, subtitle: string | undefined, onPress: () => void, thumb?: ReactNode) => <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" onPress={onPress} style={[styles.row, { borderBottomColor: r.hairline }]}>
+  const row = (title: string, subtitle: string | undefined, onPress: () => void, thumb?: ReactNode, last = false) => <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" onPress={onPress} style={[styles.row, { borderBottomColor: r.hairline, borderBottomWidth: last ? 0 : 1 }]}>
     <View style={styles.flex}><Text size={15} color={r.list} style={styles.bold}>{title}</Text>{subtitle ? <Text size={12} color={r.muted} style={styles.subtitle}>{subtitle}</Text> : null}</View>{thumb}<MdiIcon name="chevron-right" size={18} color={r.ink} />
   </TouchableOpacity>
   const field = (label: string, value: string, hint: string, readOnly = false, onChangeText = setDraft, maxLength?: number) => <View style={styles.field}>
@@ -181,9 +181,8 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
           })
         })}{row(t('password_title'), undefined, () => { if (session) { setMessage(''); setPage('password') } })}</> : null}
         {section(t('account_switch_section'))}
-        {row(t('spaces_manage'), undefined, onManageData)}
         {row(t('spaces_title'), undefined, () => { setPage('spaces') })}
-        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { void requestLogin({ reason: 'switch', source: 'E06-account', returnPolicy: 'restorePrevious' }) })}
+        {row(t('account_switch'), t('account_other_spaces', { names: others || t('account_none') }), () => { void requestLogin({ reason: 'switch', source: 'E06-account', returnPolicy: 'restorePrevious' }) }, undefined, true)}
         {rows.includes('logout') ? <View style={styles.logout}><SecondaryButton compact danger label={t('account_logout')} onPress={() => { void run(onLogout, 'account_logout_failed') }} disabled={busy} style={styles.button} /></View> : null}
       </> : page === 'spaces' ? <AccountSpaces onManageData={onManageData} /> : page === 'edit' ? <>
         <View style={styles.avatar}>{avatarCircle(96, draftAvatar, draft)}</View>
