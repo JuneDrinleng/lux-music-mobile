@@ -134,7 +134,7 @@ test('all imported Settings screens and nested pages use the shared transition, 
     assert.ok(under(node, 'SettingsPage'), `Screen bypasses SettingsPage: ${tag(node)}`)
   }
   for (const [file, helper] of [
-    ['src/screens/Account/AccountPage.tsx', 'useSettingsSubpage'], // account / edit / devices / spaces / password
+    ['src/screens/Account/AccountPage.tsx', 'useSettingsSubpage'], // account / devices / spaces / password
     ['src/screens/Login/ChangePassword.tsx', 'useSettingsBack'], // parent's subpage surface
     ['src/screens/AdminConsole/AdminConsoleLayer.tsx', 'SettingsPage'], // dashboard / users / invites / playlists / service
     ['src/screens/AudioEffects/index.tsx', 'useSettingsTransition'], // EQ / loudness+gapless detail
@@ -565,7 +565,8 @@ test('all conditional internal routes render through the shared ancestor scene h
   assert.match(scene, /active && index > 0 \? style : null/)
   assert.doesNotMatch(scene, /display:|opacity: 0|height: 0/)
   assert.match(read('src/screens/Account/AccountPage.tsx'), /<KeyboardAvoidingView/)
-  assert.match(read('src/screens/Account/AccountPage.tsx'), /<IconButton name="check" size=\{28\}/)
+  assert.match(read('src/screens/Account/AccountPage.tsx'), /<AccountProfileSheet/)
+  assert.match(read('src/screens/Account/AccountProfileSheet.tsx'), /<MagazineSheet/)
 })
 
 test('retained background scenes cannot intercept system back, including nested inactive hosts', () => {

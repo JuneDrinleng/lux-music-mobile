@@ -60,8 +60,8 @@
 | 26 | 添加 / 移动到歌单（含行内新建列表） | `components/MusicAddModal/*`（`Title`、`TargetPlaylistList`、`CreateUserList`；由搜索、队列、歌单搜索、歌单详情调起）；多选版 `MusicMultiAddModal/*` 共用同一列表 | `pages-v2/26A/B/C-add-to-playlist.png`（旧稿 26 作废） |
 | 27 | 设置主页 | `Tabs/SettingsTab.tsx` | `27-settings.png` |
 | 28 | 设置搜索（含无结果） | `SharedTopBar.tsx`（settings 模式）、`SettingsTab.tsx` `emptySearchCard` | `28-settings-search.png` |
-| 29 | 个人资料 | `SettingsTab.tsx`（profileDetail 层） | `29-profile.png` |
-| 30 | 修改昵称 / 签名弹窗 | `SettingsTab.tsx`（`isNameModalVisible` / `isSignatureModalVisible`） | `30-edit-nickname.png` |
+| 29 | 账号二级页 B · 点行即改 | `src/screens/Account/AccountPage.tsx` | `/workspace/dev-bot/account-redesign/B.png`（June 2026-11-06 选定；旧 29 存档） |
+| 30 | 头像 / 昵称 / 签名 / 性别单项面板 | `AccountProfileSheet.tsx` → `MagazineSheet` | `/workspace/dev-bot/account-redesign/B-edit.png`（旧 30 存档） |
 | 31 | 语言 | `SettingsTab.tsx`（`language`） | `31-language.png` |
 | 32 | 主题 | `SettingsTab.tsx`（`theme`）、`src/theme/luxTokens.ts` | `32-theme.png` |
 | 33 | 统计页样式 | `SettingsTab.tsx`（`statsPageStyle`） | `33-stats-style.png` |
@@ -290,6 +290,16 @@
 - 分组：主线 → 区块标题（中文）+ 右侧英文 meta（APPEARANCE / SEARCH & PLAY / DATA & SYNC / DEBUG / ABOUT）。
 - 资料头：上距 22，56 头像 + 22/800 单行昵称；下方 12 号单行签名与同步胶囊同行。头像、昵称、签名及箭头为账户按钮，胶囊为同级独立同步按钮，不嵌套。取消独立同步栏主线、标题和整行；账户与外观等分组上移，主线上距 22 / 头距线 6。服务器、账号、连接状态及最近成功同步/活跃移到两条同步详情路径的连接信息区；无时间戳写暂无记录。
 - 设置主页的重复「账户」行及其空分组已移除；资料头仍打开完整 AccountPage，退出登录保留在 AccountPage 内。`iconWrap.red` 危险语义令牌保留。
+
+#### 账号页 B「点行即改」（June 2026-11-06 北京时间定）
+
+本小节覆盖历史 `29-profile.png`、`30-edit-nickname.png` 的资料布局；当前实现以 `AccountPage.tsx`、[design-system.md](design-system.md#账号二级页-b点行即改) 和 `/workspace/dev-bot/account-redesign/plan.md` §6 为准，参考图为 `B.png`、`B-edit.png`。
+
+二级页依次为共享返回 →「SETTINGS · 账号」眉题 → 32/38/800「账号」H2 → 12/16 只读身份行 →「资料」四行（头像、昵称、个性签名、性别）。本地身份说明无需登录，LX 标识方式与本机范围，Lux 保留用户名／服务器／管理员或成员及登录名只读说明。资料四行无左侧图标块，当前值放副标题，头像右侧为 40 圆形缩略图；主文 16/22/700、最小行高 62、上下 10、行间 hairline、18 `quiet` 箭头。22 页边距、墨色主线、22/28 栏目标题及主题令牌不变。
+
+顶部大头像／大昵称 hero 和「编辑」按钮、三级「编辑资料」页面壳移除。原 96 头像展示／更换头像与裁切、昵称与水印用途说明、签名 140 字及计数、性别三选、保存范围和失败反馈分别迁到单项 `MagazineSheet`。面板使用 B 刊头：纸底、顶角 6、无抓手、3px 顶墨线、20/26/800 标题、34 可见／44 触达关闭；底部墨线下为取消文字与 44 高墨色保存按钮。选图／性别选择只改草稿，未改或提交中禁用保存，提交中显示加载。关闭、键盘、放弃确认与失败保稿按 [交互规范](interaction-spec.md#账号二级页-b点行即改) 实现。
+
+本地与 LX 仍共用 local 资料空间，只在本机保存；Lux 单项保存仍走四字段 `PATCH /api/me/profile`，提交前在同身份／同空间共享串行队列内重读最新资料，仅替换当前字段，远端成功才应用本机。Lux 离线或远端失败保留草稿、提示错误，不退为本机成功。安全组、设备／密码页与退出保持既有样式和去向；本机账号与切换两入口保留功能和路由，仅账号主页「切换」组以 B 图的 62 行高／16 主文／1px 主线／`quiet` 箭头覆盖旧 56／15／2px／`ink` 几何，PR／结果单列这处样式变化及按已选方案优先的原因。设置主页个人卡与独立同步胶囊不改。
 
 ### 4.15 弹窗与底部面板
 - **居中弹窗**：左右 22，`paper` 底，圆角 8，**顶部 3px 墨线**（像杂志插页），无阴影；内边距 22 / 22 / 18。结构：眉题 → 22/800 标题 → 14/21 `muted` 说明 → 内容（下划线输入 / 列表）→ 等宽双按钮。遮罩统一 `scrim.import`。
