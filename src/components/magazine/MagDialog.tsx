@@ -1,7 +1,7 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, type ReactNode } from 'react'
-import { Modal, TouchableOpacity, View } from 'react-native'
+import { Modal, Pressable, StyleSheet, View } from 'react-native'
 
 import Text from '@/components/common/Text'
 import { sharedLuxStyles, useLuxTheme } from '@/theme/LuxTheme'
@@ -104,7 +104,7 @@ const DialogCard = memo(({
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)
   return (
-    <View style={[styles.card, clipboardLayout ? { borderRadius: 6, paddingHorizontal: 20, paddingBottom: 20, transform: [{ translateY: -50 }] } : null]}>
+    <View collapsable={false} style={[styles.card, clipboardLayout ? { borderRadius: 6, paddingHorizontal: 20, paddingBottom: 20, transform: [{ translateY: -50 }] } : null]}>
       <View style={[styles.inkBar, clipboardLayout ? { marginHorizontal: -20, marginBottom: 20 } : null]} />
       {eyebrow
         ? (
@@ -221,31 +221,23 @@ export const MagDialog = memo(({
     >{children}</DialogCard>
   )
 
-  if (embedded) {
-    return (
-      <TouchableOpacity
-        style={styles.root}
-        activeOpacity={1}
+  const content = (
+    <View style={styles.root}>
+      {/* Keep the backdrop out of the card's responder chain so children can scroll. */}
+      <Pressable
+        style={StyleSheet.absoluteFill}
         onPress={bgHide ? onClose : undefined}
-      >
-        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          {card}
-        </TouchableOpacity>
-      </TouchableOpacity>
-    )
-  }
+        accessible={false}
+      />
+      {card}
+    </View>
+  )
+
+  if (embedded) return content
 
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <TouchableOpacity
-        style={styles.root}
-        activeOpacity={1}
-        onPress={bgHide ? onClose : undefined}
-      >
-        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          {card}
-        </TouchableOpacity>
-      </TouchableOpacity>
+      {content}
     </Modal>
   )
 })
