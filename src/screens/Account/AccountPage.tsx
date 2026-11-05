@@ -155,7 +155,7 @@ export default function AccountPage({ host, lux, nickname, avatar, onBack, onLog
     <StatusBar />
     <FocusVisibleScrollView contentContainerStyle={[styles.content, { paddingBottom: 28 + bottom }]} keyboardShouldPersistTaps="handled">
       <View style={styles.top}><BackButton compact onPress={back} accessibilityLabel={t('back')} /></View>
-      <Text size={11} color={r.eyebrow} style={styles.eyebrow}>{t(eyebrow)}</Text>
+      <Text size={11} color={r.eyebrow} style={[styles.eyebrow, page === 'account' ? styles.accountEyebrow : null]}>{t(eyebrow)}</Text>
       {page === 'account' ? <>
         <Text size={32} color={r.display} style={[styles.title, styles.accountTitle]}>{t('account_title')}</Text>
         <Text size={12} color={r.muted} style={[styles.identity, styles.meta]} accessibilityHint={t(server ? 'account_username_hint' : 'account_local_username_hint')}>{server ? `${session?.user.username ?? ''} · ${host.replace(/^https?:\/\//, '').replace(/\/+$/, '')} · ${t(session?.user.role === 'admin' ? 'account_admin' : 'account_member')}` : t(lux || !host ? 'account_local_identity' : 'account_lx_identity')}</Text>
@@ -210,11 +210,12 @@ const useStyles = sharedLuxStyles(() => createStyle({
   page: { flex: 1 },
   content: { paddingHorizontal: 22 },
   top: { marginTop: 10, height: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  eyebrow: { marginTop: 6, lineHeight: 14, fontWeight: '700', letterSpacing: 2 },
+  eyebrow: { marginTop: 6, fontWeight: '700', letterSpacing: 2 },
   title: { lineHeight: 38, fontWeight: '800' },
   heavy: { fontWeight: '800' },
   bold: { fontWeight: '700' },
   flex: { flex: 1, minWidth: 0 },
+  accountEyebrow: { lineHeight: 14 },
   accountTitle: { marginTop: 6, letterSpacing: -0.8 },
   identity: { marginTop: 8 },
   meta: { lineHeight: 16 },
