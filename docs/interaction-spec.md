@@ -134,6 +134,10 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 
 `MagDialog.tsx` 使用原生 Modal 的 fade，按钮/遮罩关闭与 onRequestClose 汇入 onClose，动画时长/曲线由平台控制，没有应用内统一参数。输入键盘相关让位保留组件现状。
 
+- 弹窗内长内容必须置于有界的 ScrollView / FlatList 中并可上下滚动；`VersionModal.tsx` 的更新日志保留 `ScrollView`、`maxHeight: 220` 与 `nestedScrollEnabled`。
+- `MagDialog` 的背景点击层与普通 View 卡片必须为兄弟节点，背景绝对填充，卡片绘制在背景之上；卡片不得用 Touchable / Pressable（包括空 onPress）包裹来阻止穿透，也不得捕获子内容的滚动或输入手势。卡片保留原生 View（`collapsable={false}`），点击卡片空白处不关闭。
+- 点击卡片外仅在 `bgHide=true` 时调用 onClose；`bgHide=false` 时仍阻挡底页触摸但不关闭。embedded 与原生 Modal 共用相同内容结构；embedded 返回继续由宿主处理，原生 Modal 保留 `onRequestClose={onClose}`，不以 bgHide 限制系统返回。按钮各自的回调、禁用态、尺寸、位置、圆角、遮罩色与动画保持现状。源码守护见 `scripts/dialog-scroll.src-test.mjs`；Android 长日志滚动、输入、遮罩和返回仍需真机确认。
+
 **待统一**：`common/Modal.tsx`、ChoosePath 和自定义源导入弹层等历史组件仍有各自的 fade、返回与文件授权处理；未迁移为 MagazineSheet。原生选择器/图片裁切由系统决定过渡。它们不应作为新整页的实现范本。
 
 ## 歌单导入歌曲
