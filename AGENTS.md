@@ -11,3 +11,5 @@
 新增或修改任何交互时，遵循并同步更新 [docs/interaction-spec.md](docs/interaction-spec.md)（软件交互规范）；页面过渡与返回行为复用其中指定的共享实现。
 
 改播放详情页相关实现（PlayDetail、PlayerTransport、SeekBar、LyricPreview、顶栏、底部弹出页转场）前，先读 [播放详情页定稿规则（以 v0.5.3 为准，不可回退）](docs/design-system-magazine.md#播放详情页定稿规则以-v053-为准不可回退)。不得改回旧值；确需改动须先经 June 确认，并在 PR 描述中单独列出每项改动及原因，明确说明 June 已确认。
+
+June 于 2026-11-10 已批准「歌词预览区恒定占位，切歌时布局不跳」：`Pic.tsx` 唱片预算无条件包含 `PLAYER_RESERVED_LYRIC=124`；实际歌词预览容器恒定保留完整 160 设计高度（含译 / 音操作行），无歌词 / 加载中留空且不可点击，有歌词时底部对齐。其它播放页定稿数值及断言不变。
