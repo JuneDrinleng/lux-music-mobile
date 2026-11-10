@@ -17,6 +17,7 @@ const evaluate = (file, deps) => {
   const module = { exports: {} }
   new Script(`(function(require,module,exports){${js}\n})`).runInThisContext()(name => {
     if (name === '@/utils/sessionFence' && !(name in deps)) return { isSessionCoordinatorEnabled: () => true, sessionRemoteWritesFrozen: () => false, sessionWritesFrozen: () => false, isSessionOffline: () => false, sessionGeneration: () => 0, acceptsSessionGeneration: () => true }
+    if (name === '@/utils/perfDiagnostics') return { perfEnabled: false, registerRecordCount() {} }
     assert.ok(name in deps, `Unexpected dependency ${name}`)
     return deps[name]
   }, module, module.exports)

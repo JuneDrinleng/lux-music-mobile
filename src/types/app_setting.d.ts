@@ -8,6 +8,8 @@ declare global {
 
     interface AppSetting {
       version: string
+      /** Local performance capture, opt in. */
+      'debug.perfDiagnostics': boolean
       /**
        * 是否跟随系统切换亮暗主题
        */

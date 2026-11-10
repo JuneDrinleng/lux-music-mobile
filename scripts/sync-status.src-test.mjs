@@ -98,6 +98,8 @@ const hookHarness = () => {
 const magazine = Object.fromEntries(['BackButton', 'PrimaryButton', 'SecondaryButton', 'DOCK_BASE_HEIGHT', 'EmptyState', 'Hairline', 'IconButton', 'MagDialog', 'MagTopBar', 'OptionRow', 'SectionHeader', 'SettingRow', 'UnderlineInput'].map(key => [key, key]))
 magazine.DOCK_BASE_HEIGHT = 122
 const commonDeps = h => ({
+  '@/utils/perfDiagnostics/lifecycle': { exportDiagnosticsLog: async() => {} },
+  '@/utils/perfDiagnostics/useRenderCount': { useRenderCount() {} },
   '@/components/common/SettingsPage': { SettingsPage: ({ visible, children, onBack }) => visible ? children(onBack) : null },
   react: h.react,
   '@/utils/hooks/useKeepPlayBarOnKeyboard': { setKeepPlayBarOnKeyboard() {} },

@@ -1,4 +1,8 @@
 {
+  "setting_perf_diagnostics": "效能診斷",
+  "setting_perf_diagnostics_desc": "開啟後記錄啟動耗時、卡頓與渲染次數到日誌，可在日誌中匯出。啟動測量需完全退出後冷啟動生效，其餘測量立即生效。",
+  "setting_perf_export": "日誌 · 匯出應用程式日誌",
+  "setting_perf_export_failed": "日誌匯出失敗，請重試",
   "noise_link": "連動白噪音",
   "noise_stop_all": "全部停止",
   "noise_eyebrow": "睡眠與專注",

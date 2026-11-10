@@ -1,4 +1,8 @@
 {
+  "setting_perf_diagnostics": "性能诊断",
+  "setting_perf_diagnostics_desc": "开启后记录启动耗时、卡顿与渲染次数到日志，可在日志中导出。启动测量需彻底退出后冷启动生效，其余测量立即生效。",
+  "setting_perf_export": "日志 · 导出应用日志",
+  "setting_perf_export_failed": "日志导出失败，请重试",
   "noise_link": "联动白噪音",
   "noise_stop_all": "全部停止",
   "noise_eyebrow": "睡眠与专注",

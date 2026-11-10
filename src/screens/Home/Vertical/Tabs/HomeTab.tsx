@@ -1,3 +1,4 @@
+import { useRenderCount } from '@/utils/perfDiagnostics/useRenderCount'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 // Lux Proprietary
@@ -665,6 +666,7 @@ const OtherContent = memo(({
 
 // ---------- HomeTab ----------
 export default memo(() => {
+  useRenderCount('HomeTab')
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)

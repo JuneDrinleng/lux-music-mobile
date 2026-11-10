@@ -1,3 +1,4 @@
+import { useRenderCount } from '@/utils/perfDiagnostics/useRenderCount'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { memo, useState, type ReactNode } from 'react'
@@ -176,6 +177,7 @@ export const Dock = memo(({
   onNavPress?: (id: string) => void
   insetBottom?: number
 }) => {
+  useRenderCount('Dock')
   const styles = useStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)

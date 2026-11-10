@@ -1,5 +1,6 @@
 import { updateSetting as mergeSetting } from '@/config/setting'
 import state from './state'
+import { applyDiagnosticsSetting } from '@/utils/perfDiagnostics/lifecycle'
 
 
 export default {
@@ -15,6 +16,7 @@ export default {
   updateSetting(newSetting: Partial<LX.AppSetting>) {
     const result = mergeSetting(newSetting)
     state.setting = result.setting
+    applyDiagnosticsSetting(result.setting['debug.perfDiagnostics'])
     global.state_event.configUpdated(result.updatedSettingKeys, result.updatedSetting)
   },
 }
