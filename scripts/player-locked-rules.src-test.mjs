@@ -91,7 +91,7 @@ test('June 定稿：三行歌词不改变历史唱片预算', () => {
   has(pic, /const PLAYER_DISC_MIN = 200\s*\n/, '唱片下限')
   const budget = extract(pic, /const discSize = useMemo\(\(\) => \{([\s\S]*?)\n {2}\},/, '尺寸计算')
   has(budget, /winSize.width - PAGE_GUTTER \* 2 - 16/, '宽预算')
-  has(budget, /PLAYER_RESERVED_TITLE \+\s*\(hasLyricPreview \? PLAYER_RESERVED_LYRIC : 0\) \+\s*PLAYER_RESERVED_GAPS/, '高预算固定预留')
+  has(budget, /PLAYER_RESERVED_TITLE \+\s*PLAYER_RESERVED_LYRIC \+\s*PLAYER_RESERVED_GAPS/, 'June 2026-11-10 批准歌词预算恒定预留')
   has(budget, /scrollHeight - PLAYER_RESERVED_ABOVE - reservedBelow/, '实测视口')
   has(budget, /Math.max\(PLAYER_DISC_MIN, Math.min\(widthBased, heightBased\)\)/, '尺寸上下界')
 })
