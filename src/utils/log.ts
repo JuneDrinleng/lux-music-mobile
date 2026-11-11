@@ -2,12 +2,16 @@
 import { temporaryDirectoryPath, existsFile, appendFile, unlink, writeFile, readFile } from '@/utils/fs'
 
 const logPath = temporaryDirectoryPath + '/error.log'
+const pendingWrites = new Set<Promise<void>>()
+export const flushLogs = async() => { await Promise.all([...pendingWrites]) }
 
 const logTools = {
   tempLog: [] as Array<{ time: string, type: 'LOG' | 'WARN' | 'ERROR', text: string }> | null,
   writeLog(msg: string) {
     console.log(msg)
-    void appendFile(logPath, '\n----lx log----\n' + msg)
+    const pending = appendFile(logPath, '\n----lx log----\n' + msg)
+    pendingWrites.add(pending)
+    void pending.then(() => { pendingWrites.delete(pending) }, () => { pendingWrites.delete(pending) })
   },
   async initLogFile() {
     try {

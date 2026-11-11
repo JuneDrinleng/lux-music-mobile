@@ -1,4 +1,8 @@
 {
+  "setting_perf_diagnostics": "Performance diagnostics",
+  "setting_perf_diagnostics_desc": "Records startup time, JS stalls and render commits in the log for export. Restart the app completely to measure startup; other measurements take effect immediately.",
+  "setting_perf_export": "Logs · Export application log",
+  "setting_perf_export_failed": "Log export failed. Please try again.",
   "noise_link": "White noise mixer",
   "noise_stop_all": "Stop all",
   "noise_eyebrow": "SLEEP & FOCUS",

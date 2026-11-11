@@ -1,3 +1,4 @@
+import { useRenderCount } from '@/utils/perfDiagnostics/useRenderCount'
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
 import { SettingsSubpage, useSettingsSubpage } from '@/components/common/SettingsPage'
@@ -170,6 +171,7 @@ const moveArrayItem = <T,>(list: T[], from: number, to: number) => {
 }
 
 export default () => {
+  useRenderCount('PlaylistTab')
   const [smartDraft, setSmartDraft] = useState<ReturnType<typeof newSmartPlaylist> | null>(null)
   useEffect(startSmartPlaylists, [])
   const styles = useLuxStyles()

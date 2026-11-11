@@ -1,3 +1,4 @@
+import { perfEnabled, beginOperation, endOperation } from '@/utils/perfDiagnostics'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { log } from '@/utils/log'
 import { storageKey, getActiveSpace, isPerSpaceKey, isDataSpaceReady } from '@/utils/dataSpace'
@@ -45,6 +46,7 @@ const handleGetData = async<T>(partKeys: string): Promise<T> => {
 }
 
 export const saveData = async(key: string, value: any) => {
+  const perfStart = perfEnabled ? beginOperation() : undefined
   key = storageKey(key)
   const datas: Array<[string, string]> = []
   buildData(key, value, datas)
@@ -56,6 +58,8 @@ export const saveData = async(key: string, value: any) => {
     // saving error
     log.error('storage error[saveData]:', key, e.message)
     throw e
+  } finally {
+    if (perfStart) endOperation('saveData', perfStart, datas.reduce((total, [, value]) => total + value.length, 0))
   }
 }
 
@@ -173,6 +177,7 @@ export const getDataMultiple = async<T extends readonly string[]>(keys: T) => {
 }
 
 export const saveDataMultiple = async(datas: Array<[string, any]>) => {
+  const perfStart = perfEnabled ? beginOperation() : undefined
   datas = datas.map(([key, value]) => [storageKey(key), value])
   const allData: Array<[string, string]> = []
   for (const [key, value] of datas) {
@@ -185,6 +190,8 @@ export const saveDataMultiple = async(datas: Array<[string, any]>) => {
     // save error
     log.error('storage error[saveDataMultiple]:', e.message)
     throw e
+  } finally {
+    if (perfStart) endOperation('saveDataMultiple', perfStart, allData.reduce((total, [, value]) => total + value.length, 0))
   }
 }
 

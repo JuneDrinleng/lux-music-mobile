@@ -23,6 +23,8 @@ const attribute = (node, name) => (node.attributes ?? node.openingElement?.attri
 
 // Explicit reviewed inventory. A new Settings entry MUST be audited here and in the spec.
 const entries = {
+  setting_perf_diagnostics: "() => { updateSetting({ 'debug.perfDiagnostics': !perfDiagnostics }) }",
+  setting_perf_export: "() => { void exportDiagnosticsLog().catch(() => { toast(t('setting_perf_export_failed'), 'long') }) }",
   setting_basic_lang: 'handleOpenLanguageDetail',
   setting_lux_theme: 'handleOpenThemeDetail',
   setting_stats_page_style: 'handleOpenStatsPageStyleDetail',

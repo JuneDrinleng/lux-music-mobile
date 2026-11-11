@@ -41,6 +41,7 @@ const harness = () => {
   }, { get: (target, key) => target[key] ?? ((...args) => emit(key, ...args)) })
   const background = { setInterval: fn => { timer = fn; return 1 }, clearInterval: () => { timer = null } }
   const deps = {
+    '@/utils/perfDiagnostics': { perfEnabled: false, registerRecordCount() {} },
     '@/store/player/state': state,
     '@/store/setting/state': { setting: { 'player.togglePlayMethod': 'listLoop', 'player.volume': 1, 'player.playbackRate': 1 } },
     '@/utils/dataSpace': { onDataSpaceChanged: () => {}, onDataSpaceWillChange: () => {}, getActiveSpace: () => 'space', storageKey: key => key },
