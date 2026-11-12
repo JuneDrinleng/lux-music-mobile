@@ -12,6 +12,15 @@ import { magazineRoles } from '@/theme/magazineRoles'
 import { createStyle } from '@/utils/tools'
 import KaraokeLine from './KaraokeLine'
 
+// June 2026-11-12: design units at the 375 baseline; extras donate unused height.
+const LYRIC_TIERS = [
+  { neighborHeight: 32, currentHeight: 44, neighborSize: 17, currentSize: 24 },
+  { neighborHeight: 27, currentHeight: 36, neighborSize: 16, currentSize: 22 },
+  { neighborHeight: 22, currentHeight: 28, neighborSize: 14, currentSize: 19 },
+]
+const LYRIC_RESIZE_MS = 200
+const LYRIC_LINES_HEIGHT = 108
+
 export default memo(({ lines, index, active, onPress }: {
   lines: Line[]
   index: number
@@ -28,12 +37,52 @@ export default memo(({ lines, index, active, onPress }: {
   const progress = useRef(new Animated.Value(1)).current
   const previous = useRef({ lines, index, active })
   const [outgoing, setOutgoing] = useState<{ lines: Line[], index: number } | null>(null)
-  // Reserve extras by availability, not by the current sentence's contents.
-  const extraCount = Number(translation && available.translation) + Number(roma && available.roma)
-  const extraHeight = styles.extra.height * extraCount
-  const height = styles.neighbor.height * 2 + styles.currentSlot.height + extraHeight
+  const showTranslation = Boolean(translation && lines[index]?.translation)
+  const showRoma = Boolean(roma && lines[index]?.roma)
+  const extraCount = Number(showTranslation) + Number(showRoma)
+  const [extraWeights, setExtraWeights] = useState({ translation: Number(showTranslation), roma: Number(showRoma) })
+  const weightsRef = useRef(extraWeights)
+  const resize = useRef(new Animated.Value(1)).current
+  useLayoutEffect(() => {
+    const from = weightsRef.current
+    const to = { translation: Number(showTranslation), roma: Number(showRoma) }
+    if (from.translation === to.translation && from.roma === to.roma) return
+    resize.setValue(0)
+    const listener = resize.addListener(({ value }) => {
+      const weights = {
+        translation: from.translation + (to.translation - from.translation) * value,
+        roma: from.roma + (to.roma - from.roma) * value,
+      }
+      weightsRef.current = weights
+      setExtraWeights(weights)
+    })
+    const animation = Animated.timing(resize, {
+      toValue: 1,
+      duration: LYRIC_RESIZE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    })
+    animation.start()
+    return () => { animation.stop(); resize.removeListener(listener) }
+  }, [resize, showTranslation, showRoma])
+  const count = extraWeights.translation + extraWeights.roma
+  const low = Math.min(1, Math.floor(count))
+  const mix = count - low
+  const tier = LYRIC_TIERS[low]
+  const nextTier = LYRIC_TIERS[low + 1]
+  const interpolate = (key: keyof typeof tier) => tier[key] + (nextTier[key] - tier[key]) * mix
+  const rowStyles = createStyle({
+    neighbor: { height: interpolate('neighborHeight'), justifyContent: 'center' },
+    currentSlot: { height: interpolate('currentHeight'), justifyContent: 'center' },
+  })
+  const neighborSize = interpolate('neighborSize')
+  const currentSize = interpolate('currentSize')
+  // Use one scaled 108-unit viewport; derive the current row to avoid rounding drift.
+  const height = styles.lines.height
+  const extraHeight = styles.extra.height * count
+  const currentHeight = height - rowStyles.neighbor.height * 2 - extraHeight
   // Extras sit below the current line: entry travels farther than exit.
-  const step = (styles.neighbor.height + styles.currentSlot.height) / 2
+  const step = (rowStyles.neighbor.height + currentHeight) / 2
   const transitioning = active && outgoing?.lines === lines && outgoing.index === index - 1
 
   useLayoutEffect(() => {
@@ -66,19 +115,23 @@ export default memo(({ lines, index, active, onPress }: {
     const next = lines[at + 1]
     return (
       <>
-        <View style={styles.neighbor}>
-          <Text size={14} color={r.faint} numberOfLines={1}>{previousLine?.text ?? ''}</Text>
+        <View style={rowStyles.neighbor}>
+          <Text size={neighborSize} color={r.faint} numberOfLines={1}>{previousLine?.text ?? ''}</Text>
         </View>
-        <View style={styles.currentSlot}>
+        <View style={[rowStyles.currentSlot, { height: currentHeight }]}>
           {current ? (foreground
-            ? <KaraokeLine line={current} size={19} style={styles.current} active={active} singleLine />
-            : <Text size={19} color={r.display} style={styles.current} numberOfLines={1}>{current.text}</Text>
+            ? <KaraokeLine line={current} size={currentSize} style={styles.current} active={active} singleLine />
+            : <Text size={currentSize} color={r.display} style={styles.current} numberOfLines={1}>{current.text}</Text>
           ) : null}
         </View>
-        {translation && available.translation ? <View style={styles.extra}><Text size={13} color={r.muted} numberOfLines={1}>{current?.translation ?? ''}</Text></View> : null}
-        {roma && available.roma ? <View style={styles.extra}><Text size={13} color={r.muted} numberOfLines={1}>{current?.roma ?? ''}</Text></View> : null}
-        <View style={styles.neighbor}>
-          <Text size={14} color={r.faint} numberOfLines={1}>{next?.text ?? ''}</Text>
+        <View style={[styles.extra, { height: styles.extra.height * extraWeights.translation, opacity: extraWeights.translation, overflow: 'hidden' }]}>
+          {showTranslation ? <Text size={13} color={r.muted} numberOfLines={1}>{current?.translation ?? ''}</Text> : null}
+        </View>
+        <View style={[styles.extra, { height: styles.extra.height * extraWeights.roma, opacity: extraWeights.roma, overflow: 'hidden' }]}>
+          {showRoma ? <Text size={13} color={r.muted} numberOfLines={1}>{current?.roma ?? ''}</Text> : null}
+        </View>
+        <View style={rowStyles.neighbor}>
+          <Text size={neighborSize} color={r.faint} numberOfLines={1}>{next?.text ?? ''}</Text>
         </View>
       </>
     )
@@ -116,10 +169,8 @@ export default memo(({ lines, index, active, onPress }: {
 const useStyles = sharedLuxStyles(() => createStyle({
   preview: { minHeight: 48, position: 'relative' },
   accent: { position: 'absolute', left: -22, top: 0, bottom: 0, width: 3 },
-  lines: { minWidth: 0, overflow: 'hidden' },
+  lines: { height: LYRIC_LINES_HEIGHT, minWidth: 0, overflow: 'hidden' },
   layer: { position: 'absolute', top: 0, left: 0, right: 0 },
-  neighbor: { height: 22, justifyContent: 'center' },
-  currentSlot: { height: 28, justifyContent: 'center' },
   extra: { height: 18, justifyContent: 'center' },
   current: { fontWeight: '800' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, minHeight: 44 },

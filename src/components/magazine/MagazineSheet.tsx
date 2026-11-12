@@ -5,6 +5,7 @@ import {
   Animated,
   Easing,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   TouchableOpacity,
@@ -70,6 +71,9 @@ export interface MagazineSheetProps {
   radioLayout?: boolean
   /** Approved 10A download geometry; keep its 34pt close button. */
   downloadLayout?: boolean
+  /** Account B single-field task; no list tool row, native resized viewport. */
+  profileLayout?: boolean
+  closeDisabled?: boolean
   loading?: boolean
   empty?: { text: string, eyebrow?: string }
 }
@@ -106,6 +110,9 @@ const useStyles = sharedLuxStyles((colors) => {
       paddingTop: 14,
       paddingBottom: 8,
     },
+    profileHeader: { paddingTop: 20, paddingBottom: 0 },
+    profileEyebrow: { lineHeight: 14 },
+    profileTitle: { marginTop: 8, lineHeight: 26 },
     headerTop: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -242,6 +249,8 @@ export const MagazineSheet = memo(({
   recommendationLayout = false,
   radioLayout = false,
   downloadLayout = false,
+  profileLayout = false,
+  closeDisabled = false,
   loading = false,
   empty,
 }: MagazineSheetProps) => {
@@ -251,12 +260,15 @@ export const MagazineSheet = memo(({
   const t = useI18n()
   const { height: winH } = useWindowDimensions()
   const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(winH)
   const panelH = useMemo(() => {
     const base = Math.floor(winH * heightRatio)
+    // Android already resizes this Modal. Do not subtract IME height twice.
+    if (profileLayout) return Math.min(base, viewportHeight)
     if (keyboardHeight <= 0) return base
     // Keep the sheet above the keyboard without covering the footer / list badly.
     return Math.max(Math.floor(winH * 0.42), base - keyboardHeight)
-  }, [winH, heightRatio, keyboardHeight])
+  }, [winH, heightRatio, keyboardHeight, profileLayout, viewportHeight])
   const anim = useRef(new Animated.Value(0)).current
   const [mounted, setMounted] = useState(visible)
   const closingRef = useRef(false)
@@ -311,7 +323,7 @@ export const MagazineSheet = memo(({
   }, [visible, anim, mounted])
 
   const requestClose = () => {
-    if (closingRef.current) return
+    if (closingRef.current || closeDisabled) return
     onClose()
   }
 
@@ -329,29 +341,31 @@ export const MagazineSheet = memo(({
   const showEmpty = !loading && !children && empty
 
   const content = (
-      <View style={[styles.root, inlineBottomInset != null ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: inlineBottomInset, zIndex: 10 } : null]}>
+      <View onLayout={profileLayout ? event => { setViewportHeight(event.nativeEvent.layout.height) } : undefined} style={[styles.root, inlineBottomInset != null ? { position: 'absolute', top: 0, left: 0, right: 0, bottom: inlineBottomInset, zIndex: 10 } : null]}>
         <Animated.View style={[styles.mask, { opacity: maskOpacity }, radioLayout || downloadLayout ? { backgroundColor: r.ink } : null]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={requestClose} />
         </Animated.View>
         <Animated.View style={[styles.panel, { height: panelH, transform: [{ translateY }] }, inlineBottomInset != null ? { maxHeight: '100%' } : null]}>
           <View style={styles.inkBar} />
-          <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout || downloadLayout ? { paddingTop: 16, paddingBottom: 0 } : null]}>
+          <View style={[styles.header, inviteLayout || importLayout || lyricLayout || recommendationLayout || radioLayout || downloadLayout ? { paddingTop: 16, paddingBottom: 0 } : null, profileLayout ? styles.profileHeader : null]}>
             <View style={styles.headerTop}>
               <View style={styles.headerText}>
                 {eyebrow
-                  ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
+                  ? <Text size={magType.eyebrow.size} color={r.eyebrow} style={[styles.eyebrow, profileLayout ? styles.profileEyebrow : null]} numberOfLines={1}>{eyebrow}</Text>
                   : null}
-                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout || downloadLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null]} numberOfLines={1}>{title}</Text>
+                <Text size={magType.sheetTitle.size} color={inviteLayout || timerLayout || radioLayout || downloadLayout || profileLayout ? r.ink : r.display} style={[styles.title, lyricLayout ? { lineHeight: 26, color: r.ink } : null, profileLayout ? styles.profileTitle : null]} numberOfLines={profileLayout ? undefined : 1}>{title}</Text>
               </View>
               <TouchableOpacity
                 style={[styles.close, timerLayout || recommendationLayout || radioLayout ? { width: 28, height: 28, borderRadius: 14 } : null]}
                 activeOpacity={0.7}
                 onPress={requestClose}
+                disabled={closeDisabled}
                 hitSlop={timerLayout || recommendationLayout || radioLayout ? 8 : CLOSE_HIT_SLOP}
                 accessibilityRole="button"
+                accessibilityState={{ disabled: closeDisabled }}
                 accessibilityLabel={t('close')}
               >
-                <MdiIcon name="close" size={18} color={r.ink} />
+                <MdiIcon name="close" size={profileLayout ? 20 : 18} color={r.ink} />
               </TouchableOpacity>
             </View>
             {subject
@@ -366,7 +380,7 @@ export const MagazineSheet = memo(({
                   </View>
                   )
                 : null}
-            {!recommendationLayout
+            {!recommendationLayout && !profileLayout
               ? (
                 <>
                   <View style={[styles.toolRule, inviteLayout || importLayout || lyricLayout || radioLayout || downloadLayout ? { height: 2, opacity: 1, marginTop: 10 } : null]} />
@@ -433,5 +447,5 @@ export const MagazineSheet = memo(({
         </Animated.View>
       </View>
   )
-  return inlineBottomInset != null ? content : <Modal transparent visible animationType="none" onRequestClose={requestClose} statusBarTranslucent>{content}</Modal>
+  return inlineBottomInset != null ? content : <Modal transparent visible animationType="none" onRequestClose={requestClose} statusBarTranslucent>{profileLayout ? <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'ios'} behavior="padding">{content}</KeyboardAvoidingView> : content}</Modal>
 })

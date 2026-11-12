@@ -37,7 +37,7 @@ const PLAYER_RESERVED_ABOVE = 48
 const PLAYER_RESERVED_TITLE = 90
 /** Keep the pre-three-line disc budget; actual preview height is measured independently. */
 const PLAYER_RESERVED_LYRIC = 124
-/** Record-to-title 30 + title-to-lyrics 18; the lyric spacer no longer reserves height. */
+/** Keep the disc budget: record-to-title 30 + title-to-lyrics 8 + preview bottom margin 10. */
 const PLAYER_RESERVED_GAPS = 30 + 18 + 0
 const PLAYER_DISC_MIN = 200
 
@@ -91,13 +91,13 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
   const discSize = useMemo(() => {
     const widthBased = winSize.width - PAGE_GUTTER * 2 - 16
     const reservedBelow = PLAYER_RESERVED_TITLE +
-      (hasLyricPreview ? PLAYER_RESERVED_LYRIC : 0) +
+      PLAYER_RESERVED_LYRIC +
       PLAYER_RESERVED_GAPS
     const heightBased = scrollHeight > 0
       ? scrollHeight - PLAYER_RESERVED_ABOVE - reservedBelow
       : widthBased
     return Math.max(PLAYER_DISC_MIN, Math.min(widthBased, heightBased))
-  }, [hasLyricPreview, scrollHeight, winSize.width])
+  }, [scrollHeight, winSize.width])
 
   const source = getMusicSource(playMusicInfo.musicInfo)
   const sourceLabel = source && source !== 'local' ? t(sourceShortKey(source)) : ''
@@ -484,14 +484,12 @@ export default ({ active, onLyricPress }: { componentId: string, active: boolean
 
         <View style={styles.flexGapTitle} />
 
-        {hasLyricPreview
-          ? (
-            <>
-              <LyricPreview lines={lyricLines} index={line} active={active} onPress={onLyricPress} />
-              <View style={styles.flexGapLyric} />
-            </>
-            )
-          : <View style={styles.flexGapLyric} />}
+        <View style={styles.lyricPreviewSlot}>
+          {hasLyricPreview
+            ? <LyricPreview lines={lyricLines} index={line} active={active} onPress={onLyricPress} />
+            : null}
+        </View>
+        <View style={styles.flexGapLyric} />
       </ScrollView>
 
       <PlayerTransport
@@ -559,13 +557,21 @@ const useLuxStyles = sharedLuxStyles(() => (createStyle({
   flexGapTitle: {
     flexGrow: 0,
     flexShrink: 0,
-    minHeight: 18,
+    minHeight: 8,
   },
   // Visible clearance comes from the action row and transport, not another spacer.
   flexGapLyric: {
     flexGrow: 0,
     flexShrink: 0,
     minHeight: 0,
+  },
+  // June 2026-11-10: keep the full preview + actions slot even before lyrics load.
+  lyricPreviewSlot: {
+    // June 2026-11-11: move lyrics up 10 without redistributing space around the disc.
+    marginBottom: 10,
+    height: 22 + 28 + 22 + 18 + 18 + 8 + 44,
+    flexShrink: 0,
+    justifyContent: 'flex-end',
   },
   recordWrap: {
     alignSelf: 'center',

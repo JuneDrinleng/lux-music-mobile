@@ -8,8 +8,8 @@
 
 - 一级：Home 主壳的首页 / 歌单 / 设置。竖屏为 `Home/Vertical/Main.tsx` 的三页 Pager + Dock；横屏 `Home/Horizontal/Main.tsx` 复用三 Tab，使用侧栏与 PlayerBar。
 - 二级：设置选项、音效、AI 助手、账号、管理员控制台、同步状态。使用 Home 内的内容层，不创建独立原生窗口，不用原生 Modal 充当页面，也不调用 `Navigation.setRoot` 打开设置子页。
-- 更深一级：音效详情、账号编辑/设备/数据空间/密码、管理员的用户/邀请/歌单/服务。同步地址检查/登录/注册/忘记密码移至根 LoginGate 内部。打开后只返回上一层，不能越级关闭整个设置。
-- 弹层：创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
+- 更深一级：音效详情、账号设备/数据空间/密码、管理员的用户/邀请/歌单/服务。同步地址检查/登录/注册/忘记密码移至根 LoginGate 内部。打开后只返回上一层，不能越级关闭整个设置。
+- 弹层：账号单字段资料编辑、创建/删除确认、退出与数据导入选择、文件选择、图片裁切、更新提示。这些是临时任务，允许遮罩覆盖主壳；不把整页内容伪装成弹层来绕过二级页规则。
 - 外部入口：GitHub Releases / 更新日志内 GitHub / 自定义源帮助交给 `openUrl`；图库裁切与系统文件授权由平台接管。它们不适用 App 内页面的固定过渡参数。
 
 完整设置页面清单（名字对应状态/路由，便于代码检索）：
@@ -24,9 +24,10 @@
 | 一起听布局 | `togetherLayout` | 同上 |
 | 同步地址与格式（含搜索命中） | LoginGate 主态 | `requestLogin` 根替换；方式、地址与凭据均为草稿 |
 | 缓存/下载与数据管理 | `resourceCache` | 同上，ResourceCacheDetail |
+| 关于 → 性能诊断 / 日志 · 导出应用日志 | 原地切换 / 系统分享面板，不产生二级页 | SettingsTab → perfDiagnostics/lifecycle |
 | 关于 → 当前版本 | `changelog` | 同上，VersionChangelogDetail；没有独立「关于」整页 |
 | AI 助手 | AiTokenStatusPage | SettingsTab → SettingsPage → 普通 View |
-| 资料 hero（头像；重复账户列表行已移除） | AccountPage → `edit` / `devices` / `spaces` / `password` | SettingsPage + useSettingsSubpage；ChangePassword 在账号的子页过渡面内 |
+| 设置资料 hero（头像；重复账户列表行已移除） | AccountPage → `devices` / `spaces` / `password`；四资料行分别开单字段面板 | 整页为 SettingsPage + useSettingsSubpage；字段编辑为 MagazineSheet；ChangePassword 在账号的子页过渡面内 |
 | 音效/均衡器 | AudioEffectsPage → 响度与无缝播放详情 | 横竖屏 Main 的应用内层；useSettingsTransition + useSettingsSubpage |
 | 管理员控制台（按条件显示） | dashboard → users / invites / playlists / service | AdminConsoleLayer → SettingsPage；内部 useSettingsTransition；loading / denied 是权限状态，不另算导航 |
 | 账户昵称右侧同步胶囊（全部状态可见） | 同步连接详情（成功/未同步/本地/进行中）或 SyncStatusPage（失败/过期/不兼容） | 状态与诊断保留持久 SettingsPage；修复地址/登录/换方式进入根 Gate |
@@ -45,6 +46,31 @@
 - mapSyncStatus 保留会话/版本/传输错误优先级；本地无服务器显示本地模式，已配置但关闭或断开显示未同步。Connecting... 与 Wait syncing... 仅是连接/握手阶段，显示连接中；status.status=true 显示已同步，不能推断正在传输。模型仅在显式 syncing 任务信号时展示同步中；当前 socket 没有该任务信号，不伪造。连接中、同步中点胶囊只开详情，不触发重连。
 - 成功/未同步/本地/进行中进入同步服务详情，保留地址历史管理、格式与暂停同步动作；身份、地址与凭据输入改走 Gate。失败/过期/不兼容沿原 SyncStatusPage 分流，保留重试、地址检查、离线、重新登录、本地用户与复制版本提示。两条路径均用 SyncConnectionInfo 展示服务器（可复制）、账号、连接状态及最近成功同步/活跃；没有有效时间戳显示暂无记录，历史时间戳不视为服务器在线证据。
 - 删除独立同步区的主线、标题与整行外形；信息及入口按上述位置迁移。状态刷新不自动打开新页或改变按钮分区，既有成功恢复关闭错误页行为保留。共享 SettingsPage 的 248ms 对称进出、逐层返回及 Dock 行为不变。
+
+## 性能诊断（第 1 批测量）
+
+- 入口：竖屏「设置」→「关于」→「性能诊断」，位于检查更新之后；复用 SettingRow，点整行切换右侧「开 / 关」，说明在行下方完整展示。所有账户模式与发布渠道可见，设置搜索可命中名称、说明及日志导出。未新增子页，不改变共享转场与返回。
+- `LX.AppSetting['debug.perfDiagnostics']` 默认关闭，沿用本机设置持久化；旧设置缺失或不是布尔 true 时迁移为关闭。开启后卡顿、存储/播放历史和五个组件提交次数立即开始测量；关闭立即取消 100ms 采样定时器并移除 AppState 监听，丢弃未汇总计数。开启、关闭各写一行含版本和设备型号的 `[perf]` 应用日志。
+- 启动测量需彻底划掉后台后重新打开。设置加载前只暂存时间戳，加载后开启则汇总、关闭则丢弃；不调整初始化顺序或 await。记录每个 init await 耗时、bootLog 时间点、启动至开屏消失总耗时，以及实际 reveal 与 homeBootDeadline 的差值。优先使用 JS performance.now；不支持时使用 Date.now，并标明时钟与模块加载时间。
+- 前台以 100ms 采样 JS 间隔，漂移严格大于 50ms 计为一次卡顿；每 60 秒一行 `[perf] minute` 汇总样本数、卡顿数、最大漂移、存储调用次数/总及最大耗时/总及最大字符串长度、当前历史条数、HomeTab / PlaylistTab / SettingsTab / Dock / PlayDetail 提交次数，然后清零。后台暂停定时器；回前台重新建立时间基准，保留未汇总计数，后台间隔不计为卡顿。存储长度复用原有 JSON 字符串，不额外序列化，也不记录内容或存储键。
+- 导出：竖屏「设置」→「关于」→「日志 · 导出应用日志」，先汇总当前未满一分钟的数据、等应用日志待写操作完成，再将现有缓存目录 `error.log` 的全文交给系统分享面板，用户选择保存或分享目标；失败显示三语提示，可重试。该动作在开关关闭时也可用，关闭时仅导出现有日志，不产生诊断行或定时器。此前竖屏没有可用的应用日志导出按钮，本次新增此入口并复用 `src/utils/log.ts` 的 getLogs；不移动已有入口。
+- 真机基线操作：打开性能诊断 → 冷启动 3 次（每次彻底划掉后台）→ 播放一首歌 2 分钟以上并在播放页停留一会 → 从上述入口导出 → 发给开发 Bot。完成后可关闭；本批不优化播放历史、启动顺序、渲染或歌词动画。
+
+## 账号二级页 B：点行即改
+
+June 于 **2026-11-06（北京时间）** 选定 `/workspace/dev-bot/account-redesign/plan.md` §6 的 B，视觉参考 `B.png`、`B-edit.png`。实现入口为 `src/screens/Account/AccountPage.tsx`，单项面板为 `AccountProfileSheet.tsx`，资料读写在 `src/plugins/sync/client/profile.ts`；本节替代旧三级「编辑资料」页及固定标题勾保存规则。
+
+- 二级账号页的标题为「SETTINGS · 账号」眉题、H2「账号」、只读身份行。「资料」依次有头像、昵称、个性签名、性别四行，各自显示当前值和明确字段编辑语义；昵称保留一起听用途说明，签名为空按既有默认文案显示，性别使用实际保存值。删除大头像／大昵称 hero、笼统「编辑」按钮和独立三级资料编辑页面壳；原字段、校验、裁切和保存功能全部迁到单项面板，不再有整页 `edit` 导航入口。
+- 点行只打开该字段的 `MagazineSheet`，同一时刻只允许一个编辑面板。打开时读取当前身份／资料空间和最新已保存资料作为内存草稿与 dirty 快照；不因头像选图、性别选择、失焦或关闭立即保存。头像保留系统图库 400×400、圆形辅助裁切、base64 仅在内存预览；取消图库不报错，图片必须再明确保存才应用。
+- 昵称提交 trim，保留一起听房间／分享水印说明，不新增必填或长度约束；空昵称沿用默认展示名。签名输入上限 140，并显示计数；提交 trim 后截取 140，等于默认签名文案时存空值，空签名展示时沿用默认。性别为男／女／未设置（`male` / `female` / `unknown`）。登录用户名保持只读，与昵称区别，不能在字段面板修改。
+- 面板保留当前保存范围、就近错误说明、取消与底部墨色「保存」按钮。无修改或提交中禁用保存，提交中加载；保存成功关闭面板，仍在原二级账号页，刷新字段行和设置主页个人卡。失败停留面板并保留草稿，可重试；远端失败不宣称已修改或已同步，不能降级为仅写本机。
+- 取消、右上关闭、遮罩及 Android 系统返回汇入同一关闭回调：IME 可见先收键盘；键盘已收起时，无修改直接关闭，脏草稿先确认「放弃修改」，取消确认继续编辑。提交和图库裁切期间锁住关闭／重复提交；保存完成前不能通过返回丢失在途任务。共享 `MagazineSheet` 保留原 220ms `out(cubic)` 底部进出和退出后卸载，未增加下拉跟手关闭。临时任务覆盖 Dock；输入、范围／错误、取消和保存位于可用面板视口内，小视口仍可滚动露出保存，不以固定键盘高度重复缩小 Android 视口。
+- 本地：只读本地用户／无需登录，四字段写本机 local 资料空间。LX：可见 LX Music 与本机范围，仍共用 local，资料不上传 LX。Lux：只读用户名／服务器／管理员或成员，面板说明服务端保存，仍走四字段 `PATCH /api/me/profile`；离线查看保留 Lux 身份与空间，允许查看和起草，但保存失败保留草稿，不伪装成本地模式。
+- 单项提交与后台资料拉取／应用按**同身份、同空间**共享串行队列。操作保留身份代次和空间快照，入队后及每次异步返回后验证仍匹配；仅替换当前编辑字段，再沿用服务端优先保存。Lux 提交前重新取得最新远端资料合并其余三项，重试也重新读取，避免超时或远端成功而本机部分落盘后把旧字段重发；队列中较早取得的后台响应不能在保存后覆盖它。没有对应会话／URL／token 或身份已改变时拒绝保存，旧任务不得落入新空间。
+- 保障边界：PATCH 失败不写本机；远端成功后的本机字段／头像落盘仍非原子，本机存储失败可能远端已更新，错误不能承诺所有字段均未修改。现有服务端没有版本冲突协议，即使先读取最新资料，也不能完全排除另一设备在读取与 PATCH 之间修改造成的覆盖；需要真机确认网络失败／重试和跨设备编辑边界。
+- 「切换」组保留「这台手机上的账号」「切换账号」原两个入口、账号列表与最近登录列表的区别、原 `resourceCache` 数据管理回调和 Gate 事务。为匹配已选 B 图，仅账号主页「切换」组改为 62 最小行高、16/22 主文、1px 主线与 `quiet` 箭头；这与旧 56／15／2px／`ink` 几何不同，以 `plan.md` B 节和 B 图优先，PR／结果须单列改样式及原因。Lux 安全组、设备数量未知提示、移除设备／退出其他设备确认、修改密码全部校验／token 轮换、退出时保留／删除本机数据确认保持原样式与去向。设置主页 hero、独立同步胶囊和管理员控制台入口不变。
+
+单项合并、Lux 并发／失败及账号页四行／无编辑 hero 的源码守护与单元测试随实现更新。Android IME、图库取消／裁切返回、脏确认、提交锁、大字长文、暗色主题、保存刷新及安全／切换仍须真机验收。
 
 ## 所有非一级页统一过渡（唯一共用实现）
 
@@ -81,7 +107,7 @@
 - 独立二级页：持久渲染 `<SettingsPage visible={...} onBack={...} bottomInset={...}>`，其 children 为接收 `back` 的函数。页内返回必须调用这个 `back`；组件保留退出内容，在动画完成后调用 onBack 并卸载。父层主动设置 visible=false 时也保留最后一帧内容到退出结束。
 - 已有独立挂载的页面（音效）：`useSettingsTransition()` 提供 `style` 与 `requestClose`；用 `requestClose(onBack)`，完成后才通知 host 卸载。
 - 内部状态子页：`useSettingsSubpage(root)` 提供 page / pages / setPage / style，配合 `<SettingsSubpage pages={pages} style={style}>{page => …}</SettingsSubpage>` 渲染整个祖先栈。前进时保留父页的原生视图、滚动位置和组件实例，新页叠在上方；只给最顶层子页施加共享过渡，祖先页保持完整不透明、原位可见，不使用条件卸载、display:none 或 opacity=0。返回按钮、三键和系统边缘返回手势走同一 requestClose，248ms 结束后才移除出栈页；返回到任一已有祖先均适用，连续返回不重复出栈，每次完成后解除共享 closing 防重入锁，下一层仍能正常退出。初始深链也渲染根父页；登录 Gate 内部所有深度同样启用共享转场；协议 welcome 到 Gate 是根替换。管理员沿用自己的 routeStack / useSettingsTransition(false)，同样交给 SettingsSubpage 渲染，不再只渲染当前 route。
-- SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定。资料编辑标题右侧勾按钮及各功能入口位置不变。
+- SettingsSubpage 按深度使用稳定 key，祖先页不接收触摸且对无障碍隐藏，视觉仍保持绘制；SubpageActiveContext 向嵌套子树传递激活状态，后台服务器检查、Lux/LX 登录及共享 Settings 返回监听不消费系统返回，防止异步状态更新重新注册监听后抢走前景页返回；栈宿主及各层使用 useLuxTheme 的纸底并裁切在共享 SettingsPage / SubpageSurface 的可见视口内，不改变 Dock 占位和键盘避让。账号、AuthFlow、同步登录、音效详情、统计/月报/回放、歌单在线搜索和管理员内部页共用此容器，任意更深层级遵循同一约定；账号字段编辑按上文使用临时单项面板。
 - 已有自己的返回拦截的内容传 `hardwareBack={false}`，由内容把按钮和硬件返回汇入同一个回调。无自定义逻辑时使用 SettingsPage 默认硬件返回处理。
 - 重复返回合并；再次打开会使旧的退出回调失效；卸载时停止动画并使未完成的回调失效。
 
@@ -108,11 +134,11 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 - `Home/Vertical/index.tsx` 是竖屏 Dock 显隐与占位的唯一来源，通过 `VisibleDockHeightContext` / `useVisibleDockHeight()` 共享同一帧的高度。开启 `common.autoHidePlayBar` 且键盘显示、没有保留请求时隐藏 Dock，占位立即为 0；关闭键盘或显式保留播放条/Dock 时使用包含导航、分隔线和系统 inset 的实际测量高度。保留最后一次非零测量供恢复使用，不在隐藏时清掉测量后等待再次 onLayout。首次测量前按 Dock 各段缩放高度估算，不能重复加 inset。
 - SettingsPage（背景及命中区）、设置主页、一起听聊天/邀请及其内联面板订阅这份高度，不再把固定 `122 + inset` 当作永远可见的空间。裁切后的设置子页不重复加 Dock；没有竖屏 provider 的横屏宿主仍使用 0，由横屏主壳布局。保留 Dock 时页面止于它的真实上沿，不能覆盖它的点击区域。
 - Android 保持窗口 resize，不在表单再次减键盘高度或新增 Android KAV height/padding。`FocusVisibleScrollView` 按实际原生视口测量；`UnderlineInput` 转发焦点并保留调用方 onFocus/onBlur，在聚焦、视口布局、内容高度及 keyboardDidShow 后重新检查。仅在被遮挡时做最小滚动，失焦/卸载使旧回调失效。`FocusVisibleAction` 标记滚动内容中的主要按钮（包括位于输入上方的保存，上下沿一起测量）；输入与按钮能同时容纳时一并显示，极小视口优先输入、按钮仍可滚动到达。固定 footer 位于滚动视口之外，不叠加键盘高度。
-- 已接入：资料昵称/签名、修改密码、服务器地址检查、Lux 登录/注册、LX 旧登录、管理员用户搜索，以及一起听邀请码。资料编辑的保存移到滚动区外的「编辑资料」标题行右侧，复用 28 可见 / 44 点击区的 IconButton 勾按钮及原 account_save 三语标签；无改动/保存中禁用，保存中加载。返回、刊头和标题随该标题行固定在表单上方，删除底部固定保存区。固定勾按钮不注册 FocusVisibleAction，焦点滚动无需露出它；其他页面原有提交位置保持。复用的独立登录/引导表单也获得焦点滚动能力。表单使用 `keyboardShouldPersistTaps="handled"`，包括管理员用户搜索。
+- 已接入：修改密码、服务器地址检查、Lux 登录/注册、LX 旧登录、管理员用户搜索，以及一起听邀请码。账号昵称／签名从三级表单移到单项 MagazineSheet，输入／保存可见和返回规则由上文账号 B 面板协议维护；旧「编辑资料」固定标题勾保存已移除。其他页面原有提交位置保持。复用的独立登录/引导表单也获得焦点滚动能力。表单使用 `keyboardShouldPersistTaps="handled"`，包括管理员用户搜索。
 - 全局搜索与歌单在线搜索遵循同一自动隐藏设置，不再因处于搜索模式强制保留 Dock；搜索与列表空间使用实际可见高度。其他既有显式保留请求仍通过 `setKeepPlayBarOnKeyboard` 通知主壳，本次不重构全局布尔值的并发所有权。
 - 收键盘后恢复 Dock 和原页面范围，保留草稿与合理滚动位置，不重播页面过渡。IME 可见时 Android 系统返回先由系统关闭键盘，再次返回沿既有逐层逻辑；提交期间的保护不变。
 - `scripts/ime-layout.src-test.mjs` 覆盖显隐组合、保留播放条、测量恢复、最小滚动、按钮可见、极小视口与 blur/unmount 清理。静态/模拟测试不能替代 Android resize、边到边 IME、候选栏变化、大字体、手势/三键导航及快速开合的真机验证。
-- MagDialog、PromptDialog、ConfirmAlert、MagazineSheet（原生 Modal 与 inline 的自身缩高逻辑）及横屏全屏输入法是后续单独问题，本次不调整其窗口/避让策略。临时原生 Modal / 系统选图仍可能遮住底栏。
+- MagDialog、PromptDialog、ConfirmAlert、MagazineSheet 的其他调用方（原生 Modal 与 inline 的自身缩高逻辑）及横屏全屏输入法保留现有窗口／避让策略；账号单项面板按上文单独接入输入／保存可见性。临时原生 Modal / 系统选图允许覆盖底栏。
 
 ## 点击与按压
 
@@ -133,6 +159,10 @@ Android 系统返回键、系统边缘返回手势最终通过 `hardwareBackPres
 `MagazineSheet.tsx` 已有公共协议：底部 panelH → 0 打开、反向关闭，220ms，`Easing.out(Easing.cubic)`，mask 同步渐变；关闭保留内容到动画结束；点遮罩、关闭按钮和原生 Modal 的系统返回都调用 requestClose。它没有实现下拉跟手关闭。inlineBottomInset 模式使用应用内 View，不自动注册 Modal 返回，调用方负责。
 
 `MagDialog.tsx` 使用原生 Modal 的 fade，按钮/遮罩关闭与 onRequestClose 汇入 onClose，动画时长/曲线由平台控制，没有应用内统一参数。输入键盘相关让位保留组件现状。
+
+- 弹窗内长内容必须置于有界的 ScrollView / FlatList 中并可上下滚动；`VersionModal.tsx` 的更新日志保留 `ScrollView`、`maxHeight: 220` 与 `nestedScrollEnabled`。
+- `MagDialog` 的背景点击层与普通 View 卡片必须为兄弟节点，背景绝对填充，卡片绘制在背景之上；卡片不得用 Touchable / Pressable（包括空 onPress）包裹来阻止穿透，也不得捕获子内容的滚动或输入手势。卡片保留原生 View（`collapsable={false}`），点击卡片空白处不关闭。
+- 点击卡片外仅在 `bgHide=true` 时调用 onClose；`bgHide=false` 时仍阻挡底页触摸但不关闭。embedded 与原生 Modal 共用相同内容结构；embedded 返回继续由宿主处理，原生 Modal 保留 `onRequestClose={onClose}`，不以 bgHide 限制系统返回。按钮各自的回调、禁用态、尺寸、位置、圆角、遮罩色与动画保持现状。源码守护见 `scripts/dialog-scroll.src-test.mjs`；Android 长日志滚动、输入、遮罩和返回仍需真机确认。
 
 **待统一**：`common/Modal.tsx`、ChoosePath 和自定义源导入弹层等历史组件仍有各自的 fade、返回与文件授权处理；未迁移为 MagazineSheet。原生选择器/图片裁切由系统决定过渡。它们不应作为新整页的实现范本。
 
@@ -250,6 +280,6 @@ L1 页面规则：
 - 认证阶段可显式取消，迟到响应不得准备空间/提交身份；空间准备与提交临界区不可取消。失败保留 Gate 与原数据，不跳 Main。成功、取消和离线查看均保持暂停，不自动播放/入房/恢复下载。
 - 全部输入使用 FocusVisibleScrollView/Action；Android 只用系统 resize，不重复减键盘高度；iOS 沿 KeyboardAvoidingView padding。返回期间保持祖先不透明，隐藏页不抢系统返回。注册提交也参与焦点动作可见性。
 
-竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行；首尾缺句留空，当前句附加文字按翻译 / 罗马音开关预留固定槽位。active 与 before.active 均为 true、同一歌词数组引用、index 恰为 before.index+1 且前后两句存在时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；不满足该条件（含倒退、跨多句、歌词数组替换、active=false 或此前 inactive、句子不存在）则直接定位并停止旧动画。**已知现状（v0.5.3，June 接受）：向前拖动刚好跨一句时会播动画；从后台返回若只前进一句也可能播动画。** LyricPreview 没有 seek / AppState 抑制条件；active 来自详情页 visible 与播放 Tab 选中状态，AppState 仅管理常亮，nativeActive 只用于 backActive，不能视为系统前台标志。整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。唱片直径沿用三行改动前的 124 歌词预算；预览实际高度独立于预算，播放页歌词末尾 spacer 为 0；仅播放页传 `PlayerTransport.seekOverlapTop=21`（默认 0），面板以负 marginTop 21 与滚动区相叠，375 基准下，当前紧凑 SecondaryButton 高 28（不是旧描述假设的 36），44 高操作行下沿至胶囊底为 8，可见胶囊底边到轨道约 `8 + 0 + 8 + 21 − 21 = 16`（源码布局推算，非真机像素实测；胶囊内联高度不走 createStyle，其他屏宽按实际布局计算）。SeekBar 保持 44 高与原拖动逻辑；滚动区 zIndex 2 高于上叠面板的 1，交叠顶部约 13 优先响应译 / 音胶囊和进入歌词提示，避免误 seek；轨道及其下方仍可点拖，交叠部分无法同时作为 seek 命中区，这是 June 接受的取舍。歌词 Tab 不传参数，进度条位置、外观和命中区不变。唱片间距预算由 66 减到 48，播放滚动视口增加 21，唱片不会比 dev.22 缩小；剩余高度只按 2:1 分给唱片上 / 下空隙；不足时保持各块完整并沿用 ScrollView 滚动，PlayerTransport 固定在滚动区外。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`、`player-vertical-spacing.src-test.mjs`。
+竖屏播放 Tab 唱片下方的歌词预览（`components/lyric/LyricPreview.tsx`）为上一句 / 居中当前句 / 下一句三行，首尾缺句留空。June 于 **2026-11-12** 批准「歌词字号随译文/音译自适应」（B 号），解决真机反馈歌手行与第一句歌词空隙过大：原邻句高22 / 字号14、当前句高28 / 字号19，0/1/2附加行时总高124/142/160，槽顶空36/18/0。现 `LYRIC_TIERS` 按当前句实际显示的译文/音译行数分档（开关开启且该句有文字）：0行邻句32/17、当前44/24；1行邻句27/16、当前36/22；2行邻句22/14、当前28/19。高度为375基准设计单位（基准dp），字号为Text.size设计值。公式依次为 `32+44+32+0×18+8+44=160`、`27+36+27+1×18+8+44=160`、`22+28+22+2×18+8+44=160`；附加行18高/13号，操作行上距8/最小高44。`LYRIC_LINES_HEIGHT=108` 加操作区恒为160；不再为当前句缺失的附加文字留空行，整份歌词可用性仍控制胶囊禁用。切歌、换句或译/音切换改变实际行数时，字号/行高与附加行高度共用 `LYRIC_RESIZE_MS=200`、out(cubic)、JS driver 的槽内短过渡；快速重切从当前帧继续，卸载清理监听及动画。缩放后当前句高度由固定108视口减去其它行求得，避免取整溢出；视口保持裁切，长歌词单行截断。三句歌词及附加行在槽内变化；译/音操作行、槽外所有位置不动；没有删除入口或按钮，关闭/缺失的附加行空间分给三句歌词。active 与 before.active 均为 true、同一歌词数组引用、index 恰为 before.index+1 且前后两句存在时，Animated native driver 以 280ms、`Easing.out(Easing.cubic)` 做上移与透明度交叉过渡，只动画 transform / opacity；不满足该条件（含倒退、跨多句、歌词数组替换、active=false 或此前 inactive、句子不存在）则直接定位并停止旧动画。**已知现状（v0.5.3，June 接受）：向前拖动刚好跨一句时会播动画；从后台返回若只前进一句也可能播动画。** LyricPreview 没有 seek / AppState 抑制条件；active 来自详情页 visible 与播放 Tab 选中状态，AppState 仅管理常亮，nativeActive 只用于 backActive，不能视为系统前台标志。有歌词时整块与「进入歌词」仍切到歌词 Tab，两个胶囊独立切换；歌词 Tab、共享控制行及播放详情整页进出动画保持原实现。June 于 **2026-11-10** 已批准「歌词预览区恒定占位，切歌时布局不跳」：`Pic.tsx` 的唱片预算无条件包含历史 `PLAYER_RESERVED_LYRIC=124`，不随歌词加载状态改变；实际 `lyricPreviewSlot` 恒定保留完整 160 设计高度（含两种附加文字和译 / 音操作行），flexShrink=0，有歌词时底部对齐，确保操作行位置稳定；2026-11-12 批准的字号过渡仅在槽内进行，总高恒为160。加载中 / 无歌词时保留同高空白，不渲染歌词点击入口及译 / 音控件；歌词到达后在原容器内显示内容。June 于 **2026-11-11** 已确认按真机反馈「歌词偏下，只缩小歌名/歌手与歌词间距」：`Pic.tsx` 的 `flexGapTitle.minHeight` 从 18 降到 8 设计单位（375 基准下为 dp），`lyricPreviewSlot.marginBottom` 从 0 增至 10 设计单位；歌词整体上移 10，总占位不变，唱片及歌名位置、进度条和控制区不变，恒高 160 及空歌词占位规则保持。预览实际高度独立于预算，播放页歌词末尾 spacer 为 0；仅播放页传 `PlayerTransport.seekOverlapTop=21`（默认 0），面板以负 marginTop 21 与滚动区相叠，375 基准下，当前紧凑 SecondaryButton 高 28（不是旧描述假设的 36），44 高操作行下沿至胶囊底为 8，可见胶囊底边到轨道约 `8 + 10 + 0 + 8 + 21 − 21 = 26`（含预览底部 margin 10，原为 16）（源码布局推算，非真机像素实测；胶囊内联高度不走 createStyle，其他屏宽按实际布局计算）。SeekBar 保持 44 高与原拖动逻辑；滚动区 zIndex 2 高于上叠面板的 1，交叠顶部约 13 优先响应译 / 音胶囊和进入歌词提示，避免误 seek；轨道及其下方仍可点拖，交叠部分无法同时作为 seek 命中区，这是 June 接受的取舍。歌词 Tab 不传参数，进度条位置、外观和命中区不变。唱片间距预算由 66 减到 48，播放滚动视口增加 21，唱片不会比 dev.22 缩小；剩余高度只按 2:1 分给唱片上 / 下空隙；不足时保持各块完整并沿用 ScrollView 滚动，PlayerTransport 固定在滚动区外。源码回归见 `scripts/player-lyric-3lines.src-test.mjs`、`player-vertical-spacing.src-test.mjs`。
 
 以上播放详情相关交互按 2026-11-03（北京时间）核对的 v0.5.3 源码锁定，改动前须先经 June 确认；完整数值、#158 / #162 / #164–#169 来源及已知现状见 [播放详情页定稿规则](design-system-magazine.md#播放详情页定稿规则以-v053-为准不可回退)，统一守护见 `scripts/player-locked-rules.src-test.mjs`。

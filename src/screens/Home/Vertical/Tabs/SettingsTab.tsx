@@ -1,3 +1,5 @@
+import { exportDiagnosticsLog } from '@/utils/perfDiagnostics/lifecycle'
+import { useRenderCount } from '@/utils/perfDiagnostics/useRenderCount'
 import { confirmDialog, clipboardWriteText, createStyle, openUrl, tipDialog, toast } from '@/utils/tools'
 import {
   TextButton,
@@ -101,6 +103,8 @@ const languageOptions = [
 const searchSourceOptionValues = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'] as const
 
 export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } = {}) => {
+  useRenderCount('SettingsTab')
+  const perfDiagnostics = useSettingValue('debug.perfDiagnostics')
   const styles = useLuxStyles()
   const { colors, id: luxThemeId, setLuxTheme, mode: luxColorMode } = useLuxTheme()
   const r = magazineRoles(colors)
@@ -481,6 +485,9 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
     t('together_readiness_copy_settings'),
   )
   const showAboutSection = matchesSettingsSearch(
+    t('setting_perf_diagnostics'),
+    t('setting_perf_diagnostics_desc'),
+    t('setting_perf_export'),
     t('setting_about'),
     'GitHub Releases',
     aboutStatusText,
@@ -1013,6 +1020,15 @@ export default ({ bottomDockHeight: dockHeight }: { bottomDockHeight?: number } 
               <SectionHeader title={t('setting_about')} meta={t('settings_meta_about')} showRule ruleGap={SETTINGS_SECTION_GAP} headGap={SETTINGS_SECTION_HEAD_GAP} />
               <SettingRow icon="information-outline" iconBg={r.iconWrap.amber} title={t('version_label_current_ver')} subtitle={currentVersionLabel} onPress={handleOpenChangelog} />
               <SettingRow icon="update" iconBg={r.iconWrap.amber} title={t('version_btn_check_update')} subtitle={aboutStatusText} onPress={handleCheckUpdate} />
+              <SettingRow
+                icon="speedometer" iconBg={r.iconWrap.amber}
+                title={t('setting_perf_diagnostics')}
+                value={perfDiagnostics ? t('together_debug_on') : t('together_debug_off')}
+                onPress={() => { updateSetting({ 'debug.perfDiagnostics': !perfDiagnostics }) }}
+              />
+              <Text size={12} color={r.muted}>{t('setting_perf_diagnostics_desc')}</Text>
+              <SettingRow icon="file-export-outline" iconBg={r.iconWrap.amber} title={t('setting_perf_export')}
+                onPress={() => { void exportDiagnosticsLog().catch(() => { toast(t('setting_perf_export_failed'), 'long') }) }} />
               <SettingRow icon="github" iconBg={r.iconWrap.amber} title="GitHub Releases" onPress={handleOpenReleasePage} last />
             </View>
             )

@@ -1,3 +1,4 @@
+import { useRenderCount } from '@/utils/perfDiagnostics/useRenderCount'
 /* Modified by Lux Music: derived from the upstream LX Music Mobile source file. This file remains under Apache-2.0. See LICENSE-NOTICE.md. */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -29,6 +30,7 @@ export default memo(({
   /** A native stack screen covered by another page must not consume back. */
   backActive?: boolean
 }) => {
+  useRenderCount('PlayDetail')
   const styles = useLuxStyles()
   const { colors } = useLuxTheme()
   const r = magazineRoles(colors)

@@ -1,5 +1,6 @@
 /* Lux Proprietary: repository-original source file. See LICENSE-NOTICE.md and PROPRIETARY_FILES.md. */
 
+import { perfEnabled, beginOperation, endOperation, registerRecordCount } from '@/utils/perfDiagnostics'
 import { getActiveSpace, storageKey, onDataSpaceChanged } from '@/utils/dataSpace'
 import { storageDataPrefix } from '@/config/constant'
 import { getData, saveData } from '@/plugins/storage'
@@ -11,6 +12,7 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 let records: PlayRecord[] = []
+registerRecordCount(() => records.length)
 let deviceId = ''
 let cursor: PlayHistoryCursor | null = null
 let loaded = false
@@ -83,9 +85,11 @@ export const loadPlayHistoryStore = async(): Promise<void> => {
 export const playHistoryStoreReady = (): boolean => loaded
 
 export const upsertPlayRecord = (record: PlayRecord): void => {
+  const perfStart = perfEnabled ? beginOperation() : undefined
   records = mergePlayRecords(records, [record])
   notify()
   schedulePersist()
+  if (perfStart) endOperation('upsertPlayRecord', perfStart, 0, records.length)
 }
 
 export const replacePlayRecords = async(next: readonly PlayRecord[]): Promise<void> => {

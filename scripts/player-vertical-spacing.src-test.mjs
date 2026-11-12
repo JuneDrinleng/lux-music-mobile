@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import ts from 'typescript'
 
 const pic = readFileSync(new URL('../src/screens/PlayDetail/Vertical/Pic.tsx', import.meta.url), 'utf8')
 const transport = readFileSync(new URL('../src/screens/PlayDetail/Vertical/PlayerTransport.tsx', import.meta.url), 'utf8')
@@ -23,7 +24,7 @@ test('vertical player shares spare height only around the record and removes the
   for (const [name, grow, min] of [
     ['flexGapSm', 2, 24],
     ['flexGapRecord', 1, 30],
-    ['flexGapTitle', 0, 18],
+    ['flexGapTitle', 0, 8],
     ['flexGapLyric', 0, 0],
   ]) {
     const gap = style(name)
@@ -81,4 +82,85 @@ test('only play opts into seek overlap; lyric keeps the default transport layout
   assert.equal(trackTop - pillBottom, 12)
   assert.equal(actionBottom - seekTop, 13, 'document the overlap that prioritizes actions')
   assert.ok(trackTop > actionBottom, 'the visible rail remains clear of the scroll hit region')
+})
+
+
+test('June 2026-11-10: disc size is independent of loading, empty and populated lyrics', () => {
+  const body = pic.match(/const discSize = useMemo\(\(\) => \{([\s\S]*?)\n {2}\},/)[1]
+  assert.doesNotMatch(body, /hasLyricPreview|lyricLines/)
+  assert.match(pic, /\}, \[scrollHeight, winSize.width\]\)/)
+  const constants = Object.fromEntries(['PLAYER_RESERVED_ABOVE', 'PLAYER_RESERVED_TITLE', 'PLAYER_RESERVED_LYRIC', 'PLAYER_RESERVED_GAPS', 'PLAYER_DISC_MIN'].map(name => [name, constant(name)]))
+  for (const width of [320, 375, 412]) {
+    for (const scrollHeight of [0, 445, 560, 678]) {
+      const sizes = [false, true].flatMap(hasLyricPreview => [[], [{ text: 'loaded' }]].map(lyricLines => runInNewContext(`(() => {${body}})()`, {
+        ...constants, PAGE_GUTTER: 22, winSize: { width }, scrollHeight, hasLyricPreview, lyricLines,
+      })))
+      assert.ok(sizes.every(size => size === sizes[0]), `${width} / ${scrollHeight}`)
+    }
+  }
+})
+
+test('preview JSX always renders a full nonshrinking slot; empty lyrics have no click target', () => {
+  const slot = style('lyricPreviewSlot')
+  assert.equal(slot.height, 22 + 28 + 22 + 18 + 18 + 8 + 44)
+  assert.equal(slot.flexShrink, 0)
+  assert.equal(slot.justifyContent, 'flex-end', 'keep actions at the bottom when extras change')
+  const jsx = pic.match(/<View style=\{styles.lyricPreviewSlot\}>[\s\S]*?<\/View>/)?.[0]
+  assert.ok(jsx, 'the slot wraps the conditional content, not the other way around')
+  const output = ts.transpileModule(`const slot = (${jsx})`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, jsxFactory: 'element' },
+  }).outputText
+  const availability = pic.match(/const currentLyric = [\s\S]*?const hasLyricPreview = [^\n]+/)[0]
+  for (const [lyricLines, line, visible] of [
+    [[], 0, false], [[], -1, false], [[{ text: '' }], 0, false],
+    [[{ text: 'current' }], 0, true], [[{ text: 'previous' }, { text: '' }], 1, true],
+    [[{ text: '' }, { text: 'next' }], 0, true],
+    [[{ text: 'extras', translation: 'translation', roma: 'roma' }], 0, true],
+  ]) {
+    const onLyricPress = () => assert.fail('render must not trigger navigation')
+    const tree = runInNewContext(`${availability}\n${output}\nslot`, {
+      styles: { lyricPreviewSlot: slot },
+      lyricLines,
+      line,
+      active: true,
+      onLyricPress,
+      View: 'View',
+      LyricPreview: 'LyricPreview',
+      element: (type, props, ...children) => ({ type, props, children }),
+    })
+    assert.equal(tree.type, 'View')
+    assert.equal(tree.props.style.height, 160, 'same full slot in every lyric state')
+    assert.equal(tree.props.onPress, undefined)
+    const content = tree.children[0]
+    if (visible) {
+      assert.equal(content.type, 'LyricPreview')
+      assert.equal(content.props.lines, lyricLines)
+      assert.equal(content.props.onPress, onLyricPress)
+    } else assert.equal(content, null, 'blank slot has no preview, capsules or navigation')
+  }
+})
+
+
+test('June 2026-11-11: lyrics move up 10dp while total layout and disc budget stay unchanged', () => {
+  const gap = style('flexGapTitle')
+  const slot = style('lyricPreviewSlot')
+  assert.equal(slot.marginBottom, 10)
+  assert.equal(gap.minHeight + slot.marginBottom, 18, 'preserve total occupied height and record flex gaps')
+  assert.equal(constant('PLAYER_RESERVED_GAPS'), 30 + gap.minHeight + slot.marginBottom)
+  for (const spareHeight of [0, 30, 120]) {
+    const titleBottom = 48 + 250 + 30 + 90 + spareHeight
+    const oldPreviewTop = titleBottom + 18
+    const previewTop = titleBottom + gap.minHeight
+    assert.equal(oldPreviewTop - previewTop, 10)
+    assert.equal(previewTop + slot.height + slot.marginBottom, oldPreviewTop + 160, 'transport boundary unchanged')
+  }
+})
+
+test('June 2026-11-12: each actual-extra tier keeps the slot and transport boundary at 160dp', () => {
+  const slot = style('lyricPreviewSlot')
+  assert.equal(slot.height, 160)
+  for (const [neighbor, current, extras] of [[32, 44, 0], [27, 36, 1], [22, 28, 2]]) {
+    assert.equal(neighbor * 2 + current + extras * 18 + 8 + 44, slot.height)
+    assert.equal(style('flexGapTitle').minHeight + slot.height + slot.marginBottom, 178)
+  }
 })

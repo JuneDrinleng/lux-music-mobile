@@ -103,6 +103,8 @@ export const initSetting = async() => {
     }
   }
 
+  if (setting) setting['debug.perfDiagnostics'] = setting['debug.perfDiagnostics'] === true
+
   // console.log(setting)
   const updatedSetting = updateSetting(setting, true)
   void saveData(storageDataPrefix.setting, updatedSetting.setting)

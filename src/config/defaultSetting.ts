@@ -2,6 +2,7 @@
 
 const defaultSetting: LX.AppSetting = {
   version: '2.0',
+  'debug.perfDiagnostics': false,
   'common.isAutoTheme': false,
   'common.langId': null,
   'together.roomLayout': '6A',
