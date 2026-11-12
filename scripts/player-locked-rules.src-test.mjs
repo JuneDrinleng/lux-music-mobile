@@ -74,12 +74,13 @@ test('June 定稿：月亮按完整倒计时宽度碰撞收起，无固定屏宽
 })
 
 test('June 定稿：纵向剩余高度只按2比1分给唱片上下', () => {
-  for (const [name, min, grow] of [['flexGapSm', 24, 2], ['flexGapRecord', 30, 1], ['flexGapTitle', 18, 0], ['flexGapLyric', 0, 0]]) {
+  for (const [name, min, grow] of [['flexGapSm', 24, 2], ['flexGapRecord', 30, 1], ['flexGapTitle', 8, 0], ['flexGapLyric', 0, 0]]) {
     const gap = style(pic, name)
     has(gap, new RegExp(`minHeight: ${min}\\b`), `${name} minHeight`)
     has(gap, new RegExp(`flexGrow: ${grow}\\b`), `${name} flexGrow`)
     has(gap, /flexShrink: 0/, `${name} 不收缩`)
   }
+  has(style(pic, 'lyricPreviewSlot'), /marginBottom: 10\b/, 'June 2026-11-11：标题间距18→8，底部补偿10，唱片与控制区不移位')
   has(style(pic, 'scrollContent'), /flexGrow: 1/, '滚动内容填充')
   has(pic, /<\/ScrollView>\s*<PlayerTransport/, '控制区固定在滚动区外')
 })
@@ -108,7 +109,7 @@ test('June 定稿：仅播放页上叠21，顶部触摸条带让给译音胶囊'
   has(seek, /const TRACK_H = 2\s*\nconst FILL_H = 4/, '轨道和已播高度')
   has(vertical('playerTransportLayout.ts'), /paddingTop: 8/, '面板顶部留白')
   has(style(preview, 'actions'), /minHeight: 44/, '胶囊操作行')
-  has(read('src/components/magazine/SecondaryButton.tsx'), /height: compact \? 28 : 44/, '紧凑胶囊实际高28，基准可见空白约16')
+  has(read('src/components/magazine/SecondaryButton.tsx'), /height: compact \? 28 : 44/, '紧凑胶囊实际高28，计入预览底部margin后基准可见空白约26')
 })
 
 test('June 定稿：迷你歌词固定三行与附加槽位，280ms native上移交叉淡化', () => {

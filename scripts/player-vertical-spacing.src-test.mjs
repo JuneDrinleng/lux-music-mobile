@@ -24,7 +24,7 @@ test('vertical player shares spare height only around the record and removes the
   for (const [name, grow, min] of [
     ['flexGapSm', 2, 24],
     ['flexGapRecord', 1, 30],
-    ['flexGapTitle', 0, 18],
+    ['flexGapTitle', 0, 8],
     ['flexGapLyric', 0, 0],
   ]) {
     const gap = style(name)
@@ -137,5 +137,21 @@ test('preview JSX always renders a full nonshrinking slot; empty lyrics have no 
       assert.equal(content.props.lines, lyricLines)
       assert.equal(content.props.onPress, onLyricPress)
     } else assert.equal(content, null, 'blank slot has no preview, capsules or navigation')
+  }
+})
+
+
+test('June 2026-11-11: lyrics move up 10dp while total layout and disc budget stay unchanged', () => {
+  const gap = style('flexGapTitle')
+  const slot = style('lyricPreviewSlot')
+  assert.equal(slot.marginBottom, 10)
+  assert.equal(gap.minHeight + slot.marginBottom, 18, 'preserve total occupied height and record flex gaps')
+  assert.equal(constant('PLAYER_RESERVED_GAPS'), 30 + gap.minHeight + slot.marginBottom)
+  for (const spareHeight of [0, 30, 120]) {
+    const titleBottom = 48 + 250 + 30 + 90 + spareHeight
+    const oldPreviewTop = titleBottom + 18
+    const previewTop = titleBottom + gap.minHeight
+    assert.equal(oldPreviewTop - previewTop, 10)
+    assert.equal(previewTop + slot.height + slot.marginBottom, oldPreviewTop + 160, 'transport boundary unchanged')
   }
 })
