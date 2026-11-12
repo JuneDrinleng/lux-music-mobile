@@ -155,3 +155,12 @@ test('June 2026-11-11: lyrics move up 10dp while total layout and disc budget st
     assert.equal(previewTop + slot.height + slot.marginBottom, oldPreviewTop + 160, 'transport boundary unchanged')
   }
 })
+
+test('June 2026-11-12: each actual-extra tier keeps the slot and transport boundary at 160dp', () => {
+  const slot = style('lyricPreviewSlot')
+  assert.equal(slot.height, 160)
+  for (const [neighbor, current, extras] of [[32, 44, 0], [27, 36, 1], [22, 28, 2]]) {
+    assert.equal(neighbor * 2 + current + extras * 18 + 8 + 44, slot.height)
+    assert.equal(style('flexGapTitle').minHeight + slot.height + slot.marginBottom, 178)
+  }
+})
