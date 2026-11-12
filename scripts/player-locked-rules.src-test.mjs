@@ -112,14 +112,22 @@ test('June 定稿：仅播放页上叠21，顶部触摸条带让给译音胶囊'
   has(read('src/components/magazine/SecondaryButton.tsx'), /height: compact \? 28 : 44/, '紧凑胶囊实际高28，计入预览底部margin后基准可见空白约26')
 })
 
-test('June 定稿：迷你歌词固定三行与附加槽位，280ms native上移交叉淡化', () => {
-  for (const [name, height] of [['neighbor', 22], ['currentSlot', 28], ['extra', 18]]) has(style(preview, name), new RegExp(`height: ${height}\\b`), name)
+test('June 定稿：迷你歌词三档自适应与实际附加行，280ms native上移交叉淡化', () => {
+  has(style(preview, 'extra'), /height: 18\b/, '附加行高18')
+  for (const values of [[32, 44, 17, 24], [27, 36, 16, 22], [22, 28, 14, 19]]) {
+    const [neighborHeight, currentHeight, neighborSize, currentSize] = values
+    has(preview, new RegExp(`neighborHeight: ${neighborHeight}, currentHeight: ${currentHeight}, neighborSize: ${neighborSize}, currentSize: ${currentSize}`), 'June 2026-11-12批准三档')
+  }
   has(preview, /previousLine\?\.text \?\? ''/, '缺上一句留空')
   has(preview, /next\?\.text \?\? ''/, '缺下一句留空')
-  has(preview, /<KaraokeLine line=\{current\} size=\{19\} style=\{styles.current\} active=\{active\} singleLine/, '当前句19单行逐字高亮')
+  has(preview, /<KaraokeLine line=\{current\} size=\{currentSize\} style=\{styles.current\} active=\{active\} singleLine/, '当前句自适应字号单行逐字高亮')
   has(style(preview, 'current'), /fontWeight: '800'/, '当前句800')
-  assert.equal((preview.match(/<Text size=\{14\} color=\{r.faint\} numberOfLines=\{1\}/g) || []).length, 2, warning)
-  has(preview, /Number\(translation && available.translation\) \+ Number\(roma && available.roma\)/, '按数组可用性固定附加槽位')
+  assert.equal((preview.match(/<Text size=\{neighborSize\} color=\{r.faint\} numberOfLines=\{1\}/g) || []).length, 2, warning)
+  has(preview, /Number\(showTranslation\) \+ Number\(showRoma\)/, '按当前句实际显示行计数')
+  has(preview, /Boolean\(translation && lines\[index\]\?\.translation\)/, '当前句译文及开关')
+  has(preview, /Boolean\(roma && lines\[index\]\?\.roma\)/, '当前句音译及开关')
+  has(preview, /const LYRIC_RESIZE_MS = 200/, '字号行高短过渡')
+  has(preview, /const LYRIC_LINES_HEIGHT = 108/, '三句加附加行恒高108，含操作区160')
   has(preview, /duration: 280,\s*easing: Easing.out\(Easing.cubic\),\s*useNativeDriver: true/, '换句动画参数')
   has(preview, /outputRange: \[1, 0\]/, '旧层淡出')
   has(preview, /outputRange: \[0, -step\]/, '旧层上移')

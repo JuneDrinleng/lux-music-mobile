@@ -395,8 +395,19 @@
    `scrollContent.flexGrow=1`，剩余高度只按 **2:1** 分给唱片上下空隙；不足时保留最小间距和内容，沿用 ScrollView 滚动。PlayerTransport 固定在 ScrollView 外。
 4. **唱片尺寸预算（#167 / #168 / #169）。** 同一 `Pic.tsx`：`PLAYER_RESERVED_ABOVE=48`（眉题上距 10 + 名义行高 14 + 上间隙 24）、`PLAYER_RESERVED_TITLE=90`、`PLAYER_RESERVED_LYRIC=124`、`PLAYER_RESERVED_GAPS=30+18+0=48`（历史预算表达式保留；现实际为唱片下距 30 + 标题间距 8 + 预览底部 margin 10）、`PLAYER_DISC_MIN=200`。宽预算 `width - PAGE_GUTTER * 2 - 16`（PAGE_GUTTER=22）；高预算为实测 scrollHeight 减 ABOVE、TITLE、无条件包含的 LYRIC、GAPS，未测得高度则用宽预算；直径为 `max(200, min(宽预算, 高预算))`。hasLyricPreview 按上一句 / 当前句 / 下一句任一句文本存在判断，仅决定歌词内容是否渲染，不参与尺寸预算。June 于 **2026-11-10** 已批准「歌词预览区恒定占位，切歌时布局不跳」：`lyricPreviewSlot` 始终保留完整 **160** 设计高度（22+28+22+18+18+8+44），flexShrink=0，有歌词时内容底部对齐；加载中 / 无歌词时整块留空，无歌词点击入口及译 / 音控件。**三行歌词实际高度与历史 124 预算独立，不得把实际最多 160 写入预算再压缩唱片。**
 5. **进度条上叠（#169）。** 仅播放页 `Pic.tsx` 向 `PlayerTransport` 传 **seekOverlapTop={21}**；歌词页 `Lyric.tsx` 不传，默认 **0**。正值生成 `marginTop: -seekOverlapTop, zIndex: 1`；播放页滚动区 **zIndex=2**。`SeekBar.tsx` 保持 **44** 高触摸区、轨道 **2**、已播 **4**，transport paddingTop **8**。375 设计基准下，当前 `SecondaryButton.tsx` 紧凑胶囊高 **28**（组件内字面量，非 36），居中于 44 操作行，底部留 8；可见胶囊底→轨道空白约 **8 + 10 + 0 + 8 + (44-2)/2 - 21 = 26**（含 2026-11-11 新增的预览底部 margin 10，原为 16）。触摸区顶部约 **21-8=13** 被滚动区优先接收，留给「译 / 音」胶囊与进入歌词提示，该条带不能同时拖动进度；**这是 June 接受的取舍**。轨道与下方仍可点拖，歌词页不启用此上叠。这是源码布局的基准推算，并非真机像素实测；createStyle 样式随屏宽缩放，SecondaryButton 内联高度 28 不走 createStyle，其他屏宽下须按实际布局计算。旧规范及 #170 的约 12 使用了胶囊高 36 的假设，现有 player-vertical-spacing 测试也只用该假设做算术，并未读取胶囊源码；本次保留旧测试，由新增守护检查真实胶囊高度。
-6. **三行迷你歌词（#166）。** `src/components/lyric/LyricPreview.tsx` 固定上一句 / 当前句 / 下一句，槽位 **22 / 28 / 22**；邻句 **14 / faint / 单行省略**，缺句为空串留位；当前句 **KaraokeLine 19 / 800** 逐字高亮、单行。翻译默认开、罗马音默认关；按整份歌词数组的可用性与开关各预留 **18** 高、**13** 号附加槽，当前句缺附加文字仍留空，不随换句抖动；操作行 marginTop **8**、minHeight **44**，最大预览总高 **22+28+22+18+18+8+44=160**。整块与提示点击进入歌词 Tab，两胶囊独立切换。
-   每次 effect 先停止旧动画；**只有 `active && before.active && before.lines === lines && index === before.index + 1` 且前后两句存在才播放换句动画**。动画 **280ms / Easing.out(Easing.cubic) / useNativeDriver=true**，只变 transform/opacity：旧层上移 25 并淡出，新层从 `25 + extraHeight` 上移到 0 并淡入（25 是缩放后 22 与 28 的均值）。其他情况（倒退、跨多句、数组引用变化、active=false 或此前 inactive、句子不存在）清 outgoing 并直接定位。
+6. **三行迷你歌词（#166；June 2026-11-12 批准「歌词字号随译文/音译自适应」）。** 真机反馈歌手行与第一句歌词空隙过大：原邻句高 22 / 字号 14，当前句高 28 / 字号 19；0 / 1 / 2 附加行时内容总高为 124 / 142 / 160，未用的 36 / 18 留在槽顶。现在按**当前句实际显示**的附加行计数（翻译开且该句有译文、音译开且该句有音译），不再按整份数组可用性留空行；数组可用性仍控制胶囊禁用状态。翻译默认开、罗马音默认关。
+
+   `LyricPreview.tsx` 的 `LYRIC_TIERS` 三档如下（高度为 375 基准设计单位，即基准 dp；字号为 Text.size 设计值，经 setSpText 缩放）：
+
+   | extra 行数 | 邻句高 / 字号 | 当前句高 / 字号 | 完整槽公式 |
+   | --- | --- | --- | --- |
+   | 0 | 32 / 17 | 44 / 24 | 32+44+32+0×18+8+44=160 |
+   | 1 | 27 / 16 | 36 / 22 | 27+36+27+1×18+8+44=160 |
+   | 2 | 22 / 14 | 28 / 19 | 22+28+22+2×18+8+44=160 |
+
+   附加行保持 18 高 / 字号 13，操作行 marginTop=8、minHeight=44。`LYRIC_LINES_HEIGHT=108` 恒定，含操作区总高 160；邻句 faint、当前句 KaraokeLine 800，均单行省略，缺邻句留空。字号及行高、附加行展开/收起共用 `LYRIC_RESIZE_MS=200`、out(cubic)、JS driver 的短过渡；只在该 200ms 内更新数值，快速重切从当前帧继续，卸载停止动画并移除监听。按缩放后的 108 减去邻句与附加行计算当前句高度，避免各行取整误差撑出槽；视口裁切。三句歌词与附加行可在槽内移动，译/音操作行不移动；槽高、#181 外边距 8 / 槽下 marginBottom 10、黑胶、歌名块、进度条、底部控制区及所有 PLAYER_RESERVED_* 均不变。加载中 / 无歌词仍留空且不可点击。没有删除入口或按钮；当前句缺失或关闭的附加文字不占附加行，其空间分给三句歌词。
+
+   每次换句 effect 先停止旧动画；**只有 `active && before.active && before.lines === lines && index === before.index + 1` 且前后两句存在才播放换句动画**。动画 **280ms / Easing.out(Easing.cubic) / useNativeDriver=true**，只变 transform/opacity：旧层上移 `step` 并淡出，新层从 `step + extraHeight` 上移到 0 并淡入。`step=(缩放后邻句高度+当前句高度)/2`，三档基准依次为 38 / 31.5 / 25 dp，extraHeight 为过渡中的实际附加行总高。其他情况（倒退、跨多句、数组引用变化、active=false 或此前 inactive、句子不存在）清 outgoing 并直接定位；槽内字号过渡独立保留。
    **已知现状（June 接受）：向前拖动刚好跨一句时也会播放动画；从后台返回若只前进一句，也可能播放动画。** 组件没有 seek 或 AppState 抑制输入；`PlayDetail/index.tsx` 的 visible → `Vertical/index.tsx` 的 `active && pageIndex === 1` → Pic → LyricPreview 才是 active 链路。AppState 监听只管理常亮，nativeActive 仅用于 backActive；不能把源码注释里的 foreground 等同于系统前台，也不能承诺「所有拖动或后台返回都直接跳」。
 
 #### 历史设计记录（非实施待办）
